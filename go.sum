@@ -1079,8 +1079,8 @@ github.com/yvasiyarov/newrelic_platform_go v0.0.0-20140908184405-b21fdbd4370f/go
 gitlab.alibaba-inc.com/cos/unified-resource-api v0.0.3-0.20220322075509-ae82ec79b955/go.mod h1:yHekzAh2JIpKubKJCTYruzqd4WjN0DwBLW9K3foTuNM=
 gitlab.alibaba-inc.com/cos/unified-resource-api v1.22.3-1.0.20220705131219-d0d01381562f h1:ohV0R+dkphs9W4s/NgkZHNSf0uJjO5EgYfVDozl+7x8=
 gitlab.alibaba-inc.com/cos/unified-resource-api v1.22.3-1.0.20220705131219-d0d01381562f/go.mod h1:yHekzAh2JIpKubKJCTYruzqd4WjN0DwBLW9K3foTuNM=
-gitlab.alibaba-inc.com/unischeduler/api v0.0.2-0.20220628072143-477167251083 h1:GP+Tklq8RsImRdcr4mqUelKjya+XQxfH060bXnJvMxw=
-gitlab.alibaba-inc.com/unischeduler/api v0.0.2-0.20220628072143-477167251083/go.mod h1:kmdWWTDSMOna7zBjSbtqWFXsmhDDITjMdrbAaguOFn0=
+gitlab.alibaba-inc.com/unischeduler/api v0.0.2-0.20220727074006-42a6b768012d h1:VeKtvbzhzXhzOmdLMup9rVpYvZ9F/AEzXRisbzPsLQU=
+gitlab.alibaba-inc.com/unischeduler/api v0.0.2-0.20220727074006-42a6b768012d/go.mod h1:kmdWWTDSMOna7zBjSbtqWFXsmhDDITjMdrbAaguOFn0=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.etcd.io/bbolt v1.3.3/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.etcd.io/bbolt v1.3.5/go.mod h1:G5EMThwa9y8QZGBClrRx5EY+Yw9kAhnjy3bSjsnlVTQ=
