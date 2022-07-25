@@ -28,7 +28,7 @@ require (
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.1
-	gitlab.alibaba-inc.com/unischeduler/api v0.0.2-0.20220628072143-477167251083
+	gitlab.alibaba-inc.com/unischeduler/api v0.0.2-0.20220727074006-42a6b768012d
 	go.uber.org/atomic v1.10.0
 	go.uber.org/multierr v1.6.0
 	golang.org/x/crypto v0.1.0
