@@ -16,7 +16,11 @@ limitations under the License.
 
 package extension
 
-import corev1 "k8s.io/api/core/v1"
+import (
+	corev1 "k8s.io/api/core/v1"
+
+	uniext "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/extension"
+)
 
 type QoSClass string
 
@@ -30,7 +34,7 @@ const (
 )
 
 func GetPodQoSClass(pod *corev1.Pod) QoSClass {
-	if pod == nil || pod.Labels == nil {
+	if pod == nil {
 		return QoSNone
 	}
 	return GetQoSClassByAttrs(pod.Labels, pod.Annotations)
@@ -38,7 +42,7 @@ func GetPodQoSClass(pod *corev1.Pod) QoSClass {
 
 func GetQoSClassByAttrs(labels, annotations map[string]string) QoSClass {
 	// annotations are for old format adaption reason
-	if q, exist := labels[LabelPodQoS]; exist {
+	if q, exist := getQoSClassAttr(labels, annotations); exist {
 		return GetPodQoSClassByName(q)
 	}
 	return QoSNone
@@ -53,4 +57,20 @@ func GetPodQoSClassByName(qos string) QoSClass {
 	}
 
 	return QoSNone
+}
+
+// TODO consider using different file for compiling in the future
+func getQoSClassAttr(podLabels, podAnnotations map[string]string) (string, bool) {
+	if podLabels != nil {
+		if qosLabel, exist := podLabels[LabelPodQoS]; exist {
+			return qosLabel, true
+		}
+	}
+	if podAnnotations != nil {
+		if qosAnnotation, exist := podAnnotations[uniext.AnnotationPodQOSClass]; exist {
+			return qosAnnotation, true
+		}
+	}
+
+	return "", false
 }
