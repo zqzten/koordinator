@@ -22,6 +22,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	slov1alpha1 "github.com/koordinator-sh/koordinator/apis/slo/v1alpha1"
+	uniext "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/extension"
 )
 
 const (
@@ -34,7 +35,7 @@ func GetPodCPUBurstConfig(pod *corev1.Pod) (*slov1alpha1.CPUBurstConfig, error) 
 	if pod == nil || pod.Annotations == nil {
 		return nil, nil
 	}
-	annotation, exist := pod.Annotations[AnnotationPodCPUBurst]
+	annotation, exist := getPodCPUBurstAnnotation(pod.Annotations)
 	if !exist {
 		return nil, nil
 	}
@@ -51,7 +52,7 @@ func GetPodMemoryQoSConfig(pod *corev1.Pod) (*slov1alpha1.PodMemoryQOSConfig, er
 	if pod == nil || pod.Annotations == nil {
 		return nil, nil
 	}
-	value, exist := pod.Annotations[AnnotationPodMemoryQoS]
+	value, exist := getPodMemoryQoSAnnotation(pod.Annotations)
 	if !exist {
 		return nil, nil
 	}
@@ -61,4 +62,22 @@ func GetPodMemoryQoSConfig(pod *corev1.Pod) (*slov1alpha1.PodMemoryQOSConfig, er
 		return nil, err
 	}
 	return &cfg, nil
+}
+
+func getPodCPUBurstAnnotation(annotations map[string]string) (string, bool) {
+	if koordCPUBurst, exist := annotations[AnnotationPodCPUBurst]; exist {
+		return koordCPUBurst, true
+	} else if ackCPUBurst, exist := annotations[uniext.AnnotationPodCPUBurst]; exist {
+		return ackCPUBurst, true
+	}
+	return "", false
+}
+
+func getPodMemoryQoSAnnotation(annotations map[string]string) (string, bool) {
+	if koordCPUBurst, exist := annotations[AnnotationPodMemoryQoS]; exist {
+		return koordCPUBurst, true
+	} else if ackCPUBurst, exist := annotations[uniext.AnnotationPodMemoryQOS]; exist {
+		return ackCPUBurst, true
+	}
+	return "", false
 }

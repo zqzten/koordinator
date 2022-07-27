@@ -16,6 +16,10 @@ limitations under the License.
 
 package extension
 
+import (
+	uniext "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/extension"
+)
+
 type QoSClass string
 
 // https://koordinator.sh/docs/architecture/qos/
@@ -37,4 +41,20 @@ func GetPodQoSClassByName(qos string) QoSClass {
 	}
 
 	return QoSNone
+}
+
+// TODO consider using different file for compiling in the future
+func getQoSClassAttr(podLabels, podAnnotations map[string]string) (string, bool) {
+	if podLabels != nil {
+		if qosLabel, exist := podLabels[LabelPodQoS]; exist {
+			return qosLabel, true
+		}
+	}
+	if podAnnotations != nil {
+		if qosAnnotation, exist := podAnnotations[uniext.AnnotationPodQOSClass]; exist {
+			return qosAnnotation, true
+		}
+	}
+
+	return "", false
 }

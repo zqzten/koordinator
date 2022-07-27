@@ -21,7 +21,7 @@ import corev1 "k8s.io/api/core/v1"
 // NOTE: functions in this file can be overwritten for extension
 
 func GetPodQoSClass(pod *corev1.Pod) QoSClass {
-	if pod == nil || pod.Labels == nil {
+	if pod == nil {
 		return QoSNone
 	}
 	return GetQoSClassByAttrs(pod.Labels, pod.Annotations)
@@ -29,7 +29,7 @@ func GetPodQoSClass(pod *corev1.Pod) QoSClass {
 
 func GetQoSClassByAttrs(labels, annotations map[string]string) QoSClass {
 	// annotations are for old format adaption reason
-	if q, exist := labels[LabelPodQoS]; exist {
+	if q, exist := getQoSClassAttr(labels, annotations); exist {
 		return GetPodQoSClassByName(q)
 	}
 	return QoSNone
