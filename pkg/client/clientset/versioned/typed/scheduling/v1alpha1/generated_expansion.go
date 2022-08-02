@@ -20,6 +20,10 @@ package v1alpha1
 
 type DeviceExpansion interface{}
 
+type DrainNodeExpansion interface{}
+
+type DrainNodeGroupExpansion interface{}
+
 type PodMigrationJobExpansion interface{}
 
 type ReservationExpansion interface{}
