@@ -22,6 +22,14 @@ package v1alpha1
 // DeviceLister.
 type DeviceListerExpansion interface{}
 
+// DrainNodeListerExpansion allows custom methods to be added to
+// DrainNodeLister.
+type DrainNodeListerExpansion interface{}
+
+// DrainNodeGroupListerExpansion allows custom methods to be added to
+// DrainNodeGroupLister.
+type DrainNodeGroupListerExpansion interface{}
+
 // PodMigrationJobListerExpansion allows custom methods to be added to
 // PodMigrationJobLister.
 type PodMigrationJobListerExpansion interface{}
