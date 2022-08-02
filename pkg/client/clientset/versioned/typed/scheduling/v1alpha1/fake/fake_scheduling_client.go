@@ -32,6 +32,14 @@ func (c *FakeSchedulingV1alpha1) Devices() v1alpha1.DeviceInterface {
 	return &FakeDevices{c}
 }
 
+func (c *FakeSchedulingV1alpha1) DrainNodes() v1alpha1.DrainNodeInterface {
+	return &FakeDrainNodes{c}
+}
+
+func (c *FakeSchedulingV1alpha1) DrainNodeGroups() v1alpha1.DrainNodeGroupInterface {
+	return &FakeDrainNodeGroups{c}
+}
+
 func (c *FakeSchedulingV1alpha1) PodMigrationJobs() v1alpha1.PodMigrationJobInterface {
 	return &FakePodMigrationJobs{c}
 }
