@@ -26,6 +26,10 @@ import (
 type Interface interface {
 	// Devices returns a DeviceInformer.
 	Devices() DeviceInformer
+	// DrainNodes returns a DrainNodeInformer.
+	DrainNodes() DrainNodeInformer
+	// DrainNodeGroups returns a DrainNodeGroupInformer.
+	DrainNodeGroups() DrainNodeGroupInformer
 	// PodMigrationJobs returns a PodMigrationJobInformer.
 	PodMigrationJobs() PodMigrationJobInformer
 	// Reservations returns a ReservationInformer.
@@ -48,6 +52,16 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 // Devices returns a DeviceInformer.
 func (v *version) Devices() DeviceInformer {
 	return &deviceInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// DrainNodes returns a DrainNodeInformer.
+func (v *version) DrainNodes() DrainNodeInformer {
+	return &drainNodeInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// DrainNodeGroups returns a DrainNodeGroupInformer.
+func (v *version) DrainNodeGroups() DrainNodeGroupInformer {
+	return &drainNodeGroupInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // PodMigrationJobs returns a PodMigrationJobInformer.

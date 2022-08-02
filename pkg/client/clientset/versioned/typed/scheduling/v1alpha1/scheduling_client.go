@@ -27,6 +27,8 @@ import (
 type SchedulingV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	DevicesGetter
+	DrainNodesGetter
+	DrainNodeGroupsGetter
 	PodMigrationJobsGetter
 	ReservationsGetter
 	ResourcePoliciesGetter
@@ -39,6 +41,14 @@ type SchedulingV1alpha1Client struct {
 
 func (c *SchedulingV1alpha1Client) Devices() DeviceInterface {
 	return newDevices(c)
+}
+
+func (c *SchedulingV1alpha1Client) DrainNodes() DrainNodeInterface {
+	return newDrainNodes(c)
+}
+
+func (c *SchedulingV1alpha1Client) DrainNodeGroups() DrainNodeGroupInterface {
+	return newDrainNodeGroups(c)
 }
 
 func (c *SchedulingV1alpha1Client) PodMigrationJobs() PodMigrationJobInterface {
