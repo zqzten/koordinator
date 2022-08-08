@@ -125,6 +125,8 @@ spec:
                     description: PercentageOfResourceReserved indicates how many resources
                       need to be reserved for this DrainNodeGroup.
                     format: int32
+                    maximum: 100
+                    minimum: 1
                     type: integer
                 type: object
               ttl:

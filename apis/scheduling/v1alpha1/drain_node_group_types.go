@@ -79,6 +79,8 @@ type TerminationPolicy struct {
 	// +optional
 	MaxNodeCount *int32 `json:"maxNodeCount,omitempty"`
 	// PercentageOfResourceReserved indicates how many resources need to be reserved for this DrainNodeGroup.
+	// +kubebuilder:validation:Maximum=100
+	// +kubebuilder:validation:Minimum=1
 	// +optional
 	PercentageOfResourceReserved *int32 `json:"percentageOfResourceReserved,omitempty"`
 }
