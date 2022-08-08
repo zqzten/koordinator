@@ -28,6 +28,7 @@ require (
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.1
+	gitlab.alibaba-inc.com/unischeduler/api v0.0.2-0.20220628072143-477167251083
 	go.uber.org/atomic v1.10.0
 	go.uber.org/multierr v1.6.0
 	golang.org/x/crypto v0.1.0
@@ -118,7 +119,7 @@ require (
 	github.com/gofrs/uuid v4.0.0+incompatible // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/cadvisor v0.39.3 // indirect
-	github.com/google/gofuzz v1.1.0 // indirect
+	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.0.5 // indirect
 	github.com/googleapis/gnostic v0.5.5 // indirect
 	github.com/gophercloud/gophercloud v0.1.0 // indirect
@@ -176,6 +177,7 @@ require (
 	github.com/vishvananda/netlink v1.1.1-0.20201029203352-d40f9887b852 // indirect
 	github.com/vishvananda/netns v0.0.0-20200728191858-db3c7e526aae // indirect
 	github.com/vmware/govmomi v0.20.3 // indirect
+	gitlab.alibaba-inc.com/cos/unified-resource-api v1.22.3-1.0.20220705131219-d0d01381562f // indirect
 	go.etcd.io/etcd/api/v3 v3.5.5 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.5 // indirect
 	go.etcd.io/etcd/client/v3 v3.5.5 // indirect
@@ -212,6 +214,7 @@ require (
 	k8s.io/cloud-provider v0.22.6 // indirect
 	k8s.io/csi-translation-lib v0.22.6 // indirect
 	k8s.io/gengo v0.0.0-20220902162205-c0856e24416d // indirect
+	k8s.io/klog v1.0.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280 // indirect
 	k8s.io/kube-proxy v0.0.0 // indirect
 	k8s.io/legacy-cloud-providers v0.0.0 // indirect
