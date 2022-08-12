@@ -22,6 +22,8 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 
@@ -53,6 +55,7 @@ var (
 type Plugin struct {
 	handle framework.Handle
 	*nodenumaresource.Plugin
+	cpuSharePoolUpdater *cpuSharePoolUpdater
 }
 
 func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error) {
@@ -81,10 +84,39 @@ func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error)
 	if err != nil {
 		return nil, err
 	}
-	return &Plugin{
-		handle: handle,
-		Plugin: internalPlugin.(*nodenumaresource.Plugin),
-	}, nil
+	updater := &cpuSharePoolUpdater{
+		queue:                workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
+		getAvailableCPUsFunc: nil,
+		handle:               handle,
+	}
+	p := &Plugin{
+		handle:              handle,
+		Plugin:              internalPlugin.(*nodenumaresource.Plugin),
+		cpuSharePoolUpdater: updater,
+	}
+	updater.getAvailableCPUsFunc = func(nodeName string) (nodenumaresource.CPUSet, error) {
+		availableCPUs, _, err := p.GetAvailableCPUs(nodeName)
+		return availableCPUs, err
+	}
+	updater.start()
+
+	podInformer := handle.SharedInformerFactory().Core().V1().Pods().Informer()
+	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		DeleteFunc: p.onPodDelete,
+		UpdateFunc: p.onPodUpdate,
+	})
+	return p, nil
+}
+
+func getDefaultNodeNUMAResourceArgs() (*schedulingconfig.NodeNUMAResourceArgs, error) {
+	var v1beta2args v1beta2.NodeNUMAResourceArgs
+	v1beta2.SetDefaults_NodeNUMAResourceArgs(&v1beta2args)
+	var defaultNodeNUMAResourceArgs schedulingconfig.NodeNUMAResourceArgs
+	err := v1beta2.Convert_v1beta2_NodeNUMAResourceArgs_To_config_NodeNUMAResourceArgs(&v1beta2args, &defaultNodeNUMAResourceArgs, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &defaultNodeNUMAResourceArgs, nil
 }
 
 func (p *Plugin) Name() string { return Name }
@@ -132,13 +164,23 @@ func (p *Plugin) Reserve(ctx context.Context, cycleState *framework.CycleState, 
 	return p.Plugin.Reserve(ctx, cycleState, pod, nodeName)
 }
 
-func getDefaultNodeNUMAResourceArgs() (*schedulingconfig.NodeNUMAResourceArgs, error) {
-	var v1beta2args v1beta2.NodeNUMAResourceArgs
-	v1beta2.SetDefaults_NodeNUMAResourceArgs(&v1beta2args)
-	var defaultNodeNUMAResourceArgs schedulingconfig.NodeNUMAResourceArgs
-	err := v1beta2.Convert_v1beta2_NodeNUMAResourceArgs_To_config_NodeNUMAResourceArgs(&v1beta2args, &defaultNodeNUMAResourceArgs, nil)
+func (p *Plugin) Unreserve(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeName string) {
+	p.Plugin.Unreserve(ctx, cycleState, pod, nodeName)
+	p.cpuSharePoolUpdater.asyncUpdate(pod.Spec.NodeName)
+}
+
+func (p *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
+	nodeInfo, err := p.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
 	if err != nil {
-		return nil, err
+		return framework.NewStatus(framework.Error, fmt.Sprintf("getting node %q from Snapshot: %v", nodeName, err))
 	}
-	return &defaultNodeNUMAResourceArgs, nil
+	node := nodeInfo.Node()
+	if node == nil {
+		return framework.NewStatus(framework.Error, "node not found")
+	}
+	if extunified.IsVirtualKubeletNode(node) {
+		return nil
+	}
+	p.cpuSharePoolUpdater.asyncUpdate(node.Name)
+	return p.Plugin.PreBind(ctx, cycleState, pod, nodeName)
 }
