@@ -34,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/informers"
 	kubefake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/cache"
 	scheduledconfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/defaultbinder"
@@ -548,8 +549,160 @@ func TestPlugin_CPUSetProtocols(t *testing.T) {
 			assert.Equal(t, `{"cpu":[0,1,2,4,6],"gpu":{}}`, podModified.Annotations[uniext.AnnotationAllocStatus])
 			if tt.annotations[extunified.AnnotationAllocSpec] != "" {
 				assert.Equal(t, `{"containers":[{"name":"container-1","resource":{"cpu":{"cpuSet":{"spreadStrategy":"spread","cpuIDs":[0,1,2,4,6]}}}}]}`, podModified.Annotations[extunified.AnnotationAllocSpec])
-
 			}
 		})
 	}
+}
+
+func TestPlugin_CPUSharePool(t *testing.T) {
+	t.Run("updateCPUSharePool in preBind and unreserve", func(t *testing.T) {
+		var ch = make(chan int)
+		suit, plg, pod, cycleState, nodeName := initialize(t, ch)
+		eventType := <-ch
+		assert.Equal(t, 1, eventType)
+
+		status := plg.PreBind(context.TODO(), cycleState, pod, nodeName)
+		assert.Nil(t, status)
+		eventType = <-ch
+		assert.Equal(t, 2, eventType)
+		nodeModified, err := suit.Handle.ClientSet().CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+		assert.Nil(t, err)
+		assert.Equal(t, `{"cpuIDs":[3,5,7]}`, nodeModified.Annotations[extunified.AnnotationNodeCPUSharePool])
+
+		plg.Unreserve(context.TODO(), cycleState, pod, nodeName)
+		eventType = <-ch
+		assert.Equal(t, 2, eventType)
+		nodeModified, err = suit.Handle.ClientSet().CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+		assert.Nil(t, err)
+		assert.Equal(t, `{"cpuIDs":[0,1,2,3,4,5,6,7]}`, nodeModified.Annotations[extunified.AnnotationNodeCPUSharePool])
+	})
+	t.Run("updateCPUSharePool in preBind and on podDeleted", func(t *testing.T) {
+		var ch = make(chan int)
+		suit, plg, pod, cycleState, nodeName := initialize(t, ch)
+		eventType := <-ch
+		assert.Equal(t, 1, eventType)
+
+		status := plg.PreBind(context.TODO(), cycleState, pod, nodeName)
+		assert.Nil(t, status)
+		eventType = <-ch
+		assert.Equal(t, 2, eventType)
+		nodeModified, err := suit.Handle.ClientSet().CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+		assert.Nil(t, err)
+		assert.Equal(t, `{"cpuIDs":[3,5,7]}`, nodeModified.Annotations[extunified.AnnotationNodeCPUSharePool])
+
+		err = suit.Handle.ClientSet().CoreV1().Pods("default").Delete(context.TODO(), "test-pod-1", metav1.DeleteOptions{})
+		assert.Nil(t, err)
+		eventType = <-ch
+		assert.Equal(t, 2, eventType)
+		nodeModified, err = suit.Handle.ClientSet().CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+		assert.Nil(t, err)
+		assert.Equal(t, `{"cpuIDs":[0,1,2,3,4,5,6,7]}`, nodeModified.Annotations[extunified.AnnotationNodeCPUSharePool])
+	})
+}
+
+func initialize(t *testing.T, ch chan int) (*pluginTestSuit, *Plugin, *corev1.Pod, *framework.CycleState, string) {
+	nodes := []*corev1.Node{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-node-1",
+			},
+			Status: corev1.NodeStatus{
+				Allocatable: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("8"),
+					corev1.ResourceMemory: resource.MustParse("512Gi"),
+				},
+			},
+		},
+	}
+	suit := newPluginTestSuit(t, nodes)
+	suit.Handle.SharedInformerFactory().Core().V1().Nodes().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			ch <- 1
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			ch <- 2
+		},
+		DeleteFunc: func(obj interface{}) {
+			ch <- 3
+		},
+	})
+	p, err := suit.proxyNew(suit.args, suit.Handle)
+	assert.NotNil(t, p)
+	assert.Nil(t, err)
+	cpuTopology := extension.CPUTopology{
+		Detail: []extension.CPUInfo{
+			{ID: 0, Core: 0, Socket: 0, Node: 0},
+			{ID: 1, Core: 0, Socket: 0, Node: 0},
+			{ID: 2, Core: 1, Socket: 0, Node: 0},
+			{ID: 3, Core: 1, Socket: 0, Node: 0},
+			{ID: 4, Core: 2, Socket: 0, Node: 0},
+			{ID: 5, Core: 2, Socket: 0, Node: 0},
+			{ID: 6, Core: 3, Socket: 0, Node: 0},
+			{ID: 7, Core: 3, Socket: 0, Node: 0},
+		},
+	}
+	cpuTopologyData, err := json.Marshal(cpuTopology)
+	assert.NoError(t, err)
+	resourceTopology := &v1alpha1.NodeResourceTopology{
+		TypeMeta: metav1.TypeMeta{},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "test-node-1",
+			Annotations: map[string]string{extension.AnnotationNodeCPUTopology: string(cpuTopologyData)},
+		},
+		TopologyPolicies: nil,
+		Zones:            nil,
+	}
+	_, err = suit.nrtClientSet.TopologyV1alpha1().NodeResourceTopologies().Create(context.TODO(), resourceTopology, metav1.CreateOptions{})
+	assert.Nil(t, err)
+	plg := p.(*Plugin)
+	suit.start()
+	nodeInfo, err := suit.Handle.SnapshotSharedLister().NodeInfos().Get("test-node-1")
+	assert.NoError(t, err)
+	assert.NotNil(t, nodeInfo)
+	_, err = suit.Handle.ClientSet().CoreV1().Nodes().Create(context.TODO(), nodes[0], metav1.CreateOptions{})
+	assert.Nil(t, err)
+	ctx := context.TODO()
+	cycleState := framework.NewCycleState()
+	koordResourceSpec := extension.ResourceSpec{
+		PreferredCPUBindPolicy: extension.CPUBindPolicySpreadByPCPUs,
+	}
+	koordResourceSpecData, err := json.Marshal(koordResourceSpec)
+	assert.NoError(t, err)
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:       uuid.NewUUID(),
+			Namespace: "default",
+			Name:      "test-pod-1",
+			Labels:    map[string]string{extension.LabelPodQoS: string(extension.QoSLSE)},
+			Annotations: map[string]string{
+				extension.AnnotationResourceSpec: string(koordResourceSpecData),
+			},
+		},
+		Spec: corev1.PodSpec{
+			Priority: pointer.Int32(extension.PriorityProdValueMax),
+			Containers: []corev1.Container{
+				{
+					Name: "container-1",
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU: resource.MustParse("5"),
+						},
+					},
+				},
+			},
+			NodeName: nodes[0].Name,
+		},
+	}
+	_, err = suit.Handle.ClientSet().CoreV1().Pods("default").Create(context.TODO(), pod, metav1.CreateOptions{})
+	assert.Nil(t, err)
+
+	status := plg.PreFilter(ctx, cycleState, pod)
+	assert.Nil(t, status)
+	status = plg.Filter(ctx, cycleState, pod, nodeInfo)
+	assert.Nil(t, status)
+	_, status = plg.Score(ctx, cycleState, pod, nodes[0].Name)
+	assert.Nil(t, status)
+	status = plg.Reserve(ctx, cycleState, pod, nodes[0].Name)
+	assert.Nil(t, status)
+	return suit, plg, pod, cycleState, nodes[0].Name
 }
