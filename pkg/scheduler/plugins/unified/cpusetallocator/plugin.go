@@ -35,6 +35,7 @@ func init() {
 	nodenumaresource.GetResourceSpec = extunified.GetResourceSpec
 	nodenumaresource.GetResourceStatus = extunified.GetResourceStatus
 	nodenumaresource.SetResourceStatus = extunified.SetResourceStatus
+	nodenumaresource.GetPodQoSClass = extunified.GetPodQoSClass
 }
 
 const (
