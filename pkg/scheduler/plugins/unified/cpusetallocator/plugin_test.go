@@ -371,7 +371,7 @@ func TestPlugin_Reserve(t *testing.T) {
 	}
 }
 
-func TestPlugin(t *testing.T) {
+func TestPlugin_CPUSetProtocols(t *testing.T) {
 	koordResourceSpec := extension.ResourceSpec{
 		PreferredCPUBindPolicy: extension.CPUBindPolicySpreadByPCPUs,
 	}
@@ -411,24 +411,28 @@ func TestPlugin(t *testing.T) {
 	tests := []struct {
 		name        string
 		annotations map[string]string
+		labels      map[string]string
 	}{
 		{
 			name: "only koord resource spec",
 			annotations: map[string]string{
 				extension.AnnotationResourceSpec: string(koordResourceSpecData),
 			},
+			labels: map[string]string{extension.LabelPodQoS: string(extension.QoSLSE)},
 		},
 		{
 			name: "only unified resource spec",
 			annotations: map[string]string{
 				uniext.AnnotationAllocSpec: string(unifiedResourceSpecWithSpreadData),
 			},
+			labels: map[string]string{extunified.LabelPodQoSClass: string(extension.QoSLSE)},
 		},
 		{
 			name: "only asi resource spec",
 			annotations: map[string]string{
 				extunified.AnnotationAllocSpec: string(asiAllocSpecWthSpreadData),
 			},
+			labels: map[string]string{extunified.LabelPodQoSClass: string(extension.QoSLSE)},
 		},
 		{
 			name: "if both koord and unified exists, use koord",
@@ -436,6 +440,7 @@ func TestPlugin(t *testing.T) {
 				extension.AnnotationResourceSpec: string(koordResourceSpecData),
 				uniext.AnnotationAllocSpec:       string(unifiedResourceSpecWithSameCoreData),
 			},
+			labels: map[string]string{extunified.LabelPodQoSClass: string(extension.QoSBE), extension.LabelPodQoS: string(extension.QoSLSE)},
 		},
 		{
 			name: "if both unified and asi exists, use unified",
@@ -443,6 +448,7 @@ func TestPlugin(t *testing.T) {
 				uniext.AnnotationAllocSpec:     string(unifiedResourceSpecWithSpreadData),
 				extunified.AnnotationAllocSpec: string(asiAllocSpecWthSameCoreData),
 			},
+			labels: map[string]string{extunified.LabelPodQoSClass: string(extension.QoSLSE)},
 		},
 	}
 	for _, tt := range tests {
@@ -460,35 +466,9 @@ func TestPlugin(t *testing.T) {
 					},
 				},
 			}
-
 			suit := newPluginTestSuit(t, nodes)
 			p, err := suit.proxyNew(suit.args, suit.Handle)
 			assert.NotNil(t, p)
-			assert.Nil(t, err)
-
-			pod := &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					UID:         uuid.NewUUID(),
-					Namespace:   "default",
-					Name:        "test-pod-1",
-					Labels:      map[string]string{extension.LabelPodQoS: string(extension.QoSLSE)},
-					Annotations: tt.annotations,
-				},
-				Spec: corev1.PodSpec{
-					Priority: pointer.Int32(extension.PriorityProdValueMax),
-					Containers: []corev1.Container{
-						{
-							Name: "container-1",
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceCPU: resource.MustParse("5"),
-								},
-							},
-						},
-					},
-				},
-			}
-			_, err = suit.Handle.ClientSet().CoreV1().Pods("default").Create(context.TODO(), pod, metav1.CreateOptions{})
 			assert.Nil(t, err)
 			cpuTopology := extension.CPUTopology{
 				Detail: []extension.CPUInfo{
@@ -517,13 +497,38 @@ func TestPlugin(t *testing.T) {
 			assert.Nil(t, err)
 			plg := p.(*Plugin)
 			suit.start()
-
 			nodeInfo, err := suit.Handle.SnapshotSharedLister().NodeInfos().Get("test-node-1")
 			assert.NoError(t, err)
 			assert.NotNil(t, nodeInfo)
+			_, err = suit.Handle.ClientSet().CoreV1().Nodes().Create(context.TODO(), nodes[0], metav1.CreateOptions{})
+			assert.Nil(t, err)
 
 			ctx := context.TODO()
 			cycleState := framework.NewCycleState()
+			pod := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID:         uuid.NewUUID(),
+					Namespace:   "default",
+					Name:        "test-pod-1",
+					Labels:      tt.labels,
+					Annotations: tt.annotations,
+				},
+				Spec: corev1.PodSpec{
+					Priority: pointer.Int32(extension.PriorityProdValueMax),
+					Containers: []corev1.Container{
+						{
+							Name: "container-1",
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU: resource.MustParse("5"),
+								},
+							},
+						},
+					},
+				},
+			}
+			_, err = suit.Handle.ClientSet().CoreV1().Pods("default").Create(context.TODO(), pod, metav1.CreateOptions{})
+			assert.Nil(t, err)
 
 			status := plg.PreFilter(ctx, cycleState, pod)
 			assert.Nil(t, status)
