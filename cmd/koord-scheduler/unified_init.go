@@ -18,8 +18,10 @@ package main
 
 import (
 	unifiedcpuset "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/cpusetallocator"
+	unifiedeci "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/eci"
 )
 
 func init() {
 	koordinatorPlugins[unifiedcpuset.Name] = unifiedcpuset.New
+	koordinatorPlugins[unifiedeci.Name] = unifiedeci.New
 }
