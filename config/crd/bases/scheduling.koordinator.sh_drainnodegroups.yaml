@@ -12,6 +12,8 @@ spec:
     kind: DrainNodeGroup
     listKind: DrainNodeGroupList
     plural: drainnodegroups
+    shortNames:
+    - dng
     singular: drainnodegroup
   scope: Cluster
   versions:
@@ -126,7 +128,7 @@ spec:
                       need to be reserved for this DrainNodeGroup.
                     format: int32
                     maximum: 100
-                    minimum: 1
+                    minimum: 0
                     type: integer
                 type: object
               ttl:
@@ -138,7 +140,8 @@ spec:
             properties:
               availableCount:
                 description: AvailableCount indicates the total number of nodes that
-                  the DrainNodeGroup can drain. AvailableCount = SucceedCount + FailedCount
+                  the DrainNodeGroup can drain. AvailableCount = SucceededCount +
+                  FailedCount
                 format: int32
                 type: integer
               conditions:
@@ -224,8 +227,8 @@ spec:
                   drained by the DrainNodeGroup.
                 format: int32
                 type: integer
-              succeedCount:
-                description: SucceedCount indicates the total number of nodes that
+              succeededCount:
+                description: SucceededCount indicates the total number of nodes that
                   DrainNodeGroup has successfully drained.
                 format: int32
                 type: integer
