@@ -12,6 +12,8 @@ spec:
     kind: DrainNode
     listKind: DrainNodeList
     plural: drainnodes
+    shortNames:
+    - dn
     singular: drainnode
   scope: Cluster
   versions:

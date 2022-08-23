@@ -80,7 +80,7 @@ type TerminationPolicy struct {
 	MaxNodeCount *int32 `json:"maxNodeCount,omitempty"`
 	// PercentageOfResourceReserved indicates how many resources need to be reserved for this DrainNodeGroup.
 	// +kubebuilder:validation:Maximum=100
-	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Minimum=0
 	// +optional
 	PercentageOfResourceReserved *int32 `json:"percentageOfResourceReserved,omitempty"`
 }
@@ -99,12 +99,12 @@ type DrainNodeGroupStatus struct {
 	// UnavailableCount indicates the total number of nodes that the DrainNodeGroup cannot drain.
 	UnavailableCount int32 `json:"unavailableCount,omitempty"`
 	// AvailableCount indicates the total number of nodes that the DrainNodeGroup can drain.
-	// AvailableCount = SucceedCount + FailedCount
+	// AvailableCount = SucceededCount + FailedCount
 	AvailableCount int32 `json:"availableCount,omitempty"`
 	// RunningCount indicates the total number of nodes being drained by the DrainNodeGroup.
 	RunningCount int32 `json:"runningCount,omitempty"`
-	// SucceedCount indicates the total number of nodes that DrainNodeGroup has successfully drained.
-	SucceedCount int32 `json:"succeedCount,omitempty"`
+	// SucceededCount indicates the total number of nodes that DrainNodeGroup has successfully drained.
+	SucceededCount int32 `json:"succeededCount,omitempty"`
 	// FailedCount indicates the total number of nodes that DrainNodeGroup failed to drain
 	FailedCount int32 `json:"failedCount,omitempty"`
 
@@ -123,8 +123,8 @@ const (
 	DrainNodeGroupPhaseWaiting DrainNodeGroupPhase = "Waiting"
 	// DrainNodeGroupPhaseRunning represents that the drain node plan is being executed.
 	DrainNodeGroupPhaseRunning DrainNodeGroupPhase = "Running"
-	// DrainNodeGroupPhaseSucceed represents the successful execution of the drain node plan.
-	DrainNodeGroupPhaseSucceed DrainNodeGroupPhase = "Succeed"
+	// DrainNodeGroupPhaseSucceeded represents the successful execution of the drain node plan.
+	DrainNodeGroupPhaseSucceeded DrainNodeGroupPhase = "Succeeded"
 	// DrainNodeGroupPhaseFailed represents the failure of the drain node plan execution.
 	DrainNodeGroupPhaseFailed DrainNodeGroupPhase = "Failed"
 	// DrainNodeGroupPhaseAborted represents that the drain node plan has been cancelled.
@@ -136,7 +136,7 @@ const (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +genclient
 // +genclient:nonNamespaced
-// +kubebuilder:resource:scope=Cluster
+// +kubebuilder:resource:scope=Cluster,shortName=dng
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Phase",type="string",JSONPath=".status.phase",description="The phase of DrainNodeGroup"
