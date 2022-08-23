@@ -14,19 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controllers
+package utils
 
-import (
-	"github.com/koordinator-sh/koordinator/pkg/descheduler/controllers/drain"
-	"github.com/koordinator-sh/koordinator/pkg/descheduler/controllers/migration"
-	"github.com/koordinator-sh/koordinator/pkg/descheduler/controllers/unified/orchestratingslo"
-	"github.com/koordinator-sh/koordinator/pkg/descheduler/framework/runtime"
-)
-
-func NewControllerRegistry() runtime.Registry {
-	return runtime.Registry{
-		migration.Name:        migration.New,
-		orchestratingslo.Name: orchestratingslo.New,
-		drain.Name:            drain.New,
+func IsAbort(labels map[string]string) bool {
+	if labels == nil {
+		return false
 	}
+	if v, ok := labels[AbortKey]; ok && v == "true" {
+		return true
+	}
+	if v, ok := labels[CleanKey]; ok && v == "true" {
+		return true
+	}
+	return false
+}
+
+func NeedCleanTaint(labels map[string]string) bool {
+	if labels == nil {
+		return false
+	}
+	if v, ok := labels[CleanKey]; ok && v == "true" {
+		return true
+	}
+	return false
 }

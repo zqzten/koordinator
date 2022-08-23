@@ -4,6 +4,26 @@ kind: ClusterRole
 metadata:
   name: manager-role
 rules:
+- resources:
+  - nodes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- resources:
+  - pods
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - admissionregistration.k8s.io
   resources:
@@ -158,7 +178,46 @@ rules:
   verbs:
   - get
   - list
+- apiGroups:
+  - scheduling.koordinator.sh
+  resources:
+  - drainnodegroups
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
   - watch
+- apiGroups:
+  - scheduling.koordinator.sh
+  resources:
+  - drainnodegroups/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - scheduling.koordinator.sh
+  resources:
+  - drainnodes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - scheduling.koordinator.sh
+  resources:
+  - drainnodes/status
+  verbs:
+  - get
+  - patch
+  - update
 - apiGroups:
   - scheduling.koordinator.sh
   resources:

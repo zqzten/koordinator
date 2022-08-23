@@ -84,8 +84,8 @@ const (
 	DrainNodePhaseWaiting DrainNodePhase = "Waiting"
 	// DrainNodePhaseRunning represents the node being drained.
 	DrainNodePhaseRunning DrainNodePhase = "Running"
-	// DrainNodePhaseSucceed represents the successful execution of the drain node.
-	DrainNodePhaseSucceed DrainNodePhase = "Succeed"
+	// DrainNodePhaseSucceeded represents the successful execution of the drain node.
+	DrainNodePhaseSucceeded DrainNodePhase = "Succeeded"
 	// DrainNodePhaseFailed represents a drain node execution failure.
 	DrainNodePhaseFailed DrainNodePhase = "Failed"
 	// DrainNodePhaseAborted represents that the drain node has been cancelled.
@@ -114,7 +114,7 @@ type MigrationJobStatus struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +genclient
 // +genclient:nonNamespaced
-// +kubebuilder:resource:scope=Cluster
+// +kubebuilder:resource:scope=Cluster,shortName=dn
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Phase",type="string",JSONPath=".status.phase",description="The phase of DrainNode"
