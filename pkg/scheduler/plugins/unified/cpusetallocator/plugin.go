@@ -95,7 +95,7 @@ func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error)
 		cpuSharePoolUpdater: updater,
 	}
 	updater.getAvailableCPUsFunc = func(nodeName string) (nodenumaresource.CPUSet, error) {
-		availableCPUs, _, err := p.GetAvailableCPUs(nodeName)
+		availableCPUs, _, err := p.GetCPUManager().GetAvailableCPUs(nodeName)
 		return availableCPUs, err
 	}
 	updater.start()
