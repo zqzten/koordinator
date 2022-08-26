@@ -7,6 +7,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -118,14 +119,14 @@ func Test_syncColocationConfigWithReclaimedResourceIfChanged(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fakeClient := fake.NewClientBuilder().WithScheme(scheme.Scheme).Build()
-			p := NewColocationHandlerForConfigMapEvent(fakeClient, *NewDefaultColocationCfg())
+			p := NewColocationHandlerForConfigMapEvent(fakeClient, *NewDefaultColocationCfg(), &record.FakeRecorder{})
 			p.cfgCache = colocationCfgCache{available: tt.fields.config.available, colocationCfg: tt.fields.config.colocationCfg}
 			got := p.syncColocationCfgIfChanged(tt.args.configMap)
 			assert.Equal(t, tt.wantChanged, got)
-			assert.Equal(t, tt.wantField.available, p.cfgCache.IsAvailable())
-			assert.Equal(t, tt.wantField.errorStatus, p.cfgCache.IsErrorStatus())
+			assert.Equal(t, tt.wantField.available, p.IsCfgAvailable())
+			assert.Equal(t, tt.wantField.errorStatus, p.IsErrorStatus())
 
-			gotStrategy := p.cfgCache.GetCfgCopy().ColocationStrategy
+			gotStrategy := p.GetCfgCopy().ColocationStrategy
 			gotReclaimedExtCfg, err := ParseReclaimedResourceConfig(&gotStrategy)
 			assert.NoError(t, err, "parse reclaimed resource config failed")
 
