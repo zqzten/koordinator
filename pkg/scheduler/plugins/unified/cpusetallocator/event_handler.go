@@ -25,10 +25,13 @@ import (
 
 func (p *Plugin) onPodUpdate(oldObj, newObj interface{}) {
 	pod, ok := newObj.(*corev1.Pod)
-	if !(ok && util.IsPodTerminated(pod)) {
+	if !ok {
 		return
 	}
-	p.NodeInfoCache().DeletePod(pod)
+	if pod.Spec.NodeName == "" || !util.IsPodTerminated(pod) {
+		return
+	}
+	p.GetCPUManager().Free(pod.Spec.NodeName, pod.UID)
 	p.cpuSharePoolUpdater.asyncUpdate(pod.Spec.NodeName)
 }
 
@@ -49,6 +52,9 @@ func (p *Plugin) onPodDelete(obj interface{}) {
 	if pod == nil {
 		return
 	}
-	p.NodeInfoCache().DeletePod(pod)
+	if pod.Spec.NodeName == "" {
+		return
+	}
+	p.GetCPUManager().Free(pod.Spec.NodeName, pod.UID)
 	p.cpuSharePoolUpdater.asyncUpdate(pod.Spec.NodeName)
 }

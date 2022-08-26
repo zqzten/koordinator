@@ -24,7 +24,6 @@ import (
 
 	"github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/apis/topology/v1alpha1"
 	nrtfake "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/generated/clientset/versioned/fake"
-	nrtinformers "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/generated/informers/externalversions"
 	"github.com/stretchr/testify/assert"
 	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 	corev1 "k8s.io/api/core/v1"
@@ -35,7 +34,6 @@ import (
 	"k8s.io/client-go/informers"
 	kubefake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
-	scheduledconfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/defaultbinder"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/queuesort"
@@ -45,10 +43,6 @@ import (
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
-	koordinatorclientset "github.com/koordinator-sh/koordinator/pkg/client/clientset/versioned"
-	koordfake "github.com/koordinator-sh/koordinator/pkg/client/clientset/versioned/fake"
-	koordinatorinformers "github.com/koordinator-sh/koordinator/pkg/client/informers/externalversions"
-	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 )
 
 var _ framework.SharedLister = &testSharedLister{}
@@ -107,14 +101,25 @@ func (f *testSharedLister) Get(nodeName string) (*framework.NodeInfo, error) {
 	return f.nodeInfoMap[nodeName], nil
 }
 
+type frameworkHandleExtender struct {
+	framework.Handle
+	*nrtfake.Clientset
+}
+
+func proxyPluginFactory(fakeClientSet *nrtfake.Clientset, factory runtime.PluginFactory) runtime.PluginFactory {
+	return func(configuration apiruntime.Object, f framework.Handle) (framework.Plugin, error) {
+		return factory(configuration, &frameworkHandleExtender{
+			Handle:    f,
+			Clientset: fakeClientSet,
+		})
+	}
+}
+
 type pluginTestSuit struct {
 	framework.Handle
-	koordinatorClientSet             koordinatorclientset.Interface
-	koordinatorSharedInformerFactory koordinatorinformers.SharedInformerFactory
-	nrtClientSet                     *nrtfake.Clientset
-	nrtSharedInformerFactory         nrtinformers.SharedInformerFactory
-	proxyNew                         runtime.PluginFactory
-	args                             apiruntime.Object
+	nrtClientSet *nrtfake.Clientset
+	proxyNew     runtime.PluginFactory
+	args         apiruntime.Object
 }
 
 func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
@@ -123,36 +128,13 @@ func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
 		Raw:         []byte(`{"apiVersion":"kubescheduler.config.k8s.io/v1beta2","defaultCPUBindPolicy":"FullPCPUs","kind":"NodeNUMAResourceArgs","scoringStrategy":{"Resources":[{"Name":"cpu","Weight":1},{"Name":"memory","Weight":1}],"Type":"MostAllocated"}}`),
 	}
 
-	unifiedCPUSetAllocatorPluginConfig := scheduledconfig.PluginConfig{
-		Name: Name,
-		Args: &pluginArgs,
-	}
-
-	koordClientSet := koordfake.NewSimpleClientset()
-	koordSharedInformerFactory := koordinatorinformers.NewSharedInformerFactory(koordClientSet, 0)
-
 	nrtClientSet := nrtfake.NewSimpleClientset()
-	nrtSharedInformerFactory := nrtinformers.NewSharedInformerFactoryWithOptions(nrtClientSet, 0)
-
-	extendHandle := frameworkext.NewExtendedHandle(
-		frameworkext.WithKoordinatorClientSet(koordClientSet),
-		frameworkext.WithKoordinatorSharedInformerFactory(koordSharedInformerFactory),
-		frameworkext.WithNodeResourceTopologySharedInformerFactory(nrtSharedInformerFactory),
-	)
-	proxyNew := frameworkext.PluginFactoryProxy(extendHandle, New)
+	proxyNew := proxyPluginFactory(nrtClientSet, New)
 
 	registeredPlugins := []schedulertesting.RegisterPluginFunc{
-		func(reg *runtime.Registry, profile *scheduledconfig.KubeSchedulerProfile) {
-			profile.PluginConfig = []scheduledconfig.PluginConfig{
-				unifiedCPUSetAllocatorPluginConfig,
-			}
-		},
 		schedulertesting.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 		schedulertesting.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-		schedulertesting.RegisterFilterPlugin(Name, proxyNew),
-		schedulertesting.RegisterScorePlugin(Name, proxyNew, 1),
-		schedulertesting.RegisterReservePlugin(Name, proxyNew),
-		schedulertesting.RegisterPreBindPlugin(Name, proxyNew),
+		schedulertesting.RegisterPluginAsExtensions(Name, proxyNew, "PreFilter", "Filter", "Score", "Reserve", "PreBind"),
 	}
 
 	cs := kubefake.NewSimpleClientset()
@@ -166,25 +148,19 @@ func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
 		runtime.WithSnapshotSharedLister(snapshot),
 	)
 	assert.Nil(t, err)
+
 	return &pluginTestSuit{
-		Handle:                           fh,
-		koordinatorClientSet:             koordClientSet,
-		koordinatorSharedInformerFactory: koordSharedInformerFactory,
-		nrtSharedInformerFactory:         nrtSharedInformerFactory,
-		nrtClientSet:                     nrtClientSet,
-		proxyNew:                         proxyNew,
-		args:                             &pluginArgs,
+		Handle:       fh,
+		nrtClientSet: nrtClientSet,
+		proxyNew:     proxyNew,
+		args:         &pluginArgs,
 	}
 }
 
 func (p *pluginTestSuit) start() {
 	ctx := context.TODO()
 	p.Handle.SharedInformerFactory().Start(ctx.Done())
-	p.koordinatorSharedInformerFactory.Start(ctx.Done())
-	p.nrtSharedInformerFactory.Start(ctx.Done())
 	p.Handle.SharedInformerFactory().WaitForCacheSync(ctx.Done())
-	p.koordinatorSharedInformerFactory.WaitForCacheSync(ctx.Done())
-	p.nrtSharedInformerFactory.WaitForCacheSync(ctx.Done())
 }
 
 func TestNew(t *testing.T) {
