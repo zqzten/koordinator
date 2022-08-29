@@ -21,8 +21,6 @@ import (
 	"reflect"
 	"testing"
 
-	nrtfake "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/generated/clientset/versioned/fake"
-	nrtinformers "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/generated/informers/externalversions"
 	"github.com/stretchr/testify/assert"
 	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 	corev1 "k8s.io/api/core/v1"
@@ -37,11 +35,6 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/queuesort"
 	"k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 	schedulertesting "k8s.io/kubernetes/pkg/scheduler/testing"
-
-	koordinatorclientset "github.com/koordinator-sh/koordinator/pkg/client/clientset/versioned"
-	koordfake "github.com/koordinator-sh/koordinator/pkg/client/clientset/versioned/fake"
-	koordinatorinformers "github.com/koordinator-sh/koordinator/pkg/client/informers/externalversions"
-	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 )
 
 var _ framework.SharedLister = &testSharedLister{}
@@ -102,43 +95,27 @@ func (f *testSharedLister) Get(nodeName string) (*framework.NodeInfo, error) {
 
 type pluginTestSuit struct {
 	framework.Handle
-	koordinatorClientSet             koordinatorclientset.Interface
-	koordinatorSharedInformerFactory koordinatorinformers.SharedInformerFactory
-	nrtClientSet                     *nrtfake.Clientset
-	nrtSharedInformerFactory         nrtinformers.SharedInformerFactory
-	proxyNew                         runtime.PluginFactory
-	args                             apiruntime.Object
+	proxyNew runtime.PluginFactory
+	args     apiruntime.Object
 }
 
 func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
-	unifiedCPUSetAllocatorPluginConfig := scheduledconfig.PluginConfig{
+	pluginConfig := scheduledconfig.PluginConfig{
 		Name: Name,
 		Args: nil,
 	}
-	koordClientSet := koordfake.NewSimpleClientset()
-	koordSharedInformerFactory := koordinatorinformers.NewSharedInformerFactory(koordClientSet, 0)
-
-	nrtClientSet := nrtfake.NewSimpleClientset()
-	nrtSharedInformerFactory := nrtinformers.NewSharedInformerFactoryWithOptions(nrtClientSet, 0)
-
-	extendHandle := frameworkext.NewExtendedHandle(
-		frameworkext.WithKoordinatorClientSet(koordClientSet),
-		frameworkext.WithKoordinatorSharedInformerFactory(koordSharedInformerFactory),
-		frameworkext.WithNodeResourceTopologySharedInformerFactory(nrtSharedInformerFactory),
-	)
-	proxyNew := frameworkext.PluginFactoryProxy(extendHandle, New)
 
 	registeredPlugins := []schedulertesting.RegisterPluginFunc{
 		func(reg *runtime.Registry, profile *scheduledconfig.KubeSchedulerProfile) {
 			profile.PluginConfig = []scheduledconfig.PluginConfig{
-				unifiedCPUSetAllocatorPluginConfig,
+				pluginConfig,
 			}
 		},
 		schedulertesting.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 		schedulertesting.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-		schedulertesting.RegisterFilterPlugin(Name, proxyNew),
-		schedulertesting.RegisterScorePlugin(Name, proxyNew, 1),
-		schedulertesting.RegisterPreBindPlugin(Name, proxyNew),
+		schedulertesting.RegisterFilterPlugin(Name, New),
+		schedulertesting.RegisterScorePlugin(Name, New, 1),
+		schedulertesting.RegisterPreBindPlugin(Name, New),
 	}
 
 	cs := kubefake.NewSimpleClientset()
@@ -153,24 +130,16 @@ func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
 	)
 	assert.Nil(t, err)
 	return &pluginTestSuit{
-		Handle:                           fh,
-		koordinatorClientSet:             koordClientSet,
-		koordinatorSharedInformerFactory: koordSharedInformerFactory,
-		nrtSharedInformerFactory:         nrtSharedInformerFactory,
-		nrtClientSet:                     nrtClientSet,
-		proxyNew:                         proxyNew,
-		args:                             nil,
+		Handle:   fh,
+		proxyNew: New,
+		args:     nil,
 	}
 }
 
 func (p *pluginTestSuit) start() {
 	ctx := context.TODO()
 	p.Handle.SharedInformerFactory().Start(ctx.Done())
-	p.koordinatorSharedInformerFactory.Start(ctx.Done())
-	p.nrtSharedInformerFactory.Start(ctx.Done())
 	p.Handle.SharedInformerFactory().WaitForCacheSync(ctx.Done())
-	p.koordinatorSharedInformerFactory.WaitForCacheSync(ctx.Done())
-	p.nrtSharedInformerFactory.WaitForCacheSync(ctx.Done())
 }
 
 func TestPlugin_Filter(t *testing.T) {
