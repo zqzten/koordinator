@@ -47,6 +47,18 @@ type cpuSharePoolUpdater struct {
 	handle               framework.Handle
 }
 
+func newCPUSharePoolUpdater(handle framework.Handle, cpuManager nodenumaresource.CPUManager) *cpuSharePoolUpdater {
+	updater := &cpuSharePoolUpdater{
+		queue: workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
+		getAvailableCPUsFunc: func(nodeName string) (nodenumaresource.CPUSet, error) {
+			availableCPUs, _, err := cpuManager.GetAvailableCPUs(nodeName)
+			return availableCPUs, err
+		},
+		handle: handle,
+	}
+	return updater
+}
+
 func (u *cpuSharePoolUpdater) asyncUpdate(nodeName string) {
 	node, err := u.handle.SharedInformerFactory().Core().V1().Nodes().Lister().Get(nodeName)
 	if err != nil || node == nil || extunified.IsVirtualKubeletNode(node) {
@@ -87,7 +99,7 @@ func (u *cpuSharePoolUpdater) handleError(item interface{}, err error) {
 }
 
 func (u *cpuSharePoolUpdater) update(nodeName string) error {
-	node, err := u.handle.SharedInformerFactory().Core().V1().Nodes().Lister().Get(nodeName)
+	node, err := u.handle.ClientSet().CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{ResourceVersion: "0"})
 	if errors.IsNotFound(err) {
 		return nil
 	}
