@@ -22,8 +22,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/workqueue"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 
@@ -59,11 +57,13 @@ type Plugin struct {
 }
 
 func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+	var defaultNUMAAllocateStrategy schedulingconfig.NUMAAllocateStrategy
 	if args == nil {
 		defaultNodeNUMAResourceArgs, err := getDefaultNodeNUMAResourceArgs()
 		if err != nil {
 			return nil, err
 		}
+		defaultNUMAAllocateStrategy = nodenumaresource.GetDefaultNUMAAllocateStrategy(defaultNodeNUMAResourceArgs)
 		args = defaultNodeNUMAResourceArgs
 	} else {
 		unknownObj, ok := args.(*runtime.Unknown)
@@ -78,33 +78,30 @@ func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error)
 		if err := frameworkruntime.DecodeInto(unknownObj, nodeNUMAResourceArgs); err != nil {
 			return nil, err
 		}
+		defaultNUMAAllocateStrategy = nodenumaresource.GetDefaultNUMAAllocateStrategy(nodeNUMAResourceArgs)
 		args = nodeNUMAResourceArgs
 	}
-	internalPlugin, err := nodenumaresource.New(args, handle)
+
+	topologyManager := nodenumaresource.NewCPUTopologyManager()
+	cpuManager := nodenumaresource.NewCPUManager(handle, defaultNUMAAllocateStrategy, topologyManager)
+	updater := newCPUSharePoolUpdater(handle, cpuManager)
+	cpuManager = newCPUManagerAdapter(cpuManager, updater)
+	internalPlugin, err := nodenumaresource.NewWithOptions(args, handle,
+		nodenumaresource.WithCPUTopologyManager(topologyManager),
+		nodenumaresource.WithCPUManager(cpuManager),
+	)
 	if err != nil {
 		return nil, err
 	}
-	updater := &cpuSharePoolUpdater{
-		queue:                workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
-		getAvailableCPUsFunc: nil,
-		handle:               handle,
-	}
+
 	p := &Plugin{
 		handle:              handle,
 		Plugin:              internalPlugin.(*nodenumaresource.Plugin),
 		cpuSharePoolUpdater: updater,
 	}
-	updater.getAvailableCPUsFunc = func(nodeName string) (nodenumaresource.CPUSet, error) {
-		availableCPUs, _, err := p.GetCPUManager().GetAvailableCPUs(nodeName)
-		return availableCPUs, err
-	}
+	handle.SharedInformerFactory().Start(context.TODO().Done())
+	handle.SharedInformerFactory().WaitForCacheSync(context.TODO().Done())
 	updater.start()
-
-	podInformer := handle.SharedInformerFactory().Core().V1().Pods().Informer()
-	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		DeleteFunc: p.onPodDelete,
-		UpdateFunc: p.onPodUpdate,
-	})
 	registerNodeEventHandler(handle, p.GetCPUTopologyManager())
 	return p, nil
 }
@@ -161,25 +158,4 @@ func (p *Plugin) Reserve(ctx context.Context, cycleState *framework.CycleState, 
 		return nil
 	}
 	return p.Plugin.Reserve(ctx, cycleState, pod, nodeName)
-}
-
-func (p *Plugin) Unreserve(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeName string) {
-	p.Plugin.Unreserve(ctx, cycleState, pod, nodeName)
-	p.cpuSharePoolUpdater.asyncUpdate(pod.Spec.NodeName)
-}
-
-func (p *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
-	nodeInfo, err := p.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
-	if err != nil {
-		return framework.NewStatus(framework.Error, fmt.Sprintf("getting node %q from Snapshot: %v", nodeName, err))
-	}
-	node := nodeInfo.Node()
-	if node == nil {
-		return framework.NewStatus(framework.Error, "node not found")
-	}
-	if extunified.IsVirtualKubeletNode(node) {
-		return nil
-	}
-	p.cpuSharePoolUpdater.asyncUpdate(node.Name)
-	return p.Plugin.PreBind(ctx, cycleState, pod, nodeName)
 }
