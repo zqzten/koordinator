@@ -62,6 +62,8 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/services"
 	utilroutes "github.com/koordinator-sh/koordinator/pkg/util/routes"
+
+	frameworkextunified "github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/unified"
 )
 
 // Option configures a framework.Registry.
@@ -342,6 +344,7 @@ func Setup(ctx context.Context, opts *options.Options, schedulingHooks []framewo
 		frameworkext.WithServicesEngine(cc.ServicesEngine),
 		frameworkext.WithKoordinatorClientSet(cc.KoordinatorClient),
 		frameworkext.WithKoordinatorSharedInformerFactory(cc.KoordinatorSharedInformerFactory),
+		frameworkext.WithSharedListerFactory(frameworkextunified.NewOverQuotaSharedLister),
 	)
 	if err != nil {
 		return nil, nil, nil, err

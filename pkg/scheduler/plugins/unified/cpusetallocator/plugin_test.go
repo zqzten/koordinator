@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/apis/topology/v1alpha1"
 	nrtfake "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/generated/clientset/versioned/fake"
@@ -43,6 +44,7 @@ import (
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/nodenumaresource"
 )
 
 var _ framework.SharedLister = &testSharedLister{}
@@ -474,6 +476,7 @@ func TestPlugin_CPUSetProtocols(t *testing.T) {
 			assert.Nil(t, err)
 			plg := p.(*Plugin)
 			suit.start()
+			time.Sleep(100 * time.Millisecond)
 			nodeInfo, err := suit.Handle.SnapshotSharedLister().NodeInfos().Get("test-node-1")
 			assert.NoError(t, err)
 			assert.NotNil(t, nodeInfo)
@@ -681,4 +684,45 @@ func initialize(t *testing.T, ch chan int) (*pluginTestSuit, *Plugin, *corev1.Po
 	status = plg.Reserve(ctx, cycleState, pod, nodes[0].Name)
 	assert.Nil(t, status)
 	return suit, plg, pod, cycleState, nodes[0].Name
+}
+
+func TestPlugin_MaxRefCount(t *testing.T) {
+	nodes := []*corev1.Node{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "test-node-1",
+				Labels: map[string]string{extunified.LabelCPUOverQuota: "1.5"},
+			},
+			Status: corev1.NodeStatus{
+				Allocatable: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("8"),
+					corev1.ResourceMemory: resource.MustParse("512Gi"),
+				},
+			},
+		},
+	}
+
+	suit := newPluginTestSuit(t, nodes)
+
+	topologyManager := nodenumaresource.NewCPUTopologyManager()
+	assert.NotNil(t, topologyManager)
+	registerNodeEventHandler(suit.Handle, topologyManager)
+	suit.start()
+
+	nodeInfo, err := suit.Handle.SnapshotSharedLister().NodeInfos().Get(nodes[0].Name)
+	assert.NoError(t, err)
+	assert.NotNil(t, nodeInfo)
+
+	_, err = suit.Handle.ClientSet().CoreV1().Nodes().Create(context.TODO(), nodes[0], metav1.CreateOptions{})
+	assert.Nil(t, err)
+	time.Sleep(100 * time.Millisecond)
+	topologyOptions := topologyManager.GetCPUTopologyOptions(nodes[0].Name)
+	assert.Equal(t, 2, topologyOptions.MaxRefCount)
+
+	nodes[0].Labels[extunified.LabelCPUOverQuota] = "3.0"
+	_, err = suit.Handle.ClientSet().CoreV1().Nodes().Update(context.TODO(), nodes[0], metav1.UpdateOptions{})
+	assert.Nil(t, err)
+	time.Sleep(100 * time.Millisecond)
+	topologyOptions = topologyManager.GetCPUTopologyOptions(nodes[0].Name)
+	assert.Equal(t, 3, topologyOptions.MaxRefCount)
 }

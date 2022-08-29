@@ -105,6 +105,7 @@ func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error)
 		DeleteFunc: p.onPodDelete,
 		UpdateFunc: p.onPodUpdate,
 	})
+	registerNodeEventHandler(handle, p.GetCPUTopologyManager())
 	return p, nil
 }
 
@@ -144,7 +145,6 @@ func (p *Plugin) Score(ctx context.Context, cycleState *framework.CycleState, po
 	if extunified.IsVirtualKubeletNode(node) {
 		return 0, nil
 	}
-
 	return p.Plugin.Score(ctx, cycleState, pod, nodeName)
 }
 
@@ -160,7 +160,6 @@ func (p *Plugin) Reserve(ctx context.Context, cycleState *framework.CycleState, 
 	if extunified.IsVirtualKubeletNode(node) {
 		return nil
 	}
-
 	return p.Plugin.Reserve(ctx, cycleState, pod, nodeName)
 }
 
