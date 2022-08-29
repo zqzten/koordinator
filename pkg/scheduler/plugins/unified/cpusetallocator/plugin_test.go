@@ -136,7 +136,6 @@ func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
 	registeredPlugins := []schedulertesting.RegisterPluginFunc{
 		schedulertesting.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 		schedulertesting.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-		schedulertesting.RegisterPluginAsExtensions(Name, proxyNew, "PreFilter", "Filter", "Score", "Reserve", "PreBind"),
 	}
 
 	cs := kubefake.NewSimpleClientset()
@@ -534,56 +533,11 @@ func TestPlugin_CPUSetProtocols(t *testing.T) {
 }
 
 func TestPlugin_CPUSharePool(t *testing.T) {
-	t.Run("updateCPUSharePool in preBind and unreserve", func(t *testing.T) {
-		var ch = make(chan int)
-		suit, plg, pod, cycleState, nodeName := initialize(t, ch)
-		eventType := <-ch
-		assert.Equal(t, 1, eventType)
-
-		status := plg.PreBind(context.TODO(), cycleState, pod, nodeName)
-		assert.Nil(t, status)
-		eventType = <-ch
-		assert.Equal(t, 2, eventType)
-		nodeModified, err := suit.Handle.ClientSet().CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
-		assert.Nil(t, err)
-		assert.Equal(t, `{"cpuIDs":[3,5,7]}`, nodeModified.Annotations[extunified.AnnotationNodeCPUSharePool])
-
-		plg.Unreserve(context.TODO(), cycleState, pod, nodeName)
-		eventType = <-ch
-		assert.Equal(t, 2, eventType)
-		nodeModified, err = suit.Handle.ClientSet().CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
-		assert.Nil(t, err)
-		assert.Equal(t, `{"cpuIDs":[0,1,2,3,4,5,6,7]}`, nodeModified.Annotations[extunified.AnnotationNodeCPUSharePool])
-	})
-	t.Run("updateCPUSharePool in preBind and on podDeleted", func(t *testing.T) {
-		var ch = make(chan int)
-		suit, plg, pod, cycleState, nodeName := initialize(t, ch)
-		eventType := <-ch
-		assert.Equal(t, 1, eventType)
-
-		status := plg.PreBind(context.TODO(), cycleState, pod, nodeName)
-		assert.Nil(t, status)
-		eventType = <-ch
-		assert.Equal(t, 2, eventType)
-		nodeModified, err := suit.Handle.ClientSet().CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
-		assert.Nil(t, err)
-		assert.Equal(t, `{"cpuIDs":[3,5,7]}`, nodeModified.Annotations[extunified.AnnotationNodeCPUSharePool])
-
-		err = suit.Handle.ClientSet().CoreV1().Pods("default").Delete(context.TODO(), "test-pod-1", metav1.DeleteOptions{})
-		assert.Nil(t, err)
-		eventType = <-ch
-		assert.Equal(t, 2, eventType)
-		nodeModified, err = suit.Handle.ClientSet().CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
-		assert.Nil(t, err)
-		assert.Equal(t, `{"cpuIDs":[0,1,2,3,4,5,6,7]}`, nodeModified.Annotations[extunified.AnnotationNodeCPUSharePool])
-	})
-}
-
-func initialize(t *testing.T, ch chan int) (*pluginTestSuit, *Plugin, *corev1.Pod, *framework.CycleState, string) {
+	nodeName := "test-node-1"
 	nodes := []*corev1.Node{
 		{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "test-node-1",
+				Name: nodeName,
 			},
 			Status: corev1.NodeStatus{
 				Allocatable: corev1.ResourceList{
@@ -594,6 +548,9 @@ func initialize(t *testing.T, ch chan int) (*pluginTestSuit, *Plugin, *corev1.Po
 		},
 	}
 	suit := newPluginTestSuit(t, nodes)
+
+	// register node event handler
+	var ch = make(chan int)
 	suit.Handle.SharedInformerFactory().Core().V1().Nodes().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			ch <- 1
@@ -605,9 +562,21 @@ func initialize(t *testing.T, ch chan int) (*pluginTestSuit, *Plugin, *corev1.Po
 			ch <- 3
 		},
 	})
+
+	// create plg, register pod eventHandler and topology eventHandler
 	p, err := suit.proxyNew(suit.args, suit.Handle)
 	assert.NotNil(t, p)
 	assert.Nil(t, err)
+	suit.start()
+
+	// create node and nrt
+	nodeInfo, err := suit.Handle.SnapshotSharedLister().NodeInfos().Get("test-node-1")
+	assert.NoError(t, err)
+	assert.NotNil(t, nodeInfo)
+	_, err = suit.Handle.ClientSet().CoreV1().Nodes().Create(context.TODO(), nodes[0], metav1.CreateOptions{})
+	assert.Nil(t, err)
+	eventType := <-ch
+	assert.Equal(t, 1, eventType)
 	cpuTopology := extension.CPUTopology{
 		Detail: []extension.CPUInfo{
 			{ID: 0, Core: 0, Socket: 0, Node: 0},
@@ -632,21 +601,8 @@ func initialize(t *testing.T, ch chan int) (*pluginTestSuit, *Plugin, *corev1.Po
 		Zones:            nil,
 	}
 	_, err = suit.nrtClientSet.TopologyV1alpha1().NodeResourceTopologies().Create(context.TODO(), resourceTopology, metav1.CreateOptions{})
-	assert.Nil(t, err)
-	plg := p.(*Plugin)
-	suit.start()
-	nodeInfo, err := suit.Handle.SnapshotSharedLister().NodeInfos().Get("test-node-1")
-	assert.NoError(t, err)
-	assert.NotNil(t, nodeInfo)
-	_, err = suit.Handle.ClientSet().CoreV1().Nodes().Create(context.TODO(), nodes[0], metav1.CreateOptions{})
-	assert.Nil(t, err)
-	ctx := context.TODO()
-	cycleState := framework.NewCycleState()
-	koordResourceSpec := extension.ResourceSpec{
-		PreferredCPUBindPolicy: extension.CPUBindPolicySpreadByPCPUs,
-	}
-	koordResourceSpecData, err := json.Marshal(koordResourceSpec)
-	assert.NoError(t, err)
+
+	// create pod
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			UID:       uuid.NewUUID(),
@@ -654,7 +610,7 @@ func initialize(t *testing.T, ch chan int) (*pluginTestSuit, *Plugin, *corev1.Po
 			Name:      "test-pod-1",
 			Labels:    map[string]string{extension.LabelPodQoS: string(extension.QoSLSE)},
 			Annotations: map[string]string{
-				extension.AnnotationResourceSpec: string(koordResourceSpecData),
+				extension.AnnotationResourceStatus: `{"cpuset":"0-2,4,6"}`,
 			},
 		},
 		Spec: corev1.PodSpec{
@@ -669,21 +625,31 @@ func initialize(t *testing.T, ch chan int) (*pluginTestSuit, *Plugin, *corev1.Po
 					},
 				},
 			},
-			NodeName: nodes[0].Name,
 		},
 	}
 	_, err = suit.Handle.ClientSet().CoreV1().Pods("default").Create(context.TODO(), pod, metav1.CreateOptions{})
 	assert.Nil(t, err)
 
-	status := plg.PreFilter(ctx, cycleState, pod)
-	assert.Nil(t, status)
-	status = plg.Filter(ctx, cycleState, pod, nodeInfo)
-	assert.Nil(t, status)
-	_, status = plg.Score(ctx, cycleState, pod, nodes[0].Name)
-	assert.Nil(t, status)
-	status = plg.Reserve(ctx, cycleState, pod, nodes[0].Name)
-	assert.Nil(t, status)
-	return suit, plg, pod, cycleState, nodes[0].Name
+	// updateCPUSharePool on assignedPod Add and assignedPod update
+	pod.Spec.NodeName = nodeName
+	_, err = suit.Handle.ClientSet().CoreV1().Pods("default").Update(context.TODO(), pod, metav1.UpdateOptions{})
+	assert.Nil(t, err)
+	eventType = <-ch
+	assert.Equal(t, 2, eventType)
+	nodeModified, err := suit.Handle.ClientSet().CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+	assert.Nil(t, err)
+	assert.Equal(t, `{"cpuIDs":[3,5,7]}`, nodeModified.Annotations[extunified.AnnotationNodeCPUSharePool])
+	time.Sleep(200 * time.Millisecond)
+
+	// updateCPUSharePool on assignedPod Delete
+	err = suit.Handle.ClientSet().CoreV1().Pods("default").Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
+	assert.Nil(t, err)
+	eventType = <-ch
+	assert.Equal(t, 2, eventType)
+	nodeModified, err = suit.Handle.ClientSet().CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+	assert.Nil(t, err)
+	assert.Equal(t, `{"cpuIDs":[0,1,2,3,4,5,6,7]}`, nodeModified.Annotations[extunified.AnnotationNodeCPUSharePool])
+
 }
 
 func TestPlugin_MaxRefCount(t *testing.T) {
