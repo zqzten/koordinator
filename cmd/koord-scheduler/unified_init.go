@@ -21,6 +21,7 @@ import (
 	unifiedcpuset "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/cpusetallocator"
 	unifiedeci "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/eci"
 	unifiedoverquota "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/overquota"
+	unifiedpodconstraint "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/podconstraint"
 )
 
 func init() {
@@ -29,4 +30,5 @@ func init() {
 	koordinatorPlugins[unifiedcpuset.Name] = unifiedcpuset.New
 	koordinatorPlugins[unifiedeci.Name] = unifiedeci.New
 	koordinatorPlugins[unifiedoverquota.Name] = unifiedoverquota.New
+	koordinatorPlugins[unifiedpodconstraint.Name] = unifiedpodconstraint.New
 }
