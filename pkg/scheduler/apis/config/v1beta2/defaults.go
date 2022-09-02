@@ -77,6 +77,8 @@ var (
 
 	defaultTimeout           = 600 * time.Second
 	defaultControllerWorkers = 1
+
+	defaultEnableDefaultPodConstraint = pointer.Bool(false)
 )
 
 // SetDefaults_LoadAwareSchedulingArgs sets the default parameters for LoadAwareScheduling plugin.
@@ -156,5 +158,11 @@ func SetDefaults_CoschedulingArgs(obj *CoschedulingArgs) {
 	}
 	if obj.ControllerWorkers == nil {
 		obj.ControllerWorkers = pointer.Int64(int64(defaultControllerWorkers))
+	}
+}
+
+func SetDefaults_UnifiedPodConstraintArgs(obj *UnifiedPodConstraintArgs) {
+	if obj.EnableDefaultPodConstraint == nil {
+		obj.EnableDefaultPodConstraint = defaultEnableDefaultPodConstraint
 	}
 }
