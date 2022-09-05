@@ -25,6 +25,7 @@ import (
 
 	"github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/apis/topology/v1alpha1"
 	nrtfake "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/generated/clientset/versioned/fake"
+	nrtinformers "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/generated/informers/externalversions"
 	"github.com/stretchr/testify/assert"
 	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 	corev1 "k8s.io/api/core/v1"
@@ -119,9 +120,10 @@ func proxyPluginFactory(fakeClientSet *nrtfake.Clientset, factory runtime.Plugin
 
 type pluginTestSuit struct {
 	framework.Handle
-	nrtClientSet *nrtfake.Clientset
-	proxyNew     runtime.PluginFactory
-	args         apiruntime.Object
+	nrtClientSet       *nrtfake.Clientset
+	nrtInformerFactory nrtinformers.SharedInformerFactory
+	proxyNew           runtime.PluginFactory
+	args               apiruntime.Object
 }
 
 func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
@@ -132,6 +134,7 @@ func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
 
 	nrtClientSet := nrtfake.NewSimpleClientset()
 	proxyNew := proxyPluginFactory(nrtClientSet, New)
+	nrtInformerFactory := nrtinformers.NewSharedInformerFactoryWithOptions(nrtClientSet, 0)
 
 	registeredPlugins := []schedulertesting.RegisterPluginFunc{
 		schedulertesting.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
@@ -151,10 +154,11 @@ func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
 	assert.Nil(t, err)
 
 	return &pluginTestSuit{
-		Handle:       fh,
-		nrtClientSet: nrtClientSet,
-		proxyNew:     proxyNew,
-		args:         &pluginArgs,
+		Handle:             fh,
+		nrtClientSet:       nrtClientSet,
+		nrtInformerFactory: nrtInformerFactory,
+		proxyNew:           proxyNew,
+		args:               &pluginArgs,
 	}
 }
 
@@ -162,6 +166,8 @@ func (p *pluginTestSuit) start() {
 	ctx := context.TODO()
 	p.Handle.SharedInformerFactory().Start(ctx.Done())
 	p.Handle.SharedInformerFactory().WaitForCacheSync(ctx.Done())
+	p.nrtInformerFactory.Start(ctx.Done())
+	p.nrtInformerFactory.WaitForCacheSync(ctx.Done())
 }
 
 func TestNew(t *testing.T) {
@@ -550,16 +556,30 @@ func TestPlugin_CPUSharePool(t *testing.T) {
 	suit := newPluginTestSuit(t, nodes)
 
 	// register node event handler
-	var ch = make(chan int)
+	var nodeEventChan = make(chan int)
 	suit.Handle.SharedInformerFactory().Core().V1().Nodes().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			ch <- 1
+			nodeEventChan <- 1
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			ch <- 2
+			nodeEventChan <- 2
 		},
 		DeleteFunc: func(obj interface{}) {
-			ch <- 3
+			nodeEventChan <- 3
+		},
+	})
+
+	// register nrt event handler
+	var nrtEventChan = make(chan int)
+	suit.nrtInformerFactory.Topology().V1alpha1().NodeResourceTopologies().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			nrtEventChan <- 1
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			nrtEventChan <- 2
+		},
+		DeleteFunc: func(obj interface{}) {
+			nrtEventChan <- 3
 		},
 	})
 
@@ -575,7 +595,7 @@ func TestPlugin_CPUSharePool(t *testing.T) {
 	assert.NotNil(t, nodeInfo)
 	_, err = suit.Handle.ClientSet().CoreV1().Nodes().Create(context.TODO(), nodes[0], metav1.CreateOptions{})
 	assert.Nil(t, err)
-	eventType := <-ch
+	eventType := <-nodeEventChan
 	assert.Equal(t, 1, eventType)
 	cpuTopology := extension.CPUTopology{
 		Detail: []extension.CPUInfo{
@@ -601,6 +621,8 @@ func TestPlugin_CPUSharePool(t *testing.T) {
 		Zones:            nil,
 	}
 	_, err = suit.nrtClientSet.TopologyV1alpha1().NodeResourceTopologies().Create(context.TODO(), resourceTopology, metav1.CreateOptions{})
+	nrtEvent := <-nrtEventChan
+	assert.Equal(t, 1, nrtEvent)
 
 	// create pod
 	pod := &corev1.Pod{
@@ -634,17 +656,16 @@ func TestPlugin_CPUSharePool(t *testing.T) {
 	pod.Spec.NodeName = nodeName
 	_, err = suit.Handle.ClientSet().CoreV1().Pods("default").Update(context.TODO(), pod, metav1.UpdateOptions{})
 	assert.Nil(t, err)
-	eventType = <-ch
+	eventType = <-nodeEventChan
 	assert.Equal(t, 2, eventType)
 	nodeModified, err := suit.Handle.ClientSet().CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
 	assert.Nil(t, err)
 	assert.Equal(t, `{"cpuIDs":[3,5,7]}`, nodeModified.Annotations[extunified.AnnotationNodeCPUSharePool])
-	time.Sleep(200 * time.Millisecond)
 
 	// updateCPUSharePool on assignedPod Delete
 	err = suit.Handle.ClientSet().CoreV1().Pods("default").Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 	assert.Nil(t, err)
-	eventType = <-ch
+	eventType = <-nodeEventChan
 	assert.Equal(t, 2, eventType)
 	nodeModified, err = suit.Handle.ClientSet().CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
 	assert.Nil(t, err)
