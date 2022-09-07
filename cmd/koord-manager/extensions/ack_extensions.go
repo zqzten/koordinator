@@ -21,7 +21,10 @@ package extensions
 
 import (
 	"context"
+	cgroups "github.com/koordinator-sh/koordinator/pkg/slo-controller/ackcgroups"
+	resourcesv1alpha1 "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/resources/v1alpha1"
 	"os"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"time"
 
 	kruisev1alpha1 "github.com/openkruise/kruise/apis/apps/v1alpha1"
@@ -42,7 +45,7 @@ import (
 )
 
 var (
-	setupLog = ctrl.Log.WithName("setup-ack-extensions")
+	setupLog   = ctrl.Log.WithName("setup-ack-extensions")
 	restConfig *rest.Config
 )
 
@@ -50,16 +53,22 @@ var (
 func PrepareExtensions(cfg *rest.Config, mgr ctrl.Manager) {
 	restConfig = cfg
 	prepareRecommender(mgr)
+	prepareCgroupsController(mgr)
 }
 
 func StartExtensions(ctx context.Context, mgr ctrl.Manager) {
 	startRecommenderController(mgr, ctx.Done())
+	startCgroupsController(mgr, ctx.Done())
 }
 
 func prepareRecommender(mgr ctrl.Manager) {
 	_ = autoscaling.AddToScheme(mgr.GetScheme())
 	_ = kruisev1alpha1.AddToScheme(mgr.GetScheme())
 	_ = kruisev1beta1.AddToScheme(mgr.GetScheme())
+}
+
+func prepareCgroupsController(mgr ctrl.Manager) {
+	_ = resourcesv1alpha1.AddToScheme(mgr.GetScheme())
 }
 
 func startRecommenderController(mgr ctrl.Manager, stopCh <-chan struct{}) {
@@ -94,4 +103,27 @@ func startRecommenderController(mgr ctrl.Manager, stopCh <-chan struct{}) {
 
 	setupLog.Info("staring recommender")
 	go rc.Start(stopCh)
+}
+
+func startCgroupsController(mgr ctrl.Manager, stopCh <-chan struct{}) {
+	cgroupsRecycler := cgroups.NewCgroupsInfoRecycler(mgr.GetClient())
+	if err := (&cgroups.CgroupsReconciler{
+		Client: mgr.GetClient(),
+		Log:    ctrl.Log.WithName("controllers").WithName("Cgroups"),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr, controller.Options{}, cgroupsRecycler); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Cgroups")
+		os.Exit(1)
+	}
+
+	if err := (&cgroups.PodCgroupsReconciler{
+		Client: mgr.GetClient(),
+		Log:    ctrl.Log.WithName("controllers"),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr, controller.Options{}, cgroupsRecycler); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Cgroups.Pod")
+		os.Exit(1)
+	}
+
+	cgroupsRecycler.Start(stopCh)
 }
