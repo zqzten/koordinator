@@ -296,7 +296,7 @@ func Test_updateNodeWithReclaimedResource(t *testing.T) {
 				cfgCache: &FakeCfgCache{
 					cfg: *tt.fields.config,
 				},
-				SyncContext: SyncContext{contextMap: tt.fields.SyncContext.contextMap},
+				BESyncContext: SyncContext{contextMap: tt.fields.SyncContext.contextMap},
 				Clock:       clock.RealClock{},
 			}
 			got := r.updateNodeBEResource(tt.args.oldNode, tt.args.beResource)

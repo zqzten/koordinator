@@ -1,5 +1,5 @@
-//go:build github
-// +build github
+//go:build !github
+// +build !github
 
 /*
 Copyright 2022 The Koordinator Authors.
@@ -19,6 +19,13 @@ limitations under the License.
 
 package plugins
 
+import (
+	"k8s.io/apimachinery/pkg/util/runtime"
+
+	"github.com/koordinator-sh/koordinator/pkg/koordlet/resmanager/plugins/ackcgroupcrd"
+)
+
 // for third party extension plugins
 func init() {
+	runtime.Must(RegisterQOSExtPlugin(ackcgroupcrd.FeatureName, ackcgroupcrd.FeatureSpec, ackcgroupcrd.Plugin))
 }

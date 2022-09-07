@@ -1,6 +1,3 @@
-//go:build github
-// +build github
-
 /*
 Copyright 2022 The Koordinator Authors.
 
@@ -17,8 +14,28 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package plugins
+package cgroupscrd
 
-// for third party extension plugins
-func init() {
+import (
+	"strconv"
+
+	apiext "github.com/koordinator-sh/koordinator/apis/extension"
+	sysutil "github.com/koordinator-sh/koordinator/pkg/util/system"
+)
+
+const (
+	CPUBvtLSValue = 2
+	CPUBvtBEValue = -1
+)
+
+func generateCPUIdentity(podQOS apiext.QoSClass) map[string]string {
+	bvtValue := "0"
+	if podQOS == apiext.QoSLS {
+		bvtValue = strconv.Itoa(CPUBvtLSValue)
+	} else if podQOS == apiext.QoSBE {
+		bvtValue = strconv.Itoa(CPUBvtBEValue)
+	}
+	return map[string]string{
+		sysutil.CPUBVTWarpNsName: bvtValue,
+	}
 }
