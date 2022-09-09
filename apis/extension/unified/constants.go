@@ -17,5 +17,8 @@ limitations under the License.
 package unified
 
 const (
-	LabelPodQoSClass = "alibabacloud.com/qos"
+	LabelPodQoSClass              = "alibabacloud.com/qos"
+	K8sLabelScheduleNodeName      = "scheduler.assign/nodename"
+	AnnotationSchedulerUpdateTime = "alibabacloud.com/scheduler-update-time"
+	AnnotationSchedulerBindTime   = "alibabacloud.com/scheduler-bind-time"
 )
