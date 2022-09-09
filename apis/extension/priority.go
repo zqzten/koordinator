@@ -48,7 +48,7 @@ var (
 	PriorityFreeValueMin int32 = 3000
 )
 
-func GetPriorityClass(pod *corev1.Pod) PriorityClass {
+var GetPriorityClass = func(pod *corev1.Pod) PriorityClass {
 	if pod == nil || pod.Spec.Priority == nil {
 		return PriorityNone
 	}

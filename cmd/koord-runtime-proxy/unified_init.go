@@ -18,15 +18,4 @@ package main
 
 import (
 	_ "github.com/koordinator-sh/koordinator/apis/extension/unified"
-	unifiedcpuset "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/cpusetallocator"
-	unifiedeci "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/eci"
-	unifiedoverquota "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/overquota"
 )
-
-func init() {
-	schedulingHooks = append(schedulingHooks, unifiedoverquota.NewHook())
-
-	koordinatorPlugins[unifiedcpuset.Name] = unifiedcpuset.New
-	koordinatorPlugins[unifiedeci.Name] = unifiedeci.New
-	koordinatorPlugins[unifiedoverquota.Name] = unifiedoverquota.New
-}
