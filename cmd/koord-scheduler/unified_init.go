@@ -22,6 +22,7 @@ import (
 	unifiedeci "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/eci"
 	unifiedoverquota "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/overquota"
 	unifiedpodconstraint "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/podconstraint"
+	unifiedscheduleresult "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/scheduleresult"
 )
 
 func init() {
@@ -31,4 +32,5 @@ func init() {
 	koordinatorPlugins[unifiedeci.Name] = unifiedeci.New
 	koordinatorPlugins[unifiedoverquota.Name] = unifiedoverquota.New
 	koordinatorPlugins[unifiedpodconstraint.Name] = unifiedpodconstraint.New
+	koordinatorPlugins[unifiedscheduleresult.Name] = unifiedscheduleresult.New
 }
