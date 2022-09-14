@@ -923,6 +923,8 @@ github.com/quobyte/api v0.1.8/go.mod h1:jL7lIHrmqQ7yh05OJ+eEEdHr0u/kmT1Ff9iHd+4H
 github.com/remyoudompheng/bigfft v0.0.0-20170806203942-52369c62f446/go.mod h1:uYEyJGbgTkfkS4+E/PavXkNJcbFIpEtjt2B0KDQ5+9M=
 github.com/rivo/uniseg v0.2.0 h1:S1pD9weZBuJdFmowNwbpi7BJ8TNftyUImj/0WQi72jY=
 github.com/rivo/uniseg v0.2.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
+github.com/robfig/cron v1.2.0 h1:ZjScXvvxeQ63Dbyxy76Fj3AT3Ut0aKsyd2/tl3DTMuQ=
+github.com/robfig/cron v1.2.0/go.mod h1:JGuDeoQd7Z6yL4zQhZ3OPEVHB7fL6Ka6skscFHfmt2k=
 github.com/robfig/cron/v3 v3.0.1/go.mod h1:eQICP3HwyT7UooqI/z+Ov+PtYAWygg1TEWWzGIFLtro=
 github.com/rogpeppe/fastuuid v0.0.0-20150106093220-6724a57986af/go.mod h1:XWv6SoW27p1b0cqNHllgS5HIMJraePCO15w5zCzIWYg=
 github.com/rogpeppe/fastuuid v1.2.0/go.mod h1:jVj6XXZzXRy/MSR5jhDC/2q6DgLz+nrA6LYCDYWNEvQ=
@@ -1079,8 +1081,10 @@ github.com/yvasiyarov/newrelic_platform_go v0.0.0-20140908184405-b21fdbd4370f/go
 gitlab.alibaba-inc.com/cos/unified-resource-api v0.0.3-0.20220322075509-ae82ec79b955/go.mod h1:yHekzAh2JIpKubKJCTYruzqd4WjN0DwBLW9K3foTuNM=
 gitlab.alibaba-inc.com/cos/unified-resource-api v1.22.3-1.0.20220705131219-d0d01381562f h1:ohV0R+dkphs9W4s/NgkZHNSf0uJjO5EgYfVDozl+7x8=
 gitlab.alibaba-inc.com/cos/unified-resource-api v1.22.3-1.0.20220705131219-d0d01381562f/go.mod h1:yHekzAh2JIpKubKJCTYruzqd4WjN0DwBLW9K3foTuNM=
-gitlab.alibaba-inc.com/unischeduler/api v0.0.2-0.20220727074006-42a6b768012d h1:VeKtvbzhzXhzOmdLMup9rVpYvZ9F/AEzXRisbzPsLQU=
-gitlab.alibaba-inc.com/unischeduler/api v0.0.2-0.20220727074006-42a6b768012d/go.mod h1:kmdWWTDSMOna7zBjSbtqWFXsmhDDITjMdrbAaguOFn0=
+gitlab.alibaba-inc.com/sigma/sigma-k8s-api v1.1.3 h1:+fLCR4JzY9eYOMNtNh88J05Pnz9HMkWH1xKyM5EGG48=
+gitlab.alibaba-inc.com/sigma/sigma-k8s-api v1.1.3/go.mod h1:ukAnlhtfYakSMC8RAvnZ0ptq8oJWDfBCQsgKWOJOWew=
+gitlab.alibaba-inc.com/unischeduler/api v0.0.2-0.20220913032323-136f56c351d2 h1:glp0Fk9g//DuYvsaQJDVMk7ZbTHlPF0m6gFA5q0TNJk=
+gitlab.alibaba-inc.com/unischeduler/api v0.0.2-0.20220913032323-136f56c351d2/go.mod h1:kmdWWTDSMOna7zBjSbtqWFXsmhDDITjMdrbAaguOFn0=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.etcd.io/bbolt v1.3.3/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.etcd.io/bbolt v1.3.5/go.mod h1:G5EMThwa9y8QZGBClrRx5EY+Yw9kAhnjy3bSjsnlVTQ=

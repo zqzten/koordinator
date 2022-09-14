@@ -18,11 +18,13 @@ package controllers
 
 import (
 	"github.com/koordinator-sh/koordinator/pkg/descheduler/controllers/migration"
+	"github.com/koordinator-sh/koordinator/pkg/descheduler/controllers/unified/orchestratingslo"
 	"github.com/koordinator-sh/koordinator/pkg/descheduler/framework/runtime"
 )
 
 func NewControllerRegistry() runtime.Registry {
 	return runtime.Registry{
-		migration.Name: migration.New,
+		migration.Name:        migration.New,
+		orchestratingslo.Name: orchestratingslo.New,
 	}
 }

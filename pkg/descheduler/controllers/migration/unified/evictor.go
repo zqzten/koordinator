@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,14 +18,12 @@ import (
 )
 
 const (
-	Name = "LabelBasedEvictor"
+	EvictorName = "LabelBasedEvictor"
 )
 
 const (
 	LabelASIEviction             = "pod.sigma.ali/eviction"
-	LabelPodEviction             = "alibabacloud.com/eviction"
 	AnnotationASIEvictionContext = "pod.alibabacloud.com/eviction-context"
-	AnnotationEvictionContext    = "alibabacloud.com/eviction-context"
 )
 
 type EvictionContent struct {
@@ -42,7 +41,7 @@ type Evictor struct {
 }
 
 func init() {
-	evictor.RegisterEvictor(Name, New)
+	evictor.RegisterEvictor(EvictorName, New)
 }
 
 func New(client kubernetes.Interface) evictor.Interface {
@@ -73,9 +72,9 @@ func (e *Evictor) Evict(ctx context.Context, job *koordsev1alpha1.PodMigrationJo
 	}
 
 	patch := NewStrategicPatch()
-	patch.InsertAnnotation(AnnotationEvictionContext, string(data))
+	patch.InsertAnnotation(extension.AnnotationEvictionContext, string(data))
 	patch.InsertAnnotation(AnnotationASIEvictionContext, string(data))
-	patch.InsertLabel(LabelPodEviction, "true")
+	patch.InsertLabel(extension.LabelPodEviction, "true")
 	patch.InsertLabel(LabelASIEviction, "true")
 	data, err = patch.Data(nil)
 	if err != nil {
@@ -92,4 +91,12 @@ func (e *Evictor) Evict(ctx context.Context, job *koordsev1alpha1.PodMigrationJo
 		klog.Errorf("Failed to evict Pod(%s/%s) by labelEvictor, err: %v", pod.Namespace, pod.Name, err)
 	}
 	return err
+}
+
+// HasEvictionLabel check if pod has eviction label
+func HasEvictionLabel(pod *corev1.Pod) bool {
+	if pod.Labels == nil {
+		return false
+	}
+	return pod.Labels[LabelASIEviction] == "true" || pod.Labels[extension.LabelPodEviction] == "true"
 }
