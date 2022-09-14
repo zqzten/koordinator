@@ -621,6 +621,7 @@ func TestPlugin_CPUSharePool(t *testing.T) {
 		Zones:            nil,
 	}
 	_, err = suit.nrtClientSet.TopologyV1alpha1().NodeResourceTopologies().Create(context.TODO(), resourceTopology, metav1.CreateOptions{})
+	assert.NoError(t, err)
 	nrtEvent := <-nrtEventChan
 	assert.Equal(t, 1, nrtEvent)
 
