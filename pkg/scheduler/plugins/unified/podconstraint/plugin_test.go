@@ -301,6 +301,7 @@ func TestPlugin_PreFilter(t *testing.T) {
 			}
 
 			state, status := getPreFilterState(tt.args.cycleState)
+			assert.Equal(t, tt.expectSuccess, status.IsSuccess())
 			assert.Equal(t, tt.expectPrefilterState, state)
 		})
 	}
