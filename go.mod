@@ -25,10 +25,12 @@ require (
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/prashantv/gostub v1.1.0
 	github.com/prometheus/client_golang v1.14.0
+	github.com/robfig/cron v1.2.0
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.1
-	gitlab.alibaba-inc.com/unischeduler/api v0.0.2-0.20220727074006-42a6b768012d
+	gitlab.alibaba-inc.com/sigma/sigma-k8s-api v1.1.3
+	gitlab.alibaba-inc.com/unischeduler/api v0.0.2-0.20220913032323-136f56c351d2
 	go.uber.org/atomic v1.10.0
 	go.uber.org/multierr v1.6.0
 	golang.org/x/crypto v0.1.0
