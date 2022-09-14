@@ -17,5 +17,6 @@ limitations under the License.
 package names
 
 const (
-	MigrationController = "MigrationController"
+	MigrationController        = "MigrationController"
+	OrchestratingSLOController = "OrchestratingSLO"
 )
