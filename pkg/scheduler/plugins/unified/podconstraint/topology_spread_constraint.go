@@ -27,12 +27,12 @@ import (
 // 1. 没到MinTopologyValues时尽量让每个TopologyValue都有一个
 // 2. 到了之后再按照MaxCount、MaxSkew、TopologyValueToRatios去匹配
 type TopologySpreadConstraint struct {
-	TopologyKey       string
-	MinTopologyValues int
-	MaxCount          int
-	MaxSkew           int
-	TopologyRatios    map[string]int
-	TopologySumRatio  int
+	TopologyKey       string         `json:"topologyKey,omitempty"`
+	MinTopologyValues int            `json:"minTopologyValues,omitempty"`
+	MaxCount          int            `json:"maxCount,omitempty"`
+	MaxSkew           int            `json:"maxSkew,omitempty"`
+	TopologyRatios    map[string]int `json:"topologyRatios,omitempty"`
+	TopologySumRatio  int            `json:"topologySumRatio,omitempty"`
 }
 
 func spreadRulesToTopologySpreadConstraint(spreadRules []unischeduling.SpreadRuleItem) []*TopologySpreadConstraint {

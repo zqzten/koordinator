@@ -18,6 +18,7 @@ package podconstraint
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	corev1 "k8s.io/api/core/v1"
@@ -60,6 +61,17 @@ func (p TopologyPair) MarshalText() ([]byte, error) {
 	return []byte(fmt.Sprintf("%s/%s", p.TopologyKey, p.TopologyValue)), nil
 }
 
+func (p *TopologyPair) UnmarshalText(text []byte) error {
+	str := string(text)
+	sepIndex := strings.LastIndex(str, "/")
+	if sepIndex < 1 || sepIndex > len(str)-2 {
+		return fmt.Errorf("want TopologyKey/TopologyValue, got %s", str)
+	}
+	p.TopologyKey = str[0:sepIndex]
+	p.TopologyValue = str[sepIndex+1:]
+	return nil
+}
+
 func (s *TopologySpreadConstraintState) copyRequiredSpreadConstraints() []*TopologySpreadConstraint {
 	if len(s.RequiredSpreadConstraints) == 0 {
 		return nil
@@ -87,6 +99,37 @@ func (s *TopologySpreadConstraintState) copyTpPairToMatchNum() map[TopologyPair]
 		tpPairToMatchNum[tpPair] = matchNum
 	}
 	return tpPairToMatchNum
+}
+
+func (s *TopologySpreadConstraintState) copyTpKeyToTotalMatchNum() map[string]int {
+	if s.TpKeyToTotalMatchNum == nil {
+		return nil
+	}
+	tpKeyToTotalMatchNum := map[string]int{}
+	for tpKey, totalMatchNum := range s.TpKeyToTotalMatchNum {
+		tpKeyToTotalMatchNum[tpKey] = totalMatchNum
+	}
+	return tpKeyToTotalMatchNum
+}
+
+func (s *TopologySpreadConstraintState) copyTpKeyToCriticalPath() map[string]*TopologyCriticalPaths {
+	if s.TpKeyToCriticalPaths == nil {
+		return nil
+	}
+	TpKeyToCriticalPath := map[string]*TopologyCriticalPaths{}
+	for tpKey, criticalPaths := range s.TpKeyToCriticalPaths {
+		TpKeyToCriticalPath[tpKey] = &TopologyCriticalPaths{
+			Min: CriticalPath{
+				criticalPaths.Min.TopologyValue,
+				criticalPaths.Min.MatchNum,
+			},
+			Max: CriticalPath{
+				criticalPaths.Max.TopologyValue,
+				criticalPaths.Max.MatchNum,
+			},
+		}
+	}
+	return TpKeyToCriticalPath
 }
 
 func (s *TopologySpreadConstraintState) updateWithPodConstraint(constraint *unischeduling.PodConstraint, spreadTypeRequired *bool) (hasNewTopologyKey bool) {
