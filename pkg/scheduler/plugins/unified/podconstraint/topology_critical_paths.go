@@ -21,8 +21,8 @@ import (
 )
 
 type TopologyCriticalPaths struct {
-	Min CriticalPath
-	Max CriticalPath
+	Min CriticalPath `json:"min"`
+	Max CriticalPath `json:"max"`
 }
 
 // CriticalPath traces the minimum matchNum and  matchNum in the Topology
@@ -31,9 +31,9 @@ type TopologyCriticalPaths struct {
 // 3. todo 需要使用者确保Pod分配遵循尽量Spread原则
 type CriticalPath struct {
 	// TopologyValue denotes the topology value mapping to topology key.
-	TopologyValue string
+	TopologyValue string `json:"topologyValue,omitempty"`
 	// MatchNum denotes the number of matching pods.
-	MatchNum int
+	MatchNum int `json:"matchNum,omitempty"`
 }
 
 func NewTopologyCriticalPaths() *TopologyCriticalPaths {
