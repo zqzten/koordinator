@@ -27,6 +27,8 @@ import (
 const (
 	AnnotationContainerResourceRequest = extension.DomainPrefix + "containerResourceRequest"
 	EnvSigmaIgnoreResource             = "SIGMA_IGNORE_RESOURCE"
+	EnvECIResourceIgnore               = "__ECI_RESOURCE_IGNORE__"
+	ENVECIResourceIgnoreTrue           = "TRUE"
 )
 
 type ContainerResourceRequest struct {
@@ -64,9 +66,9 @@ func GetResourceRequests(annotations map[string]string) (map[string]*ContainerRe
 	return result, nil
 }
 
-func IsContainerIgnoreResourceByEnvs(containerEnvs map[string]string) bool {
-	for name, value := range containerEnvs {
-		if name == EnvSigmaIgnoreResource && value == "true" {
+func IsContainerIgnoreResource(c *corev1.Container) bool {
+	for _, entry := range c.Env {
+		if entry.Name == EnvSigmaIgnoreResource && entry.Value == "true" {
 			return true
 		}
 	}
