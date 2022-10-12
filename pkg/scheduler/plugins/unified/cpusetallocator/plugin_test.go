@@ -569,24 +569,33 @@ func TestPlugin_CPUSharePool(t *testing.T) {
 		},
 	})
 
-	// register nrt event handler
-	var nrtEventChan = make(chan int)
-	suit.nrtInformerFactory.Topology().V1alpha1().NodeResourceTopologies().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			nrtEventChan <- 1
-		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			nrtEventChan <- 2
-		},
-		DeleteFunc: func(obj interface{}) {
-			nrtEventChan <- 3
-		},
-	})
-
 	// create plg, register pod eventHandler and topology eventHandler
 	p, err := suit.proxyNew(suit.args, suit.Handle)
 	assert.NotNil(t, p)
 	assert.Nil(t, err)
+
+	// register nrt event handler
+	var nrtEventChan = make(chan int)
+	suit.nrtInformerFactory.Topology().V1alpha1().NodeResourceTopologies().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			nodeResTopology, ok := obj.(*v1alpha1.NodeResourceTopology)
+			if !ok {
+				return
+			}
+			reportedCPUTopology, err := extension.GetCPUTopology(nodeResTopology.Annotations)
+			assert.NoError(t, err)
+
+			cpuTopology := convertCPUTopology(reportedCPUTopology)
+			topologyManager := p.(*Plugin).GetCPUTopologyManager()
+			topologyManager.UpdateCPUTopologyOptions(nodeResTopology.Name, func(options *nodenumaresource.CPUTopologyOptions) {
+				*options = nodenumaresource.CPUTopologyOptions{
+					CPUTopology: cpuTopology,
+				}
+			})
+			nrtEventChan <- 1
+		},
+	})
+
 	suit.start()
 
 	// create node and nrt
@@ -653,6 +662,7 @@ func TestPlugin_CPUSharePool(t *testing.T) {
 	_, err = suit.Handle.ClientSet().CoreV1().Pods("default").Create(context.TODO(), pod, metav1.CreateOptions{})
 	assert.Nil(t, err)
 
+	assert.Equal(t, "", pod.Spec.NodeName)
 	// updateCPUSharePool on assignedPod Add and assignedPod update
 	pod.Spec.NodeName = nodeName
 	_, err = suit.Handle.ClientSet().CoreV1().Pods("default").Update(context.TODO(), pod, metav1.UpdateOptions{})
@@ -671,7 +681,14 @@ func TestPlugin_CPUSharePool(t *testing.T) {
 	nodeModified, err = suit.Handle.ClientSet().CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
 	assert.Nil(t, err)
 	assert.Equal(t, `{"cpuIDs":[0,1,2,3,4,5,6,7]}`, nodeModified.Annotations[extunified.AnnotationNodeCPUSharePool])
+}
 
+func convertCPUTopology(reportedCPUTopology *extension.CPUTopology) *nodenumaresource.CPUTopology {
+	builder := nodenumaresource.NewCPUTopologyBuilder()
+	for _, info := range reportedCPUTopology.Detail {
+		builder.AddCPUInfo(int(info.Socket), int(info.Node), int(info.Core), int(info.ID))
+	}
+	return builder.Result()
 }
 
 func TestPlugin_MaxRefCount(t *testing.T) {
