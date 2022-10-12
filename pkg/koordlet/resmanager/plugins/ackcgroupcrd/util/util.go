@@ -89,30 +89,33 @@ func GetPodCgroupsFromNode(pod *corev1.Pod,
 	return nil
 }
 
-// IsPodCfsQuotaNeedUnset checks if the pod is static cpuset pod. If it is, the pod-level cfs_quota should be unset to
-// avoid unnecessary cfs throttles.
+// IsPodCfsQuotaNeedUnset checks if the pod is static cpuset pod and cfs_quota need unset.
+// It enhances the compatibility of IsPodCfsQuotaNeedUnset() in the package `pkg/util` for ack cases.
 // https://aone.alibaba-inc.com/v2/project/1053428/req/43543780#
 // https://github.com/koordinator-sh/koordinator/issues/489
 func IsPodCfsQuotaNeedUnset(pod *corev1.Pod) bool {
-	// does not unset if the pod is not cpuset
-	if isPodCPUSet, err := uniapiext.IsPodCPUSet(pod); err != nil {
-		klog.Warningf("failed to check if the pod is cpuset, err: %s", err)
-		return false
-	} else if !isPodCPUSet {
+	needUnset, err := util.IsPodCfsQuotaNeedUnset(pod.Annotations)
+	if err != nil {
+		klog.Warningf("failed to check if cfs quota need unset for pod %s, err: %s", util.GetPodKey(pod), err)
 		return false
 	}
+	if needUnset {
+		return true
+	} // else needUnset=false
 
-	// when policy is static-burst, cpu limit <= cpuset cpus, so does not unset cfs quota in this case
+	// special case: unset the static-burst cpuset pod if it has the same pod cpuset with the specified cpu limit
+	if isPodCPUSet, err := uniapiext.IsPodCPUSet(pod); err != nil || !isPodCPUSet {
+		return false
+	}
 	if uniapiext.GetCPUPolicyFromAnnotation(pod) == uniapiext.CPUPolicyStaticBurst {
-		// unset the static-burst cpuset pod if it has the same pod cpuset with the specified cpu limit
 		allocateResult, err := uniapiext.GetCPUAllocateResultFromAnnotation(pod)
 		if err != nil {
-			klog.Warningf("failed to get cpu allocate result for the pod %s/%s, err: %s", pod.Namespace, pod.Name, err)
+			klog.Warningf("failed to get cpu allocate result for the pod %s, err: %s", util.GetPodKey(pod), err)
 			return false
 		}
 		if int64(allocateResult.ToCPUSet().Size())*1000 != util.GetPodMilliCPULimit(pod) {
 			return false
 		}
 	}
-	return true
+	return false
 }

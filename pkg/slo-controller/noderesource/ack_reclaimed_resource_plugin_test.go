@@ -297,7 +297,7 @@ func Test_updateNodeWithReclaimedResource(t *testing.T) {
 					cfg: *tt.fields.config,
 				},
 				BESyncContext: SyncContext{contextMap: tt.fields.SyncContext.contextMap},
-				Clock:       clock.RealClock{},
+				Clock:         clock.RealClock{},
 			}
 			got := r.updateNodeBEResource(tt.args.oldNode, tt.args.beResource)
 			assert.Equal(t, tt.wantErr, got != nil, got)

@@ -21,10 +21,7 @@ package extensions
 
 import (
 	"context"
-	cgroups "github.com/koordinator-sh/koordinator/pkg/slo-controller/ackcgroups"
-	resourcesv1alpha1 "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/resources/v1alpha1"
 	"os"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"time"
 
 	kruisev1alpha1 "github.com/openkruise/kruise/apis/apps/v1alpha1"
@@ -37,11 +34,14 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 
+	cgroups "github.com/koordinator-sh/koordinator/pkg/slo-controller/ackcgroups"
 	sloconfig "github.com/koordinator-sh/koordinator/pkg/slo-controller/config"
 
 	recommender "gitlab.alibaba-inc.com/cos/recommender/pkg/controllers"
 	autoscaling "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/autoscaling/v1alpha1"
+	resourcesv1alpha1 "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/resources/v1alpha1"
 )
 
 var (
@@ -72,7 +72,7 @@ func prepareCgroupsController(mgr ctrl.Manager) {
 }
 
 func startRecommenderController(mgr ctrl.Manager, stopCh <-chan struct{}) {
-	// TODO useing same client with koord-manager for recommender
+	// TODO using same client with koord-manager for recommender
 	failureRateLimiter := workqueue.NewItemExponentialFailureRateLimiter(time.Duration(5)*time.Millisecond,
 		time.Duration(1000)*time.Second)
 	clientset := clientset.NewForConfigOrDie(restConfig)
