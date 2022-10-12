@@ -25,6 +25,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 
+	"github.com/koordinator-sh/koordinator/apis/extension"
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	schedulingconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta2"
@@ -37,6 +38,9 @@ func init() {
 	nodenumaresource.SetResourceStatus = extunified.SetResourceStatus
 	nodenumaresource.GetPodQoSClass = extunified.GetPodQoSClass
 	nodenumaresource.GetPriorityClass = extunified.GetPriorityClass
+	nodenumaresource.AllowUseCPUSet = func(qosClass extension.QoSClass, priorityClass extension.PriorityClass) bool {
+		return priorityClass == extension.PriorityProd
+	}
 }
 
 const (
