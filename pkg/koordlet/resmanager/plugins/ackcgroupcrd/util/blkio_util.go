@@ -79,13 +79,13 @@ func DeviceFromPath(devicePath string) (deviceId string, err error) {
 	}
 	stat = fsinfo.Sys().(*syscall.Stat_t)
 	devNumber := stat.Rdev
-	major := unix.Major(uint64(devNumber))
+	major := unix.Major(uint64(uint32(devNumber)))
 	if major == 0 {
 		return "", errors.New("not a device node")
 	}
 
 	majorStr := strconv.FormatInt(int64(major), 10)
-	minorStr := strconv.FormatInt(int64(unix.Minor(uint64(devNumber))), 10)
+	minorStr := strconv.FormatInt(int64(unix.Minor(uint64(uint32(devNumber)))), 10)
 	return majorStr + ":" + minorStr, nil
 }
 

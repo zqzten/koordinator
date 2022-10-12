@@ -2,6 +2,11 @@ vendor
 pkg/descheduler
 pkg/descheduler/controllers/migration/controllerfinder
 pkg/scheduler/plugins/coscheduling
+pkg/slo-controller/config/ack_reclaimed_resource_config.go
+pkg/slo-controller/config/ack_reclaimed_resource_config_test.go
+pkg/slo-controller/noderesource/ack_reclaimed_resource_plugin.go
+pkg/slo-controller/noderesource/ack_reclaimed_resource_plugin_test.go
+pkg/koordlet/resmanager/plugins/ackcgroupcrd
 pkg/util/kubelet
 test/e2e/common
 test/e2e/framework
@@ -12,3 +17,5 @@ test/e2e/testing-manifests
 test/e2e/e2e.go
 test/e2e/e2e_test.go
 test/e2e/suites.go
+pkg/util/ack_container_ext_resource.go
+pkg/util/ack_container_ext_resource_test.go
