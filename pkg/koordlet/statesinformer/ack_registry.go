@@ -1,5 +1,5 @@
-//go:build github
-// +build github
+//go:build !github
+// +build !github
 
 /*
 Copyright 2022 The Koordinator Authors.
@@ -21,10 +21,10 @@ package statesinformer
 
 func (s *statesInformer) initInformerPlugins() {
 	s.states.informerPlugins = map[pluginName]informerPlugin{
-		nodeSLOInformerName:    NewNodeSLOInformer(),
-		nodeTopoInformerName:   NewNodeTopoInformer(),
-		nodeInformerName:       NewNodeInformer(),
-		podsInformerName:       NewPodsInformer(),
-		nodeMetricInformerName: NewNodeMetricInformer(),
+		nodeSLOInformerName:  NewNodeSLOInformer(),
+		nodeTopoInformerName: NewNodeTopoInformer(),
+		nodeInformerName:     NewNodeInformer(),
+		podsInformerName:     NewPodsInformer(),
+		cpuTopoCMPluginName:  NewCPUTopoCMInformer(),
 	}
 }
