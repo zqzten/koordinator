@@ -1,5 +1,5 @@
-//go:build github
-// +build github
+//go:build !github
+// +build !github
 
 /*
 Copyright 2022 The Koordinator Authors.
@@ -25,5 +25,6 @@ func (s *statesInformer) initInformerPlugins() {
 		nodeTopoInformerName: NewNodeTopoInformer(),
 		nodeInformerName:     NewNodeInformer(),
 		podsInformerName:     NewPodsInformer(),
+		cpuTopoCMPluginName:  NewCPUTopoCMInformer(),
 	}
 }
