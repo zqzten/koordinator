@@ -29,7 +29,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
-	schedulingconfig "github.com/koordinator-sh/koordinator/apis/scheduling/config"
+	schedulingconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
 )
 
 const (
