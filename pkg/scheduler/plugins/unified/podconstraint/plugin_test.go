@@ -41,8 +41,9 @@ import (
 	"k8s.io/utils/pointer"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
-	schedulingconfig "github.com/koordinator-sh/koordinator/apis/scheduling/config"
-	schedulingconfigv1beta2 "github.com/koordinator-sh/koordinator/apis/scheduling/config/v1beta2"
+	schedulingconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta2"
+	schedulingconfigv1beta2 "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta2"
 )
 
 var _ framework.SharedLister = &testSharedLister{}
@@ -123,7 +124,7 @@ type pluginTestSuit struct {
 }
 
 func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
-	var v1beta2args schedulingconfigv1beta2.UnifiedPodConstraintArgs
+	var v1beta2args v1beta2.UnifiedPodConstraintArgs
 	schedulingconfigv1beta2.SetDefaults_UnifiedPodConstraintArgs(&v1beta2args)
 	var unifiedPodConstraintArgs schedulingconfig.UnifiedPodConstraintArgs
 	err := schedulingconfigv1beta2.Convert_v1beta2_UnifiedPodConstraintArgs_To_config_UnifiedPodConstraintArgs(&v1beta2args, &unifiedPodConstraintArgs, nil)
