@@ -19,7 +19,7 @@ package cpusetallocator
 import (
 	"k8s.io/apimachinery/pkg/types"
 
-	schedulingconfig "github.com/koordinator-sh/koordinator/apis/scheduling/config"
+	schedulingconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/nodenumaresource"
 )
 
