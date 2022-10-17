@@ -1,0 +1,119 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.2.9
+  creationTimestamp: null
+  name: recommendationcheckpoints.autoscaling.alibabacloud.com
+spec:
+  group: autoscaling.alibabacloud.com
+  names:
+    kind: RecommendationCheckpoint
+    listKind: RecommendationCheckpointList
+    plural: recommendationcheckpoints
+    shortNames:
+    - redcheckpoint
+    singular: recommendationcheckpoint
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: RecommendationCheckpoint is the checkpoint of the internal state
+          of client that is used for recovery after recommender's restart.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: Specification of the checkpoint.
+            properties:
+              containerName:
+                description: Name of the checkpointed container.
+                type: string
+              recommendationObjectName:
+                description: Name of the Recommendation object that stored VerticalPodAutoscalerCheckpoint
+                  object.
+                type: string
+            type: object
+          status:
+            description: Data of the checkpoint.
+            properties:
+              cpuHistogram:
+                description: Checkpoint of histogram for consumption of CPU.
+                properties:
+                  bucketWeights:
+                    description: Map from bucket index to bucket weight.
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  referenceTimestamp:
+                    description: Reference timestamp for samples collected within
+                      this histogram.
+                    format: date-time
+                    nullable: true
+                    type: string
+                  totalWeight:
+                    type: number
+                    description: Sum of samples to be used as denominator for weights
+                      from BucketWeights.
+                type: object
+              firstSampleStart:
+                description: Timestamp of the fist sample from the histograms.
+                format: date-time
+                nullable: true
+                type: string
+              lastSampleStart:
+                description: Timestamp of the last sample from the histograms.
+                format: date-time
+                nullable: true
+                type: string
+              lastUpdateTime:
+                description: The time when the status was last refreshed.
+                format: date-time
+                nullable: true
+                type: string
+              memoryHistogram:
+                description: Checkpoint of histogram for consumption of memory.
+                properties:
+                  bucketWeights:
+                    description: Map from bucket index to bucket weight.
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  referenceTimestamp:
+                    description: Reference timestamp for samples collected within
+                      this histogram.
+                    format: date-time
+                    nullable: true
+                    type: string
+                  totalWeight:
+                    type: number
+                    description: Sum of samples to be used as denominator for weights
+                      from BucketWeights.
+                type: object
+              totalSamplesCount:
+                description: Total number of samples in the histograms.
+                type: integer
+              version:
+                description: Version of the format of the stored data.
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

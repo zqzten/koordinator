@@ -3,3 +3,6 @@
 bin/
 testbin/
 vendor/
+
+!bin/start-koord-manager.sh
+!bin/kubectl*
