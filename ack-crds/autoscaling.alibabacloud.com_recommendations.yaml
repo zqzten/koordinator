@@ -1,0 +1,203 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.2.9
+  creationTimestamp: null
+  name: recommendations.autoscaling.alibabacloud.com
+spec:
+  group: autoscaling.alibabacloud.com
+  names:
+    kind: Recommendation
+    listKind: RecommendationList
+    plural: recommendations
+    shortNames:
+    - red
+    singular: recommendation
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Recommendation is the Schema for the recommendations API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: RecommendationSpec is the specification of the client object.
+            properties:
+              selector:
+                description: 'selector is a label query over pods that should match
+                  the replica count. It must match the pod template''s labels. More
+                  info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors'
+                properties:
+                  matchExpressions:
+                    description: matchExpressions is a list of label selector requirements.
+                      The requirements are ANDed.
+                    items:
+                      description: A label selector requirement is a selector that
+                        contains values, a key, and an operator that relates the key
+                        and values.
+                      properties:
+                        key:
+                          description: key is the label key that the selector applies
+                            to.
+                          type: string
+                        operator:
+                          description: operator represents a key's relationship to
+                            a set of values. Valid operators are In, NotIn, Exists
+                            and DoesNotExist.
+                          type: string
+                        values:
+                          description: values is an array of string values. If the
+                            operator is In or NotIn, the values array must be non-empty.
+                            If the operator is Exists or DoesNotExist, the values
+                            array must be empty. This array is replaced during a strategic
+                            merge patch.
+                          items:
+                            type: string
+                          type: array
+                      required:
+                      - key
+                      - operator
+                      type: object
+                    type: array
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    description: matchLabels is a map of {key,value} pairs. A single
+                      {key,value} in the matchLabels map is equivalent to an element
+                      of matchExpressions, whose key field is "key", the operator
+                      is "In", and the values array contains only "value". The requirements
+                      are ANDed.
+                    type: object
+                type: object
+              workloadRef:
+                description: workloadRef of the workload object that stored Recommendation
+                  object. Using string for reference is to support label
+                properties:
+                  apiVersion:
+                    description: API version of the referent
+                    type: string
+                  kind:
+                    description: 'Kind of the referent; More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds"'
+                    type: string
+                  name:
+                    description: 'Name of the referent; More info: http://kubernetes.io/docs/user-guide/identifiers#names'
+                    type: string
+                required:
+                - kind
+                - name
+                type: object
+            type: object
+          status:
+            description: RecommendationStatus defines the observed state of Recommendation
+            properties:
+              conditions:
+                description: Conditions is the set of conditions required for this
+                  autoscaler to scale its target, and indicates whether or not those
+                  conditions are met.
+                items:
+                  properties:
+                    lastTransitionTime:
+                      description: lastTransitionTime is the last time the condition
+                        transitioned from one status to another
+                      format: date-time
+                      type: string
+                    message:
+                      description: message is a human-readable explanation containing
+                        details about the transition
+                      type: string
+                    reason:
+                      description: reason is the reason for the condition's last transition.
+                      type: string
+                    status:
+                      description: status is the status of the condition (True, False,
+                        Unknown)
+                      type: string
+                    type:
+                      description: type describes the current condition
+                      type: string
+                  required:
+                  - status
+                  - type
+                  type: object
+                type: array
+              recommendResources:
+                description: 'INSERT ADDITIONAL STATUS FIELD - define observed state
+                  of cluster Important: Run "make" to regenerate code after modifying
+                  this file The most recently computed amount of resources recommended
+                  by the autoscaler for the controlled pods.'
+                properties:
+                  containerRecommendations:
+                    description: Resources recommended by the recommender for each
+                      container.
+                    items:
+                      description: RecommendedContainerResources is the client of
+                        resources computed by recommender for a specific container.
+                        Respects the container resource policy if present in the spec.
+                      properties:
+                        containerName:
+                          description: Name of the container.
+                          type: string
+                        originalTarget:
+                          additionalProperties:
+                            additionalProperties:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                              x-kubernetes-int-or-string: true
+                            description: ResourceList is a set of (resource name,
+                              quantity) pairs.
+                            type: object
+                          description: OriginalTarget records the recommendation based
+                            on actual resource usage, not taking into account the
+                            calibration by workload type(e.g. service, batch job).
+                            Use different quantile type as key, currently support
+                            "average", "p60", "p90", "p95" "p99", "max".
+                          type: object
+                        target:
+                          additionalProperties:
+                            anyOf:
+                            - type: integer
+                            - type: string
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          description: Recommendation of workload resource request.
+                            Differ from the UncappedTarget because the target uses
+                            different quantile uncapped target, which depends on workload
+                            type. For service type workload, use "P95 CPU" and "P99
+                            Memory"; for batch job, use "Average CPU" and "P60 Memory".
+                            Besides, target also includes buffer ratio(e.g. 15%) for
+                            safety reasons.
+                          type: object
+                      required:
+                      - target
+                      type: object
+                    type: array
+                type: object
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
