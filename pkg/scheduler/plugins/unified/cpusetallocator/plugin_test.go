@@ -731,3 +731,58 @@ func TestPlugin_MaxRefCount(t *testing.T) {
 	topologyOptions = topologyManager.GetCPUTopologyOptions(nodes[0].Name)
 	assert.Equal(t, 3, topologyOptions.MaxRefCount)
 }
+
+func Test_allowUseCPUSet(t *testing.T) {
+	unifiedCPUSet := uniext.ResourceAllocSpec{
+		CPU: uniext.CPUBindStrategySameCoreFirst,
+	}
+	unifiedCPUSetData, err := json.Marshal(unifiedCPUSet)
+	assert.NoError(t, err)
+	unifiedCPUShare := uniext.ResourceAllocSpec{}
+	unifiedCPUShareData, err := json.Marshal(unifiedCPUShare)
+	assert.NoError(t, err)
+	tests := []struct {
+		name          string
+		qosClass      extension.QoSClass
+		priorityClass extension.PriorityClass
+		annotations   map[string]string
+		want          bool
+	}{
+		{
+			name:          "unified cpuset",
+			qosClass:      extension.QoSNone,
+			priorityClass: extension.PriorityProd,
+			annotations:   map[string]string{uniext.AnnotationAllocSpec: string(unifiedCPUSetData)},
+			want:          true,
+		},
+		{
+			name:          "unified cpushare",
+			qosClass:      extension.QoSNone,
+			priorityClass: extension.PriorityProd,
+			annotations:   map[string]string{uniext.AnnotationAllocSpec: string(unifiedCPUShareData)},
+			want:          false,
+		},
+		{
+			name:          "koord",
+			qosClass:      extension.QoSLSE,
+			priorityClass: extension.PriorityProd,
+			annotations:   nil,
+			want:          true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pod := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					UID:         uuid.NewUUID(),
+					Namespace:   "default",
+					Name:        "test-pod-1",
+					Labels:      map[string]string{extension.LabelPodQoS: string(tt.qosClass)},
+					Annotations: tt.annotations,
+				},
+				Spec: corev1.PodSpec{Priority: &extension.PriorityProdValueMin},
+			}
+			assert.Equal(t, tt.want, allowUseCPUSet(pod))
+		})
+	}
+}

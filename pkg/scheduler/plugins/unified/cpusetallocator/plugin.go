@@ -38,9 +38,26 @@ func init() {
 	nodenumaresource.SetResourceStatus = extunified.SetResourceStatus
 	nodenumaresource.GetPodQoSClass = extunified.GetPodQoSClass
 	nodenumaresource.GetPriorityClass = extunified.GetPriorityClass
-	nodenumaresource.AllowUseCPUSet = func(qosClass extension.QoSClass, priorityClass extension.PriorityClass) bool {
-		return priorityClass == extension.PriorityProd
+	nodenumaresource.AllowUseCPUSet = allowUseCPUSet
+}
+
+func allowUseCPUSet(pod *corev1.Pod) bool {
+	if pod == nil {
+		return false
 	}
+	// 用新协议识别QoS，防止统一调度的QoS填了，但是allocSpec没填的情况
+	qosClass := extension.GetPodQoSClass(pod)
+	priorityClass := extunified.GetPriorityClass(pod)
+	if (qosClass == extension.QoSLSE || qosClass == extension.QoSLSR) && priorityClass == extension.PriorityProd {
+		return true
+	}
+	resourceSpec, err := extunified.GetResourceSpec(pod.Annotations)
+	if err != nil {
+		return false
+	}
+	return priorityClass == extension.PriorityProd &&
+		(resourceSpec.PreferredCPUBindPolicy == schedulingconfig.CPUBindPolicySpreadByPCPUs ||
+			resourceSpec.PreferredCPUBindPolicy == schedulingconfig.CPUBindPolicyFullPCPUs)
 }
 
 const (
