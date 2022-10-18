@@ -86,8 +86,8 @@ func BenchmarkHookNodeInfoWithOverQuota(b *testing.B) {
 									corev1.ResourceCPU:              resource.MustParse("1"),
 									corev1.ResourceMemory:           resource.MustParse("1Gi"),
 									corev1.ResourceEphemeralStorage: resource.MustParse("1Gi"),
-									apiext.KoordBatchCPU:            resource.MustParse("1"),
-									apiext.KoordBatchMemory:         resource.MustParse("1Gi"),
+									apiext.BatchCPU:                 resource.MustParse("1"),
+									apiext.BatchMemory:              resource.MustParse("1Gi"),
 								},
 							},
 							Ports: []corev1.ContainerPort{
@@ -120,8 +120,8 @@ func BenchmarkHookNodeInfoWithOverQuota(b *testing.B) {
 				corev1.ResourceMemory:           resource.MustParse("1000Gi"),
 				corev1.ResourceEphemeralStorage: resource.MustParse("1000Gi"),
 				corev1.ResourcePods:             resource.MustParse("110"),
-				apiext.KoordBatchCPU:            resource.MustParse("1"),
-				apiext.KoordBatchMemory:         resource.MustParse("1Gi"),
+				apiext.BatchCPU:                 resource.MustParse("1"),
+				apiext.BatchMemory:              resource.MustParse("1Gi"),
 			},
 		},
 	}
