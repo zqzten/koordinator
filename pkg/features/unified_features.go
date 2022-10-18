@@ -14,19 +14,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package features
 
 import (
-	univ1bata1 "gitlab.alibaba-inc.com/unischeduler/api/apis/scheduling/v1beta1"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/component-base/featuregate"
 
-	_ "github.com/koordinator-sh/koordinator/apis/extension/unified"
-	"github.com/koordinator-sh/koordinator/pkg/controller/unified/resourcesummary"
+	utilfeature "github.com/koordinator-sh/koordinator/pkg/util/feature"
 )
 
-func init() {
-	_ = univ1bata1.AddToScheme(clientgoscheme.Scheme)
-	_ = univ1bata1.AddToScheme(scheme)
+const (
+	DefaultEnableACUForLSPod featuregate.Feature = "DefaultEnableACUForLSPod"
+)
 
-	controllerAddFuncs["ResourceSummary"] = resourcesummary.Add
+var defaultUnifiedFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
+	DefaultEnableACUForLSPod: {Default: true, PreRelease: featuregate.Beta},
+}
+
+func init() {
+	runtime.Must(utilfeature.DefaultMutableFeatureGate.Add(defaultUnifiedFeatureGates))
 }
