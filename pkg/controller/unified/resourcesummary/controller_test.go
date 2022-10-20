@@ -116,7 +116,7 @@ func Test_statisticsPodUsedResource(t *testing.T) {
 									corev1.ResourceMemory:           resource.MustParse("100Gi"),
 									corev1.ResourceEphemeralStorage: resource.MustParse("200Gi"),
 									extension.BatchCPU:              resource.MustParse("50000"),
-									extension.BatchMemory:           resource.MustParse("10000Gi"),
+									extension.BatchMemory:           resource.MustParse("10Gi"),
 								},
 								Conditions: []corev1.NodeCondition{{
 									Type:   corev1.NodeReady,
@@ -228,7 +228,7 @@ func Test_statisticsNodeResource(t *testing.T) {
 									corev1.ResourceMemory:           resource.MustParse("100Gi"),
 									corev1.ResourceEphemeralStorage: resource.MustParse("200Gi"),
 									extension.BatchCPU:              resource.MustParse("50000"),
-									extension.BatchMemory:           resource.MustParse("10000Gi"),
+									extension.BatchMemory:           resource.MustParse("10Gi"),
 								},
 								Conditions: []corev1.NodeCondition{{
 									Type:   corev1.NodeReady,
@@ -298,6 +298,9 @@ func Test_statisticsNodeResource(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			gotCapacity, gotRequested, gotFree := statisticsNodeResource(tt.args.candidateNodes, tt.args.nodeOwnedPods)
 			for _, priorityClassType := range priorityClassTypes {
+				klog.Info(priorityClassType)
+				klog.Info(tt.wantCapacity[priorityClassType])
+				klog.Info(gotCapacity[priorityClassType])
 				assert.True(t, quotav1.Equals(tt.wantCapacity[priorityClassType], gotCapacity[priorityClassType]))
 				assert.True(t, quotav1.Equals(tt.wantRequested[priorityClassType], gotRequested[priorityClassType]))
 				assert.True(t, quotav1.Equals(tt.wantFree[priorityClassType], gotFree[priorityClassType]))
@@ -344,7 +347,7 @@ func TestResourceSummaryReconciler_Reconcile(t *testing.T) {
 				corev1.ResourceMemory:           resource.MustParse("100Gi"),
 				corev1.ResourceEphemeralStorage: resource.MustParse("200Gi"),
 				extension.BatchCPU:              resource.MustParse("50000"),
-				extension.BatchMemory:           resource.MustParse("10000Gi"),
+				extension.BatchMemory:           resource.MustParse("10Gi"),
 			},
 			Conditions: []corev1.NodeCondition{{
 				Type:   corev1.NodeReady,

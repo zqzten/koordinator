@@ -71,7 +71,7 @@ func Test_getStandardRequested(t *testing.T) {
 			args: args{
 				resourceList: corev1.ResourceList{
 					extension.BatchCPU:    resource.MustParse("20000"),
-					extension.BatchMemory: resource.MustParse("10000Gi"),
+					extension.BatchMemory: resource.MustParse("10Gi"),
 				},
 				priorityClassType: uniext.PriorityBatch,
 			},
@@ -85,7 +85,7 @@ func Test_getStandardRequested(t *testing.T) {
 			args: args{
 				resourceList: corev1.ResourceList{
 					extension.BatchCPU:    resource.MustParse("20"),
-					extension.BatchMemory: resource.MustParse("10000Mi"),
+					extension.BatchMemory: resource.MustParse("10Mi"),
 				},
 				priorityClassType: uniext.PriorityBatch,
 			},
@@ -106,6 +106,7 @@ func TestGetNodePriorityResource(t *testing.T) {
 	type args struct {
 		resourceList      corev1.ResourceList
 		priorityClassType uniext.PriorityClass
+		node              *corev1.Node
 	}
 	tests := []struct {
 		name string
@@ -117,15 +118,21 @@ func TestGetNodePriorityResource(t *testing.T) {
 			args: args{
 				resourceList: corev1.ResourceList{
 					corev1.ResourceCPU:    resource.MustParse("50"),
+					uniext.ResourceACU:    resource.MustParse("50"),
 					corev1.ResourceMemory: resource.MustParse("20Gi"),
 					extension.BatchCPU:    resource.MustParse("20"),
 					extension.BatchMemory: resource.MustParse("10Gi"),
 					corev1.ResourcePods:   resource.MustParse("110"),
 				},
 				priorityClassType: uniext.PriorityProd,
+				node: &corev1.Node{Status: corev1.NodeStatus{Allocatable: corev1.ResourceList{
+					corev1.ResourceCPU: resource.MustParse("50"),
+					uniext.ResourceACU: resource.MustParse("50"),
+				}}},
 			},
 			want: corev1.ResourceList{
 				corev1.ResourceCPU:    resource.MustParse("50"),
+				uniext.ResourceACU:    resource.MustParse("50"),
 				corev1.ResourceMemory: resource.MustParse("20Gi"),
 				corev1.ResourcePods:   resource.MustParse("110"),
 			},
@@ -135,15 +142,21 @@ func TestGetNodePriorityResource(t *testing.T) {
 			args: args{
 				resourceList: corev1.ResourceList{
 					corev1.ResourceCPU:    resource.MustParse("50"),
+					uniext.ResourceACU:    resource.MustParse("50"),
 					corev1.ResourceMemory: resource.MustParse("20Gi"),
 					extension.BatchCPU:    resource.MustParse("20000"),
-					extension.BatchMemory: resource.MustParse("10000Gi"),
+					extension.BatchMemory: resource.MustParse("10Gi"),
 					corev1.ResourcePods:   resource.MustParse("110"),
 				},
 				priorityClassType: uniext.PriorityBatch,
+				node: &corev1.Node{Status: corev1.NodeStatus{Allocatable: corev1.ResourceList{
+					corev1.ResourceCPU: resource.MustParse("50"),
+					uniext.ResourceACU: resource.MustParse("50"),
+				}}},
 			},
 			want: corev1.ResourceList{
 				corev1.ResourceCPU:    resource.MustParse("20"),
+				uniext.ResourceACU:    resource.MustParse("20"),
 				corev1.ResourceMemory: resource.MustParse("10Gi"),
 				corev1.ResourcePods:   resource.MustParse("110"),
 			},
@@ -153,12 +166,17 @@ func TestGetNodePriorityResource(t *testing.T) {
 			args: args{
 				resourceList: corev1.ResourceList{
 					corev1.ResourceCPU:    resource.MustParse("50"),
+					uniext.ResourceACU:    resource.MustParse("50"),
 					corev1.ResourceMemory: resource.MustParse("20Gi"),
 					extension.BatchCPU:    resource.MustParse("20"),
 					extension.BatchMemory: resource.MustParse("10Gi"),
 					corev1.ResourcePods:   resource.MustParse("110"),
 				},
 				priorityClassType: uniext.PriorityFree,
+				node: &corev1.Node{Status: corev1.NodeStatus{Allocatable: corev1.ResourceList{
+					corev1.ResourceCPU: resource.MustParse("50"),
+					uniext.ResourceACU: resource.MustParse("50"),
+				}}},
 			},
 			want: corev1.ResourceList{
 				corev1.ResourcePods: resource.MustParse("110"),
@@ -169,12 +187,17 @@ func TestGetNodePriorityResource(t *testing.T) {
 			args: args{
 				resourceList: corev1.ResourceList{
 					corev1.ResourceCPU:    resource.MustParse("50"),
+					uniext.ResourceACU:    resource.MustParse("50"),
 					corev1.ResourceMemory: resource.MustParse("20Gi"),
 					extension.BatchCPU:    resource.MustParse("20"),
 					extension.BatchMemory: resource.MustParse("10Gi"),
 					corev1.ResourcePods:   resource.MustParse("110"),
 				},
 				priorityClassType: uniext.PriorityMid,
+				node: &corev1.Node{Status: corev1.NodeStatus{Allocatable: corev1.ResourceList{
+					corev1.ResourceCPU: resource.MustParse("50"),
+					uniext.ResourceACU: resource.MustParse("50"),
+				}}},
 			},
 			want: corev1.ResourceList{
 				corev1.ResourcePods: resource.MustParse("110"),
@@ -183,7 +206,7 @@ func TestGetNodePriorityResource(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.True(t, quotav1.Equals(tt.want, GetNodePriorityResource(tt.args.resourceList, tt.args.priorityClassType)))
+			assert.True(t, quotav1.Equals(tt.want, GetNodePriorityResource(tt.args.resourceList, tt.args.priorityClassType, tt.args.node)))
 		})
 	}
 }
