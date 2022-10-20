@@ -44,3 +44,16 @@ func GetPriorityClass(pod *corev1.Pod) extension.PriorityClass {
 	}
 	return extension.PriorityProd
 }
+
+func GetUnifiedPriorityClass(pod *corev1.Pod) uniext.PriorityClass {
+	if pod == nil {
+		return uniext.PriorityNone
+	}
+	priorityClass := uniext.GetPriorityClass(pod)
+	switch priorityClass {
+	case uniext.PriorityProd, uniext.PriorityMid, uniext.PriorityBatch, uniext.PriorityFree:
+		return priorityClass
+	default:
+		return uniext.PriorityProd
+	}
+}
