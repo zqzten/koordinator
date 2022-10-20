@@ -65,7 +65,7 @@ func GetPodPriorityUsed(pod *corev1.Pod, node *corev1.Node, resourceNames ...cor
 		requested = quotav1.Add(requested, pod.Spec.Overhead)
 	}
 
-	unifiedPriority := uniext.GetPriorityClass(pod)
+	unifiedPriority := extunified.GetUnifiedPriorityClass(pod)
 	requested = priorityPodRequestedToNormal(requested, unifiedPriority)
 
 	scaleCPUAndACU(pod, node, requested)
@@ -91,9 +91,9 @@ func priorityPodRequestedToNormal(resourceList corev1.ResourceList, unifiedPrior
 		}
 		// nolint:staticcheck // SA1019: extension.KoordBatchMemory is deprecated: because of the limitation of extended resource naming
 		if quantity, found := result[extension.BatchMemory]; found {
-			result[corev1.ResourceMemory] = *resource.NewMilliQuantity(quantity.Value(), resource.DecimalSI)
+			result[corev1.ResourceMemory] = quantity
 		} else if quantity, found = result[extension.KoordBatchMemory]; found {
-			result[corev1.ResourceMemory] = *resource.NewMilliQuantity(quantity.Value(), resource.DecimalSI)
+			result[corev1.ResourceMemory] = quantity
 		}
 
 		// 删除batch相关资源
@@ -140,10 +140,11 @@ func getACURatio(node *corev1.Node) float64 {
 	return acuRatio
 }
 
-func GetNodePriorityResource(resourceList corev1.ResourceList, priorityClassType uniext.PriorityClass) corev1.ResourceList {
+func GetNodePriorityResource(resourceList corev1.ResourceList, priorityClassType uniext.PriorityClass, node *corev1.Node) corev1.ResourceList {
 	result := resourceList.DeepCopy()
 	if priorityClassType != uniext.PriorityProd {
 		delete(result, corev1.ResourceCPU)
+		delete(result, uniext.ResourceACU)
 		delete(result, corev1.ResourceMemory)
 	}
 	switch priorityClassType {
@@ -164,9 +165,11 @@ func GetNodePriorityResource(resourceList corev1.ResourceList, priorityClassType
 	if priorityClassType != uniext.PriorityProd {
 		if quantity, found := result[corev1.ResourceCPU]; found {
 			result[corev1.ResourceCPU] = *resource.NewMilliQuantity(quantity.Value(), resource.DecimalSI)
-		}
-		if quantity, found := result[corev1.ResourceMemory]; found {
-			result[corev1.ResourceMemory] = *resource.NewMilliQuantity(quantity.Value(), resource.DecimalSI)
+			if isNodeEnabledACU(node) {
+				acuRatio := getACURatio(node)
+				acu := int64(float64(result.Cpu().MilliValue()) * acuRatio)
+				result[uniext.ResourceACU] = *resource.NewMilliQuantity(acu, resource.DecimalSI)
+			}
 		}
 	}
 	// 删除非标资源
@@ -209,7 +212,7 @@ func getResourceByOverSell(resourceList corev1.ResourceList) corev1.ResourceList
 	result := corev1.ResourceList{}
 	for resourceName, percent := range overSellPercents.percents {
 		if quantity, found := resourceList[resourceName]; found {
-			result[resourceName] = *resource.NewMilliQuantity(quantity.MilliValue()*percent/100, resource.DecimalSI)
+			result[resourceName] = *resource.NewMilliQuantity(quantity.MilliValue()*percent/100, quantity.Format)
 		}
 	}
 	return result
