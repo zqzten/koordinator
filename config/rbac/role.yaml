@@ -118,6 +118,32 @@ rules:
   - update
   - watch
 - apiGroups:
+  - scheduling.alibabacloud.com
+  resources:
+  - resourcesummaries
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - scheduling.alibabacloud.com
+  resources:
+  - resourcesummaries/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - scheduling.alibabacloud.com
+  resources:
+  - resourcesummaries/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - scheduling.k8s.io
   resources:
   - priorityclasses
