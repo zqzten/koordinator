@@ -26,6 +26,7 @@ import (
 
 	kruisev1alpha1 "github.com/openkruise/kruise/apis/apps/v1alpha1"
 	kruisev1beta1 "github.com/openkruise/kruise/apis/apps/v1beta1"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	clientset "k8s.io/client-go/kubernetes"
@@ -52,6 +53,7 @@ var (
 // for third-party extensions
 func PrepareExtensions(cfg *rest.Config, mgr ctrl.Manager) {
 	restConfig = cfg
+	mgr.AddMetricsExtraHandler("/default-metrics", promhttp.Handler())
 	prepareRecommender(mgr)
 	prepareCgroupsController(mgr)
 }
