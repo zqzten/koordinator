@@ -30,7 +30,7 @@ require (
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.1
-	gitlab.alibaba-inc.com/cos/recommender v0.4.2
+	gitlab.alibaba-inc.com/cos/recommender v0.4.3
 	gitlab.alibaba-inc.com/cos/unified-resource-api v1.22.3-1.0.20220705131219-d0d01381562f
 	go.uber.org/atomic v1.10.0
 	go.uber.org/multierr v1.6.0
