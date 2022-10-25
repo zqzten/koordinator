@@ -18,6 +18,7 @@ package resourcesummary
 
 import (
 	"context"
+	"encoding/json"
 	"math"
 
 	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
@@ -36,8 +37,15 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/koordinator-sh/koordinator/apis/extension"
+	"github.com/koordinator-sh/koordinator/pkg/features"
 	"github.com/koordinator-sh/koordinator/pkg/util"
 	utilclient "github.com/koordinator-sh/koordinator/pkg/util/client"
+	utilfeature "github.com/koordinator-sh/koordinator/pkg/util/feature"
+)
+
+const (
+	AnnotationDryRunStatus = extension.DomainPrefix + "dry-run-status"
 )
 
 var (
@@ -68,9 +76,20 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 
 		status := r.getCurrentStatus(ctx, resourceSummary)
-		resourceSummary.Status = *status
-
-		return r.Client.Status().Update(ctx, resourceSummary)
+		if utilfeature.DefaultFeatureGate.Enabled(features.ResourceSummaryReportDryRun) {
+			statusJSONBytes, err := json.Marshal(status)
+			if err != nil {
+				return err
+			}
+			if resourceSummary.Annotations == nil {
+				resourceSummary.Annotations = map[string]string{}
+			}
+			resourceSummary.Annotations[AnnotationDryRunStatus] = string(statusJSONBytes)
+			return r.Client.Update(ctx, resourceSummary)
+		} else {
+			resourceSummary.Status = *status
+			return r.Client.Status().Update(ctx, resourceSummary)
+		}
 	})
 	if err != nil {
 		return ctrl.Result{}, err
@@ -347,6 +366,9 @@ func convertToResourceSpecStats(allocatablePodNums map[string]map[uniext.Priorit
 }
 
 func Add(mgr ctrl.Manager) error {
+	if !utilfeature.DefaultFeatureGate.Enabled(features.ResourceSummaryReport) {
+		return nil
+	}
 	reconciler := &Reconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
