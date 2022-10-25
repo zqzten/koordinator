@@ -24,11 +24,15 @@ import (
 )
 
 const (
-	DefaultEnableACUForLSPod featuregate.Feature = "DefaultEnableACUForLSPod"
+	DefaultEnableACUForLSPod    featuregate.Feature = "DefaultEnableACUForLSPod"
+	ResourceSummaryReport       featuregate.Feature = "ResourceSummaryReport"
+	ResourceSummaryReportDryRun featuregate.Feature = "ResourceSummaryReportDryRun"
 )
 
 var defaultUnifiedFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
-	DefaultEnableACUForLSPod: {Default: true, PreRelease: featuregate.Beta},
+	DefaultEnableACUForLSPod:    {Default: true, PreRelease: featuregate.Beta},
+	ResourceSummaryReport:       {Default: true, PreRelease: featuregate.Beta},
+	ResourceSummaryReportDryRun: {Default: false, PreRelease: featuregate.Beta},
 }
 
 func init() {
