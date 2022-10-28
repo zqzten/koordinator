@@ -17,7 +17,9 @@ limitations under the License.
 package main
 
 import (
+	_ "github.com/koordinator-sh/koordinator/apis/extension/ack"
 	_ "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	_ "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/deviceshare/unified"
 	unifiedcpuset "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/cpusetallocator"
 	unifiedeci "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/eci"
 	unifiedoverquota "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/overquota"
