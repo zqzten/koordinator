@@ -474,6 +474,11 @@ func (p *Plugin) preBindObject(ctx context.Context, cycleState *framework.CycleS
 	if err := apiext.SetDeviceAllocations(object, state.allocationResult); err != nil {
 		return framework.NewStatus(framework.Error, err.Error())
 	}
+
+	if err := p.appendAckAnnotations(object, state.allocationResult, nodeName); err != nil {
+		return framework.NewStatus(framework.Error, err.Error())
+	}
+
 	return nil
 }
 

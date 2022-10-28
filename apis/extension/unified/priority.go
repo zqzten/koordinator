@@ -24,6 +24,9 @@ import (
 )
 
 func init() {
+	extension.PriorityBatchValueMin = uniext.PriorityBatchValueMin
+	extension.PriorityBatchValueMax = uniext.PriorityBatchValueMax
+
 	extension.GetPriorityClass = GetPriorityClass
 }
 
