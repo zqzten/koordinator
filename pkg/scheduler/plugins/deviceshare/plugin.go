@@ -466,6 +466,8 @@ func (p *Plugin) preBindObject(ctx context.Context, cycleState *framework.CycleS
 		return framework.NewStatus(framework.Error, err.Error())
 	}
 
+	g.appendAckAnnotations(newPod, allocResult, nodeName)
+
 	// NOTE: APIServer won't allow the following modification. Error: pod updates may not change fields other than
 	// `spec.containers[*].image`, `spec.initContainers[*].image`, `spec.activeDeadlineSeconds`,
 	// `spec.tolerations` (only additions to existing tolerations) or `spec.terminationGracePeriodSeconds`
