@@ -16,7 +16,7 @@ RUN git config --global url."git@gitlab.alibaba-inc.com:".insteadOf "https://git
   mkdir -p -m 0600 ~/.ssh && ssh-keyscan gitlab.alibaba-inc.com >> ~/.ssh/known_hosts
 RUN --mount=type=ssh go mod download
 
-RUN CGO_ENABLED=0 go build -a -o koord-scheduler cmd/koord-scheduler/main.go
+RUN CGO_ENABLED=0 go build -a -o koord-scheduler ./cmd/koord-scheduler
 
 RUN --mount=type=ssh mkdir -p /go/src/gitlab.alibaba-inc.com/unischeduler/x && \
     cd /go/src/gitlab.alibaba-inc.com/unischeduler/x && \
