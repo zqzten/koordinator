@@ -14,20 +14,26 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package ack
 
 import (
-	univ1bata1 "gitlab.alibaba-inc.com/unischeduler/api/apis/scheduling/v1beta1"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	v1 "k8s.io/api/core/v1"
 
-	_ "github.com/koordinator-sh/koordinator/apis/extension/ack"
-	_ "github.com/koordinator-sh/koordinator/apis/extension/unified"
-	"github.com/koordinator-sh/koordinator/pkg/controller/unified/resourcesummary"
+	"github.com/koordinator-sh/koordinator/apis/extension"
+)
+
+const (
+	LabelQuotaId = extension.QuotaKoordinatorPrefix + "/quota-id"
 )
 
 func init() {
-	_ = univ1bata1.AddToScheme(clientgoscheme.Scheme)
-	_ = univ1bata1.AddToScheme(scheme)
+	extension.GetQuotaName = GetQuotaName
+}
 
-	controllerAddFuncs["ResourceSummary"] = resourcesummary.Add
+func GetQuotaName(pod *v1.Pod) string {
+	quotaName := pod.Labels[extension.LabelQuotaName]
+	if quotaName == "" {
+		quotaName = pod.Labels[LabelQuotaId]
+	}
+	return quotaName
 }
