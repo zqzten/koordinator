@@ -18,6 +18,7 @@ package features
 
 import (
 	"k8s.io/apimachinery/pkg/util/runtime"
+	k8sfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/component-base/featuregate"
 
 	utilfeature "github.com/koordinator-sh/koordinator/pkg/util/feature"
@@ -29,12 +30,21 @@ const (
 	ResourceSummaryReportDryRun featuregate.Feature = "ResourceSummaryReportDryRun"
 )
 
+const (
+	UnifiedDeviceScheduling featuregate.Feature = "UnifiedDeviceScheduling"
+)
+
 var defaultUnifiedFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	DefaultEnableACUForLSPod:    {Default: true, PreRelease: featuregate.Beta},
 	ResourceSummaryReport:       {Default: true, PreRelease: featuregate.Beta},
 	ResourceSummaryReportDryRun: {Default: false, PreRelease: featuregate.Beta},
 }
 
+var defaultUnifiedSchedulerFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
+	UnifiedDeviceScheduling: {Default: false, PreRelease: featuregate.Beta},
+}
+
 func init() {
 	runtime.Must(utilfeature.DefaultMutableFeatureGate.Add(defaultUnifiedFeatureGates))
+	runtime.Must(k8sfeature.DefaultMutableFeatureGate.Add(defaultUnifiedSchedulerFeatureGates))
 }

@@ -17,6 +17,7 @@ limitations under the License.
 package ack
 
 const (
+	AliyunGPU        = "aliyun.com/gpu"
 	AliyunGPUCompute = "aliyun.com/gpu-compute"
 
 	// AnnotationAliyunEnvResourceIndex represents the minor of the gpuAllocation in order to adapt to gpuShare-device-plugin
