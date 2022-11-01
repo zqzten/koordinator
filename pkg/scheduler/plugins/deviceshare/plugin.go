@@ -466,7 +466,9 @@ func (p *Plugin) preBindObject(ctx context.Context, cycleState *framework.CycleS
 		return framework.NewStatus(framework.Error, err.Error())
 	}
 
-	g.appendAckAnnotations(newPod, allocResult, nodeName)
+	if err := p.appendInternalAnnotations(metaObject, state.allocationResult, nodeName); err != nil {
+		return framework.NewStatus(framework.Error, err.Error())
+	}
 
 	// NOTE: APIServer won't allow the following modification. Error: pod updates may not change fields other than
 	// `spec.containers[*].image`, `spec.initContainers[*].image`, `spec.activeDeadlineSeconds`,
@@ -513,6 +515,7 @@ func New(obj runtime.Object, handle framework.Handle) (framework.Plugin, error) 
 	deviceCache := newNodeDeviceCache()
 	registerDeviceEventHandler(deviceCache, extendedHandle.KoordinatorSharedInformerFactory())
 	registerPodEventHandler(deviceCache, handle.SharedInformerFactory(), extendedHandle.KoordinatorSharedInformerFactory())
+	registerUnifiedDeviceEventHandler(deviceCache, handle)
 
 	allocatorOpts := AllocatorOptions{
 		SharedInformerFactory:      extendedHandle.SharedInformerFactory(),

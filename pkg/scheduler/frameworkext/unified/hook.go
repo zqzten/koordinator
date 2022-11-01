@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package overquota
+package unified
 
 import (
 	corev1 "k8s.io/api/core/v1"
@@ -34,13 +34,11 @@ func NewHook() *Hook {
 	return &Hook{}
 }
 
-func (h *Hook) Name() string { return Name }
+func (h *Hook) Name() string { return "NodeInfoHook" }
 
 // FilterHook Scheduler在调用Filter插件和扩展点之前，会从内置的GenericScheduler的nodeInfoSnapShot中取出allNodes，然后将NodeInfo传入Filter过滤，
 //	而不是从handle.SnapshotSharedLister拿出，所以这里需要进行FilterHook，取得超卖后视图
 func (h *Hook) FilterHook(handle frameworkext.ExtendedHandle, cycleState *framework.CycleState, pod *corev1.Pod, nodeInfo *framework.NodeInfo) (*corev1.Pod, *framework.NodeInfo, bool) {
-	if overQuotaNodeInfo, isNodeEnableOverQuota := HookNodeInfoWithOverQuota(nodeInfo); isNodeEnableOverQuota {
-		return pod, overQuotaNodeInfo, true
-	}
-	return nil, nil, false
+	hookedNodeInfo := HookNodeInfo(nodeInfo)
+	return pod, hookedNodeInfo, true
 }
