@@ -19,6 +19,7 @@ package main
 import (
 	_ "github.com/koordinator-sh/koordinator/apis/extension/ack"
 	_ "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/unified"
 	_ "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/deviceshare/unified"
 	unifiedcpuset "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/cpusetallocator"
 	unifiedcustomaffinity "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/custompodaffinity"
@@ -29,7 +30,7 @@ import (
 )
 
 func init() {
-	schedulingHooks = append(schedulingHooks, unifiedoverquota.NewHook())
+	schedulingHooks = append(schedulingHooks, unified.NewHook())
 
 	koordinatorPlugins[unifiedcpuset.Name] = unifiedcpuset.New
 	koordinatorPlugins[unifiedeci.Name] = unifiedeci.New
