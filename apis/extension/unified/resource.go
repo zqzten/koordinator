@@ -127,7 +127,7 @@ func GetResourceStatus(annotations map[string]string) (*extension.ResourceStatus
 		return resourceStatus, nil
 	}
 	for _, container := range asiAllocSpec.Containers {
-		if len(container.Resource.CPU.CPUSet.CPUIDs) != 0 {
+		if container.Resource.CPU.CPUSet != nil && len(container.Resource.CPU.CPUSet.CPUIDs) != 0 {
 			resourceStatus.CPUSet = nodenumaresource.NewCPUSet(container.Resource.CPU.CPUSet.CPUIDs...).String()
 			return resourceStatus, nil
 		}
