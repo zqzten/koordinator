@@ -25,6 +25,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
+	cosclientset "gitlab.alibaba-inc.com/cos/unified-resource-api/client/clientset/versioned"
+	cosfake "gitlab.alibaba-inc.com/cos/unified-resource-api/client/clientset/versioned/fake"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -52,6 +54,7 @@ type fakeExtendedHandle struct {
 	frameworkext.ExtendedHandle
 	cs                    *kubefake.Clientset
 	sharedInformerFactory informers.SharedInformerFactory
+	cosclientset.Interface
 }
 
 func (f *fakeExtendedHandle) ClientSet() clientset.Interface {
@@ -193,6 +196,7 @@ func Test_New(t *testing.T) {
 	fakeHandle := &fakeExtendedHandle{
 		ExtendedHandle: extendHandle,
 		cs:             kubefake.NewSimpleClientset(),
+		Interface:      cosfake.NewSimpleClientset(),
 	}
 	proxyNew := proxyPluginFactory(fakeHandle, New)
 

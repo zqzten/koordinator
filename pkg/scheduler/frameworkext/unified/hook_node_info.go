@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package overquota
+package unified
 
 import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
@@ -22,26 +22,44 @@ import (
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 )
 
-func HookNodeInfosWithOverQuota(nodeInfos []*framework.NodeInfo) (overQuotaNodeInfos []*framework.NodeInfo, anyNodeEnableOverQuota bool) {
-	anyNodeEnableOverQuota = false
+type NodeInfoHooker func(nodeInfo *framework.NodeInfo)
+
+var nodeInfoHookers []NodeInfoHooker
+
+func RegisterNodeInfoHooker(hooker NodeInfoHooker) {
+	nodeInfoHookers = append(nodeInfoHookers, hooker)
+}
+
+func init() {
+	RegisterNodeInfoHooker(hookNodeInfoByOverQuota)
+}
+
+func HookNodeInfos(nodeInfos []*framework.NodeInfo) (hookedNodeInfos []*framework.NodeInfo) {
 	for _, nodeInfo := range nodeInfos {
-		overQuotaNodeInfo, isNodeEnableOverQuota := HookNodeInfoWithOverQuota(nodeInfo)
-		if isNodeEnableOverQuota {
-			anyNodeEnableOverQuota = true
-		}
-		overQuotaNodeInfos = append(overQuotaNodeInfos, overQuotaNodeInfo)
+		hookedNodeInfo := HookNodeInfo(nodeInfo)
+		hookedNodeInfos = append(hookedNodeInfos, hookedNodeInfo)
 	}
 	return
 }
 
-func HookNodeInfoWithOverQuota(nodeInfo *framework.NodeInfo) (overQuotaNodeInfo *framework.NodeInfo, isNodeEnableOverQuota bool) {
-	if node := nodeInfo.Node(); node == nil || !IsNodeEnableOverQuota(node) {
-		return nodeInfo, false
+func HookNodeInfo(nodeInfo *framework.NodeInfo) (hookedNodeInfo *framework.NodeInfo) {
+	node := nodeInfo.Node()
+	if node == nil || len(nodeInfoHookers) == 0 {
+		return nodeInfo
 	}
-	isNodeEnableOverQuota = true
-	overQuotaNodeInfo = nodeInfo.Clone()
-	updateNodeInfoByOverQuota(overQuotaNodeInfo)
-	return
+
+	hookedNodeInfo = nodeInfo.Clone()
+	for _, hooker := range nodeInfoHookers {
+		hooker(hookedNodeInfo)
+	}
+	return hookedNodeInfo
+}
+
+func hookNodeInfoByOverQuota(nodeInfo *framework.NodeInfo) {
+	node := nodeInfo.Node()
+	if extunified.IsNodeEnableOverQuota(node) {
+		updateNodeInfoByOverQuota(nodeInfo)
+	}
 }
 
 func updateNodeInfoByOverQuota(nodeInfo *framework.NodeInfo) {

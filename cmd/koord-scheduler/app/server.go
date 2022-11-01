@@ -347,7 +347,7 @@ func Setup(ctx context.Context, opts *options.Options, schedulingHooks []framewo
 		frameworkext.WithServicesEngine(cc.ServicesEngine),
 		frameworkext.WithKoordinatorClientSet(cc.KoordinatorClient),
 		frameworkext.WithKoordinatorSharedInformerFactory(cc.KoordinatorSharedInformerFactory),
-		frameworkext.WithSharedListerFactory(frameworkextunified.NewOverQuotaSharedLister),
+		frameworkext.WithSharedListerFactory(frameworkextunified.NewHookSharedLister),
 	)
 	if err != nil {
 		return nil, nil, nil, err
