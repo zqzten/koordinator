@@ -23,12 +23,17 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	k8sresource "k8s.io/kubernetes/pkg/api/v1/resource"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 )
 
 func AppendAckAnnotations(pod *corev1.Pod, allocations extension.DeviceAllocations) {
+	requests, _ := k8sresource.PodRequestsAndLimits(pod)
+	if quantity := requests[AliyunGPUCompute]; quantity.IsZero() {
+		return
+	}
 	hasVirtualGPUCard, hasGPUCard := false, false
 	var deviceMinors []string
 	var gpuComputePod string

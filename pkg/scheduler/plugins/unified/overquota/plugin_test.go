@@ -35,6 +35,7 @@ import (
 	schedulertesting "k8s.io/kubernetes/pkg/scheduler/testing"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/unified"
 )
 
 var _ framework.SharedLister = &testSharedLister{}
@@ -347,7 +348,6 @@ func TestPlugin_Filter(t *testing.T) {
 		cycleState *framework.CycleState
 		pod        *corev1.Pod
 		node       *corev1.Node
-		hooked     bool
 	}{
 		{
 			name:       "normal pod",
@@ -359,8 +359,7 @@ func TestPlugin_Filter(t *testing.T) {
 				},
 				Spec: corev1.PodSpec{},
 			},
-			node:   &corev1.Node{},
-			hooked: false,
+			node: &corev1.Node{},
 		},
 		{
 			name:       "normal pod with normal node",
@@ -392,7 +391,6 @@ func TestPlugin_Filter(t *testing.T) {
 					},
 				},
 			},
-			hooked: false,
 		},
 		{
 			name:       "enable over quota",
@@ -452,7 +450,6 @@ func TestPlugin_Filter(t *testing.T) {
 					},
 				},
 			},
-			hooked: true,
 		},
 		{
 			name:       "disable over quota check but satisfy over-quota node",
@@ -490,7 +487,6 @@ func TestPlugin_Filter(t *testing.T) {
 					},
 				},
 			},
-			hooked: true,
 		},
 	}
 	for _, tt := range tests {
@@ -510,12 +506,11 @@ func TestPlugin_Filter(t *testing.T) {
 
 			status := plg.PreFilter(context.TODO(), tt.cycleState, tt.pod)
 			assert.True(t, status.IsSuccess())
-			newPod, newNodeInfo, hooked := NewHook().FilterHook(nil, tt.cycleState, tt.pod, nodeInfo)
+			newPod, newNodeInfo, hooked := unified.NewHook().FilterHook(nil, tt.cycleState, tt.pod, nodeInfo)
 			if hooked {
 				tt.pod = newPod
 				nodeInfo = newNodeInfo
 			}
-			assert.Equal(t, tt.hooked, hooked)
 			status = plg.Filter(context.TODO(), tt.cycleState, tt.pod, nodeInfo)
 			assert.True(t, status.IsSuccess())
 		})

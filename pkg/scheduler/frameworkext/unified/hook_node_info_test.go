@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package overquota
+package unified
 
 import (
 	"strconv"
@@ -29,7 +29,7 @@ import (
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 )
 
-func BenchmarkHookNodeInfoWithOverQuota(b *testing.B) {
+func BenchmarkNodeInfoCloneWithHook(b *testing.B) {
 	var pods []*corev1.Pod
 	for i := 1; i <= 60; i++ {
 		pods = append(

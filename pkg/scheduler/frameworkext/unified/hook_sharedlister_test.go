@@ -171,8 +171,8 @@ func (f *testSharedLister) Get(nodeName string) (*framework.NodeInfo, error) {
 	return f.nodeInfoMap[nodeName], nil
 }
 
-func BenchmarkHookNodeInfoWithOverQuota(b *testing.B) {
-	sharedLister := NewOverQuotaSharedLister(newTestSharedLister(10000, 60))
+func BenchmarkListNodeInfosWithHook(b *testing.B) {
+	sharedLister := NewHookSharedLister(newTestSharedLister(10000, 60))
 	b.Run("clone", func(b *testing.B) {
 		_, err := sharedLister.NodeInfos().List()
 		if err != nil {
