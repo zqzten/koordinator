@@ -243,7 +243,7 @@ replace (
 	k8s.io/apimachinery => k8s.io/apimachinery v0.22.6
 	k8s.io/apiserver => k8s.io/apiserver v0.22.6
 	k8s.io/cli-runtime => k8s.io/cli-runtime v0.22.6
-	k8s.io/client-go => k8s.io/client-go v0.22.6
+	k8s.io/client-go => gitlab.alibaba-inc.com/koordinator-sh/client-go v0.0.0-20221104070426-f04cec7d3495
 	k8s.io/cloud-provider => k8s.io/cloud-provider v0.22.6
 	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.22.6
 	k8s.io/code-generator => k8s.io/code-generator v0.22.6
