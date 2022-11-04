@@ -34,6 +34,7 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/statesinformer"
 	koordletutil "github.com/koordinator-sh/koordinator/pkg/koordlet/util"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/util/system"
+	"github.com/koordinator-sh/koordinator/pkg/transformer"
 	"github.com/koordinator-sh/koordinator/pkg/util"
 )
 
@@ -154,6 +155,7 @@ func (s *podsInformer) syncPods() error {
 	resetPodMetrics()
 	for i := range podList.Items {
 		pod := &podList.Items[i]
+		transformer.TransformSigmaIgnoreResourceContainers(pod)
 		podMeta := &statesinformer.PodMeta{
 			Pod:       pod, // no need to deep-copy from unmarshalled
 			CgroupDir: genPodCgroupParentDir(pod),
