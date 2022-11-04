@@ -34,6 +34,7 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/statesinformer"
 	koordletutil "github.com/koordinator-sh/koordinator/pkg/koordlet/util"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/util/system"
+	"github.com/koordinator-sh/koordinator/pkg/transformer"
 	"github.com/koordinator-sh/koordinator/pkg/util"
 )
 
@@ -153,9 +154,11 @@ func (s *podsInformer) syncPods() error {
 	// reset pod container metrics
 	resetPodMetrics()
 	for _, pod := range podList.Items {
+		pod := pod.DeepCopy()
+		transformer.TransformSigmaIgnoreResourceContainers(pod)
 		podMeta := &statesinformer.PodMeta{
-			Pod:       pod.DeepCopy(),
-			CgroupDir: genPodCgroupParentDir(&pod),
+			Pod:       pod,
+			CgroupDir: genPodCgroupParentDir(pod),
 		}
 		newPodMap[string(pod.UID)] = podMeta
 		// record pod container metrics
