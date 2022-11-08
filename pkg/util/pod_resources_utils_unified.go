@@ -1,6 +1,3 @@
-//go:build github
-// +build github
-
 /*
 Copyright 2022 The Koordinator Authors.
 
@@ -22,13 +19,16 @@ package util
 import (
 	corev1 "k8s.io/api/core/v1"
 	quotav1 "k8s.io/apiserver/pkg/quota/v1"
-)
 
-// NOTE: functions in this file can be overwritten for extension
+	"github.com/koordinator-sh/koordinator/apis/extension/unified"
+)
 
 func GetPodMilliCPULimit(pod *corev1.Pod) int64 {
 	podCPUMilliLimit := int64(0)
 	for _, container := range pod.Spec.Containers {
+		if unified.IsContainerIgnoreResource(&container) {
+			continue
+		}
 		containerCPUMilliLimit := GetContainerMilliCPULimit(&container)
 		if containerCPUMilliLimit <= 0 {
 			return -1
@@ -36,6 +36,9 @@ func GetPodMilliCPULimit(pod *corev1.Pod) int64 {
 		podCPUMilliLimit += containerCPUMilliLimit
 	}
 	for _, container := range pod.Spec.InitContainers {
+		if unified.IsContainerIgnoreResource(&container) {
+			continue
+		}
 		containerCPUMilliLimit := GetContainerMilliCPULimit(&container)
 		if containerCPUMilliLimit <= 0 {
 			return -1
@@ -51,10 +54,16 @@ func GetPodMilliCPULimit(pod *corev1.Pod) int64 {
 func GetPodRequest(pod *corev1.Pod, resourceNames ...corev1.ResourceName) corev1.ResourceList {
 	result := corev1.ResourceList{}
 	for _, container := range pod.Spec.Containers {
+		if unified.IsContainerIgnoreResource(&container) {
+			continue
+		}
 		result = quotav1.Add(result, container.Resources.Requests)
 	}
 	// take max_resource(sum_pod, any_init_container)
 	for _, container := range pod.Spec.InitContainers {
+		if unified.IsContainerIgnoreResource(&container) {
+			continue
+		}
 		result = quotav1.Max(result, container.Resources.Requests)
 	}
 	// add pod overhead if it exists
@@ -71,6 +80,9 @@ func GetPodBEMilliCPURequest(pod *corev1.Pod) int64 {
 	podCPUMilliReq := int64(0)
 	// TODO: count init containers and pod overhead
 	for _, container := range pod.Spec.Containers {
+		if unified.IsContainerIgnoreResource(&container) {
+			continue
+		}
 		containerCPUMilliReq := GetContainerBatchMilliCPURequest(&container)
 		if containerCPUMilliReq <= 0 {
 			containerCPUMilliReq = 0
@@ -85,6 +97,9 @@ func GetPodBEMilliCPULimit(pod *corev1.Pod) int64 {
 	podCPUMilliLimit := int64(0)
 	// TODO: count init containers and pod overhead
 	for _, container := range pod.Spec.Containers {
+		if unified.IsContainerIgnoreResource(&container) {
+			continue
+		}
 		containerCPUMilliLimit := GetContainerBatchMilliCPULimit(&container)
 		if containerCPUMilliLimit <= 0 {
 			return -1
@@ -101,6 +116,9 @@ func GetPodBEMemoryByteRequestIgnoreUnlimited(pod *corev1.Pod) int64 {
 	podMemoryByteRequest := int64(0)
 	// TODO: count init containers and pod overhead
 	for _, container := range pod.Spec.Containers {
+		if unified.IsContainerIgnoreResource(&container) {
+			continue
+		}
 		containerMemByteRequest := GetContainerBatchMemoryByteRequest(&container)
 		if containerMemByteRequest < 0 {
 			// consider request of unlimited container as 0
@@ -115,6 +133,9 @@ func GetPodBEMemoryByteLimit(pod *corev1.Pod) int64 {
 	podMemoryByteLimit := int64(0)
 	// TODO: count init containers and pod overhead
 	for _, container := range pod.Spec.Containers {
+		if unified.IsContainerIgnoreResource(&container) {
+			continue
+		}
 		containerMemByteLimit := GetContainerBatchMemoryByteLimit(&container)
 		if containerMemByteLimit <= 0 {
 			return -1
@@ -125,16 +146,4 @@ func GetPodBEMemoryByteLimit(pod *corev1.Pod) int64 {
 		return -1
 	}
 	return podMemoryByteLimit
-}
-
-// AddResourceList adds the resources in newList to list.
-func AddResourceList(list, newList corev1.ResourceList) {
-	for name, quantity := range newList {
-		if value, ok := list[name]; !ok {
-			list[name] = quantity.DeepCopy()
-		} else {
-			value.Add(quantity)
-			list[name] = value
-		}
-	}
 }
