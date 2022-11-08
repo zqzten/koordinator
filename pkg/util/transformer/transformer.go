@@ -21,7 +21,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
+
+	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 )
+
+var podTransformers = []func(pod *corev1.Pod){
+	TransformSigmaIgnoreResourceContainers,
+}
 
 func InstallPodTransformer(podInformer cache.SharedIndexInformer) {
 	transformerSetter, ok := podInformer.(cache.TransformerSetter)
@@ -41,7 +47,9 @@ func InstallPodTransformer(podInformer cache.SharedIndexInformer) {
 		}
 
 		pod = pod.DeepCopy()
-		TransformSigmaIgnoreResourceContainers(pod)
+		for _, fn := range podTransformers {
+			fn(pod)
+		}
 
 		if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok {
 			unknown.Obj = pod
@@ -54,14 +62,7 @@ func InstallPodTransformer(podInformer cache.SharedIndexInformer) {
 func TransformSigmaIgnoreResourceContainers(pod *corev1.Pod) {
 	for i := range pod.Spec.Containers {
 		container := &pod.Spec.Containers[i]
-		ignored := false
-		for _, v := range container.Env {
-			if v.Name == "SIGMA_IGNORE_RESOURCE" && v.Value == "true" {
-				ignored = true
-				break
-			}
-		}
-		if ignored {
+		if unified.IsContainerIgnoreResource(container) {
 			for k, v := range container.Resources.Requests {
 				container.Resources.Requests[k] = *resource.NewQuantity(0, v.Format)
 			}
