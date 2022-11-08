@@ -62,8 +62,8 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/services"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/sharedlisterext"
-	"github.com/koordinator-sh/koordinator/pkg/transformer"
 	utilroutes "github.com/koordinator-sh/koordinator/pkg/util/routes"
+	"github.com/koordinator-sh/koordinator/pkg/util/transformer"
 )
 
 // Option configures a framework.Registry.
