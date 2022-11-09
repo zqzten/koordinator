@@ -63,7 +63,7 @@ func getResourceSpecByUnified(annotations map[string]string) (*extension.Resourc
 }
 
 func getResourceSpecByASI(annotations map[string]string) (*extension.ResourceSpec, error) {
-	allocSpecOfASI, err := getASIAllocSpec(annotations)
+	allocSpecOfASI, err := GetASIAllocSpec(annotations)
 	if err != nil || allocSpecOfASI == nil {
 		return nil, err
 	}
@@ -81,23 +81,6 @@ func getResourceSpecByASI(annotations map[string]string) (*extension.ResourceSpe
 		}
 	}
 	return resourceSpec, nil
-}
-
-func getASIAllocSpec(annotation map[string]string) (*AllocSpec, error) {
-	spec := &AllocSpec{}
-	specData, ok := annotation[AnnotationPodRequestAllocSpec]
-	if !ok || len(specData) == 0 {
-		specData, ok = annotation[AnnotationAllocSpec]
-	}
-
-	if !ok || len(specData) == 0 {
-		return nil, nil
-	}
-
-	if err := json.Unmarshal([]byte(specData), spec); err != nil {
-		return nil, err
-	}
-	return spec, nil
 }
 
 // GetResourceStatus parses ResourceStatus from annotations
@@ -119,7 +102,7 @@ func GetResourceStatus(annotations map[string]string) (*extension.ResourceStatus
 		}
 	}
 	// asi
-	asiAllocSpec, err := getASIAllocSpec(annotations)
+	asiAllocSpec, err := GetASIAllocSpec(annotations)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +141,7 @@ func SetResourceStatus(pod *corev1.Pod, status *extension.ResourceStatus) error 
 	}
 	pod.Annotations[uniext.AnnotationAllocStatus] = string(unifiedAllocStateData)
 	// ASI  AnnotationAllocSpec
-	asiAllocSpec, err := getASIAllocSpec(pod.Annotations)
+	asiAllocSpec, err := GetASIAllocSpec(pod.Annotations)
 	if err != nil {
 		return err
 	}
