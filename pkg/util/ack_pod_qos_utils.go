@@ -24,6 +24,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
+	"k8s.io/kubernetes/pkg/apis/core/v1/helper/qos"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 
@@ -87,4 +88,12 @@ func IsPodCPUBurstable(pod *corev1.Pod) bool {
 		return true
 	}
 	return false
+}
+
+func GetKubeQosClass(pod *corev1.Pod) corev1.PodQOSClass {
+	qosClass := pod.Status.QOSClass
+	if len(qosClass) <= 0 {
+		qosClass = qos.GetPodQOS(pod)
+	}
+	return qosClass
 }
