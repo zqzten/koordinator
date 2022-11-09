@@ -25,7 +25,7 @@ import (
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
 	schedulingconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
-	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/nodenumaresource"
+	"github.com/koordinator-sh/koordinator/pkg/util/cpuset"
 )
 
 // GetResourceSpec parses ResourceSpec from annotations; first koordinator protocols, second unified, third asi-sigma
@@ -114,7 +114,7 @@ func GetResourceStatus(annotations map[string]string) (*extension.ResourceStatus
 		if allocStatus, err := uniext.GetAllocStatus(annotations); err != nil {
 			return nil, err
 		} else {
-			resourceStatus.CPUSet = nodenumaresource.NewCPUSet(allocStatus.CPU...).String()
+			resourceStatus.CPUSet = cpuset.NewCPUSet(allocStatus.CPU...).String()
 			return resourceStatus, nil
 		}
 	}
@@ -128,7 +128,7 @@ func GetResourceStatus(annotations map[string]string) (*extension.ResourceStatus
 	}
 	for _, container := range asiAllocSpec.Containers {
 		if container.Resource.CPU.CPUSet != nil && len(container.Resource.CPU.CPUSet.CPUIDs) != 0 {
-			resourceStatus.CPUSet = nodenumaresource.NewCPUSet(container.Resource.CPU.CPUSet.CPUIDs...).String()
+			resourceStatus.CPUSet = cpuset.NewCPUSet(container.Resource.CPU.CPUSet.CPUIDs...).String()
 			return resourceStatus, nil
 		}
 	}
@@ -141,7 +141,7 @@ func SetResourceStatus(pod *corev1.Pod, status *extension.ResourceStatus) error 
 		return err
 	}
 
-	cpuset, err := nodenumaresource.Parse(status.CPUSet)
+	cpuset, err := cpuset.Parse(status.CPUSet)
 	if err != nil {
 		return err
 	}
