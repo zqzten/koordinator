@@ -21,6 +21,7 @@ import (
 	_ "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	_ "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/deviceshare/unified"
 	unifiedcpuset "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/cpusetallocator"
+	unifiedcustomaffinity "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/custompodaffinity"
 	unifiedeci "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/eci"
 	unifiedoverquota "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/overquota"
 	unifiedpodconstraint "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/podconstraint"
@@ -35,4 +36,5 @@ func init() {
 	koordinatorPlugins[unifiedoverquota.Name] = unifiedoverquota.New
 	koordinatorPlugins[unifiedpodconstraint.Name] = unifiedpodconstraint.New
 	koordinatorPlugins[unifiedscheduleresult.Name] = unifiedscheduleresult.New
+	koordinatorPlugins[unifiedcustomaffinity.Name] = unifiedcustomaffinity.New
 }
