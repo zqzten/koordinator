@@ -33,13 +33,14 @@ import (
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/nodenumaresource"
+	"github.com/koordinator-sh/koordinator/pkg/util/cpuset"
 )
 
 var (
 	defaultNumWorker = runtime.NumCPU()
 )
 
-type getAvailableCPUs func(nodeName string) (nodenumaresource.CPUSet, error)
+type getAvailableCPUs func(nodeName string) (cpuset.CPUSet, error)
 
 type cpuSharePoolUpdater struct {
 	queue                workqueue.RateLimitingInterface
@@ -50,7 +51,7 @@ type cpuSharePoolUpdater struct {
 func newCPUSharePoolUpdater(handle framework.Handle, cpuManager nodenumaresource.CPUManager) *cpuSharePoolUpdater {
 	updater := &cpuSharePoolUpdater{
 		queue: workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
-		getAvailableCPUsFunc: func(nodeName string) (nodenumaresource.CPUSet, error) {
+		getAvailableCPUsFunc: func(nodeName string) (cpuset.CPUSet, error) {
 			availableCPUs, _, err := cpuManager.GetAvailableCPUs(nodeName)
 			return availableCPUs, err
 		},
@@ -156,8 +157,8 @@ func (u *cpuSharePoolUpdater) updateNodeCPUSharePool(node *corev1.Node) error {
 	return nil
 }
 
-func getCPUSharePool(annotations map[string]string) (nodenumaresource.CPUSet, error) {
-	cpuSetBuilder := nodenumaresource.NewCPUSetBuilder()
+func getCPUSharePool(annotations map[string]string) (cpuset.CPUSet, error) {
+	cpuSetBuilder := cpuset.NewCPUSetBuilder()
 	rawCPUSharePool, ok := annotations[extunified.AnnotationNodeCPUSharePool]
 	if !ok {
 		return cpuSetBuilder.Result(), nil
@@ -170,7 +171,7 @@ func getCPUSharePool(annotations map[string]string) (nodenumaresource.CPUSet, er
 	return cpuSetBuilder.Result(), nil
 }
 
-func setCPUSharePool(node *corev1.Node, cpusInCpuSharePool nodenumaresource.CPUSet) error {
+func setCPUSharePool(node *corev1.Node, cpusInCpuSharePool cpuset.CPUSet) error {
 	cpuSharePool := extunified.CPUSharePool{
 		CPUIDs: cpusInCpuSharePool.ToSlice(),
 	}

@@ -21,6 +21,7 @@ import (
 
 	schedulingconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/nodenumaresource"
+	"github.com/koordinator-sh/koordinator/pkg/util/cpuset"
 )
 
 type cpuManagerAdapter struct {
@@ -35,7 +36,7 @@ func newCPUManagerAdapter(cpuManager nodenumaresource.CPUManager, updater *cpuSh
 	}
 }
 
-func (m *cpuManagerAdapter) UpdateAllocatedCPUSet(nodeName string, podUID types.UID, cpuset nodenumaresource.CPUSet, cpuExclusivePolicy schedulingconfig.CPUExclusivePolicy) {
+func (m *cpuManagerAdapter) UpdateAllocatedCPUSet(nodeName string, podUID types.UID, cpuset cpuset.CPUSet, cpuExclusivePolicy schedulingconfig.CPUExclusivePolicy) {
 	m.CPUManager.UpdateAllocatedCPUSet(nodeName, podUID, cpuset, cpuExclusivePolicy)
 	m.updater.asyncUpdate(nodeName)
 }
