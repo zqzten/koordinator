@@ -123,22 +123,6 @@ func (p *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState, 
 		pod.Labels = make(map[string]string)
 	}
 	pod.Labels[uniext.LabelCommonNodeType] = uniext.VKType
-	for i, container := range pod.Spec.Containers {
-		if !extunified.IsContainerIgnoreResource(&container) {
-			continue
-		}
-		var resourceRequest *extunified.ContainerResourceRequest
-		resourceRequest, err = extunified.GetResourceRequestByContainerName(pod.Annotations, container.Name)
-		if err != nil {
-			return framework.NewStatus(framework.Error, err.Error())
-		}
-		if resourceRequest == nil {
-			return framework.NewStatus(framework.Error, "ignored container doesn't exist in annotation")
-		}
-		container.Resources.Requests = resourceRequest.ResourceRequest
-		setEnvForContainer(&container, corev1.EnvVar{Name: extunified.EnvECIResourceIgnore, Value: extunified.ENVECIResourceIgnoreTrue})
-		pod.Spec.Containers[i] = container
-	}
 
 	patchBytes, err := util.GeneratePodPatch(podOriginal, pod)
 	if err != nil {
@@ -164,13 +148,4 @@ func (p *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState, 
 
 	klog.V(4).Infof("Successfully mark Pod %s/%s as vk", pod.Namespace, pod.Name)
 	return nil
-}
-
-func setEnvForContainer(container *corev1.Container, envVar corev1.EnvVar) {
-	for _, originalEnvVar := range container.Env {
-		if originalEnvVar.Name == envVar.Name {
-			return
-		}
-	}
-	container.Env = append(container.Env, envVar)
 }
