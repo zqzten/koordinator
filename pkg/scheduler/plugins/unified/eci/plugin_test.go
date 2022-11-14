@@ -18,7 +18,6 @@ package eci
 
 import (
 	"context"
-	"encoding/json"
 	"reflect"
 	"testing"
 
@@ -36,8 +35,6 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/queuesort"
 	"k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 	schedulertesting "k8s.io/kubernetes/pkg/scheduler/testing"
-
-	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 )
 
 var _ framework.SharedLister = &testSharedLister{}
@@ -383,13 +380,6 @@ func TestPlugin_Score(t *testing.T) {
 }
 
 func TestPlugin_PreBind(t *testing.T) {
-	requests := []*extunified.ContainerResourceRequest{
-		{Name: "container1", ResourceRequest: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")}},
-		{Name: "container2", ResourceRequest: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")}},
-	}
-	requestsJsonBytes, err := json.Marshal(requests)
-	assert.NoError(t, err)
-
 	nodes := []*corev1.Node{
 		{
 			ObjectMeta: metav1.ObjectMeta{
@@ -421,12 +411,10 @@ func TestPlugin_PreBind(t *testing.T) {
 		*corev1.Pod
 	}
 	tests := []struct {
-		name             string
-		args             args
-		want             *framework.Status
-		wantVKLabel      string
-		wantEnv          []corev1.EnvVar
-		wantResourceList corev1.ResourceList
+		name        string
+		args        args
+		want        *framework.Status
+		wantVKLabel string
 	}{
 		{
 			name: "vk node without label",
@@ -434,124 +422,8 @@ func TestPlugin_PreBind(t *testing.T) {
 				Node: nodes[0],
 				Pod:  &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "test-pod-0"}},
 			},
-			want:             nil,
-			wantVKLabel:      uniext.VKType,
-			wantEnv:          nil,
-			wantResourceList: nil,
-		},
-		{
-			name: "vk node, one container ignores resource and exists in annotation",
-			args: args{
-				Node: nodes[0],
-				Pod: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace:   "default",
-						Name:        "test-pod-0",
-						Annotations: map[string]string{extunified.AnnotationContainerResourceRequest: string(requestsJsonBytes)},
-					},
-					Spec: corev1.PodSpec{
-						Containers: []corev1.Container{
-							{
-								Name: "container1",
-								Env: []corev1.EnvVar{
-									{
-										Name:  extunified.EnvSigmaIgnoreResource,
-										Value: "true",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			want:             nil,
-			wantVKLabel:      uniext.VKType,
-			wantEnv:          []corev1.EnvVar{{Name: extunified.EnvSigmaIgnoreResource, Value: "true"}, {Name: extunified.EnvECIResourceIgnore, Value: extunified.ENVECIResourceIgnoreTrue}},
-			wantResourceList: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")},
-		},
-		{
-			name: "vk node, one container ignores resource and exists in annotation, env has been exists",
-			args: args{
-				Node: nodes[0],
-				Pod: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace:   "default",
-						Name:        "test-pod-0",
-						Annotations: map[string]string{extunified.AnnotationContainerResourceRequest: string(requestsJsonBytes)},
-					},
-					Spec: corev1.PodSpec{
-						Containers: []corev1.Container{
-							{
-								Name: "container1",
-								Env: []corev1.EnvVar{
-									{
-										Name:  extunified.EnvSigmaIgnoreResource,
-										Value: "true",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			want:             nil,
-			wantVKLabel:      uniext.VKType,
-			wantEnv:          []corev1.EnvVar{{Name: extunified.EnvSigmaIgnoreResource, Value: "true"}, {Name: extunified.EnvECIResourceIgnore, Value: extunified.ENVECIResourceIgnoreTrue}},
-			wantResourceList: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")},
-		},
-		{
-			name: "vk node, one container doesn't ignore resource and exists in annotation",
-			args: args{
-				Node: nodes[0],
-				Pod: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace:   "default",
-						Name:        "test-pod-0",
-						Annotations: map[string]string{extunified.AnnotationContainerResourceRequest: string(requestsJsonBytes)},
-					},
-					Spec: corev1.PodSpec{
-						Containers: []corev1.Container{
-							{
-								Name: "container2",
-							},
-						},
-					},
-				},
-			},
-			want:             nil,
-			wantVKLabel:      uniext.VKType,
-			wantEnv:          nil,
-			wantResourceList: corev1.ResourceList(nil),
-		},
-		{
-			name: "vk node, one container ignores resource and doesn't exist in annotation",
-			args: args{
-				Node: nodes[0],
-				Pod: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace:   "default",
-						Name:        "test-pod-0",
-						Annotations: map[string]string{extunified.AnnotationContainerResourceRequest: string(requestsJsonBytes)},
-					},
-					Spec: corev1.PodSpec{
-						Containers: []corev1.Container{
-							{
-								Name: "container3",
-								Env: []corev1.EnvVar{
-									{
-										Name:  extunified.EnvSigmaIgnoreResource,
-										Value: "true",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			want:             framework.NewStatus(framework.Error, "ignored container doesn't exist in annotation"),
-			wantVKLabel:      uniext.VKType,
-			wantEnv:          nil,
-			wantResourceList: corev1.ResourceList(nil),
+			want:        nil,
+			wantVKLabel: uniext.VKType,
 		},
 		{
 			name: "normal node",
@@ -559,10 +431,8 @@ func TestPlugin_PreBind(t *testing.T) {
 				Node: nodes[1],
 				Pod:  &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "test-pod-0"}},
 			},
-			want:             nil,
-			wantVKLabel:      "",
-			wantEnv:          nil,
-			wantResourceList: corev1.ResourceList(nil),
+			want:        nil,
+			wantVKLabel: "",
 		},
 	}
 	for _, tt := range tests {
@@ -581,22 +451,9 @@ func TestPlugin_PreBind(t *testing.T) {
 				t.Errorf("PreBind() = %v, want %v", got, tt.want)
 			}
 
-			if tt.want != nil {
-				return
-			}
-
 			podModified, err := suit.Handle.ClientSet().CoreV1().Pods("default").Get(context.TODO(), tt.args.Pod.Name, metav1.GetOptions{})
 			assert.Nil(t, err)
 			assert.Equal(t, tt.wantVKLabel, podModified.Labels[uniext.LabelCommonNodeType])
-
-			if len(podModified.Spec.Containers) != 0 {
-				container := &podModified.Spec.Containers[0]
-				assert.Equal(t, tt.wantResourceList, container.Resources.Requests)
-				assert.ElementsMatch(t,
-					tt.wantEnv,
-					container.Env,
-				)
-			}
 		})
 	}
 }
