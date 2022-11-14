@@ -17,54 +17,12 @@ limitations under the License.
 package unified
 
 import (
-	"encoding/json"
-
 	corev1 "k8s.io/api/core/v1"
-
-	"github.com/koordinator-sh/koordinator/apis/extension"
 )
 
 const (
-	AnnotationContainerResourceRequest = extension.DomainPrefix + "containerResourceRequest"
-	EnvSigmaIgnoreResource             = "SIGMA_IGNORE_RESOURCE"
-	EnvECIResourceIgnore               = "__ECI_RESOURCE_IGNORE__"
-	ENVECIResourceIgnoreTrue           = "TRUE"
+	EnvSigmaIgnoreResource = "SIGMA_IGNORE_RESOURCE"
 )
-
-type ContainerResourceRequest struct {
-	Name            string              `json:"name,omitempty"`
-	ResourceRequest corev1.ResourceList `json:"resourceRequest,omitempty"`
-}
-
-func GetResourceRequestByContainerName(annotations map[string]string, containerName string) (*ContainerResourceRequest, error) {
-	requests, err := GetResourceRequests(annotations)
-	if err != nil {
-		return nil, err
-	}
-	if requests == nil {
-		return nil, nil
-	}
-	return requests[containerName], nil
-}
-
-func GetResourceRequests(annotations map[string]string) (map[string]*ContainerResourceRequest, error) {
-	if annotations == nil {
-		return nil, nil
-	}
-	rawRequests, ok := annotations[AnnotationContainerResourceRequest]
-	if !ok || len(rawRequests) == 0 {
-		return nil, nil
-	}
-	var requests []*ContainerResourceRequest
-	if err := json.Unmarshal([]byte(rawRequests), &requests); err != nil {
-		return nil, err
-	}
-	result := map[string]*ContainerResourceRequest{}
-	for _, request := range requests {
-		result[request.Name] = request
-	}
-	return result, nil
-}
 
 func IsContainerIgnoreResource(c *corev1.Container) bool {
 	for _, entry := range c.Env {
