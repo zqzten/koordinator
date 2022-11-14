@@ -136,9 +136,8 @@ func (r *Reconciler) getCurrentStatus(ctx context.Context, resourceSummary *v1be
 		}
 	}
 	podUsedStatistics := convertToPodUsedStatistics(resourceSummary.Spec.PodStatistics, podUsedResource)
-	capacity, requested, free := statisticsNodeResource(candidateNodes, nodeOwnedPods)
+	capacity, requested, free, allocatablePodNums := statisticsNodeRelated(candidateNodes, nodeOwnedPods, resourceSummary.Spec.ResourceSpecs)
 	nodeResourceSummary := convertToNodeResourceSummary(capacity, requested, free)
-	allocatablePodNums := statisticsAllocatablePodNums(free, resourceSummary.Spec.ResourceSpecs)
 	resourceSpecStats := convertToResourceSpecStats(allocatablePodNums)
 	return &v1beta1.ResourceSummaryStatus{
 		Phase:             v1beta1.ResourceSummarySucceeded,
@@ -184,8 +183,8 @@ func (r *Reconciler) selectCandidateNodes(ctx context.Context, resourceSummary *
 }
 
 func (r *Reconciler) getPodForCandidateNodes(ctx context.Context, candidateNodes *corev1.NodeList,
-) (map[string]*corev1.PodList, error) {
-	nodeOwnedPods := map[string]*corev1.PodList{}
+) (map[string][]*corev1.Pod, error) {
+	nodeOwnedPods := map[string][]*corev1.Pod{}
 	for _, node := range candidateNodes.Items {
 		podList := &corev1.PodList{}
 		if err := r.Client.List(ctx, podList, &client.ListOptions{
@@ -193,22 +192,18 @@ func (r *Reconciler) getPodForCandidateNodes(ctx context.Context, candidateNodes
 		}, utilclient.DisableDeepCopy); err != nil {
 			return nil, err
 		}
-
-		var podItems []corev1.Pod
-		for _, pod := range podList.Items {
-			if util.IsPodTerminated(&pod) {
+		for i := range podList.Items {
+			if util.IsPodTerminated(&podList.Items[i]) {
 				continue
 			}
-			podItems = append(podItems, pod)
+			nodeOwnedPods[node.Name] = append(nodeOwnedPods[node.Name], &podList.Items[i])
 		}
-		podList.Items = podItems
-		nodeOwnedPods[node.Name] = podList
 	}
 	return nodeOwnedPods, nil
 }
 
 func statisticsPodUsedResource(candidateNodes *corev1.NodeList,
-	nodeOwnedPods map[string]*corev1.PodList, podStatistics []v1beta1.PodStatistics) ([]map[uniext.PriorityClass]corev1.ResourceList, error) {
+	nodeOwnedPods map[string][]*corev1.Pod, podStatistics []v1beta1.PodStatistics) ([]map[uniext.PriorityClass]corev1.ResourceList, error) {
 	var rawPodUsed []map[uniext.PriorityClass]corev1.ResourceList
 	n := len(podStatistics)
 	if n == 0 {
@@ -229,11 +224,11 @@ func statisticsPodUsedResource(candidateNodes *corev1.NodeList,
 	for _, node := range candidateNodes.Items {
 		ownedPods := nodeOwnedPods[node.Name]
 		for i := 0; i < n; i++ {
-			for _, ownedPod := range ownedPods.Items {
+			for _, ownedPod := range ownedPods {
 				if !podSelectors[i].Matches(labels.Set(ownedPod.Labels)) {
 					continue
 				}
-				podPriorityUsed := GetPodPriorityUsed(&ownedPod, &node)
+				podPriorityUsed := GetPodPriorityUsed(ownedPod, &node)
 				rawPodUsed[i][podPriorityUsed.PriorityClass] = quotav1.Add(
 					rawPodUsed[i][podPriorityUsed.PriorityClass], podPriorityUsed.Allocated)
 			}
@@ -268,27 +263,47 @@ func convertToPodUsedStatistics(podStatistics []v1beta1.PodStatistics, rawPodUse
 	return podUsed
 }
 
-func statisticsNodeResource(candidateNodes *corev1.NodeList,
-	nodeOwnedPods map[string]*corev1.PodList) (capacity, requested, free map[uniext.PriorityClass]corev1.ResourceList) {
+func statisticsNodeRelated(candidateNodes *corev1.NodeList,
+	nodeOwnedPods map[string][]*corev1.Pod, resourceSpecs []v1beta1.ResourceSpec) (capacity, requested, free map[uniext.PriorityClass]corev1.ResourceList, allocatablePodNum map[string]map[uniext.PriorityClass]int32) {
 	capacity = map[uniext.PriorityClass]corev1.ResourceList{}
+	requested = map[uniext.PriorityClass]corev1.ResourceList{}
+	free = map[uniext.PriorityClass]corev1.ResourceList{}
+	//  资源规格名 资源等级 计数
+	allocatablePodNum = make(map[string]map[uniext.PriorityClass]int32, len(resourceSpecs))
+	for _, resourceSpec := range resourceSpecs {
+		allocatablePodNum[resourceSpec.Name] = make(map[uniext.PriorityClass]int32, len(priorityClassTypes))
+	}
 	for _, node := range candidateNodes.Items {
-		nodeAllocatable := GetAllocatableByOverQuota(&node)
-		for _, priorityClass := range priorityClassTypes {
-			capacity[priorityClass] = quotav1.Add(capacity[priorityClass], GetNodePriorityResource(nodeAllocatable, priorityClass, &node))
+		ownedPods := nodeOwnedPods[node.Name]
+		nodeCapacity, nodeRequested, nodeFree := statisticsNodeResource(&node, ownedPods)
+		for _, priorityClassType := range priorityClassTypes {
+			capacity[priorityClassType] = quotav1.Add(capacity[priorityClassType], nodeCapacity[priorityClassType])
+			requested[priorityClassType] = quotav1.Add(requested[priorityClassType], nodeRequested[priorityClassType])
+			free[priorityClassType] = quotav1.Add(free[priorityClassType], nodeFree[priorityClassType])
+			for _, resourceSpec := range resourceSpecs {
+				allocatablePodNum[resourceSpec.Name][priorityClassType] += calculateAllocatablePodNum(nodeFree[priorityClassType], resourceSpec.Resources)
+			}
 		}
+	}
+	return
+}
+
+func statisticsNodeResource(node *corev1.Node, ownPods []*corev1.Pod) (capacity, requested, free map[uniext.PriorityClass]corev1.ResourceList) {
+	capacity = map[uniext.PriorityClass]corev1.ResourceList{}
+	nodeAllocatable := GetAllocatableByOverQuota(node)
+	for _, priorityClass := range priorityClassTypes {
+		capacity[priorityClass] = quotav1.Add(capacity[priorityClass], GetNodePriorityResource(nodeAllocatable, priorityClass, node))
 	}
 
 	requested = map[uniext.PriorityClass]corev1.ResourceList{}
 	allRequested := corev1.ResourceList{}
-	for _, node := range candidateNodes.Items {
-		ownedPods := nodeOwnedPods[node.Name]
-		for _, ownedPod := range ownedPods.Items {
-			priorityUsed := GetPodPriorityUsed(&ownedPod, &node)
-			priorityUsed.Allocated[corev1.ResourcePods] = *resource.NewQuantity(1, resource.DecimalSI)
-			requested[priorityUsed.PriorityClass] = quotav1.Add(requested[priorityUsed.PriorityClass], priorityUsed.Allocated)
-			allRequested = quotav1.Add(allRequested, priorityUsed.Allocated)
-		}
+	for _, ownedPod := range ownPods {
+		priorityUsed := GetPodPriorityUsed(ownedPod, node)
+		priorityUsed.Allocated[corev1.ResourcePods] = *resource.NewQuantity(1, resource.DecimalSI)
+		requested[priorityUsed.PriorityClass] = quotav1.Add(requested[priorityUsed.PriorityClass], priorityUsed.Allocated)
+		allRequested = quotav1.Add(allRequested, priorityUsed.Allocated)
 	}
+
 	for _, priorityClass := range priorityClassTypes {
 		if requested[priorityClass] == nil {
 			requested[priorityClass] = corev1.ResourceList{}
@@ -298,6 +313,21 @@ func statisticsNodeResource(candidateNodes *corev1.NodeList,
 	}
 	free = CalculateFree(capacity, requested, allRequested)
 	return
+}
+
+func calculateAllocatablePodNum(free, request corev1.ResourceList) int32 {
+	var min int32 = math.MaxInt32
+	for resourceName, quantity := range request {
+		if quantity.IsZero() {
+			continue
+		}
+		freeQuantity, found := free[resourceName]
+		if !found {
+			return 0
+		}
+		min = int32(math.Floor(math.Min(float64(freeQuantity.MilliValue()/quantity.MilliValue()), float64(min))))
+	}
+	return min
 }
 
 func convertToNodeResourceSummary(capacity, requested, free map[uniext.PriorityClass]corev1.ResourceList,
@@ -316,35 +346,6 @@ func convertToNodeResourceSummary(capacity, requested, free map[uniext.PriorityC
 		resourceSummaries = append(resourceSummaries, resourceSummary)
 	}
 	return resourceSummaries
-}
-
-func statisticsAllocatablePodNums(free map[uniext.PriorityClass]corev1.ResourceList,
-	resourceSpecs []v1beta1.ResourceSpec) map[string]map[uniext.PriorityClass]int32 {
-	//  资源规格名 资源等级 计数
-	allocatablePodNum := make(map[string]map[uniext.PriorityClass]int32, len(resourceSpecs))
-	for _, resourceSpec := range resourceSpecs {
-		allocatablePodNum[resourceSpec.Name] = make(map[uniext.PriorityClass]int32, len(priorityClassTypes))
-		for _, priorityClassType := range priorityClassTypes {
-			allocatablePodNum[resourceSpec.Name][priorityClassType] = calculateAllocatablePodNum(free[priorityClassType], resourceSpec.Resources)
-		}
-	}
-	return allocatablePodNum
-}
-
-func calculateAllocatablePodNum(free, request corev1.ResourceList) int32 {
-	free = free.DeepCopy()
-	var min int32 = math.MaxInt32
-	for resourceName, quantity := range request {
-		if quantity.IsZero() {
-			continue
-		}
-		freeQuantity, found := free[resourceName]
-		if !found {
-			return 0
-		}
-		min = int32(math.Floor(math.Min(float64(freeQuantity.MilliValue()/quantity.MilliValue()), float64(min))))
-	}
-	return min
 }
 
 func convertToResourceSpecStats(allocatablePodNums map[string]map[uniext.PriorityClass]int32) []*v1beta1.ResourceSpecStat {
