@@ -36,7 +36,8 @@ type nodeEventHandler struct {
 }
 
 func registerNodeEventHandler(handle framework.Handle, topologyManager nodenumaresource.CPUTopologyManager) {
-	handle.SharedInformerFactory().Core().V1().Nodes().Informer().AddEventHandler(&nodeEventHandler{
+	informer := handle.SharedInformerFactory().Core().V1().Nodes().Informer()
+	informer.AddEventHandler(&nodeEventHandler{
 		topologyManager: topologyManager,
 	})
 	handle.SharedInformerFactory().Start(context.TODO().Done())
