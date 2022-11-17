@@ -33,6 +33,10 @@ type podConstraintEventHandler struct {
 }
 
 func registerPodConstraintEventHandler(handle framework.Handle, podConstraintCache *PodConstraintCache) error {
+	// 先启动 node 的 informer 并同步数据，因为后面由podConstraint eventHandler依赖于node信息的同步
+	handle.SharedInformerFactory().Core().V1().Nodes().Informer()
+	handle.SharedInformerFactory().Start(context.TODO().Done())
+	handle.SharedInformerFactory().WaitForCacheSync(context.TODO().Done())
 	unifiedClient, ok := handle.(unifiedclientset.Interface)
 	if !ok {
 		kubeConfig := handle.KubeConfig()

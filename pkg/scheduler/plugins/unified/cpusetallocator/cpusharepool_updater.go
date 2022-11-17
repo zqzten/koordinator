@@ -57,6 +57,10 @@ func newCPUSharePoolUpdater(handle framework.Handle, cpuManager nodenumaresource
 		},
 		handle: handle,
 	}
+	// 先启动 node 的 informer 并同步数据，因为后面由pod事件触发时调用的asyncUpdate依赖于node信息的同步
+	handle.SharedInformerFactory().Core().V1().Nodes().Informer()
+	handle.SharedInformerFactory().Start(context.TODO().Done())
+	handle.SharedInformerFactory().WaitForCacheSync(context.TODO().Done())
 	return updater
 }
 
