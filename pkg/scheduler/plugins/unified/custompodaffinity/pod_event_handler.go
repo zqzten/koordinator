@@ -31,7 +31,8 @@ type podEventHandler struct {
 }
 
 func registersPodEventHandler(handle framework.Handle, serviceUnitStatsCache *Cache) {
-	handle.SharedInformerFactory().Core().V1().Pods().Informer().AddEventHandler(cache.FilteringResourceEventHandler{
+	informer := handle.SharedInformerFactory().Core().V1().Pods().Informer()
+	informer.AddEventHandler(cache.FilteringResourceEventHandler{
 		FilterFunc: func(obj interface{}) bool {
 			switch t := obj.(type) {
 			case *corev1.Pod:
