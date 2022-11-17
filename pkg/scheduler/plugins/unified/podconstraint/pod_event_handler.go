@@ -21,6 +21,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"github.com/koordinator-sh/koordinator/pkg/util"
@@ -32,16 +33,19 @@ type podEventHandler struct {
 }
 
 func registerPodEventHandler(handle framework.Handle, podConstraintCache *PodConstraintCache) {
-	handle.SharedInformerFactory().Core().V1().Pods().Informer().AddEventHandler(cache.FilteringResourceEventHandler{
+	// 先启动 node 的 informer 并同步数据，因为后面由pod事件触发时调用的asyncUpdate依赖于node信息的同步
+	handle.SharedInformerFactory().Core().V1().Nodes().Informer()
+	handle.SharedInformerFactory().Start(context.TODO().Done())
+	handle.SharedInformerFactory().WaitForCacheSync(context.TODO().Done())
+	informer := handle.SharedInformerFactory().Core().V1().Pods().Informer()
+	informer.AddEventHandler(cache.FilteringResourceEventHandler{
 		FilterFunc: func(obj interface{}) bool {
 			switch t := obj.(type) {
 			case *corev1.Pod:
 				return assignedPod(t)
 			case cache.DeletedFinalStateUnknown:
-				if _, ok := t.Obj.(*corev1.Pod); ok {
-					// The carried object may be stale, so we don't use it to check if
-					// it's assigned or not. Attempting to cleanup anyways.
-					return true
+				if pod, ok := t.Obj.(*corev1.Pod); ok {
+					return assignedPod(pod)
 				}
 				return false
 			default:
@@ -68,6 +72,7 @@ func (p *podEventHandler) OnAdd(obj interface{}) {
 	}
 	node, err := p.handle.SharedInformerFactory().Core().V1().Nodes().Lister().Get(pod.Spec.NodeName)
 	if err != nil {
+		klog.Errorf("[PodConstraint] pod.spec.nodeName == %s but get node error: %v", pod.Spec.NodeName, err)
 		return
 	}
 	p.podConstraintCache.AddPod(node, pod)
@@ -85,6 +90,7 @@ func (p *podEventHandler) OnUpdate(oldObj, newObj interface{}) {
 	// nodeName api-server不允许更改，所以只选一个Node就okay了
 	node, err := p.handle.SharedInformerFactory().Core().V1().Nodes().Lister().Get(newPod.Spec.NodeName)
 	if err != nil {
+		klog.Errorf("[PodConstraint] pod.spec.nodeName == %s but get node error: %v", newPod.Spec.NodeName, err)
 		return
 	}
 	if util.IsPodTerminated(newPod) {
@@ -114,6 +120,7 @@ func (p *podEventHandler) OnDelete(obj interface{}) {
 	}
 	node, err := p.handle.SharedInformerFactory().Core().V1().Nodes().Lister().Get(pod.Spec.NodeName)
 	if err != nil {
+		klog.Errorf("[PodConstraint] pod.spec.nodeName == %s but get node error: %v", pod.Spec.NodeName, err)
 		return
 	}
 	p.podConstraintCache.DeletePod(node, pod)
