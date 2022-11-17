@@ -66,9 +66,7 @@ func (p *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState, 
 	}
 	updateTime := time.Now().In(time.FixedZone("CST", 8*3600)).Format(time.RFC3339Nano)
 	pod.Annotations[extunified.AnnotationSchedulerUpdateTime] = updateTime
-	if pod.Spec.NodeName == "" {
-		pod.Annotations[extunified.AnnotationSchedulerBindTime] = updateTime
-	}
+	pod.Annotations[extunified.AnnotationSchedulerBindTime] = updateTime
 	patchBytes, err := util.GeneratePodPatch(podOriginal, pod)
 	if err != nil {
 		return framework.NewStatus(framework.Error, err.Error())
