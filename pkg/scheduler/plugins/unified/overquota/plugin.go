@@ -45,7 +45,7 @@ var (
 
 	IsPodDisableOverQuotaFilter = extunified.IsPodDisableOverQuotaFilter
 	IsPodRequireOverQuotaNode   = extunified.IsPodRequireOverQuotaNode
-	GetLocalInlineVolumeSize    = extunified.GetLocalInlineVolumeSize
+	GetLocalInlineVolumeSize    = extunified.CalcLocalInlineVolumeSize
 )
 
 type Plugin struct {
@@ -86,7 +86,7 @@ func (p *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState
 
 func (p *Plugin) isPodNotNeedResource(pod *corev1.Pod) bool {
 	resourceList := util.GetPodRequest(pod, corev1.ResourceCPU, corev1.ResourceMemory, corev1.ResourceEphemeralStorage)
-	inlineVolumeSize := GetLocalInlineVolumeSize(pod.Spec.Volumes, p.handle.SharedInformerFactory())
+	inlineVolumeSize := GetLocalInlineVolumeSize(pod.Spec.Volumes, p.handle.SharedInformerFactory().Storage().V1().StorageClasses().Lister())
 	return resourceList.Cpu().IsZero() &&
 		resourceList.Memory().IsZero() &&
 		resourceList.StorageEphemeral().IsZero() &&
