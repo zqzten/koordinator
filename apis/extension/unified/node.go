@@ -17,11 +17,17 @@ limitations under the License.
 package unified
 
 import (
+	"encoding/json"
+
+	"gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
-	coverv1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 )
 
-const AnnotationNodeCPUSharePool = "node.beta1.sigma.ali/cpu-sharepool"
+const (
+	AnnotationNodeCPUSharePool = "node.beta1.sigma.ali/cpu-sharepool"
+	AnnotationLocalInfo        = "node.beta1.sigma.ali/local-info"
+)
 
 // CPUSharePool describes the CPU IDs that the cpu share pool uses.
 // The entire struct is json marshalled and saved in pod annotation.
@@ -30,6 +36,22 @@ type CPUSharePool struct {
 	CPUIDs []int `json:"cpuIDs,omitempty"`
 }
 
-func IsVirtualKubeletNode(node *coverv1.Node) bool {
+func IsVirtualKubeletNode(node *corev1.Node) bool {
 	return node.Labels[uniext.LabelNodeType] == uniext.VKType || node.Labels[uniext.LabelCommonNodeType] == uniext.VKType
+}
+
+func LocalInfoFromNode(node *corev1.Node) (*extension.LocalInfo, error) {
+	localInfo := &extension.LocalInfo{}
+	localData, ok := node.Annotations[extension.AnnotationLocalInfo]
+	if !ok {
+		localData, ok = node.Annotations[AnnotationLocalInfo]
+	}
+	if !ok {
+		return localInfo, nil
+	}
+
+	if err := json.Unmarshal([]byte(localData), localInfo); err != nil {
+		return nil, err
+	}
+	return localInfo, nil
 }
