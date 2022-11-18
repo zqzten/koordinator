@@ -27,6 +27,7 @@ import (
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/informers"
 	kubefake "k8s.io/client-go/kubernetes/fake"
+	storagelisters "k8s.io/client-go/listers/storage/v1"
 	scheduledconfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/defaultbinder"
@@ -327,7 +328,7 @@ func TestPlugin_PreFilter(t *testing.T) {
 
 			plg := p.(*Plugin)
 			suit.start()
-			GetLocalInlineVolumeSize = func(volumes []corev1.Volume, factory informers.SharedInformerFactory) int64 {
+			GetLocalInlineVolumeSize = func(volumes []corev1.Volume, storageClassLister storagelisters.StorageClassLister) int64 {
 				return tt.localInlineVolumeSize
 			}
 			status := plg.PreFilter(context.TODO(), tt.cycleState, tt.pod)
