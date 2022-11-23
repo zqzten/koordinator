@@ -44,10 +44,10 @@ func init() {
 	evictor.RegisterEvictor(EvictorName, New)
 }
 
-func New(client kubernetes.Interface) evictor.Interface {
+func New(client kubernetes.Interface) (evictor.Interface, error) {
 	return &Evictor{
 		client: client,
-	}
+	}, nil
 }
 
 func (e *Evictor) Evict(ctx context.Context, job *koordsev1alpha1.PodMigrationJob, pod *corev1.Pod) error {
