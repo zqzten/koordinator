@@ -26,6 +26,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
+
+	frameworkexthelper "github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/helper"
 )
 
 type podConstraintEventHandler struct {
@@ -33,10 +35,6 @@ type podConstraintEventHandler struct {
 }
 
 func registerPodConstraintEventHandler(handle framework.Handle, podConstraintCache *PodConstraintCache) error {
-	// 先启动 node 的 informer 并同步数据，因为后面由podConstraint eventHandler依赖于node信息的同步
-	handle.SharedInformerFactory().Core().V1().Nodes().Informer()
-	handle.SharedInformerFactory().Start(context.TODO().Done())
-	handle.SharedInformerFactory().WaitForCacheSync(context.TODO().Done())
 	unifiedClient, ok := handle.(unifiedclientset.Interface)
 	if !ok {
 		kubeConfig := handle.KubeConfig()
@@ -48,13 +46,17 @@ func registerPodConstraintEventHandler(handle framework.Handle, podConstraintCac
 			return err
 		}
 	}
+
+	// 先启动 node 的 informer 并同步数据，因为后面由podConstraint eventHandler依赖于node信息的同步
+	nodeInformer := handle.SharedInformerFactory().Core().V1().Nodes().Informer()
+	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), handle.SharedInformerFactory(), nodeInformer, cache.ResourceEventHandlerFuncs{})
+
 	podConstraintInformerFactory := unifiedinformer.NewSharedInformerFactoryWithOptions(unifiedClient, 0)
+	podConstraintInformer := podConstraintInformerFactory.Scheduling().V1beta1().PodConstraints().Informer()
 	eventHandler := &podConstraintEventHandler{
 		podConstraintCache: podConstraintCache,
 	}
-	podConstraintInformerFactory.Scheduling().V1beta1().PodConstraints().Informer().AddEventHandler(eventHandler)
-	podConstraintInformerFactory.Start(context.TODO().Done())
-	podConstraintInformerFactory.WaitForCacheSync(context.TODO().Done())
+	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), podConstraintInformerFactory, podConstraintInformer, eventHandler)
 	return nil
 }
 
