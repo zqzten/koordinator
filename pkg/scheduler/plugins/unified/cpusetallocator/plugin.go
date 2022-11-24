@@ -122,7 +122,6 @@ func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error)
 		cpuSharePoolUpdater: updater,
 	}
 	registerNodeEventHandler(handle, p.GetCPUTopologyManager())
-	updater.start()
 	return p, nil
 }
 
