@@ -23,6 +23,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
+	frameworkexthelper "github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/helper"
 	"github.com/koordinator-sh/koordinator/pkg/util"
 )
 
@@ -31,8 +32,8 @@ type podEventHandler struct {
 }
 
 func registersPodEventHandler(handle framework.Handle, serviceUnitStatsCache *Cache) {
-	informer := handle.SharedInformerFactory().Core().V1().Pods().Informer()
-	informer.AddEventHandler(cache.FilteringResourceEventHandler{
+	podInformer := handle.SharedInformerFactory().Core().V1().Pods().Informer()
+	eventHandler := cache.FilteringResourceEventHandler{
 		FilterFunc: func(obj interface{}) bool {
 			switch t := obj.(type) {
 			case *corev1.Pod:
@@ -49,9 +50,8 @@ func registersPodEventHandler(handle framework.Handle, serviceUnitStatsCache *Ca
 		Handler: &podEventHandler{
 			cache: serviceUnitStatsCache,
 		},
-	})
-	handle.SharedInformerFactory().Start(context.TODO().Done())
-	handle.SharedInformerFactory().WaitForCacheSync(context.TODO().Done())
+	}
+	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), handle.SharedInformerFactory(), podInformer, eventHandler)
 }
 
 func assignedPod(pod *corev1.Pod) bool {

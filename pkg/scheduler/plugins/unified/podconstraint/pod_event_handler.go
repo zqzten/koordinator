@@ -24,6 +24,7 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
+	frameworkexthelper "github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/helper"
 	"github.com/koordinator-sh/koordinator/pkg/util"
 )
 
@@ -33,12 +34,8 @@ type podEventHandler struct {
 }
 
 func registerPodEventHandler(handle framework.Handle, podConstraintCache *PodConstraintCache) {
-	// 先启动 node 的 informer 并同步数据，因为后面由pod事件触发时调用的asyncUpdate依赖于node信息的同步
-	handle.SharedInformerFactory().Core().V1().Nodes().Informer()
-	handle.SharedInformerFactory().Start(context.TODO().Done())
-	handle.SharedInformerFactory().WaitForCacheSync(context.TODO().Done())
-	informer := handle.SharedInformerFactory().Core().V1().Pods().Informer()
-	informer.AddEventHandler(cache.FilteringResourceEventHandler{
+	podInformer := handle.SharedInformerFactory().Core().V1().Pods().Informer()
+	eventHandler := cache.FilteringResourceEventHandler{
 		FilterFunc: func(obj interface{}) bool {
 			switch t := obj.(type) {
 			case *corev1.Pod:
@@ -56,9 +53,8 @@ func registerPodEventHandler(handle framework.Handle, podConstraintCache *PodCon
 			handle:             handle,
 			podConstraintCache: podConstraintCache,
 		},
-	})
-	handle.SharedInformerFactory().Start(context.TODO().Done())
-	handle.SharedInformerFactory().WaitForCacheSync(context.TODO().Done())
+	}
+	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), handle.SharedInformerFactory(), podInformer, eventHandler)
 }
 
 func assignedPod(pod *corev1.Pod) bool {
