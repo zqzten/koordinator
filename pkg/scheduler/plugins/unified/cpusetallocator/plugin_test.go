@@ -111,10 +111,14 @@ type frameworkHandleExtender struct {
 
 func proxyPluginFactory(fakeClientSet *nrtfake.Clientset, factory runtime.PluginFactory) runtime.PluginFactory {
 	return func(configuration apiruntime.Object, f framework.Handle) (framework.Plugin, error) {
-		return factory(configuration, &frameworkHandleExtender{
+		p, err := factory(configuration, &frameworkHandleExtender{
 			Handle:    f,
 			Clientset: fakeClientSet,
 		})
+		if err == nil {
+			p.(*Plugin).cpuSharePoolUpdater.Start()
+		}
+		return p, err
 	}
 }
 
