@@ -121,10 +121,8 @@ func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error)
 		Plugin:              internalPlugin.(*nodenumaresource.Plugin),
 		cpuSharePoolUpdater: updater,
 	}
-	handle.SharedInformerFactory().Start(context.TODO().Done())
-	handle.SharedInformerFactory().WaitForCacheSync(context.TODO().Done())
-	updater.start()
 	registerNodeEventHandler(handle, p.GetCPUTopologyManager())
+	updater.start()
 	return p, nil
 }
 

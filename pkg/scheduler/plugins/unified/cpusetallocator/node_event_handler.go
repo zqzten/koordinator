@@ -24,6 +24,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	frameworkexthelper "github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/helper"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/nodenumaresource"
 )
 
@@ -36,12 +37,11 @@ type nodeEventHandler struct {
 }
 
 func registerNodeEventHandler(handle framework.Handle, topologyManager nodenumaresource.CPUTopologyManager) {
-	informer := handle.SharedInformerFactory().Core().V1().Nodes().Informer()
-	informer.AddEventHandler(&nodeEventHandler{
+	nodeInformer := handle.SharedInformerFactory().Core().V1().Nodes().Informer()
+	eventHandler := &nodeEventHandler{
 		topologyManager: topologyManager,
-	})
-	handle.SharedInformerFactory().Start(context.TODO().Done())
-	handle.SharedInformerFactory().WaitForCacheSync(context.TODO().Done())
+	}
+	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), handle.SharedInformerFactory(), nodeInformer, eventHandler)
 }
 
 func (c *nodeEventHandler) OnAdd(obj interface{}) {
