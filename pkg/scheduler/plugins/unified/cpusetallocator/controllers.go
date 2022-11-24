@@ -32,13 +32,25 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/nodenumaresource"
 	"github.com/koordinator-sh/koordinator/pkg/util/cpuset"
 )
 
+const (
+	CPUSharePoolControllerName = "cpuSharePoolUpdater"
+)
+
 var (
 	defaultNumWorker = runtime.NumCPU()
+
+	_ frameworkext.ControllerProvider = &Plugin{}
+	_ frameworkext.Controller         = &cpuSharePoolUpdater{}
 )
+
+func (p *Plugin) NewControllers() ([]frameworkext.Controller, error) {
+	return []frameworkext.Controller{p.cpuSharePoolUpdater}, nil
+}
 
 type getAvailableCPUs func(nodeName string) (cpuset.CPUSet, error)
 
@@ -72,7 +84,11 @@ func (u *cpuSharePoolUpdater) asyncUpdate(nodeName string) {
 	u.queue.Add(nodeName)
 }
 
-func (u *cpuSharePoolUpdater) start() {
+func (u *cpuSharePoolUpdater) Name() string {
+	return CPUSharePoolControllerName
+}
+
+func (u *cpuSharePoolUpdater) Start() {
 	for i := 0; i < defaultNumWorker; i++ {
 		go u.updateWorker()
 	}
