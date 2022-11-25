@@ -69,6 +69,7 @@ var (
 	_ framework.PreScorePlugin  = &Plugin{}
 	_ framework.ScorePlugin     = &Plugin{}
 	_ framework.ScoreExtensions = &Plugin{}
+	_ framework.ReservePlugin   = &Plugin{}
 )
 
 type Plugin struct {
@@ -545,4 +546,29 @@ func (p *Plugin) NormalizeScore(ctx context.Context, cycleState *framework.Cycle
 		scores[i].Score = framework.MaxNodeScore * (maxScore + minScore - s) / maxScore
 	}
 	return nil
+}
+
+func (p *Plugin) Reserve(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
+	nodeInfo, err := p.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
+	if err != nil {
+		return framework.NewStatus(framework.Error, fmt.Sprintf("getting node %q from Snapshot: %v", nodeName, err))
+	}
+	node := nodeInfo.Node()
+	if node == nil {
+		return framework.NewStatus(framework.Error, "node not found")
+	}
+	p.podConstraintCache.AddPod(node, pod)
+	return nil
+}
+
+func (p *Plugin) Unreserve(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) {
+	nodeInfo, err := p.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
+	if err != nil {
+		return
+	}
+	node := nodeInfo.Node()
+	if node == nil {
+		return
+	}
+	p.podConstraintCache.DeletePod(node, pod)
 }
