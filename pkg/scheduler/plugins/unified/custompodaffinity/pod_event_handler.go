@@ -63,7 +63,7 @@ func (p *podEventHandler) OnAdd(obj interface{}) {
 	if !ok {
 		return
 	}
-	p.cache.AddPod(pod)
+	p.cache.AddPod(pod.Spec.NodeName, pod)
 }
 
 func (p *podEventHandler) OnUpdate(oldObj, newObj interface{}) {
@@ -76,9 +76,9 @@ func (p *podEventHandler) OnUpdate(oldObj, newObj interface{}) {
 		return
 	}
 	if util.IsPodTerminated(newPod) {
-		p.cache.DeletePod(newPod)
+		p.cache.DeletePod(newPod.Spec.NodeName, newPod)
 	} else {
-		p.cache.UpdatePod(oldPod, newPod)
+		p.cache.UpdatePod(newPod.Spec.NodeName, oldPod, newPod)
 	}
 
 }
@@ -100,5 +100,5 @@ func (p *podEventHandler) OnDelete(obj interface{}) {
 	if pod == nil {
 		return
 	}
-	p.cache.DeletePod(pod)
+	p.cache.DeletePod(pod.Spec.NodeName, pod)
 }

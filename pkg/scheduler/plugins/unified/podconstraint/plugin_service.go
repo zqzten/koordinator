@@ -20,6 +20,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/services"
 )
@@ -63,5 +64,9 @@ func (p *Plugin) RegisterEndpoints(group *gin.RouterGroup) {
 		}
 		constraintStateResponse := newConstraintStateResponse(constraintState)
 		c.JSON(http.StatusOK, constraintStateResponse)
+	})
+	group.GET("/allocSet", func(c *gin.Context) {
+		allocSet := sets.NewString(p.podConstraintCache.allocSet.List()...)
+		c.JSON(http.StatusOK, allocSet)
 	})
 }

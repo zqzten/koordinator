@@ -36,6 +36,7 @@ const (
 var (
 	_ framework.PreFilterPlugin = &Plugin{}
 	_ framework.FilterPlugin    = &Plugin{}
+	_ framework.ReservePlugin   = &Plugin{}
 )
 
 type Plugin struct {
@@ -112,4 +113,13 @@ func getPreFilterState(cycleState *framework.CycleState) (*preFilterState, *fram
 	}
 	state := value.(*preFilterState)
 	return state, nil
+}
+
+func (p *Plugin) Reserve(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
+	p.cache.AddPod(nodeName, pod)
+	return nil
+}
+
+func (p *Plugin) Unreserve(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) {
+	p.cache.DeletePod(nodeName, pod)
 }

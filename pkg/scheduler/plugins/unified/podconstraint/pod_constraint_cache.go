@@ -34,6 +34,7 @@ type PodConstraintCache struct {
 	enableDefaultPodConstraint bool
 	constraintToPodAllocations map[string]map[string]*podAllocation
 	constraintStateCache       map[string]*TopologySpreadConstraintState
+	allocSet                   sets.String
 }
 
 func newPodConstraintCache(handle framework.Handle, enableDefaultPodConstraint bool) *PodConstraintCache {
@@ -42,6 +43,7 @@ func newPodConstraintCache(handle framework.Handle, enableDefaultPodConstraint b
 		enableDefaultPodConstraint: enableDefaultPodConstraint,
 		constraintToPodAllocations: make(map[string]map[string]*podAllocation),
 		constraintStateCache:       make(map[string]*TopologySpreadConstraintState),
+		allocSet:                   sets.NewString(),
 	}
 }
 
@@ -149,6 +151,14 @@ func (c *PodConstraintCache) getWeightConstraints(pod *corev1.Pod) []extunified.
 }
 
 func (c *PodConstraintCache) addPod(node *corev1.Node, pod *corev1.Pod, constraints []extunified.WeightedPodConstraint) {
+	if len(constraints) == 0 {
+		return
+	}
+	podKey := getNamespacedName(pod.Namespace, pod.Name)
+	if c.allocSet.Has(podKey) {
+		return
+	}
+	c.allocSet.Insert(podKey)
 	for _, constraint := range constraints {
 		constraintKey := getNamespacedName(constraint.Namespace, constraint.Name)
 		allocations, ok := c.constraintToPodAllocations[constraintKey]
@@ -156,7 +166,7 @@ func (c *PodConstraintCache) addPod(node *corev1.Node, pod *corev1.Pod, constrai
 			allocations = make(map[string]*podAllocation)
 			c.constraintToPodAllocations[constraintKey] = allocations
 		}
-		allocations[getNamespacedName(pod.Namespace, pod.Name)] = podToAllocation(pod)
+		allocations[podKey] = podToAllocation(pod)
 		constraintState := c.constraintStateCache[constraintKey]
 		if constraintState == nil {
 			if !IsConstraintNameDefault(constraint.Name) {
@@ -224,11 +234,19 @@ func (c *PodConstraintCache) DeletePod(node *corev1.Node, pod *corev1.Pod) {
 }
 
 func (c *PodConstraintCache) deletePod(node *corev1.Node, pod *corev1.Pod, constraints []extunified.WeightedPodConstraint) {
+	if len(constraints) == 0 {
+		return
+	}
+	podKey := getNamespacedName(pod.Namespace, pod.Name)
+	if !c.allocSet.Has(podKey) {
+		return
+	}
+	c.allocSet.Delete(podKey)
 	for _, constraint := range constraints {
 		constraintKey := getNamespacedName(constraint.Namespace, constraint.Name)
 
 		cachedAllocation := c.constraintToPodAllocations[constraintKey]
-		delete(cachedAllocation, getNamespacedName(pod.Namespace, pod.Name))
+		delete(cachedAllocation, podKey)
 		if len(cachedAllocation) == 0 {
 			delete(c.constraintToPodAllocations, constraintKey)
 		}

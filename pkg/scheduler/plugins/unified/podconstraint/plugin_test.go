@@ -822,9 +822,9 @@ func TestSpreadConstraintWithTwoTopologyZoneButOneInvalid(t *testing.T) {
 	plg.podConstraintCache.AddPod(nodes[0], pod)
 	pod.Name = "pod-2"
 	plg.podConstraintCache.AddPod(nodes[0], pod)
-	pod.Name = "pod-1"
+	pod.Name = "pod-3"
 	plg.podConstraintCache.AddPod(nodes[1], pod)
-	pod.Name = "pod-2"
+	pod.Name = "pod-4"
 	plg.podConstraintCache.AddPod(nodes[1], pod)
 
 	// normal prefilter

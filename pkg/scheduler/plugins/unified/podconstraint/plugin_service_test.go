@@ -28,6 +28,7 @@ import (
 	"gitlab.alibaba-inc.com/unischeduler/api/apis/scheduling/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 )
@@ -164,4 +165,117 @@ func TestEndpointsQueryConstraintState(t *testing.T) {
 	err = json.NewDecoder(w.Result().Body).Decode(gotConstraintStateResponse)
 	assert.NoError(t, err)
 	assert.Equal(t, expectConstraintStateResponse, gotConstraintStateResponse)
+}
+
+func TestEndpointsQueryAllocSet(t *testing.T) {
+	nodes := []*corev1.Node{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-node-1",
+				Labels: map[string]string{
+					corev1.LabelTopologyZone: "na610",
+					corev1.LabelHostname:     "test-node-1",
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-node-2",
+				Labels: map[string]string{
+					corev1.LabelTopologyZone: "na620",
+					corev1.LabelHostname:     "test-node-2",
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-node-3",
+				Labels: map[string]string{
+					corev1.LabelTopologyZone: "na630",
+					corev1.LabelHostname:     "test-node-3",
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-node-4",
+				Labels: map[string]string{
+					corev1.LabelTopologyZone: "na630",
+					corev1.LabelHostname:     "test-node-4",
+				},
+			},
+		},
+	}
+	suit := newPluginTestSuit(t, nodes)
+	p, err := suit.proxyNew(suit.args, suit.Handle)
+	assert.NotNil(t, p)
+	assert.Nil(t, err)
+
+	plg := p.(*Plugin)
+	suit.start()
+
+	for _, node := range nodes {
+		_, err := suit.Handle.ClientSet().CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
+		assert.NoError(t, err)
+	}
+
+	podConstraint := &v1beta1.PodConstraint{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "default",
+			Name:      "test",
+		},
+		Spec: v1beta1.PodConstraintSpec{
+			SpreadRule: v1beta1.SpreadRule{
+				Requires: []v1beta1.SpreadRuleItem{
+					{
+						TopologyKey: corev1.LabelTopologyZone,
+						MaxSkew:     1,
+					},
+				},
+			},
+		},
+	}
+	plg.podConstraintCache.SetPodConstraint(podConstraint)
+
+	//
+	// constructs topology: topology.kubernetes.io/zone
+	//  +-------+-------+-------+
+	//  | na610 | na620 | na630 |
+	//  |-------+-------+-------|
+	//  |  2    |  2    |  2    |
+	//  +-------+-------+-------+
+	//
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "default",
+			Labels: map[string]string{
+				extunified.LabelPodConstraint: podConstraint.Name,
+			},
+		},
+	}
+	pod.Name = "pod-1"
+	plg.podConstraintCache.AddPod(nodes[0], pod)
+	pod.Name = "pod-2"
+	plg.podConstraintCache.AddPod(nodes[0], pod)
+	pod.Name = "pod-3"
+	plg.podConstraintCache.AddPod(nodes[1], pod)
+	pod.Name = "pod-4"
+	plg.podConstraintCache.AddPod(nodes[1], pod)
+	pod.Name = "pod-5"
+	plg.podConstraintCache.AddPod(nodes[2], pod)
+	pod.Name = "pod-6"
+	plg.podConstraintCache.AddPod(nodes[2], pod)
+
+	expectAllocSet := sets.NewString("default/pod-1", "default/pod-2", "default/pod-3", "default/pod-4", "default/pod-5", "default/pod-6")
+
+	engine := gin.Default()
+	plg.RegisterEndpoints(engine.Group("/"))
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/allocSet", nil)
+	engine.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Result().StatusCode)
+	gotAllocSet := sets.String{}
+	err = json.NewDecoder(w.Result().Body).Decode(&gotAllocSet)
+	assert.NoError(t, err)
+	assert.Equal(t, expectAllocSet, gotAllocSet)
 }
