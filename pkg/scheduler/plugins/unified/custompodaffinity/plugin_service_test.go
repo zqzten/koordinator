@@ -28,11 +28,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 )
 
-func TestPlugin_RegisterEndpoints(t *testing.T) {
+func TestPlugin_RegisterEndpointsServiceUnitStats(t *testing.T) {
 	nodes := []*corev1.Node{
 		{
 			ObjectMeta: metav1.ObjectMeta{
@@ -182,7 +183,7 @@ func TestPlugin_RegisterEndpoints(t *testing.T) {
 					v.Annotations = make(map[string]string)
 				}
 				v.Annotations[extunified.AnnotationPodRequestAllocSpec] = string(data)
-				plg.cache.AddPod(v)
+				plg.cache.AddPod(v.Spec.NodeName, v)
 			}
 			engine := gin.Default()
 			plg.RegisterEndpoints(engine.Group("/"))
@@ -194,6 +195,120 @@ func TestPlugin_RegisterEndpoints(t *testing.T) {
 			err = json.NewDecoder(w.Result().Body).Decode(gotServiceUnitStats)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expectServiceUnitStatsResponse, gotServiceUnitStats)
+		})
+	}
+}
+
+func TestPlugin_RegisterEndpointsAllocSet(t *testing.T) {
+	nodes := []*corev1.Node{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "test-node",
+				Labels: map[string]string{},
+			},
+			Status: corev1.NodeStatus{
+				Allocatable: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("96"),
+					corev1.ResourceMemory: resource.MustParse("512Gi"),
+				},
+			},
+		},
+	}
+
+	testApp := "test-app"
+
+	tests := []struct {
+		name           string
+		allocSpec      *extunified.AllocSpec
+		assignedPods   []*corev1.Pod
+		queryURL       string
+		expectAllocSet sets.String
+	}{
+		{
+			name: "app dimension",
+			allocSpec: &extunified.AllocSpec{
+				Affinity: &extunified.Affinity{
+					PodAntiAffinity: &extunified.PodAntiAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []extunified.PodAffinityTerm{
+							{
+								PodAffinityTerm: corev1.PodAffinityTerm{
+									LabelSelector: &metav1.LabelSelector{
+										MatchExpressions: []metav1.LabelSelectorRequirement{
+											{
+												Key:      extunified.SigmaLabelAppName,
+												Operator: metav1.LabelSelectorOpIn,
+												Values:   []string{testApp},
+											},
+										},
+									},
+								},
+								MaxCount: 2,
+							},
+						},
+					},
+				},
+			},
+			assignedPods: []*corev1.Pod{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "assigned-pod-1",
+						Labels: map[string]string{
+							extunified.SigmaLabelAppName: testApp,
+						},
+					},
+					Spec: corev1.PodSpec{
+						NodeName: nodes[0].Name,
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "assigned-pod-2",
+						Labels: map[string]string{
+							extunified.SigmaLabelAppName: testApp,
+						},
+					},
+					Spec: corev1.PodSpec{
+						NodeName: nodes[0].Name,
+					},
+				},
+			},
+			queryURL:       fmt.Sprintf("/allocSet/%s", nodes[0].Name),
+			expectAllocSet: sets.NewString("default/assigned-pod-1", "default/assigned-pod-2"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			suit := newPluginTestSuit(t, nodes)
+			p, err := suit.proxyNew(suit.args, suit.Handle)
+			assert.NotNil(t, p)
+			assert.Nil(t, err)
+
+			plg := p.(*Plugin)
+			suit.start()
+
+			data, err := json.Marshal(tt.allocSpec)
+			assert.NoError(t, err)
+
+			for _, v := range tt.assignedPods {
+				if v.Annotations == nil {
+					v.Annotations = make(map[string]string)
+				}
+				v.Annotations[extunified.AnnotationPodRequestAllocSpec] = string(data)
+				plg.cache.AddPod(v.Spec.NodeName, v)
+			}
+			engine := gin.Default()
+			plg.RegisterEndpoints(engine.Group("/"))
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest("GET", tt.queryURL, nil)
+			engine.ServeHTTP(w, req)
+			assert.Equal(t, http.StatusOK, w.Result().StatusCode)
+			gotAllocSet := sets.NewString()
+			err = json.NewDecoder(w.Result().Body).Decode(&gotAllocSet)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectAllocSet, gotAllocSet)
 		})
 	}
 }

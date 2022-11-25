@@ -17,18 +17,22 @@ limitations under the License.
 package custompodaffinity
 
 import (
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 )
 
 type serviceUnitStats struct {
 	AppCounter         map[string]int
 	ServiceUnitCounter map[extunified.PodSpreadInfo]int
+	AllocSet           sets.String
 }
 
 func newServiceUnitStats() *serviceUnitStats {
 	return &serviceUnitStats{
 		AppCounter:         make(map[string]int),
 		ServiceUnitCounter: make(map[extunified.PodSpreadInfo]int),
+		AllocSet:           sets.NewString(),
 	}
 }
 
