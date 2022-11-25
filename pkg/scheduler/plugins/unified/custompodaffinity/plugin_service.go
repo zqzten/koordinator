@@ -58,4 +58,9 @@ func (p *Plugin) RegisterEndpoints(group *gin.RouterGroup) {
 		}
 		c.JSON(http.StatusOK, serviceStatsResponse)
 	})
+	group.GET("/allocSet/:nodeName", func(c *gin.Context) {
+		nodeName := c.Param("nodeName")
+		allocSet := p.cache.GetAllocSet(nodeName)
+		c.JSON(http.StatusOK, allocSet)
+	})
 }

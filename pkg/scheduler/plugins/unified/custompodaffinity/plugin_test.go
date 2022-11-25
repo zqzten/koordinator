@@ -285,7 +285,7 @@ func TestMaxInstancePerHost(t *testing.T) {
 					v.Annotations = make(map[string]string)
 				}
 				v.Annotations[extunified.AnnotationPodRequestAllocSpec] = string(data)
-				plg.cache.AddPod(v)
+				plg.cache.AddPod(v.Spec.NodeName, v)
 			}
 			if tt.pod.Annotations == nil {
 				tt.pod.Annotations = make(map[string]string)
@@ -467,7 +467,7 @@ func TestMaxInstancePerHostUniProtocol(t *testing.T) {
 					v.Annotations = make(map[string]string)
 				}
 				v.Annotations[uniext.AnnotationPodSpreadPolicy] = string(assignedData)
-				plg.cache.AddPod(v)
+				plg.cache.AddPod(v.Spec.NodeName, v)
 			}
 
 			if tt.testPod.Annotations == nil {

@@ -20,6 +20,8 @@ import (
 	"sync"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 )
@@ -33,7 +35,7 @@ func newCache() *Cache {
 	return &Cache{stats: map[string]*serviceUnitStats{}}
 }
 
-func (c *Cache) addPod(pod *corev1.Pod) {
+func (c *Cache) addPod(nodeName string, pod *corev1.Pod) {
 	if pod == nil {
 		return
 	}
@@ -41,14 +43,28 @@ func (c *Cache) addPod(pod *corev1.Pod) {
 	if podSpreadInfo == nil {
 		return
 	}
-
-	if _, ok := c.stats[pod.Spec.NodeName]; !ok {
-		c.stats[pod.Spec.NodeName] = newServiceUnitStats()
+	stats, ok := c.stats[nodeName]
+	if !ok {
+		stats = newServiceUnitStats()
+		c.stats[nodeName] = stats
 	}
-	c.stats[pod.Spec.NodeName].incCounter(podSpreadInfo.AppName, podSpreadInfo.ServiceUnit, 1)
+	podKey := getNamespacedName(pod.Namespace, pod.Name)
+	if stats.AllocSet.Has(podKey) {
+		return
+	}
+	stats.AllocSet.Insert(podKey)
+	stats.incCounter(podSpreadInfo.AppName, podSpreadInfo.ServiceUnit, 1)
 }
 
-func (c *Cache) deletePod(pod *corev1.Pod) {
+func getNamespacedName(namespace, name string) string {
+	result := types.NamespacedName{
+		Namespace: namespace,
+		Name:      name,
+	}
+	return result.String()
+}
+
+func (c *Cache) deletePod(nodeName string, pod *corev1.Pod) {
 	if pod == nil {
 		return
 	}
@@ -56,32 +72,38 @@ func (c *Cache) deletePod(pod *corev1.Pod) {
 	if podSpreadInfo == nil {
 		return
 	}
-	if _, ok := c.stats[pod.Spec.NodeName]; !ok {
+	stats, ok := c.stats[nodeName]
+	if !ok {
 		return
 	}
-	c.stats[pod.Spec.NodeName].incCounter(podSpreadInfo.AppName, podSpreadInfo.ServiceUnit, -1)
-	if c.stats[pod.Spec.NodeName].isZero() {
-		delete(c.stats, pod.Spec.NodeName)
+	podKey := getNamespacedName(pod.Namespace, pod.Name)
+	if !stats.AllocSet.Has(podKey) {
+		return
+	}
+	stats.AllocSet.Delete(podKey)
+	c.stats[nodeName].incCounter(podSpreadInfo.AppName, podSpreadInfo.ServiceUnit, -1)
+	if c.stats[nodeName].isZero() {
+		delete(c.stats, nodeName)
 	}
 }
 
-func (c *Cache) AddPod(pod *corev1.Pod) {
+func (c *Cache) AddPod(nodeName string, pod *corev1.Pod) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	c.addPod(pod)
+	c.addPod(nodeName, pod)
 }
 
-func (c *Cache) DeletePod(pod *corev1.Pod) {
+func (c *Cache) DeletePod(nodeName string, pod *corev1.Pod) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	c.deletePod(pod)
+	c.deletePod(nodeName, pod)
 }
 
-func (c *Cache) UpdatePod(oldPod, newPod *corev1.Pod) {
+func (c *Cache) UpdatePod(nodeName string, oldPod, newPod *corev1.Pod) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	c.deletePod(oldPod)
-	c.addPod(newPod)
+	c.deletePod(nodeName, oldPod)
+	c.addPod(nodeName, newPod)
 }
 
 func (c *Cache) GetAllocCount(nodeName string, spreadInfo *extunified.PodSpreadInfo) int {
@@ -91,4 +113,13 @@ func (c *Cache) GetAllocCount(nodeName string, spreadInfo *extunified.PodSpreadI
 		return stat.GetAllocCount(spreadInfo)
 	}
 	return 0
+}
+
+func (c *Cache) GetAllocSet(nodeName string) sets.String {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	if stat, ok := c.stats[nodeName]; ok {
+		return sets.NewString(stat.AllocSet.List()...)
+	}
+	return nil
 }
