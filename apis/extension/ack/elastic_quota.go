@@ -17,23 +17,9 @@ limitations under the License.
 package ack
 
 import (
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/koordinator-sh/koordinator/apis/extension"
 )
 
 const (
-	LabelQuotaId = extension.QuotaKoordinatorPrefix + "/quota-id"
+	AnnotationQuotaNamespaces = extension.QuotaKoordinatorPrefix + "/namespaces"
 )
-
-func init() {
-	extension.GetQuotaName = GetQuotaName
-}
-
-func GetQuotaName(pod *v1.Pod) string {
-	quotaName := pod.Labels[extension.LabelQuotaName]
-	if quotaName == "" {
-		quotaName = pod.Labels[LabelQuotaId]
-	}
-	return quotaName
-}
