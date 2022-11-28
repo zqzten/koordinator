@@ -22,6 +22,7 @@ import (
 
 	_ "github.com/koordinator-sh/koordinator/apis/extension/ack"
 	_ "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	_ "github.com/koordinator-sh/koordinator/pkg/webhook/elasticquota/unified"
 	_ "github.com/koordinator-sh/koordinator/pkg/webhook/pod/validating/unified"
 
 	"github.com/koordinator-sh/koordinator/pkg/controller/unified/resourcesummary"

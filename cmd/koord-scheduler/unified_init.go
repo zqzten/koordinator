@@ -21,10 +21,12 @@ import (
 	_ "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/unified"
 	_ "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/deviceshare/unified"
+	_ "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota/unified"
 
 	unifiedcpuset "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/cpusetallocator"
 	unifiedcustomaffinity "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/custompodaffinity"
 	unifiedeci "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/eci"
+	unifiedelasticquotatree "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/elasticquotatree"
 	unifiedoverquota "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/overquota"
 	unifiedpodconstraint "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/podconstraint"
 	unifiedscheduleresult "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/scheduleresult"
@@ -41,4 +43,5 @@ func init() {
 	koordinatorPlugins[unifiedscheduleresult.Name] = unifiedscheduleresult.New
 	koordinatorPlugins[unifiedcustomaffinity.Name] = unifiedcustomaffinity.New
 	koordinatorPlugins[unifiedvolumebinding.Name] = unifiedvolumebinding.New
+	koordinatorPlugins[unifiedelasticquotatree.Name] = unifiedelasticquotatree.New
 }
