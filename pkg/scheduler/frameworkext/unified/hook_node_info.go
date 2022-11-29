@@ -22,12 +22,12 @@ import (
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 )
 
-type NodeInfoHooker func(nodeInfo *framework.NodeInfo)
+type NodeInfoHookFn func(nodeInfo *framework.NodeInfo)
 
-var nodeInfoHookers []NodeInfoHooker
+var nodeInfoHookFns []NodeInfoHookFn
 
-func RegisterNodeInfoHooker(hooker NodeInfoHooker) {
-	nodeInfoHookers = append(nodeInfoHookers, hooker)
+func RegisterNodeInfoHooker(hooker NodeInfoHookFn) {
+	nodeInfoHookFns = append(nodeInfoHookFns, hooker)
 }
 
 func init() {
@@ -44,25 +44,18 @@ func HookNodeInfos(nodeInfos []*framework.NodeInfo) (hookedNodeInfos []*framewor
 
 func HookNodeInfo(nodeInfo *framework.NodeInfo) (hookedNodeInfo *framework.NodeInfo) {
 	node := nodeInfo.Node()
-	if node == nil || len(nodeInfoHookers) == 0 {
+	if node == nil || len(nodeInfoHookFns) == 0 {
 		return nodeInfo
 	}
 
 	hookedNodeInfo = nodeInfo.Clone()
-	for _, hooker := range nodeInfoHookers {
-		hooker(hookedNodeInfo)
+	for _, hookFn := range nodeInfoHookFns {
+		hookFn(hookedNodeInfo)
 	}
 	return hookedNodeInfo
 }
 
 func hookNodeInfoByOverQuota(nodeInfo *framework.NodeInfo) {
-	node := nodeInfo.Node()
-	if extunified.IsNodeEnableOverQuota(node) {
-		updateNodeInfoByOverQuota(nodeInfo)
-	}
-}
-
-func updateNodeInfoByOverQuota(nodeInfo *framework.NodeInfo) {
 	node := nodeInfo.Node()
 	if node == nil {
 		return
