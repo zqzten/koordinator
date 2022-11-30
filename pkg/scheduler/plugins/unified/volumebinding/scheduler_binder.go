@@ -243,6 +243,7 @@ func NewVolumeBinder(
 	podInformer coreinformers.PodInformer,
 	nodeInformer coreinformers.NodeInformer,
 	csiNodeInformer storageinformers.CSINodeInformer,
+	csiDriverInformer storageinformers.CSIDriverInformer,
 	pvcInformer coreinformers.PersistentVolumeClaimInformer,
 	pvInformer coreinformers.PersistentVolumeInformer,
 	storageClassInformer storageinformers.StorageClassInformer,
@@ -252,20 +253,20 @@ func NewVolumeBinder(
 	nodeStorageCache *NodeStorageInfoCache,
 ) SchedulerVolumeBinder {
 	b := &volumeBinder{
-		kubeClient:    kubeClient,
-		podLister:     podInformer.Lister(),
-		classLister:   storageClassInformer.Lister(),
-		nodeLister:    nodeInformer.Lister(),
-		csiNodeLister: csiNodeInformer.Lister(),
-		pvcCache:      NewPVCAssumeCache(pvcInformer.Informer()),
-		pvCache:       NewPVAssumeCache(pvInformer.Informer()),
-		bindTimeout:   bindTimeout,
-		translator:    csitrans.New(),
+		kubeClient:      kubeClient,
+		podLister:       podInformer.Lister(),
+		classLister:     storageClassInformer.Lister(),
+		nodeLister:      nodeInformer.Lister(),
+		csiNodeLister:   csiNodeInformer.Lister(),
+		csiDriverLister: csiDriverInformer.Lister(),
+		pvcCache:        NewPVCAssumeCache(pvcInformer.Informer()),
+		pvCache:         NewPVAssumeCache(pvInformer.Informer()),
+		bindTimeout:     bindTimeout,
+		translator:      csitrans.New(),
 	}
 
 	if capacityCheck != nil {
 		b.capacityCheckEnabled = true
-		b.csiDriverLister = capacityCheck.CSIDriverInformer.Lister()
 		b.csiStorageCapacityLister = capacityCheck.CSIStorageCapacityInformer.Lister()
 	}
 
