@@ -29,7 +29,6 @@ require (
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.1
-	gitlab.alibaba-inc.com/cos/unified-resource-api v1.22.3-1.0.20220705131219-d0d01381562f
 	gitlab.alibaba-inc.com/cos/scheduling-api v0.0.0-20210630080232-14abe8ce6989
 	gitlab.alibaba-inc.com/cos/unified-resource-api v1.22.3-1.0.20220705131219-d0d01381562f
 	gitlab.alibaba-inc.com/sigma/sigma-k8s-api v1.1.3
