@@ -37,8 +37,7 @@ type plugin struct {
 
 func (p *plugin) Register() {
 	klog.V(5).Infof("register hook %v", Name)
-	reconciler.RegisterCgroupReconciler(reconciler.ContainerLevel, sysutil.CPUShares, SetContainerShares,
-		description)
+	reconciler.RegisterCgroupReconciler(reconciler.ContainerLevel, sysutil.CPUShares, description, SetContainerShares, reconciler.NoneFilter())
 }
 
 var singleton *plugin
