@@ -20,8 +20,14 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	quotav1 "k8s.io/apiserver/pkg/quota/v1"
 
+	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 )
+
+var ExtendedResourceNames = []corev1.ResourceName{
+	apiext.BatchCPU,
+	apiext.BatchMemory,
+}
 
 func GetPodMilliCPULimit(pod *corev1.Pod) int64 {
 	podCPUMilliLimit := int64(0)
