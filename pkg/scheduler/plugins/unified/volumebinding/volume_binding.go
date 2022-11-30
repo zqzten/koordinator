@@ -410,14 +410,15 @@ func New(plArgs runtime.Object, fh framework.Handle) (framework.Plugin, error) {
 	pvInformer := fh.SharedInformerFactory().Core().V1().PersistentVolumes()
 	storageClassInformer := fh.SharedInformerFactory().Storage().V1().StorageClasses()
 	csiNodeInformer := fh.SharedInformerFactory().Storage().V1().CSINodes()
+	csiDriverInformer := fh.SharedInformerFactory().Storage().V1().CSIDrivers()
 	var capacityCheck *CapacityCheck
 	if utilfeature.DefaultFeatureGate.Enabled(features.CSIStorageCapacity) {
 		capacityCheck = &CapacityCheck{
-			CSIDriverInformer:          fh.SharedInformerFactory().Storage().V1().CSIDrivers(),
+			CSIDriverInformer:          csiDriverInformer,
 			CSIStorageCapacityInformer: fh.SharedInformerFactory().Storage().V1beta1().CSIStorageCapacities(),
 		}
 	}
-	binder := NewVolumeBinder(fh.ClientSet(), podInformer, nodeInformer, csiNodeInformer, pvcInformer, pvInformer, storageClassInformer, capacityCheck, time.Duration(args.BindTimeoutSeconds)*time.Second, fh.EventRecorder(), nodeStorageCache)
+	binder := NewVolumeBinder(fh.ClientSet(), podInformer, nodeInformer, csiNodeInformer, csiDriverInformer, pvcInformer, pvInformer, storageClassInformer, capacityCheck, time.Duration(args.BindTimeoutSeconds)*time.Second, fh.EventRecorder(), nodeStorageCache)
 
 	// build score function
 	var scorer volumeCapacityScorer
