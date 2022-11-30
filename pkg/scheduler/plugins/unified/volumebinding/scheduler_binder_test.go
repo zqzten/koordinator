@@ -178,6 +178,7 @@ func newTestBinder(t *testing.T, stopCh <-chan struct{}, csiStorageCapacity ...b
 		podInformer,
 		nodeInformer,
 		csiNodeInformer,
+		csiDriverInformer,
 		pvcInformer,
 		informerFactory.Core().V1().PersistentVolumes(),
 		classInformer,
