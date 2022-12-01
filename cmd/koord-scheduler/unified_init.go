@@ -23,6 +23,7 @@ import (
 	_ "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/deviceshare/unified"
 	_ "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota/unified"
 
+	unifiedasiquota "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/asiquotaadaptor"
 	unifiedcpuset "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/cpusetallocator"
 	unifiedcustomaffinity "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/custompodaffinity"
 	unifiedeci "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/eci"
@@ -43,5 +44,6 @@ func init() {
 	koordinatorPlugins[unifiedscheduleresult.Name] = unifiedscheduleresult.New
 	koordinatorPlugins[unifiedcustomaffinity.Name] = unifiedcustomaffinity.New
 	koordinatorPlugins[unifiedvolumebinding.Name] = unifiedvolumebinding.New
+	koordinatorPlugins[unifiedasiquota.Name] = unifiedasiquota.New
 	koordinatorPlugins[unifiedelasticquotatree.Name] = unifiedelasticquotatree.New
 }
