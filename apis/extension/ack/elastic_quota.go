@@ -17,9 +17,25 @@ limitations under the License.
 package ack
 
 import (
+	"gitlab.alibaba-inc.com/sigma/sigma-k8s-api/pkg/api"
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/koordinator-sh/koordinator/apis/extension"
 )
 
 const (
+	LabelQuotaName            = api.AlibabaCloudPrefix + "/quota-name"
 	AnnotationQuotaNamespaces = extension.QuotaKoordinatorPrefix + "/namespaces"
 )
+
+func init() {
+	extension.GetQuotaName = GetQuotaName
+}
+
+func GetQuotaName(pod *v1.Pod) string {
+	quotaName := pod.Labels[extension.LabelQuotaName]
+	if quotaName == "" {
+		quotaName = pod.Labels[LabelQuotaName]
+	}
+	return quotaName
+}
