@@ -327,6 +327,9 @@ func calculateAllocatablePodNum(free, request corev1.ResourceList) int32 {
 		}
 		min = int32(math.Floor(math.Min(float64(freeQuantity.MilliValue()/quantity.MilliValue()), float64(min))))
 	}
+	if resourcePodsNum, ok := free[corev1.ResourcePods]; ok && int32(resourcePodsNum.Value()) < min {
+		min = int32(resourcePodsNum.Value())
+	}
 	return min
 }
 

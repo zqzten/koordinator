@@ -363,6 +363,147 @@ func Test_statisticsNodesResource(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "allocatablePodNums",
+			args: args{
+				candidateNodes: &corev1.NodeList{
+					Items: []corev1.Node{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "node-0",
+							},
+							Spec: corev1.NodeSpec{
+								Taints: []corev1.Taint{
+									{
+										Key:    "sigma.ali/resource-pool",
+										Value:  "sigma_public",
+										Effect: corev1.TaintEffectNoSchedule,
+									},
+								},
+							},
+							Status: corev1.NodeStatus{
+								Allocatable: corev1.ResourceList{
+									corev1.ResourceCPU:              resource.MustParse("110"),
+									corev1.ResourceMemory:           resource.MustParse("100Gi"),
+									corev1.ResourceEphemeralStorage: resource.MustParse("200Gi"),
+									corev1.ResourcePods:             resource.MustParse("50"),
+									extension.BatchCPU:              resource.MustParse("50000"),
+									extension.BatchMemory:           resource.MustParse("10Gi"),
+								},
+								Conditions: []corev1.NodeCondition{{
+									Type:   corev1.NodeReady,
+									Status: corev1.ConditionTrue,
+								}},
+							},
+						},
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "node-1",
+							},
+							Spec: corev1.NodeSpec{
+								Taints: []corev1.Taint{
+									{
+										Key:    "sigma.ali/resource-pool",
+										Value:  "sigma_public",
+										Effect: corev1.TaintEffectNoSchedule,
+									},
+								},
+							},
+							Status: corev1.NodeStatus{
+								Allocatable: corev1.ResourceList{
+									corev1.ResourceCPU:              resource.MustParse("110"),
+									corev1.ResourceMemory:           resource.MustParse("100Gi"),
+									corev1.ResourceEphemeralStorage: resource.MustParse("200Gi"),
+									corev1.ResourcePods:             resource.MustParse("50"),
+									extension.BatchCPU:              resource.MustParse("50000"),
+									extension.BatchMemory:           resource.MustParse("10Gi"),
+								},
+								Conditions: []corev1.NodeCondition{{
+									Type:   corev1.NodeReady,
+									Status: corev1.ConditionTrue,
+								}},
+							},
+						},
+					},
+				},
+				nodeOwnedPods: map[string][]*corev1.Pod{
+					"node-0": node0Pods,
+					"node-1": node1Pods,
+				},
+				resourceSpecs: []v1beta1.ResourceSpec{
+					{
+						Name:      "test",
+						Resources: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")},
+					},
+				},
+			},
+			wantCapacity: map[uniext.PriorityClass]corev1.ResourceList{
+				uniext.PriorityProd: {
+					corev1.ResourceCPU:              resource.MustParse("220"),
+					corev1.ResourceMemory:           resource.MustParse("200Gi"),
+					corev1.ResourceEphemeralStorage: resource.MustParse("400Gi"),
+					corev1.ResourcePods:             resource.MustParse("100"),
+				},
+				uniext.PriorityBatch: {
+					corev1.ResourceCPU:              resource.MustParse("100"),
+					corev1.ResourceMemory:           resource.MustParse("20Gi"),
+					corev1.ResourceEphemeralStorage: resource.MustParse("400Gi"),
+					corev1.ResourcePods:             resource.MustParse("100"),
+				},
+				uniext.PriorityMid: {
+					corev1.ResourceEphemeralStorage: resource.MustParse("400Gi"),
+					corev1.ResourcePods:             resource.MustParse("100"),
+				},
+				uniext.PriorityFree: {
+					corev1.ResourceEphemeralStorage: resource.MustParse("400Gi"),
+					corev1.ResourcePods:             resource.MustParse("100"),
+				},
+			},
+			wantRequested: map[uniext.PriorityClass]corev1.ResourceList{
+				uniext.PriorityProd: {
+					corev1.ResourceCPU:    resource.MustParse("3"),
+					corev1.ResourceMemory: resource.MustParse("8Gi"),
+					corev1.ResourcePods:   resource.MustParse("2"),
+				},
+				uniext.PriorityBatch: {
+					corev1.ResourceCPU:    resource.MustParse("6"),
+					corev1.ResourceMemory: resource.MustParse("16Gi"),
+					corev1.ResourcePods:   resource.MustParse("4"),
+				},
+				uniext.PriorityMid:  {},
+				uniext.PriorityFree: {},
+			},
+			wantFree: map[uniext.PriorityClass]corev1.ResourceList{
+				uniext.PriorityProd: {
+					corev1.ResourceCPU:              resource.MustParse("217"),
+					corev1.ResourceMemory:           resource.MustParse("176Gi"),
+					corev1.ResourceEphemeralStorage: resource.MustParse("400Gi"),
+					corev1.ResourcePods:             resource.MustParse("94"),
+				},
+				uniext.PriorityBatch: {
+					corev1.ResourceCPU:              resource.MustParse("94"),
+					corev1.ResourceMemory:           resource.MustParse("4Gi"),
+					corev1.ResourceEphemeralStorage: resource.MustParse("400Gi"),
+					corev1.ResourcePods:             resource.MustParse("94"),
+				},
+				uniext.PriorityMid: {
+					corev1.ResourceEphemeralStorage: resource.MustParse("400Gi"),
+					corev1.ResourcePods:             resource.MustParse("94"),
+				},
+				uniext.PriorityFree: {
+					corev1.ResourceEphemeralStorage: resource.MustParse("400Gi"),
+					corev1.ResourcePods:             resource.MustParse("94"),
+				},
+			},
+			wantAllocatableNums: map[string]map[uniext.PriorityClass]int32{
+				"test": {
+					uniext.PriorityProd:  94,
+					uniext.PriorityBatch: 94,
+					uniext.PriorityMid:   0,
+					uniext.PriorityFree:  0,
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
