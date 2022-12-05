@@ -22,6 +22,7 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/unified"
 	_ "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/deviceshare/unified"
 	_ "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota/unified"
+	_ "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/volumebinding/metrics"
 
 	unifiedasiquota "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/asiquotaadaptor"
 	unifiedcpuset "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/cpusetallocator"
