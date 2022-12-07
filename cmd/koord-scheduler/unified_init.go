@@ -19,11 +19,12 @@ package main
 import (
 	_ "github.com/koordinator-sh/koordinator/apis/extension/ack"
 	_ "github.com/koordinator-sh/koordinator/apis/extension/unified"
-	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/unified"
 	_ "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/deviceshare/unified"
+	_ "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota/gpumodel"
 	_ "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota/unified"
 	_ "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/volumebinding/metrics"
 
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/unified"
 	unifiedasiquota "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/asiquotaadaptor"
 	unifiedcpuset "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/cpusetallocator"
 	unifiedcustomaffinity "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/custompodaffinity"
