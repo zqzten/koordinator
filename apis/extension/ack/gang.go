@@ -38,7 +38,7 @@ func init() {
 
 func GetMinNum(pod *v1.Pod) (int, error) {
 	if pod.Annotations[extension.AnnotationGangMinNum] != "" {
-		minNumber, err := strconv.ParseInt(pod.Labels[LabelGangMinNum], 10, 32)
+		minNumber, err := strconv.ParseInt(pod.Annotations[extension.AnnotationGangMinNum], 10, 32)
 		if err != nil {
 			return 0, err
 		}
