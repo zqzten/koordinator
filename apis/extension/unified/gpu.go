@@ -23,6 +23,8 @@ import (
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 )
 
+const GPUCardRatio corev1.ResourceName = apiext.ResourceDomainPrefix + "gpu-card-ratio"
+
 var (
 	koordGPUResourcesToUnified = map[corev1.ResourceName]corev1.ResourceName{
 		apiext.KoordGPU:       unifiedresourceext.GPUResourceAlibaba,
