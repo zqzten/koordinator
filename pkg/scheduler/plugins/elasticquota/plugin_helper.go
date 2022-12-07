@@ -33,6 +33,7 @@ import (
 	schedulinglisterv1alpha1 "sigs.k8s.io/scheduler-plugins/pkg/generated/listers/scheduling/v1alpha1"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota/core"
 )
 
 // getPodAssociateQuotaName If pod's don't have the "quota-name" label, we will use the namespace to associate pod with quota
@@ -195,4 +196,8 @@ func printResourceList(rl v1.ResourceList) string {
 		return res[i] < res[j]
 	})
 	return strings.Join(res, ",")
+}
+
+func (g *Plugin) GetGroupQuotaManager() *core.GroupQuotaManager {
+	return g.groupQuotaManager
 }
