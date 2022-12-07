@@ -195,3 +195,7 @@ func printResourceList(rl v1.ResourceList) string {
 	})
 	return strings.Join(res, ",")
 }
+
+func (g *Plugin) GetGroupQuotaManager() *core.GroupQuotaManager {
+	return g.groupQuotaManager
+}
