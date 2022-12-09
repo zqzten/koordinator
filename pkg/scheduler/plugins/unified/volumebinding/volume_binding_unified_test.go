@@ -690,15 +690,6 @@ func TestVolumeBindingWithLocalPV(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			args := &config.VolumeBindingArgs{
-				BindTimeoutSeconds: 300,
-			}
-
-			pl, err := New(args, fh)
-			if err != nil {
-				t.Fatal(err)
-			}
-
 			t.Log("Feed testing data and wait for them to be synced")
 			client.StorageV1().StorageClasses().Create(context.Background(), immediateSC, metav1.CreateOptions{})
 			client.StorageV1().StorageClasses().Create(context.Background(), waitSC, metav1.CreateOptions{})
@@ -731,6 +722,15 @@ func TestVolumeBindingWithLocalPV(t *testing.T) {
 
 			t.Log("Wait for all started informers' cache were synced")
 			informerFactory.WaitForCacheSync(ctx.Done())
+
+			args := &config.VolumeBindingArgs{
+				BindTimeoutSeconds: 300,
+			}
+
+			pl, err := New(args, fh)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			t.Log("Verify")
 
@@ -1042,15 +1042,6 @@ func TestVolumePreAssignFilterForLocalPV(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			args := &config.VolumeBindingArgs{
-				BindTimeoutSeconds: 300,
-			}
-
-			pl, err := New(args, fh)
-			if err != nil {
-				t.Fatal(err)
-			}
-
 			t.Log("Feed testing data and wait for them to be synced")
 			client.StorageV1().StorageClasses().Create(context.Background(), immediateSC, metav1.CreateOptions{})
 			client.StorageV1().StorageClasses().Create(context.Background(), waitSC, metav1.CreateOptions{})
@@ -1083,6 +1074,15 @@ func TestVolumePreAssignFilterForLocalPV(t *testing.T) {
 
 			t.Log("Wait for all started informers' cache were synced")
 			informerFactory.WaitForCacheSync(ctx.Done())
+
+			args := &config.VolumeBindingArgs{
+				BindTimeoutSeconds: 300,
+			}
+
+			pl, err := New(args, fh)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			t.Log("Verify")
 
@@ -1438,15 +1438,6 @@ func TestCloudStorageAdapterScheduling(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			args := &config.VolumeBindingArgs{
-				BindTimeoutSeconds: 300,
-			}
-
-			pl, err := New(args, fh)
-			if err != nil {
-				t.Fatal(err)
-			}
-
 			client.StorageV1().StorageClasses().Create(ctx, cloudSC1, metav1.CreateOptions{})
 			client.StorageV1().StorageClasses().Create(ctx, cloudSC2, metav1.CreateOptions{})
 			client.StorageV1().StorageClasses().Create(ctx, otherSC, metav1.CreateOptions{})
@@ -1469,6 +1460,15 @@ func TestCloudStorageAdapterScheduling(t *testing.T) {
 
 			t.Log("Wait for all started informers' cache were synced")
 			informerFactory.WaitForCacheSync(ctx.Done())
+
+			args := &config.VolumeBindingArgs{
+				BindTimeoutSeconds: 300,
+			}
+
+			pl, err := New(args, fh)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			t.Log("Verify")
 
@@ -2011,15 +2011,6 @@ func TestVolumeAssignAndUnAssignLocalPVAndMultiVolumeLocalPV(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			args := &config.VolumeBindingArgs{
-				BindTimeoutSeconds: 300,
-			}
-
-			pl, err := New(args, fh)
-			if err != nil {
-				t.Fatal(err)
-			}
-
 			t.Log("Feed testing data and wait for them to be synced")
 			client.StorageV1().StorageClasses().Create(context.Background(), immediateSC, metav1.CreateOptions{})
 			client.StorageV1().StorageClasses().Create(context.Background(), waitSC, metav1.CreateOptions{})
@@ -2055,6 +2046,15 @@ func TestVolumeAssignAndUnAssignLocalPVAndMultiVolumeLocalPV(t *testing.T) {
 
 			t.Log("Wait for all started informers' cache were synced")
 			informerFactory.WaitForCacheSync(ctx.Done())
+
+			args := &config.VolumeBindingArgs{
+				BindTimeoutSeconds: 300,
+			}
+
+			pl, err := New(args, fh)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			t.Log("Verify")
 

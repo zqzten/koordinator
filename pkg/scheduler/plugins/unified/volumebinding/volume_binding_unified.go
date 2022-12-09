@@ -17,18 +17,24 @@ limitations under the License.
 package volumebinding
 
 import (
+	"context"
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/tools/cache"
 	storagehelpers "k8s.io/component-helpers/storage/volume"
 	"k8s.io/klog/v2"
 	scheduledconfigv1beta2config "k8s.io/kube-scheduler/config/v1beta2"
 	"k8s.io/kubernetes/pkg/api/v1/resource"
+	"k8s.io/kubernetes/pkg/features"
 	scheduledconfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config/v1beta2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"github.com/koordinator-sh/koordinator/apis/extension/unified"
+	frameworkexthelper "github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/helper"
 )
 
 func getDefaultVolumeBindingArgs() (*scheduledconfig.VolumeBindingArgs, error) {
@@ -40,6 +46,20 @@ func getDefaultVolumeBindingArgs() (*scheduledconfig.VolumeBindingArgs, error) {
 		return nil, err
 	}
 	return &volumeBindingArgs, nil
+}
+
+func forceSyncStorageInformers(informerFactory informers.SharedInformerFactory) {
+	storageClassInformer := informerFactory.Storage().V1().StorageClasses()
+	csiNodeInformer := informerFactory.Storage().V1().CSINodes()
+	csiDriverInformer := informerFactory.Storage().V1().CSIDrivers()
+
+	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), informerFactory, storageClassInformer.Informer(), &cache.ResourceEventHandlerFuncs{})
+	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), informerFactory, csiNodeInformer.Informer(), &cache.ResourceEventHandlerFuncs{})
+	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), informerFactory, csiDriverInformer.Informer(), &cache.ResourceEventHandlerFuncs{})
+	if utilfeature.DefaultFeatureGate.Enabled(features.CSIStorageCapacity) {
+		csiStorageCapacityInformer := informerFactory.Storage().V1beta1().CSIStorageCapacities()
+		frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), informerFactory, csiStorageCapacityInformer.Informer(), &cache.ResourceEventHandlerFuncs{})
+	}
 }
 
 func (pl *VolumeBinding) filterWithoutPVC(state *stateData, pod *v1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
