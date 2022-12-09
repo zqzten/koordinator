@@ -648,22 +648,6 @@ func TestVolumeBinding(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			args := item.args
-			if args == nil {
-				// default args if the args is not specified in test cases
-				args = &config.VolumeBindingArgs{
-					BindTimeoutSeconds: 300,
-				}
-				if utilfeature.DefaultFeatureGate.Enabled(features.VolumeCapacityPriority) {
-					args.Shape = defaultShapePoint
-				}
-			}
-
-			pl, err := New(args, fh)
-			if err != nil {
-				t.Fatal(err)
-			}
-
 			t.Log("Feed testing data and wait for them to be synced")
 			client.StorageV1().StorageClasses().Create(ctx, immediateSC, metav1.CreateOptions{})
 			client.StorageV1().StorageClasses().Create(ctx, waitSC, metav1.CreateOptions{})
@@ -685,6 +669,22 @@ func TestVolumeBinding(t *testing.T) {
 			informerFactory.WaitForCacheSync(ctx.Done())
 
 			t.Log("Verify")
+
+			args := item.args
+			if args == nil {
+				// default args if the args is not specified in test cases
+				args = &config.VolumeBindingArgs{
+					BindTimeoutSeconds: 300,
+				}
+				if utilfeature.DefaultFeatureGate.Enabled(features.VolumeCapacityPriority) {
+					args.Shape = defaultShapePoint
+				}
+			}
+
+			pl, err := New(args, fh)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			p := pl.(*VolumeBinding)
 			nodeInfos := make([]*framework.NodeInfo, 0)
