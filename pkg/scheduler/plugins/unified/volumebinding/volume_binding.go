@@ -398,6 +398,7 @@ func New(plArgs runtime.Object, fh framework.Handle) (framework.Plugin, error) {
 		return nil, err
 	}
 
+	forceSyncStorageInformers(fh.SharedInformerFactory())
 	nodeStorageCache := NewNodeStorageCache()
 	registerNodeEventHandler(fh.SharedInformerFactory(), nodeStorageCache)
 	registerPVEventHandler(fh.SharedInformerFactory(), nodeStorageCache)
