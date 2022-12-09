@@ -24,7 +24,7 @@ import (
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/runtimehooks/protocol"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/runtimehooks/reconciler"
-	sysutil "github.com/koordinator-sh/koordinator/pkg/util/system"
+	sysutil "github.com/koordinator-sh/koordinator/pkg/koordlet/util/system"
 )
 
 const (
@@ -64,6 +64,10 @@ func SetContainerShares(proto protocol.HooksProtocol) error {
 			containerReq.PodMeta.Name, containerReq.ContainerMeta.Name)
 		return nil
 	}
-	containerCtx.Response.Resources.CPUShares = containerCgroup.CPUShares
+	cpuShares := *containerCgroup.CPUShares
+	if cpuShares < sysutil.CPUSharesMinValue {
+		cpuShares = sysutil.CPUSharesMinValue
+	}
+	containerCtx.Response.Resources.CPUShares = &cpuShares
 	return nil
 }
