@@ -26,7 +26,7 @@ import (
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/runtimehooks/protocol"
-	"github.com/koordinator-sh/koordinator/pkg/util/system"
+	"github.com/koordinator-sh/koordinator/pkg/koordlet/util/system"
 )
 
 func TestSetContainerShares(t *testing.T) {
@@ -116,7 +116,7 @@ func TestSetContainerShares(t *testing.T) {
 				},
 			},
 			wantErr:      false,
-			wantCPUShare: pointer.Int64Ptr(0),
+			wantCPUShare: pointer.Int64Ptr(system.CPUSharesMinValue),
 		},
 	}
 	for _, tt := range tests {
@@ -124,7 +124,7 @@ func TestSetContainerShares(t *testing.T) {
 			testHelper := system.NewFileTestUtil(t)
 
 			containerCtx := tt.proto.(*protocol.ContainerContext)
-			testHelper.WriteCgroupFileContents(containerCtx.Request.CgroupParent, system.CPUShares, "")
+			testHelper.CreateCgroupFile(containerCtx.Request.CgroupParent, system.CPUShares)
 
 			if err = SetContainerShares(tt.proto); (err != nil) != tt.wantErr {
 				t.Errorf("SetContainerShares() error = %v, wantErr %v", err, tt.wantErr)
