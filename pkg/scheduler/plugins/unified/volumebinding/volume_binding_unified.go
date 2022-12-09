@@ -55,7 +55,7 @@ func (pl *VolumeBinding) filterWithoutPVC(state *stateData, pod *v1.Pod, nodeInf
 func (pl *VolumeBinding) assumeEphemeralStorage(pod *v1.Pod, nodeName string) {
 	requests, _ := resource.PodRequestsAndLimits(pod)
 	ephemeralStorageSize := requests[v1.ResourceEphemeralStorage]
-	localInlineVolumeSize := unified.CalcLocalInlineVolumeSize(pod.Spec.Volumes, nil)
+	localInlineVolumeSize := unified.CalcLocalInlineVolumeSize(pod.Spec.Volumes, pl.classLister)
 	if ephemeralStorageSize.IsZero() && localInlineVolumeSize == 0 {
 		return
 	}
@@ -67,7 +67,7 @@ func (pl *VolumeBinding) assumeEphemeralStorage(pod *v1.Pod, nodeName string) {
 func (pl *VolumeBinding) revertAssumedEphemeralStorage(pod *v1.Pod, nodeName string) {
 	requests, _ := resource.PodRequestsAndLimits(pod)
 	ephemeralStorageSize := requests[v1.ResourceEphemeralStorage]
-	localInlineVolumeSize := unified.CalcLocalInlineVolumeSize(pod.Spec.Volumes, nil)
+	localInlineVolumeSize := unified.CalcLocalInlineVolumeSize(pod.Spec.Volumes, pl.classLister)
 	if ephemeralStorageSize.IsZero() && localInlineVolumeSize == 0 {
 		return
 	}

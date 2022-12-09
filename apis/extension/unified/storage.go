@@ -22,7 +22,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apiresource "k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/client-go/informers"
 	storagelisters "k8s.io/client-go/listers/storage/v1"
 )
 
@@ -203,33 +202,6 @@ func MaxInt64(a, b int64) int64 {
 	return b
 }
 
-func GetLocalInlineVolumeSize(volumes []corev1.Volume, factory informers.SharedInformerFactory) int64 {
-	if factory == nil {
-		return 0
-	}
-	storageClassLister := factory.Storage().V1().StorageClasses().Lister()
-	var totalSize int64
-	for i := range volumes {
-		volume := &volumes[i]
-		if volume.CSI == nil {
-			continue
-		}
-		storageClass := volume.CSI.VolumeAttributes[InlineVolumeAttributeStorageClass]
-		if !SupportLocalPV(storageClassLister, storageClass, nil) {
-			continue
-		}
-		storageSizeText, ok := volume.CSI.VolumeAttributes[InlineVolumeAttributeStorageSize]
-		if !ok {
-			continue
-		}
-		quantity, err := apiresource.ParseQuantity(storageSizeText)
-		if err == nil {
-			totalSize += quantity.Value()
-		}
-	}
-	return totalSize
-}
-
 func CalcLocalInlineVolumeSize(volumes []corev1.Volume, storageClassLister storagelisters.StorageClassLister) int64 {
 	if len(volumes) == 0 {
 		return 0
@@ -240,8 +212,8 @@ func CalcLocalInlineVolumeSize(volumes []corev1.Volume, storageClassLister stora
 		if volume.CSI == nil {
 			continue
 		}
-		storageClass := volume.CSI.VolumeAttributes[InlineVolumeAttributeStorageClass]
-		if !SupportLocalPV(storageClassLister, storageClass, nil) {
+		storageClassName := volume.CSI.VolumeAttributes[InlineVolumeAttributeStorageClass]
+		if !SupportLocalPV(storageClassLister, storageClassName, nil) {
 			continue
 		}
 		storageSizeText, ok := volume.CSI.VolumeAttributes[InlineVolumeAttributeStorageSize]
@@ -257,6 +229,9 @@ func CalcLocalInlineVolumeSize(volumes []corev1.Volume, storageClassLister stora
 }
 
 func SupportLocalPV(classLister storagelisters.StorageClassLister, className string, storageClass *storagev1.StorageClass) bool {
+	if className == "" {
+		return false
+	}
 	if className == LocalPVCSIName {
 		return true
 	}
