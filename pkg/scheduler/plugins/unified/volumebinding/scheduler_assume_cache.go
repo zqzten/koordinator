@@ -17,6 +17,7 @@ limitations under the License.
 package volumebinding
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"sync"
@@ -27,6 +28,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 	pvutil "k8s.io/kubernetes/pkg/controller/volume/persistentvolume/util"
+
+	frameworkexthelper "github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/helper"
 )
 
 // AssumeCache is a cache on top of the informer that allows for updating
@@ -139,13 +142,12 @@ func NewAssumeCache(informer cache.SharedIndexInformer, description string, inde
 
 	// Unit tests don't use informers
 	if informer != nil {
-		informer.AddEventHandler(
-			cache.ResourceEventHandlerFuncs{
-				AddFunc:    c.add,
-				UpdateFunc: c.update,
-				DeleteFunc: c.delete,
-			},
-		)
+		eventHandler := cache.ResourceEventHandlerFuncs{
+			AddFunc:    c.add,
+			UpdateFunc: c.update,
+			DeleteFunc: c.delete,
+		}
+		frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), nil, informer, eventHandler)
 	}
 	return c
 }
