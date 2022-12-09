@@ -60,7 +60,7 @@ func NodeAllocatableContainsGpu(allocatable v1.ResourceList) bool {
 func ParseGPUResourcesByModel(nodeName string, allocatable v1.ResourceList, nodeLabels map[string]string) v1.ResourceList {
 	gpuModel := GetNodeGPUModel(nodeLabels)
 	if gpuModel == "" {
-		klog.Warningf("node %s reports gpu resource in allocatable but has not gpu model", nodeName)
+		klog.V(5).Infof("node %s reports gpu resource in allocatable but has not gpu model", nodeName)
 		return allocatable
 	}
 

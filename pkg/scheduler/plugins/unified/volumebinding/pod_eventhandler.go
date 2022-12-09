@@ -22,6 +22,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/informers"
+	storagelisters "k8s.io/client-go/listers/storage/v1"
 	"k8s.io/client-go/tools/cache"
 	resourcehelper "k8s.io/kubernetes/pkg/api/v1/resource"
 
@@ -31,12 +32,18 @@ import (
 )
 
 type podEventHandler struct {
-	cache *NodeStorageInfoCache
+	classLister storagelisters.StorageClassLister
+	cache       *NodeStorageInfoCache
 }
 
 func registerPodEventHandler(sharedInformerFactory informers.SharedInformerFactory, cache *NodeStorageInfoCache) {
 	podInformer := sharedInformerFactory.Core().V1().Pods().Informer()
-	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), sharedInformerFactory, podInformer, &podEventHandler{cache: cache})
+	storageClassInformer := sharedInformerFactory.Storage().V1().StorageClasses()
+	eventHandler := &podEventHandler{
+		classLister: storageClassInformer.Lister(),
+		cache:       cache,
+	}
+	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), sharedInformerFactory, podInformer, eventHandler)
 }
 
 func (e *podEventHandler) OnAdd(obj interface{}) {
@@ -89,7 +96,7 @@ func (e *podEventHandler) setPod(oldPod *corev1.Pod, newPod *corev1.Pod) {
 	if oldPod != nil {
 		oldRequests, _ := resourcehelper.PodRequestsAndLimits(oldPod)
 		oldEphemeralStorageSize = oldRequests[corev1.ResourceEphemeralStorage]
-		oldLocalInlineVolumeSize = unified.CalcLocalInlineVolumeSize(oldPod.Spec.Volumes, nil)
+		oldLocalInlineVolumeSize = unified.CalcLocalInlineVolumeSize(oldPod.Spec.Volumes, e.classLister)
 	}
 
 	requests, _ := resourcehelper.PodRequestsAndLimits(newPod)
@@ -109,7 +116,7 @@ func (e *podEventHandler) setPod(oldPod *corev1.Pod, newPod *corev1.Pod) {
 func (e *podEventHandler) deletePod(pod *corev1.Pod) {
 	requests, _ := resourcehelper.PodRequestsAndLimits(pod)
 	ephemeralStorageSize := requests[corev1.ResourceEphemeralStorage]
-	localInlineVolumeSize := unified.CalcLocalInlineVolumeSize(pod.Spec.Volumes, nil)
+	localInlineVolumeSize := unified.CalcLocalInlineVolumeSize(pod.Spec.Volumes, e.classLister)
 	if ephemeralStorageSize.IsZero() && localInlineVolumeSize == 0 {
 		return
 	}
