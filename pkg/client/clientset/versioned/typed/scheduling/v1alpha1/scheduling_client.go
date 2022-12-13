@@ -29,6 +29,7 @@ type SchedulingV1alpha1Interface interface {
 	DevicesGetter
 	PodMigrationJobsGetter
 	ReservationsGetter
+	ResourcePoliciesGetter
 }
 
 // SchedulingV1alpha1Client is used to interact with features provided by the scheduling group.
@@ -46,6 +47,10 @@ func (c *SchedulingV1alpha1Client) PodMigrationJobs() PodMigrationJobInterface {
 
 func (c *SchedulingV1alpha1Client) Reservations() ReservationInterface {
 	return newReservations(c)
+}
+
+func (c *SchedulingV1alpha1Client) ResourcePolicies() ResourcePolicyInterface {
+	return newResourcePolicies(c)
 }
 
 // NewForConfig creates a new SchedulingV1alpha1Client for the given config.
