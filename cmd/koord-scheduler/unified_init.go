@@ -32,6 +32,7 @@ import (
 	unifiedelasticquotatree "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/elasticquotatree"
 	unifiedoverquota "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/overquota"
 	unifiedpodconstraint "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/podconstraint"
+	unifiedresourcepolicy "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/resourcepolicy"
 	unifiedscheduleresult "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/scheduleresult"
 	unifiedvolumebinding "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/volumebinding"
 )
@@ -48,4 +49,5 @@ func init() {
 	koordinatorPlugins[unifiedvolumebinding.Name] = unifiedvolumebinding.New
 	koordinatorPlugins[unifiedasiquota.Name] = unifiedasiquota.New
 	koordinatorPlugins[unifiedelasticquotatree.Name] = unifiedelasticquotatree.New
+	koordinatorPlugins[unifiedresourcepolicy.Name] = unifiedresourcepolicy.New
 }
