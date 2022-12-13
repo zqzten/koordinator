@@ -29,3 +29,7 @@ type PodMigrationJobListerExpansion interface{}
 // ReservationListerExpansion allows custom methods to be added to
 // ReservationLister.
 type ReservationListerExpansion interface{}
+
+// ResourcePolicyListerExpansion allows custom methods to be added to
+// ResourcePolicyLister.
+type ResourcePolicyListerExpansion interface{}
