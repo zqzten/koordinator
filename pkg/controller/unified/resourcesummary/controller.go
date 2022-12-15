@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"math"
+	"strconv"
 
 	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 	"gitlab.alibaba-inc.com/unischeduler/api/apis/scheduling/v1beta1"
@@ -38,6 +39,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
+	"github.com/koordinator-sh/koordinator/pkg/controller/unified/resourcesummary/metrics"
 	"github.com/koordinator-sh/koordinator/pkg/features"
 	"github.com/koordinator-sh/koordinator/pkg/util"
 	utilclient "github.com/koordinator-sh/koordinator/pkg/util/client"
@@ -85,9 +87,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 				resourceSummary.Annotations = map[string]string{}
 			}
 			resourceSummary.Annotations[AnnotationDryRunStatus] = string(statusJSONBytes)
+			recordStatusToMetric(resourceSummary.Name, false, &resourceSummary.Status)
+			recordStatusToMetric(resourceSummary.Name, true, status)
+			recordDryRunDiff(resourceSummary.Name, &resourceSummary.Status, status)
 			return r.Client.Update(ctx, resourceSummary)
 		} else {
 			resourceSummary.Status = *status
+			recordStatusToMetric(resourceSummary.Name, false, status)
 			return r.Client.Status().Update(ctx, resourceSummary)
 		}
 	})
@@ -98,6 +104,80 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{RequeueAfter: resourceSummary.Spec.UpdatePeriod.Duration}, nil
 	}
 	return ctrl.Result{}, nil
+}
+
+func recordStatusToMetric(resourceSummaryName string, isDryRun bool, status *v1beta1.ResourceSummaryStatus) {
+	metrics.ResourceSummaryPhase.WithLabelValues(resourceSummaryName, strconv.FormatBool(isDryRun), string(status.Phase)).Set(1)
+	metrics.ResourceSummaryNumNodes.WithLabelValues(resourceSummaryName, strconv.FormatBool(isDryRun)).Set(float64(status.NumNodes))
+	for _, nodeResourceSummary := range status.Resources {
+		for resourceName, quantity := range nodeResourceSummary.Capacity {
+			metrics.ResourceSummaryResource.WithLabelValues(resourceSummaryName, strconv.FormatBool(isDryRun),
+				string(nodeResourceSummary.PriorityClass), "capacity", string(resourceName)).Set(float64(quantity.MilliValue()))
+		}
+		for resourceName, quantity := range nodeResourceSummary.Allocated {
+			metrics.ResourceSummaryResource.WithLabelValues(resourceSummaryName, strconv.FormatBool(isDryRun),
+				string(nodeResourceSummary.PriorityClass), "allocated", string(resourceName)).Set(float64(quantity.MilliValue()))
+		}
+		for resourceName, quantity := range nodeResourceSummary.Allocatable {
+			metrics.ResourceSummaryResource.WithLabelValues(resourceSummaryName, strconv.FormatBool(isDryRun),
+				string(nodeResourceSummary.PriorityClass), "allocatable", string(resourceName)).Set(float64(quantity.MilliValue()))
+		}
+	}
+	for _, resourceSpec := range status.ResourceSpecStats {
+		for _, allocatable := range resourceSpec.Allocatable {
+			metrics.ResourceSummaryResourceSpec.WithLabelValues(resourceSummaryName, strconv.FormatBool(isDryRun), resourceSpec.Name, string(allocatable.PriorityClass)).Set(float64(allocatable.Count))
+		}
+	}
+	for _, podUsed := range status.PodUsedStatistics {
+		for _, podPriorityUsed := range podUsed.Allocated {
+			for resourceName, quantity := range podPriorityUsed.Allocated {
+				metrics.ResourceSummaryPodUsed.WithLabelValues(resourceSummaryName, strconv.FormatBool(isDryRun), podUsed.Name, string(podPriorityUsed.PriorityClass), string(resourceName)).Set(float64(quantity.MilliValue()))
+			}
+		}
+	}
+}
+
+func recordDryRunDiff(resourceSummaryName string, notDryRunStatus, dryRunStatus *v1beta1.ResourceSummaryStatus) {
+	for _, notDryRunResource := range notDryRunStatus.Resources {
+		dryRunResource := notDryRunResource
+		for _, candidateDryRunResource := range dryRunStatus.Resources {
+			if notDryRunResource.PriorityClass == candidateDryRunResource.PriorityClass {
+				dryRunResource = candidateDryRunResource
+				break
+			}
+		}
+		if dryRunResource == notDryRunResource {
+			metrics.ResourceSummaryResource.WithLabelValues(resourceSummaryName, "diff",
+				string(notDryRunResource.PriorityClass), "", "").Set(-1.0)
+		}
+		for resourceName, quantity := range notDryRunResource.Capacity {
+			dryRunQuantity, ok := dryRunResource.Capacity[resourceName]
+			diff := -1.0
+			if ok {
+				diff = float64(dryRunQuantity.MilliValue() - quantity.MilliValue())
+			}
+			metrics.ResourceSummaryResource.WithLabelValues(resourceSummaryName, "diff",
+				string(notDryRunResource.PriorityClass), "capacity", string(resourceName)).Set(diff)
+		}
+		for resourceName, quantity := range notDryRunResource.Allocated {
+			dryRunQuantity, ok := dryRunResource.Allocated[resourceName]
+			diff := -1.0
+			if ok {
+				diff = float64(dryRunQuantity.MilliValue() - quantity.MilliValue())
+			}
+			metrics.ResourceSummaryResource.WithLabelValues(resourceSummaryName, "diff",
+				string(notDryRunResource.PriorityClass), "allocated", string(resourceName)).Set(diff)
+		}
+		for resourceName, quantity := range notDryRunResource.Allocatable {
+			dryRunQuantity, ok := dryRunResource.Allocatable[resourceName]
+			diff := -1.0
+			if ok {
+				diff = float64(dryRunQuantity.MilliValue() - quantity.MilliValue())
+			}
+			metrics.ResourceSummaryResource.WithLabelValues(resourceSummaryName, "diff",
+				string(notDryRunResource.PriorityClass), "allocatable", string(resourceName)).Set(diff)
+		}
+	}
 }
 
 func (r *Reconciler) getCurrentStatus(ctx context.Context, resourceSummary *v1beta1.ResourceSummary,
