@@ -26,7 +26,7 @@ import (
 
 	"k8s.io/klog/v2"
 
-	sysutil "github.com/koordinator-sh/koordinator/pkg/util/system"
+	sysutil "github.com/koordinator-sh/koordinator/pkg/koordlet/util/system"
 
 	"gitlab.alibaba-inc.com/cos/unified-resource-api/apis/extension/cpuset"
 )

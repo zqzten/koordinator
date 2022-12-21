@@ -20,6 +20,8 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"fmt"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -29,20 +31,26 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	clientset "k8s.io/client-go/kubernetes"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	clientcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/component-base/featuregate"
 	"k8s.io/klog/v2"
 
 	slov1alpha1 "github.com/koordinator-sh/koordinator/apis/slo/v1alpha1"
-	"github.com/koordinator-sh/koordinator/pkg/koordlet/executor"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/metriccache"
 	cgroupscrdutil "github.com/koordinator-sh/koordinator/pkg/koordlet/resmanager/plugins/ackcgroupcrd/util"
+	"github.com/koordinator-sh/koordinator/pkg/koordlet/resourceexecutor"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/statesinformer"
+	koordletutil "github.com/koordinator-sh/koordinator/pkg/koordlet/util"
+	sysutil "github.com/koordinator-sh/koordinator/pkg/koordlet/util/system"
 	"github.com/koordinator-sh/koordinator/pkg/util"
-	sysutil "github.com/koordinator-sh/koordinator/pkg/util/system"
+	cpusetutil "github.com/koordinator-sh/koordinator/pkg/util/cpuset"
 
 	resourcesv1alpha1 "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/resources/v1alpha1"
 )
@@ -52,7 +60,12 @@ const (
 	cgroupsControllerConfName = "resource-controller-config"
 )
 
+func init() {
+	_ = clientgoscheme.AddToScheme(scheme)
+}
+
 var (
+	scheme                          = apiruntime.NewScheme()
 	FeatureName featuregate.Feature = "CgroupCRD"
 	FeatureSpec                     = featuregate.FeatureSpec{Default: false, PreRelease: featuregate.Beta}
 	Plugin                          = &plugin{
@@ -64,7 +77,9 @@ type plugin struct {
 	metricCache    metriccache.MetricCache
 	statesInformer statesinformer.StatesInformer
 	cmInformer     cache.SharedIndexInformer
-	executor       *executor.ResourceUpdateExecutor
+	resexecutor    resourceexecutor.ResourceUpdateExecutor
+	reader         resourceexecutor.CgroupReader
+	eventRecorder  record.EventRecorder
 
 	started               bool
 	controllerConf        *cgroupscrdutil.CgroupsControllerConfig
@@ -122,10 +137,16 @@ func (c *plugin) Setup(client clientset.Interface, metricCache metriccache.Metri
 			klog.Infof("update cgroups controller %v", c.getConfig())
 		},
 	})
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartRecordingToSink(&clientcorev1.EventSinkImpl{Interface: client.CoreV1().Events("")})
+	nodeName := os.Getenv("NODE_NAME")
+	c.eventRecorder = eventBroadcaster.NewRecorder(scheme, corev1.EventSource{Component: "koordlet", Host: nodeName})
+
 	c.metricCache = metricCache
 	c.statesInformer = statesInformer
 	c.cmInformer = configMapInformer
-	c.executor = executor.NewResourceUpdateExecutor("CgroupsCrdExecutor", c.config.CgroupCRDReconcileIntervalSeconds*60)
+	c.resexecutor = resourceexecutor.NewResourceUpdateExecutor()
+	c.reader = resourceexecutor.NewCgroupReader()
 }
 
 func (c *plugin) Run(stopCh <-chan struct{}) {
@@ -149,7 +170,7 @@ func (c *plugin) reconcile() {
 		if err := sysutil.CheckAndTryEnableResctrlCat(); err != nil {
 			klog.Warningf("check resctrl cat failed, err: %s", err)
 		}
-		c.executor.Run(ch1)
+		c.resexecutor.Run(ch1)
 		c.started = true
 	}
 	nodeInfo, err := c.metricCache.GetNodeCPUInfo(&metriccache.QueryParam{})
@@ -269,7 +290,7 @@ func (c *plugin) executePodPlan(podPlan *cgroupscrdutil.PodReconcilePlan) {
 		containerStatMap[containerStat.Name] = containerStat
 	}
 
-	podDir := util.GetPodCgroupDirWithKube(podPlan.PodMeta.CgroupDir)
+	podDir := koordletutil.GetPodCgroupDirWithKube(podPlan.PodMeta.CgroupDir)
 
 	// pod cpu limit
 	podCPULimitOpt, targetPodCfsQuota, err := cgroupscrdutil.GetPodCPULimitOpt(podPlan)
@@ -303,7 +324,7 @@ func (c *plugin) executePodPlan(podPlan *cgroupscrdutil.PodReconcilePlan) {
 		}
 
 		// generate container cgroup dir
-		containerDir, err := util.GetContainerCgroupPathWithKube(podPlan.PodMeta.CgroupDir, containerStat)
+		containerDir, err := koordletutil.GetContainerCgroupPathWithKube(podPlan.PodMeta.CgroupDir, containerStat)
 		if err != nil {
 			klog.Warningf("parse container %v dir of pod %v/%v failed, error %v",
 				containerStat.Name, podPlan.PodMeta.Pod.Namespace, podPlan.PodMeta.Pod.Name, err)
@@ -327,7 +348,7 @@ func (c *plugin) executePodPlan(podPlan *cgroupscrdutil.PodReconcilePlan) {
 			c.execContainerBlkio(podPlan, containerDir, containerPlan.Blkio)
 		}
 		if containerPlan.CPUSet != nil {
-			c.execContainerCPUSet(podPlan, containerDir, *containerPlan.CPUSet)
+			c.execContainerCPUSet(podPlan, containerDir, containerName, *containerPlan.CPUSet)
 		}
 		if containerPlan.LLCInfo != nil {
 			containerDirLLCMap[containerDir] = containerPlan.LLCInfo
@@ -358,72 +379,125 @@ func (c *plugin) executePodPlan(podPlan *cgroupscrdutil.PodReconcilePlan) {
 }
 
 func (c *plugin) execPodCfsQuota(plan *cgroupscrdutil.PodReconcilePlan, podDir string, targetVal int) {
-	owner := generateUpdateOwner(&plan.Owner)
-	updatePlan := executor.NewCommonCgroupResourceUpdater(owner, podDir, sysutil.CPUCFSQuota, strconv.Itoa(targetVal))
-	c.executor.UpdateBatchByCache(updatePlan)
+	if updatePlan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.CPUCFSQuotaName, podDir, strconv.Itoa(targetVal)); err == nil {
+		c.resexecutor.Update(true, updatePlan)
+	} else {
+		klog.V(4).Infof("new cgroup resource %v for pod %v failed, error %v",
+			sysutil.CPUCFSQuotaName, plan.Owner.String(), err)
+	}
 }
 
 func (c *plugin) execPodMemLimit(plan *cgroupscrdutil.PodReconcilePlan, podDir string, targetVal int) {
-	owner := generateUpdateOwner(&plan.Owner)
-	swLimitupdatePlan := executor.NewCommonCgroupResourceUpdater(owner, podDir, sysutil.MemorySWLimit, strconv.Itoa(targetVal))
-	limitUpdatePlan := executor.NewCommonCgroupResourceUpdater(owner, podDir, sysutil.MemoryLimit, strconv.Itoa(targetVal))
-	c.executor.UpdateBatchByCache(swLimitupdatePlan, limitUpdatePlan)
+	// ignore MemorySWLimitName, which is abandon >= 120
+	limitUpdatePlan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.MemoryLimitName, podDir, strconv.Itoa(targetVal))
+	if err != nil {
+		klog.V(4).Infof("new cgroup resource %v for pod %v failed, error %v",
+			sysutil.MemoryLimitName, plan.Owner.String(), err)
+		return
+	}
+	c.resexecutor.Update(true, limitUpdatePlan)
 }
 
 func (c *plugin) execContainerCfsQuota(plan *cgroupscrdutil.PodReconcilePlan, containerDir string,
 	targetVal int) {
-	owner := generateUpdateOwner(&plan.Owner)
-	updatePlan := executor.NewCommonCgroupResourceUpdater(owner, containerDir, sysutil.CPUCFSQuota, strconv.Itoa(targetVal))
-	c.executor.UpdateBatchByCache(updatePlan)
+	if updatePlan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.CPUCFSQuotaName, containerDir, strconv.Itoa(targetVal)); err == nil {
+		c.resexecutor.UpdateBatch(true, updatePlan)
+	} else {
+		klog.V(4).Infof("new cgroup resource %v for pod %v failed, error %v",
+			sysutil.CPUCFSQuotaName, plan.Owner.String(), err)
+	}
 }
 
 func (c *plugin) execContainerMemLimit(plan *cgroupscrdutil.PodReconcilePlan, containerDir string,
 	targetVal int) {
-	owner := generateUpdateOwner(&plan.Owner)
-	swUpdatePlan := executor.NewCommonCgroupResourceUpdater(owner, containerDir, sysutil.MemorySWLimit, strconv.Itoa(targetVal))
-	limitupdatePlan := executor.NewCommonCgroupResourceUpdater(owner, containerDir, sysutil.MemoryLimit, strconv.Itoa(targetVal))
+	limitupdatePlan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.MemoryLimitName, containerDir, strconv.Itoa(targetVal))
+	if err != nil {
+		klog.V(4).Infof("new cgroup resource %v for pod %v failed, error %v",
+			sysutil.MemoryLimitName, plan.Owner.String(), err)
+		return
+	}
 	// do it hack, update memory.memsw.limit_in_bytes twice in case of order failure
-	c.executor.UpdateBatchByCache(swUpdatePlan, limitupdatePlan, swUpdatePlan)
+	c.resexecutor.Update(true, limitupdatePlan)
 }
 
-func (c *plugin) execContainerBlkio(plan *cgroupscrdutil.PodReconcilePlan, containerDir string,
+func (c *plugin) execContainerBlkio(podPlan *cgroupscrdutil.PodReconcilePlan, containerDir string,
 	blkio *resourcesv1alpha1.Blkio) {
-	owner := generateUpdateOwner(&plan.Owner)
-	updatePlans := make([]executor.ResourceUpdater, 0)
+	// updatePlans := make([]executor.ResourceUpdater, 0)
+	updatePlans := make([]resourceexecutor.ResourceUpdater, 0)
 	if len(blkio.DeviceReadBps) != 0 {
 		content := cgroupscrdutil.GenerateBklioContent(blkio.DeviceReadBps)
 		if content != "" {
-			plan := executor.NewCommonCgroupResourceUpdater(owner, containerDir, sysutil.BlkioReadBps, content)
-			updatePlans = append(updatePlans, plan)
+			if plan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.BlkioTRBpsName, containerDir, content); err == nil {
+				updatePlans = append(updatePlans, plan)
+			} else {
+				klog.V(4).Infof("new cgroup resource %v for pod %v failed, error %v",
+					sysutil.BlkioTRBpsName, podPlan.Owner.String(), err)
+			}
 		}
 	}
 	if len(blkio.DeviceWriteBps) != 0 {
 		content := cgroupscrdutil.GenerateBklioContent(blkio.DeviceWriteBps)
 		if content != "" {
-			plan := executor.NewCommonCgroupResourceUpdater(owner, containerDir, sysutil.BlkioWriteBps, content)
-			updatePlans = append(updatePlans, plan)
+			if plan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.BlkioTWBpsName, containerDir, content); err == nil {
+				updatePlans = append(updatePlans, plan)
+			} else {
+				klog.V(4).Infof("new cgroup resource %v for pod %v failed, error %v",
+					sysutil.BlkioTWBpsName, podPlan.Owner.String(), err)
+			}
 		}
 	}
 	if len(blkio.DeviceReadIOps) != 0 {
 		if content := cgroupscrdutil.GenerateBklioContent(blkio.DeviceReadIOps); content != "" {
-			plan := executor.NewCommonCgroupResourceUpdater(owner, containerDir, sysutil.BlkioReadIops, content)
-			updatePlans = append(updatePlans, plan)
+			if plan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.BlkioTRIopsName, containerDir, content); err == nil {
+				updatePlans = append(updatePlans, plan)
+			} else {
+				klog.V(4).Infof("new cgroup resource %v for pod %v failed, error %v",
+					sysutil.BlkioTRIopsName, podPlan.Owner.String(), err)
+			}
 		}
 	}
 	if len(blkio.DeviceWriteIOps) != 0 {
 		if content := cgroupscrdutil.GenerateBklioContent(blkio.DeviceWriteIOps); content != "" {
-			plan := executor.NewCommonCgroupResourceUpdater(owner, containerDir, sysutil.BlkioWriteIops, content)
-			updatePlans = append(updatePlans, plan)
+			if plan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.BlkioTWIopsName, containerDir, content); err == nil {
+				updatePlans = append(updatePlans, plan)
+			} else {
+				klog.V(4).Infof("new cgroup resource %v for pod %v failed, error %v",
+					sysutil.BlkioTWIopsName, podPlan.Owner.String(), err)
+			}
 		}
 	}
-	c.executor.UpdateBatchByCache(updatePlans...)
+	c.resexecutor.UpdateBatch(true, updatePlans...)
 }
 
 func (c *plugin) execContainerCPUSet(plan *cgroupscrdutil.PodReconcilePlan, containerDir string,
-	cpusetStr string) {
-	owner := generateUpdateOwner(&plan.Owner)
-	updatePlan := executor.NewCommonCgroupResourceUpdater(owner, containerDir, sysutil.CPUSet, cpusetStr)
-	c.executor.UpdateBatchByCache(updatePlan)
+	containerName string, cpusetStr string) {
+	targetCPUSet, err := cpusetutil.Parse(cpusetStr)
+	if err != nil {
+		klog.V(4).Infof("parse cpuset string %v failed for pod %v", cpusetStr, plan.Owner.String())
+		return
+	}
+	curCPUSet, err := c.reader.ReadCPUSet(containerDir)
+	if err != nil {
+		klog.V(4).Infof("read cpuset of pod %v failed, error %v", plan.Owner.String(), err)
+		return
+	}
+	if curCPUSet.Equals(targetCPUSet) {
+		klog.V(6).Infof("pod %v current cpuset %v is equal with target %v", plan.Owner,
+			curCPUSet.String(), targetCPUSet.String())
+		return
+	}
+
+	updatePlan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.CPUSetCPUSName, containerDir, cpusetStr)
+	if err != nil {
+		klog.V(4).Infof("new cgroup resource %v for pod %v failed, error %v",
+			sysutil.CPUSetCPUSName, plan.Owner.String(), err)
+		return
+	}
+	updated, err := c.resexecutor.Update(true, updatePlan)
+	if updated && err == nil {
+		msg := fmt.Sprintf("set cpuset %v to container %v success", cpusetStr, containerName)
+		c.eventRecorder.Event(plan.PodMeta.Pod, corev1.EventTypeNormal, "CPUSetBind", msg)
+	}
 }
 
 func (c *plugin) execContainerLLC(containerDirLLCMap map[string]*resourcesv1alpha1.LLCinfo) {
@@ -434,8 +508,8 @@ func (c *plugin) execContainerLLC(containerDirLLCMap map[string]*resourcesv1alph
 	}
 
 	cacheQOSMap := make(map[string]struct{}, 0)
-	llcSchemaPlans := make([]executor.ResourceUpdater, 0, len(containerDirLLCMap))
-	llcTasksPlans := make([]executor.ResourceUpdater, 0, len(containerDirLLCMap))
+	llcSchemaPlans := make([]resourceexecutor.ResourceUpdater, 0, len(containerDirLLCMap))
+	llcTasksPlans := make([]resourceexecutor.ResourceUpdater, 0, len(containerDirLLCMap))
 	for containerDir, llcInfo := range containerDirLLCMap {
 		cacheQOSGroup := cgroupscrdutil.GenResctrlGroup(llcInfo.LLCPriority)
 		// update l3 schema if cache qos not exist
@@ -450,59 +524,79 @@ func (c *plugin) execContainerLLC(containerDirLLCMap map[string]*resourcesv1alph
 		}
 
 		// update container tasks
-		if tasksPlan := generateLLCTaskUpdater(llcInfo.LLCPriority, containerDir); tasksPlan != nil {
+		if tasksPlan := c.generateLLCTaskUpdater(llcInfo.LLCPriority, containerDir); tasksPlan != nil {
 			llcTasksPlans = append(llcTasksPlans, tasksPlan)
 		}
 	}
-	c.executor.UpdateBatchByCache(llcSchemaPlans...)
-	c.executor.UpdateBatch(llcTasksPlans...)
+	c.resexecutor.UpdateBatch(true, llcSchemaPlans...)
+	c.resexecutor.UpdateBatch(false, llcTasksPlans...)
 }
 
 func (c *plugin) execContainerCPUSetMap(plan *cgroupscrdutil.PodReconcilePlan, containerDir string,
 	cpuSetMap map[string]string) {
-	updatePlans := make([]executor.ResourceUpdater, 0, len(cpuSetMap))
-	owner := generateUpdateOwner(&plan.Owner)
+	updatePlans := make([]resourceexecutor.ResourceUpdater, 0, len(cpuSetMap))
+
 	for fileName, fileContent := range cpuSetMap {
-		cgroupFile := sysutil.CgroupFile{ResourceFileName: fileName, Subfs: sysutil.CgroupCPUSetDir, IsAnolisOS: false}
-		plan := executor.NewCommonCgroupResourceUpdater(owner, containerDir, cgroupFile, fileContent)
-		updatePlans = append(updatePlans, plan)
+		var cgroupResource sysutil.Resource
+		if sysutil.GetCurrentCgroupVersion() == sysutil.CgroupVersionV2 {
+			cgroupResource = sysutil.NewCommonCgroupResource(sysutil.ResourceType(fileName), fileName, sysutil.CgroupV2Dir)
+		} else {
+			cgroupResource = sysutil.NewCommonCgroupResource(sysutil.ResourceType(fileName), fileName, sysutil.CgroupCPUSetDir)
+		}
+		updatePlan, err := resourceexecutor.NewDetailCgroupUpdater(cgroupResource, containerDir, fileContent, resourceexecutor.CommonCgroupUpdateFunc)
+		if err != nil {
+			klog.Warningf("failed to new cgroup updater pod %v/%v for container %v on dir %v, error %v",
+				cgroupResource, plan.PodMeta.Pod.Namespace, plan.PodMeta.Pod.Name, containerDir, err)
+			continue
+		}
+		updatePlans = append(updatePlans, updatePlan)
 	}
-	c.executor.UpdateBatchByCache(updatePlans...)
+	c.resexecutor.UpdateBatch(true, updatePlans...)
 }
 
 func (c *plugin) execContainerCPUAcctMap(plan *cgroupscrdutil.PodReconcilePlan, containerDir string,
 	cpuAcctMap map[string]string) {
-	updatePlans := make([]executor.ResourceUpdater, 0, len(cpuAcctMap))
-	owner := generateUpdateOwner(&plan.Owner)
+	updatePlans := make([]resourceexecutor.ResourceUpdater, 0, len(cpuAcctMap))
 	for fileName, fileContent := range cpuAcctMap {
-		isAlnolisOS := false
-		if fileName == sysutil.CPUBVTWarpNsName {
-			isAlnolisOS = true
+		var cgroupResource sysutil.Resource
+		if sysutil.GetCurrentCgroupVersion() == sysutil.CgroupVersionV2 {
+			cgroupResource = sysutil.NewCommonCgroupResource(sysutil.ResourceType(fileName), fileName, sysutil.CgroupV2Dir)
+		} else {
+			cgroupResource = sysutil.NewCommonCgroupResource(sysutil.ResourceType(fileName), fileName, sysutil.CgroupCPUAcctDir)
 		}
-		cgroupFile := sysutil.CgroupFile{ResourceFileName: fileName, Subfs: sysutil.CgroupCPUacctDir, IsAnolisOS: isAlnolisOS}
-		plan := executor.NewCommonCgroupResourceUpdater(owner, containerDir, cgroupFile, fileContent)
-		updatePlans = append(updatePlans, plan)
+		updatePlan, err := resourceexecutor.NewDetailCgroupUpdater(cgroupResource, containerDir, fileContent, resourceexecutor.CommonCgroupUpdateFunc)
+		if err != nil {
+			klog.Warningf("failed to new cgroup updater pod %v/%v for container %v on dir %v, error %v",
+				cgroupResource, plan.PodMeta.Pod.Namespace, plan.PodMeta.Pod.Name, containerDir, err)
+			continue
+		}
+		updatePlans = append(updatePlans, updatePlan)
 	}
-	c.executor.UpdateBatchByCache(updatePlans...)
+	c.resexecutor.UpdateBatch(true, updatePlans...)
 }
 
 func (c *plugin) execPodCPUAcctMap(plan *cgroupscrdutil.PodReconcilePlan, podDir string,
 	cpuAcctMap map[string]string) {
-	updatePlans := make([]executor.ResourceUpdater, 0, len(cpuAcctMap))
-	owner := generateUpdateOwner(&plan.Owner)
+	updatePlans := make([]resourceexecutor.ResourceUpdater, 0, len(cpuAcctMap))
 	for fileName, fileContent := range cpuAcctMap {
-		isAlnolisOS := false
-		if fileName == sysutil.CPUBVTWarpNsName {
-			isAlnolisOS = true
+		var cgroupResource sysutil.Resource
+		if sysutil.GetCurrentCgroupVersion() == sysutil.CgroupVersionV2 {
+			cgroupResource = sysutil.NewCommonCgroupResource(sysutil.ResourceType(fileName), fileName, sysutil.CgroupV2Dir)
+		} else {
+			cgroupResource = sysutil.NewCommonCgroupResource(sysutil.ResourceType(fileName), fileName, sysutil.CgroupCPUAcctDir)
 		}
-		cgroupFile := sysutil.CgroupFile{ResourceFileName: fileName, Subfs: sysutil.CgroupCPUacctDir, IsAnolisOS: isAlnolisOS}
-		plan := executor.NewCommonCgroupResourceUpdater(owner, podDir, cgroupFile, fileContent)
-		updatePlans = append(updatePlans, plan)
+		updatePlan, err := resourceexecutor.NewDetailCgroupUpdater(cgroupResource, podDir, fileContent, resourceexecutor.CommonCgroupUpdateFunc)
+		if err != nil {
+			klog.Warningf("failed to new cgroup updater pod %v/%v  %v on dir %v, error %v",
+				cgroupResource, plan.PodMeta.Pod.Namespace, plan.PodMeta.Pod.Name, podDir, err)
+			continue
+		}
+		updatePlans = append(updatePlans, updatePlan)
 	}
-	c.executor.UpdateBatchByCache(updatePlans...)
+	c.resexecutor.UpdateBatch(true, updatePlans...)
 }
 
-func generateLLCSchemaUpdater(nodeCPUInfo *metriccache.NodeCPUInfo, llcInfo *resourcesv1alpha1.LLCinfo) []executor.ResourceUpdater {
+func generateLLCSchemaUpdater(nodeCPUInfo *metriccache.NodeCPUInfo, llcInfo *resourcesv1alpha1.LLCinfo) []resourceexecutor.ResourceUpdater {
 	cacheQOSGroup := cgroupscrdutil.GenResctrlGroup(llcInfo.LLCPriority)
 
 	cbmStr := nodeCPUInfo.BasicInfo.CatL3CbmMask
@@ -535,7 +629,7 @@ func generateLLCSchemaUpdater(nodeCPUInfo *metriccache.NodeCPUInfo, llcInfo *res
 		klog.Warningf("failed to calculate l3 cat schemata for group %v, err: %v", cacheQOSGroup, err)
 		return nil
 	}
-	l3Resource := executor.CalculateL3SchemataResource(cacheQOSGroup, l3SchemataDelta, l3Num)
+	l3Resource := resourceexecutor.NewResctrlL3SchemataResource(cacheQOSGroup, l3SchemataDelta, l3Num)
 
 	// calculate mem bandwidth policy
 	mbPercent, err := strconv.ParseInt(llcInfo.MBPercent, 10, 64)
@@ -545,47 +639,36 @@ func generateLLCSchemaUpdater(nodeCPUInfo *metriccache.NodeCPUInfo, llcInfo *res
 	}
 	mbSchemataDelta := calculateCatMbSchemata(int(mbPercent))
 	// calculate updating resource
-	mbResource := executor.CalculateMbSchemataResource(cacheQOSGroup, mbSchemataDelta, l3Num)
+	mbResource := resourceexecutor.NewResctrlMbSchemataResource(cacheQOSGroup, mbSchemataDelta, l3Num)
 
-	return []executor.ResourceUpdater{l3Resource, mbResource}
+	return []resourceexecutor.ResourceUpdater{l3Resource, mbResource}
 }
 
-func generateLLCTaskUpdater(cacheQOS string, containerDir string) executor.ResourceUpdater {
+func (c *plugin) generateLLCTaskUpdater(cacheQOS string, containerDir string) resourceexecutor.ResourceUpdater {
 	cacheQOSGroup := cgroupscrdutil.GenResctrlGroup(cacheQOS)
 	curTasksInResctrl, err := sysutil.ReadResctrlTasksMap(cacheQOSGroup)
 	if err != nil {
 		klog.Warningf("get tasks from resctrl %v failed, error %v", cacheQOS, err)
 		return nil
 	}
-	newTaskIds := make([]int, 0)
-	containerTaskDir := sysutil.GetCgroupFilePath(containerDir, sysutil.CPUTask)
-	containerTasks, err := sysutil.GetCgroupCurTasks(containerTaskDir)
+	newTaskIds, err := c.reader.ReadCPUTasks(containerDir)
 	if err != nil {
 		klog.Warningf("get tasks from %s failed during handle cache qos %v, error %v",
-			containerTaskDir, cacheQOS, err)
+			containerDir, cacheQOS, err)
 		return nil
 	}
-	for _, id := range containerTasks {
+	for _, id := range newTaskIds {
 		if _, exist := curTasksInResctrl[id]; !exist {
 			newTaskIds = append(newTaskIds, id)
 		}
 	}
 
-	return executor.CalculateL3TasksResource(cacheQOSGroup, newTaskIds)
-}
-
-func generateUpdateOwner(planOwner *cgroupscrdutil.PlanOwner) *executor.OwnerRef {
-	result := &executor.OwnerRef{
-		Namespace: planOwner.Namespace,
-		Name:      planOwner.Name,
+	resource, err := resourceexecutor.CalculateResctrlL3TasksResource(cacheQOSGroup, newTaskIds)
+	if err != nil {
+		klog.Warningf("failed to get l3 tasks resource for group %s, err: %s", cacheQOSGroup, err)
+		return nil
 	}
-	switch planOwner.Type {
-	case cgroupscrdutil.CgroupsCrdType:
-		result.Type = executor.OthersType
-	default:
-		result.Type = executor.PodType
-	}
-	return result
+	return resource
 }
 
 func calculateCatMbSchemata(memBwPercent int) string {

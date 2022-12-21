@@ -27,11 +27,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
-	"github.com/koordinator-sh/koordinator/pkg/koordlet/executor"
 	cgroupscrdutil "github.com/koordinator-sh/koordinator/pkg/koordlet/resmanager/plugins/ackcgroupcrd/util"
+	"github.com/koordinator-sh/koordinator/pkg/koordlet/resourceexecutor"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/statesinformer"
-	"github.com/koordinator-sh/koordinator/pkg/util"
-	sysutil "github.com/koordinator-sh/koordinator/pkg/util/system"
+	"github.com/koordinator-sh/koordinator/pkg/koordlet/util"
+	sysutil "github.com/koordinator-sh/koordinator/pkg/koordlet/util/system"
 
 	uniapiext "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/extension"
 )
@@ -183,8 +183,9 @@ func Test_executePodPlan(t *testing.T) {
 
 		testPodPlan := cgroupscrdutil.GeneratePlanByPod(testPodMeta, &cgroupscrdutil.CgroupsControllerConfig{}, 32)
 		c := plugin{
-			config:   NewDefaultConfig(),
-			executor: executor.NewResourceUpdateExecutor("CgroupsCrdExecutorTest", 60),
+			config:      NewDefaultConfig(),
+			resexecutor: resourceexecutor.NewResourceUpdateExecutor(),
+			reader:      resourceexecutor.NewCgroupReader(),
 		}
 		c.executePodPlan(testPodPlan)
 	})

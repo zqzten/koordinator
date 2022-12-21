@@ -19,8 +19,9 @@ package cgroupscrd
 import (
 	corev1 "k8s.io/api/core/v1"
 
+	koordutil "github.com/koordinator-sh/koordinator/pkg/koordlet/util"
+	sysutil "github.com/koordinator-sh/koordinator/pkg/koordlet/util/system"
 	"github.com/koordinator-sh/koordinator/pkg/util"
-	sysutil "github.com/koordinator-sh/koordinator/pkg/util/system"
 )
 
 const (
@@ -48,7 +49,7 @@ func getResourceLimitOpt(curVal, targetVal int) ResourceLimitScaleOpt {
 
 func GetPodCPULimitOpt(podPlan *PodReconcilePlan) (ResourceLimitScaleOpt, int, error) {
 	opt := ResourceLimitRemain
-	curPodCfsQuota, err := util.GetPodCurCFSQuota(podPlan.PodMeta.CgroupDir)
+	curPodCfsQuota, err := koordutil.GetPodCurCFSQuota(podPlan.PodMeta.CgroupDir)
 	if err != nil {
 		return opt, -1, err
 	}
@@ -58,7 +59,7 @@ func GetPodCPULimitOpt(podPlan *PodReconcilePlan) (ResourceLimitScaleOpt, int, e
 
 func GetPodMemLimitOpt(podPlan *PodReconcilePlan) (ResourceLimitScaleOpt, int, error) {
 	opt := ResourceLimitRemain
-	curPodMemLimit, err := util.GetPodCurMemLimitBytes(podPlan.PodMeta.CgroupDir)
+	curPodMemLimit, err := koordutil.GetPodCurMemLimitBytes(podPlan.PodMeta.CgroupDir)
 	if err != nil {
 		return opt, -1, err
 	}

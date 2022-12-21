@@ -242,7 +242,13 @@ func (cr *cpuTopoCMReporter) initialize(stopCh <-chan struct{}) error {
 }
 
 func (cr *cpuTopoCMReporter) runSync() {
-	retErr := retry.OnError(retry.DefaultBackoff, func(e error) bool { return e != nil }, cr.sync)
+	backoff := wait.Backoff{
+		Steps:    5,
+		Duration: 1 * time.Second,
+		Factor:   2.0,
+		Jitter:   0.1,
+	}
+	retErr := retry.OnError(backoff, func(e error) bool { return e != nil }, cr.sync)
 	if retErr != nil {
 		klog.Errorf("failed to sync cpu topo error: %v", retErr)
 	}

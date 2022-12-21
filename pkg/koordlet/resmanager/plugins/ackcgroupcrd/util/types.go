@@ -17,6 +17,7 @@ limitations under the License.
 package cgroupscrd
 
 import (
+	"fmt"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -73,6 +74,10 @@ type PlanOwner struct {
 	Type      PlanType
 	Namespace string
 	Name      string
+}
+
+func (p *PlanOwner) String() string {
+	return fmt.Sprintf("%v/%v-%v", p.Namespace, p.Name, p.Type)
 }
 
 type PodReconcilePlan struct {

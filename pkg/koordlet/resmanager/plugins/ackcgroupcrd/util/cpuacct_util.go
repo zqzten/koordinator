@@ -20,7 +20,7 @@ import (
 	"strconv"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
-	sysutil "github.com/koordinator-sh/koordinator/pkg/util/system"
+	sysutil "github.com/koordinator-sh/koordinator/pkg/koordlet/util/system"
 )
 
 const (
