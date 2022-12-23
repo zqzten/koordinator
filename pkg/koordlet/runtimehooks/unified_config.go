@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/component-base/featuregate"
 
+	"github.com/koordinator-sh/koordinator/pkg/features"
 	unifiedcpushare "github.com/koordinator-sh/koordinator/pkg/koordlet/runtimehooks/hooks/unified/cpushare"
 )
 
@@ -38,7 +39,7 @@ var (
 )
 
 func init() {
-	runtime.Must(DefaultMutableRuntimeHooksFG.Add(unifiedRuntimeHooksFG))
+	runtime.Must(features.DefaultMutableKoordletFeatureGate.Add(unifiedRuntimeHooksFG))
 	for k, v := range unifiedRuntimeHookPlugins {
 		runtimeHookPlugins[k] = v
 	}
