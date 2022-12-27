@@ -1,0 +1,195 @@
+/*
+Copyright 2022 The Koordinator Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package unified
+
+import (
+	"encoding/json"
+
+	corev1 "k8s.io/api/core/v1"
+
+	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
+)
+
+const (
+	InternalSchedulingDomainPrefix = "internal.scheduling.koordinator.sh"
+
+	AnnotationNVIDIADriverVersions = InternalSchedulingDomainPrefix + "/nvidia-driver-versions"
+	AnnotationNVIDIAGPUSelector    = InternalSchedulingDomainPrefix + "/nvidia-gpu-selector"
+	AnnotationDeviceTopology       = InternalSchedulingDomainPrefix + "/device-topology"
+	AnnotationRDMATopology         = InternalSchedulingDomainPrefix + "/rdma-topology"
+	AnnotationDevicePCIInfos       = InternalSchedulingDomainPrefix + "/device-pci-infos"
+
+	AnnotationNetworkingVFMeta        = "networking.alibaba.com/vf-meta"
+	AnnotationRundPassthoughPCI       = "io.alibaba.pouch.vm.passthru.pci"
+	AnnotationRundNVSwitchOrder       = "io.katacontainers.prestart.gpu.nvswitch"
+	AnnotationRundNvidiaDriverVersion = "io.katacontainers.prestart.gpu.nvidia-driver-version"
+
+	NVSwitchDeviceType = schedulingv1alpha1.DeviceType("nvswitch")
+	NVSwitchResource   = "koordinator.sh/nvswitch"
+)
+
+type NVIDIADriverVersions []string
+
+type GPUSelector struct {
+	DriverVersions []string `json:"driverVersions,omitempty"`
+}
+
+// DeviceTopology presents device topology info on a node
+type DeviceTopology struct {
+	NUMASockets []NUMASocketInfo `json:"numaSockets,omitempty"`
+}
+
+type NUMASocketInfo struct {
+	// Index represents the NUMA Socket ID
+	Index int32 `json:"index"`
+	// NUMANodes contains all NUMA nodes belonging to the NUMA Socket
+	NUMANodes []NUMANodeInfo `json:"numaNodes,omitempty"`
+}
+
+type NUMANodeInfo struct {
+	// Index represents the NUMA Node ID
+	Index int32 `json:"index"`
+	// PCIESwitches contains all PCIE Switches belonging to the NUMA Node
+	PCIESwitches []PCIESwitchInfo `json:"pcieSwitches,omitempty"`
+}
+
+type PCIESwitchInfo struct {
+	// Index represents the PCIE Switch ID
+	Index int32 `json:"index"`
+	// GPUs contains all GPUs's minor id belonging to the PCI-E Switch
+	GPUs []int32 `json:"gpus,omitempty"`
+	// RDMAs contains all RDMAs's device information belonging to the PCI-E Switch
+	RDMAs []*RDMADeviceInfo `json:"rdmas,omitempty"` // RDMA devices info
+}
+
+type RDMADeviceInfo struct {
+	// Name represents the NIC Name, e.g. "mlx5_bond_0"
+	Name string `json:"name,omitempty"`
+	// Minor represents the device minor id, e.g. 1
+	Minor int32 `json:"minor"`
+	// UVerbs represents the device uverbs path, e.g. "/dev/infiniband/uverbs1"
+	UVerbs string `json:"uVerbs,omitempty"`
+	// Bond represents the bond device id, e.g. "bond0"
+	Bond uint32 `json:"bond,omitempty"`
+	// BondSlaves contains all physical NICs, e.g. ["eth1","eth2"]
+	BondSlaves []string `json:"bondSlaves,omitempty"`
+}
+
+// RDMATopology describes VFs information per RDMA device
+type RDMATopology struct {
+	// VFs contains all VFs information, the key is RDMA device minor id.
+	VFs map[int32][]VF `json:"vfs,omitempty"`
+}
+
+type VF struct {
+	Name     string     `json:"name,omitempty"`
+	BondName string     `json:"bondName,omitempty"`
+	BusID    string     `json:"busID,omitempty"`
+	Minor    int32      `json:"minor"`
+	Priority VFPriority `json:"priority,omitempty"`
+}
+
+type VFPriority string
+
+const (
+	VFPriorityHigh VFPriority = "VFPriorityHigh"
+	VFPriorityLow  VFPriority = "VFPriorityLow"
+)
+
+type DeviceAllocationExtension struct {
+	*RDMAAllocatedExtension `json:",inline"`
+}
+
+type RDMAAllocatedExtension struct {
+	VFs        []*VF    `json:"vfs,omitempty"`
+	BondSlaves []string `json:"bondSlaves,omitempty"`
+}
+
+type VFMeta struct {
+	BondName   string   `json:"bond-name,omitempty"`
+	BondSlaves []string `json:"bond-slaves,omitempty"`
+	VFIndex    int      `json:"vf-index"`
+	PCIAddress string   `json:"pci-address,omitempty"`
+}
+
+type DevicePCIInfo struct {
+	Type  schedulingv1alpha1.DeviceType `json:"type,omitempty"`
+	Minor int32                         `json:"minor,omitempty"`
+	BusID string                        `json:"busID,omitempty"`
+}
+
+func GetDeviceTopology(annotations map[string]string) (*DeviceTopology, error) {
+	var deviceTopology DeviceTopology
+	if s, ok := annotations[AnnotationDeviceTopology]; ok {
+		if err := json.Unmarshal([]byte(s), &deviceTopology); err != nil {
+			return nil, err
+		}
+	}
+	return &deviceTopology, nil
+}
+
+func GetRDMATopology(annotations map[string]string) (*RDMATopology, error) {
+	var rdmaTopology RDMATopology
+	if s, ok := annotations[AnnotationRDMATopology]; ok {
+		if err := json.Unmarshal([]byte(s), &rdmaTopology); err != nil {
+			return nil, err
+		}
+	}
+	return &rdmaTopology, nil
+}
+
+func GetDriverVersions(annotations map[string]string) (NVIDIADriverVersions, error) {
+	var versions NVIDIADriverVersions
+	if s, ok := annotations[AnnotationNVIDIADriverVersions]; ok {
+		if err := json.Unmarshal([]byte(s), &versions); err != nil {
+			return nil, err
+		}
+	}
+	return versions, nil
+}
+
+func GetGPUSelector(annotations map[string]string) (*GPUSelector, error) {
+	var selector GPUSelector
+	if s, ok := annotations[AnnotationNVIDIAGPUSelector]; ok {
+		if err := json.Unmarshal([]byte(s), &selector); err != nil {
+			return nil, err
+		}
+	}
+	return &selector, nil
+}
+
+func SetVFMeta(pod *corev1.Pod, vfMetas []VFMeta) error {
+	if pod.Annotations == nil {
+		pod.Annotations = map[string]string{}
+	}
+	data, err := json.Marshal(vfMetas)
+	if err != nil {
+		return err
+	}
+	pod.Annotations[AnnotationNetworkingVFMeta] = string(data)
+	return nil
+}
+
+func GetDevicePCIInfos(annotations map[string]string) ([]DevicePCIInfo, error) {
+	var infos []DevicePCIInfo
+	if s, ok := annotations[AnnotationDevicePCIInfos]; ok {
+		if err := json.Unmarshal([]byte(s), &infos); err != nil {
+			return nil, err
+		}
+	}
+	return infos, nil
+}
