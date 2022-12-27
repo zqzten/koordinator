@@ -19,6 +19,7 @@ package deviceshare
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -33,7 +34,9 @@ import (
 	"github.com/koordinator-sh/koordinator/apis/extension/ack"
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
+	schedulingv1alpha1listers "github.com/koordinator-sh/koordinator/pkg/client/listers/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/features"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 )
 
 func (p *Plugin) appendInternalAnnotations(pod *corev1.Pod, allocResult apiext.DeviceAllocations, nodeName string) error {
@@ -45,7 +48,13 @@ func (p *Plugin) appendInternalAnnotations(pod *corev1.Pod, allocResult apiext.D
 		gpuMemoryPod := allocResult[schedulingv1alpha1.GPU][0].Resources[apiext.GPUMemory]
 		pod.Annotations[ack.AnnotationAliyunEnvMemPod] = fmt.Sprintf("%v", gpuMemoryPod.Value()/1024/1024/1024)
 	}
-	return appendUnifiedDeviceAllocStatus(pod, allocResult)
+	if err := appendUnifiedDeviceAllocStatus(pod, allocResult); err != nil {
+		return err
+	}
+	if err := appendNetworkingVFMetas(pod, allocResult); err != nil {
+		return err
+	}
+	return appendRundResult(pod, allocResult, p)
 }
 
 func isVirtualGPUCard(alloc apiext.DeviceAllocations) bool {
@@ -210,4 +219,160 @@ func isExclusiveGPURes(res map[string]apiresource.Quantity) bool {
 		}
 	}
 	return true
+}
+
+func appendNetworkingVFMetas(pod *corev1.Pod, allocResult apiext.DeviceAllocations) error {
+	rdmaAllocs, ok := allocResult[schedulingv1alpha1.RDMA]
+	if !ok {
+		return nil
+	}
+	var metas []extunified.VFMeta
+	for _, v := range rdmaAllocs {
+		if len(v.Extension) == 0 {
+			continue
+		}
+		var allocationExt extunified.DeviceAllocationExtension
+		if err := json.Unmarshal(v.Extension, &allocationExt); err != nil {
+			return err
+		}
+		if allocationExt.RDMAAllocatedExtension != nil {
+			for _, vf := range allocationExt.RDMAAllocatedExtension.VFs {
+				metas = append(metas, extunified.VFMeta{
+					BondName:   vf.BondName,
+					BondSlaves: allocationExt.BondSlaves,
+					VFIndex:    int(vf.Minor),
+					PCIAddress: vf.BusID,
+				})
+			}
+		}
+	}
+	if len(metas) == 0 {
+		return nil
+	}
+	return extunified.SetVFMeta(pod, metas)
+}
+
+func getDevicesBusID(pod *corev1.Pod, allocResult apiext.DeviceAllocations, deviceLister schedulingv1alpha1listers.DeviceLister) (map[schedulingv1alpha1.DeviceType]map[int]string, error) {
+	device, err := deviceLister.Get(pod.Spec.NodeName)
+	if err != nil {
+		return nil, fmt.Errorf("not found nodeDevice for node %v", pod.Spec.NodeName)
+	}
+
+	pciInfos, err := extunified.GetDevicePCIInfos(device.Annotations)
+	if err != nil {
+		return nil, err
+	}
+	pciInfoMap := map[schedulingv1alpha1.DeviceType]map[int32]extunified.DevicePCIInfo{}
+	for _, v := range pciInfos {
+		m := pciInfoMap[v.Type]
+		if m == nil {
+			m = map[int32]extunified.DevicePCIInfo{}
+			pciInfoMap[v.Type] = m
+		}
+		m[v.Minor] = v
+	}
+
+	devicesBusID := map[schedulingv1alpha1.DeviceType]map[int]string{}
+
+	for deviceType, allocations := range allocResult {
+		if deviceType != schedulingv1alpha1.GPU && deviceType != extunified.NVSwitchDeviceType {
+			continue
+		}
+		devices := pciInfoMap[deviceType]
+		if len(devices) == 0 {
+			return nil, fmt.Errorf("not found %v devices on node %v", deviceType, pod.Spec.NodeName)
+		}
+		m := devicesBusID[deviceType]
+		if m == nil {
+			m = map[int]string{}
+			devicesBusID[deviceType] = m
+		}
+		for _, v := range allocations {
+			d, ok := devices[v.Minor]
+			if !ok {
+				return nil, fmt.Errorf("not found %v device by minor %d on node %v", deviceType, v.Minor, pod.Spec.NodeName)
+			}
+			m[int(v.Minor)] = d.BusID
+		}
+	}
+
+	return devicesBusID, nil
+}
+
+type deviceMinorBusIDPair struct {
+	minor int
+	busID string
+}
+
+func toDeviceMinorBusIDPairs(busIDs map[int]string) []deviceMinorBusIDPair {
+	if len(busIDs) == 0 {
+		return nil
+	}
+	var pairs []deviceMinorBusIDPair
+	for k, v := range busIDs {
+		pairs = append(pairs, deviceMinorBusIDPair{
+			minor: k,
+			busID: v,
+		})
+	}
+	return pairs
+}
+
+func appendRundResult(pod *corev1.Pod, allocResult apiext.DeviceAllocations, pl *Plugin) error {
+	if pod.Spec.RuntimeClassName == nil || *pod.Spec.RuntimeClassName != "rund" {
+		return nil
+	}
+	extendedHandle, ok := pl.handle.(frameworkext.ExtendedHandle)
+	if !ok {
+		return fmt.Errorf("expect handle to be type frameworkext.ExtendedHandle, got %T", pl.handle)
+	}
+	deviceLister := extendedHandle.KoordinatorSharedInformerFactory().Scheduling().V1alpha1().Devices().Lister()
+	devicesBusID, err := getDevicesBusID(pod, allocResult, deviceLister)
+	if err != nil {
+		return err
+	}
+
+	var passthroughDevices []string
+	var nvSwitches []string
+	for _, deviceType := range []schedulingv1alpha1.DeviceType{schedulingv1alpha1.GPU, extunified.NVSwitchDeviceType} {
+		busIDs := devicesBusID[deviceType]
+		if len(busIDs) == 0 {
+			continue
+		}
+		pairs := toDeviceMinorBusIDPairs(busIDs)
+		sort.Slice(pairs, func(i, j int) bool {
+			return pairs[i].minor < pairs[j].minor
+		})
+		for _, v := range pairs {
+			passthroughDevices = append(passthroughDevices, v.busID)
+			if deviceType == extunified.NVSwitchDeviceType {
+				nvSwitches = append(nvSwitches, strconv.Itoa(v.minor))
+			}
+		}
+	}
+
+	if pod.Annotations == nil {
+		pod.Annotations = map[string]string{}
+	}
+	if len(passthroughDevices) > 0 {
+		pod.Annotations[extunified.AnnotationRundPassthoughPCI] = strings.Join(passthroughDevices, ",")
+	}
+	if len(nvSwitches) > 0 {
+		pod.Annotations[extunified.AnnotationRundNVSwitchOrder] = strings.Join(nvSwitches, ",")
+	}
+
+	device, err := deviceLister.Get(pod.Spec.NodeName)
+	if err != nil {
+		return err
+	}
+	matchedVersion, err := matchDriverVersions(pod, device)
+	if err != nil {
+		return nil
+	}
+	if matchedVersion == "" {
+		return fmt.Errorf("unmatched driver versions")
+	}
+
+	pod.Annotations[extunified.AnnotationRundNvidiaDriverVersion] = matchedVersion
+	return nil
 }

@@ -129,10 +129,10 @@ func (f *testSharedLister) Get(nodeName string) (*framework.NodeInfo, error) {
 type pluginTestSuit struct {
 	framework.Handle
 	framework.Framework
+	ExtendedHandle                   frameworkext.ExtendedHandle
 	koordinatorSharedInformerFactory koordinatorinformers.SharedInformerFactory
 	sharedInformerFactory            informers.SharedInformerFactory
 	proxyNew                         runtime.PluginFactory
-	plugin                           framework.Plugin
 }
 
 func proxyPluginFactory(extendHandle *fakeExtendedHandle, factory runtime.PluginFactory) runtime.PluginFactory {
@@ -154,23 +154,11 @@ func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
 		ExtendedHandle: extendHandle,
 		cs:             kubefake.NewSimpleClientset(),
 	}
-
 	proxyNew := proxyPluginFactory(fakeHandle, New)
 
-	deviceSharePluginConfig := schedulerconfig.PluginConfig{
-		Name: Name,
-		Args: &config.DeviceShareArgs{},
-	}
-
 	registeredPlugins := []schedulertesting.RegisterPluginFunc{
-		func(reg *runtime.Registry, profile *schedulerconfig.KubeSchedulerProfile) {
-			profile.PluginConfig = []schedulerconfig.PluginConfig{
-				deviceSharePluginConfig,
-			}
-		},
 		schedulertesting.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 		schedulertesting.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
-		schedulertesting.RegisterPreFilterPlugin(Name, proxyNew),
 	}
 
 	cs := kubefake.NewSimpleClientset()
@@ -187,6 +175,8 @@ func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
 	assert.Nil(t, err)
 	return &pluginTestSuit{
 		Handle:                           fh,
+		ExtendedHandle:                   extendHandle,
+		sharedInformerFactory:            informerFactory,
 		koordinatorSharedInformerFactory: koordSharedInformerFactory,
 		proxyNew:                         proxyNew,
 	}
