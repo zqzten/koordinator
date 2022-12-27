@@ -114,6 +114,7 @@ func (f *testSharedLister) Get(nodeName string) (*framework.NodeInfo, error) {
 type pluginTestSuit struct {
 	framework.Framework
 	koordClientSet                   koordclientset.Interface
+	ExtendedHandle                   frameworkext.ExtendedHandle
 	koordinatorSharedInformerFactory koordinatorinformers.SharedInformerFactory
 	proxyNew                         runtime.PluginFactory
 }
