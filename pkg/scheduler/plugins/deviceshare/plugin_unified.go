@@ -63,6 +63,10 @@ func isVirtualGPUCard(alloc apiext.DeviceAllocations) bool {
 }
 
 func appendUnifiedDeviceAllocStatus(pod *corev1.Pod, deviceAllocations apiext.DeviceAllocations) error {
+	if !enableUnifiedDevice {
+		return nil
+	}
+
 	allocStatus := &unifiedresourceext.MultiDeviceAllocStatus{}
 	allocStatus.AllocStatus = make(map[unifiedschedulingv1beta1.DeviceType][]unifiedresourceext.ContainerDeviceAllocStatus)
 	var minors []string

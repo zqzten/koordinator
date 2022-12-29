@@ -19,6 +19,7 @@ package deviceshare
 import (
 	"context"
 
+	"github.com/spf13/pflag"
 	cosv1beta1 "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/scheduling/v1beta1"
 	cosclientset "gitlab.alibaba-inc.com/cos/unified-resource-api/client/clientset/versioned"
 	cosinformers "gitlab.alibaba-inc.com/cos/unified-resource-api/client/informers/externalversions"
@@ -34,8 +35,18 @@ import (
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 )
 
+var enableUnifiedDevice bool
+
+func init() {
+	pflag.BoolVar(&enableUnifiedDevice, "enable-unified-device", enableUnifiedDevice, "enable unified device, disable by default")
+}
+
 func registerUnifiedDeviceEventHandler(deviceCache *nodeDeviceCache, handle framework.Handle) {
 	hook.value.Store(deviceCache)
+
+	if !enableUnifiedDevice {
+		return
+	}
 
 	cosClientSet, ok := handle.(cosclientset.Interface)
 	if !ok {
