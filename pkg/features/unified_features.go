@@ -55,7 +55,7 @@ const (
 
 var defaultUnifiedFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	DefaultEnableACUForLSPod:    {Default: true, PreRelease: featuregate.Beta},
-	ResourceSummaryReport:       {Default: true, PreRelease: featuregate.Beta},
+	ResourceSummaryReport:       {Default: false, PreRelease: featuregate.Beta},
 	ResourceSummaryReportDryRun: {Default: false, PreRelease: featuregate.Beta},
 	RecommenderControl:          {Default: false, PreRelease: featuregate.Deprecated},
 	EnableResourceFlavor:        {Default: false, PreRelease: featuregate.Beta},
