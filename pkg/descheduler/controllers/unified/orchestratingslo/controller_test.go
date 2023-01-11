@@ -1167,6 +1167,8 @@ func TestMigrateFlow(t *testing.T) {
 	err = r.Client.List(context.TODO(), migrateJobList, listOpts)
 	assert.NoError(err)
 	assert.Len(migrateJobList.Items, 1)
+	delete(migrateJobList.Items[0].Annotations, evictor.AnnotationEvictReason)
+	delete(migrateJobList.Items[0].Annotations, evictor.AnnotationEvictTrigger)
 
 	expectMigrateJob := &koordsev1alpha1.PodMigrationJob{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1502,6 +1504,9 @@ func TestMigrateFlowWithMaxMigratingEqualMaxUnavailable(t *testing.T) {
 			break
 		}
 		job := &migrateJobList.Items[i]
+		delete(job.Annotations, evictor.AnnotationEvictTrigger)
+		delete(job.Annotations, evictor.AnnotationEvictReason)
+
 		expectMigrateJob := &koordsev1alpha1.PodMigrationJob{
 			ObjectMeta: metav1.ObjectMeta{
 				ResourceVersion: "1",
@@ -1697,6 +1702,9 @@ func TestMigrateFlowWithMaxMigratingGreaterThanMaxUnavailable(t *testing.T) {
 			break
 		}
 		job := &migrateJobList.Items[i]
+		delete(job.Annotations, evictor.AnnotationEvictTrigger)
+		delete(job.Annotations, evictor.AnnotationEvictReason)
+
 		expectMigrateJob := &koordsev1alpha1.PodMigrationJob{
 			ObjectMeta: metav1.ObjectMeta{
 				ResourceVersion: "1",
@@ -1892,6 +1900,9 @@ func TestMigrateFlowWithMaxMigratingPerNode(t *testing.T) {
 			break
 		}
 		job := &migrateJobList.Items[i]
+		delete(job.Annotations, evictor.AnnotationEvictTrigger)
+		delete(job.Annotations, evictor.AnnotationEvictReason)
+
 		expectMigrateJob := &koordsev1alpha1.PodMigrationJob{
 			ObjectMeta: metav1.ObjectMeta{
 				ResourceVersion: "1",
