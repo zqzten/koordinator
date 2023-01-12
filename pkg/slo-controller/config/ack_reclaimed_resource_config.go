@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"k8s.io/utils/pointer"
+
+	"github.com/koordinator-sh/koordinator/apis/extension"
 )
 
 const (
@@ -26,7 +28,7 @@ var (
 	}
 )
 
-func ParseReclaimedResourceConfig(strategy *ColocationStrategy) (*ReclaimedResourceConfig, error) {
+func ParseReclaimedResourceConfig(strategy *extension.ColocationStrategy) (*ReclaimedResourceConfig, error) {
 	if strategy == nil || strategy.Extensions == nil {
 		return nil, nil
 	}

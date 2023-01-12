@@ -2,7 +2,7 @@
 # Ignore build and test binaries.
 bin/
 testbin/
-vendor/
+#vendor/
 
 !bin/start-koord-manager.sh
 !bin/kubectl*

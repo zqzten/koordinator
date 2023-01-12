@@ -20,7 +20,7 @@ func init() {
 type ReclaimedResourcePlugin struct {
 }
 
-func (r *ReclaimedResourcePlugin) Execute(strategy *config.ColocationStrategy, node *corev1.Node) error {
+func (r *ReclaimedResourcePlugin) Execute(strategy *extension.ColocationStrategy, node *corev1.Node) error {
 	// clear reclaimed resource if batch resource not exist
 	if _, exist := node.Status.Capacity[extension.BatchCPU]; !exist {
 		delete(node.Status.Capacity, uniext.AlibabaCloudReclaimedCPU)
