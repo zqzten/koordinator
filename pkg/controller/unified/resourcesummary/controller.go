@@ -204,7 +204,18 @@ func (r *Reconciler) getCurrentStatus(ctx context.Context, resourceSummary *v1be
 			Resources:       nil,
 		}
 	}
-	podUsedResource, err := statisticsPodUsedResource(candidateNodes, nodeOwnedPods, resourceSummary.Spec.PodStatistics)
+	nodeGPUCapacity, err := r.getGPUCapacityForCandidateNodes(ctx, candidateNodes)
+	if err != nil {
+		klog.Errorf("[ResourceSummary] Failed to getGPUCapacityForCandidateNodes, err:%v", err)
+		return &v1beta1.ResourceSummaryStatus{
+			Phase:           v1beta1.ResourceSummaryFailed,
+			Message:         err.Error(),
+			Reason:          "FailedStatistics",
+			UpdateTimestamp: metav1.Now(),
+			Resources:       nil,
+		}
+	}
+	podUsedResource, err := statisticsPodUsedResource(candidateNodes, nodeOwnedPods, resourceSummary.Spec.PodStatistics, nodeGPUCapacity)
 	if err != nil {
 		return &v1beta1.ResourceSummaryStatus{
 			Phase:             v1beta1.ResourceSummaryFailed,
@@ -216,7 +227,7 @@ func (r *Reconciler) getCurrentStatus(ctx context.Context, resourceSummary *v1be
 		}
 	}
 	podUsedStatistics := convertToPodUsedStatistics(resourceSummary.Spec.PodStatistics, podUsedResource)
-	capacity, requested, free, allocatablePodNums := statisticsNodeRelated(candidateNodes, nodeOwnedPods, resourceSummary.Spec.ResourceSpecs)
+	capacity, requested, free, allocatablePodNums := statisticsNodeRelated(candidateNodes, nodeOwnedPods, resourceSummary.Spec.ResourceSpecs, nodeGPUCapacity)
 	nodeResourceSummary := convertToNodeResourceSummary(capacity, requested, free)
 	resourceSpecStats := convertToResourceSpecStats(allocatablePodNums)
 	return &v1beta1.ResourceSummaryStatus{
@@ -283,7 +294,7 @@ func (r *Reconciler) getPodForCandidateNodes(ctx context.Context, candidateNodes
 }
 
 func statisticsPodUsedResource(candidateNodes *corev1.NodeList,
-	nodeOwnedPods map[string][]*corev1.Pod, podStatistics []v1beta1.PodStatistics) ([]map[uniext.PriorityClass]corev1.ResourceList, error) {
+	nodeOwnedPods map[string][]*corev1.Pod, podStatistics []v1beta1.PodStatistics, nodeGPUCapacity map[string]corev1.ResourceList) ([]map[uniext.PriorityClass]corev1.ResourceList, error) {
 	var rawPodUsed []map[uniext.PriorityClass]corev1.ResourceList
 	n := len(podStatistics)
 	if n == 0 {
@@ -303,12 +314,13 @@ func statisticsPodUsedResource(candidateNodes *corev1.NodeList,
 	}
 	for _, node := range candidateNodes.Items {
 		ownedPods := nodeOwnedPods[node.Name]
+		gpuCapacity := nodeGPUCapacity[node.Name]
 		for i := 0; i < n; i++ {
 			for _, ownedPod := range ownedPods {
 				if !podSelectors[i].Matches(labels.Set(ownedPod.Labels)) {
 					continue
 				}
-				podPriorityUsed := GetPodPriorityUsed(ownedPod, &node)
+				podPriorityUsed := GetPodPriorityUsed(ownedPod, &node, gpuCapacity)
 				rawPodUsed[i][podPriorityUsed.PriorityClass] = quotav1.Add(
 					rawPodUsed[i][podPriorityUsed.PriorityClass], podPriorityUsed.Allocated)
 			}
@@ -344,7 +356,7 @@ func convertToPodUsedStatistics(podStatistics []v1beta1.PodStatistics, rawPodUse
 }
 
 func statisticsNodeRelated(candidateNodes *corev1.NodeList,
-	nodeOwnedPods map[string][]*corev1.Pod, resourceSpecs []v1beta1.ResourceSpec) (capacity, requested, free map[uniext.PriorityClass]corev1.ResourceList, allocatablePodNum map[string]map[uniext.PriorityClass]int32) {
+	nodeOwnedPods map[string][]*corev1.Pod, resourceSpecs []v1beta1.ResourceSpec, nodeGPUCapacity map[string]corev1.ResourceList) (capacity, requested, free map[uniext.PriorityClass]corev1.ResourceList, allocatablePodNum map[string]map[uniext.PriorityClass]int32) {
 	capacity = map[uniext.PriorityClass]corev1.ResourceList{}
 	requested = map[uniext.PriorityClass]corev1.ResourceList{}
 	free = map[uniext.PriorityClass]corev1.ResourceList{}
@@ -355,7 +367,8 @@ func statisticsNodeRelated(candidateNodes *corev1.NodeList,
 	}
 	for _, node := range candidateNodes.Items {
 		ownedPods := nodeOwnedPods[node.Name]
-		nodeCapacity, nodeRequested, nodeFree := statisticsNodeResource(&node, ownedPods)
+		gpuCapacity := nodeGPUCapacity[node.Name]
+		nodeCapacity, nodeRequested, nodeFree := statisticsNodeResource(&node, ownedPods, gpuCapacity)
 		for _, priorityClassType := range priorityClassTypes {
 			capacity[priorityClassType] = quotav1.Add(capacity[priorityClassType], nodeCapacity[priorityClassType])
 			requested[priorityClassType] = quotav1.Add(requested[priorityClassType], nodeRequested[priorityClassType])
@@ -368,9 +381,10 @@ func statisticsNodeRelated(candidateNodes *corev1.NodeList,
 	return
 }
 
-func statisticsNodeResource(node *corev1.Node, ownPods []*corev1.Pod) (capacity, requested, free map[uniext.PriorityClass]corev1.ResourceList) {
+func statisticsNodeResource(node *corev1.Node, ownPods []*corev1.Pod, gpuCapacity corev1.ResourceList) (capacity, requested, free map[uniext.PriorityClass]corev1.ResourceList) {
 	capacity = map[uniext.PriorityClass]corev1.ResourceList{}
 	nodeAllocatable := GetAllocatableByOverQuota(node)
+	addGPUCapacityToNodeAllocatable(nodeAllocatable, gpuCapacity)
 	for _, priorityClass := range priorityClassTypes {
 		capacity[priorityClass] = quotav1.Add(capacity[priorityClass], GetNodePriorityResource(nodeAllocatable, priorityClass, node))
 	}
@@ -378,8 +392,9 @@ func statisticsNodeResource(node *corev1.Node, ownPods []*corev1.Pod) (capacity,
 	requested = map[uniext.PriorityClass]corev1.ResourceList{}
 	allRequested := corev1.ResourceList{}
 	for _, ownedPod := range ownPods {
-		priorityUsed := GetPodPriorityUsed(ownedPod, node)
+		priorityUsed := GetPodPriorityUsed(ownedPod, node, gpuCapacity)
 		priorityUsed.Allocated[corev1.ResourcePods] = *resource.NewQuantity(1, resource.DecimalSI)
+
 		requested[priorityUsed.PriorityClass] = quotav1.Add(requested[priorityUsed.PriorityClass], priorityUsed.Allocated)
 		allRequested = quotav1.Add(allRequested, priorityUsed.Allocated)
 	}
@@ -435,10 +450,10 @@ func convertToResourceSpecStats(allocatablePodNums map[string]map[uniext.Priorit
 	resourceSpecStats := make([]*v1beta1.ResourceSpecStat, 0)
 	for name, podNums := range allocatablePodNums {
 		allocatableResources := make([]*v1beta1.ResourceSpecStateAllocatable, 0)
-		for priorityClass, count := range podNums {
+		for _, priorityClassType := range priorityClassTypes {
 			allocatableResources = append(allocatableResources, &v1beta1.ResourceSpecStateAllocatable{
-				PriorityClass: priorityClass,
-				Count:         count,
+				PriorityClass: priorityClassType,
+				Count:         podNums[priorityClassType],
 			})
 		}
 		resourceSpecStats = append(resourceSpecStats, &v1beta1.ResourceSpecStat{
