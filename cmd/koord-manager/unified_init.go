@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	cosv1beta1 "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/scheduling/v1beta1"
 	univ1bata1 "gitlab.alibaba-inc.com/unischeduler/api/apis/scheduling/v1beta1"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
@@ -30,7 +31,9 @@ import (
 
 func init() {
 	_ = univ1bata1.AddToScheme(clientgoscheme.Scheme)
+	clientgoscheme.Scheme.AddKnownTypes(cosv1beta1.GroupVersion, &cosv1beta1.Device{}, &cosv1beta1.DeviceList{})
 	_ = univ1bata1.AddToScheme(scheme)
+	scheme.AddKnownTypes(cosv1beta1.GroupVersion, &cosv1beta1.Device{}, &cosv1beta1.DeviceList{})
 
 	controllerAddFuncs["ResourceSummary"] = resourcesummary.Add
 }
