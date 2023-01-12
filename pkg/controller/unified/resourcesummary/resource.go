@@ -47,7 +47,7 @@ func GetAllocatableByOverQuota(node *corev1.Node) corev1.ResourceList {
 	return allocatable
 }
 
-func GetPodPriorityUsed(pod *corev1.Pod, node *corev1.Node, resourceNames ...corev1.ResourceName) v1beta1.PodPriorityUsed {
+func GetPodPriorityUsed(pod *corev1.Pod, node *corev1.Node, gpuCapacity corev1.ResourceList, resourceNames ...corev1.ResourceName) v1beta1.PodPriorityUsed {
 	requested := corev1.ResourceList{}
 	for _, container := range pod.Spec.Containers {
 		if extunified.IsContainerIgnoreResource(&container) {
@@ -69,7 +69,7 @@ func GetPodPriorityUsed(pod *corev1.Pod, node *corev1.Node, resourceNames ...cor
 	requested = priorityPodRequestedToNormal(requested, unifiedPriority)
 
 	scaleCPUAndACU(pod, node, requested)
-
+	fillGPUResource(requested, gpuCapacity)
 	if len(resourceNames) > 0 {
 		requested = quotav1.Mask(requested, resourceNames)
 	}
@@ -181,36 +181,33 @@ func GetNodePriorityResource(resourceList corev1.ResourceList, priorityClassType
 	return result
 }
 
-func CalculateFree(capacity, requested map[uniext.PriorityClass]corev1.ResourceList, allRequested corev1.ResourceList,
+func CalculateFree(capacityByPriorityClass, requested map[uniext.PriorityClass]corev1.ResourceList, allRequested corev1.ResourceList,
 ) map[uniext.PriorityClass]corev1.ResourceList {
 	var overSellable []corev1.ResourceName
 	for resourceName := range overSellPercents.percents {
 		overSellable = append(overSellable, resourceName)
 	}
-	noOverSellable := quotav1.Difference(quotav1.ResourceNames(capacity[uniext.PriorityProd]), overSellable)
+	noOverSellable := quotav1.Difference(quotav1.ResourceNames(capacityByPriorityClass[uniext.PriorityProd]), overSellable)
+	guaranteedCapacity := scaleResourceByOverSell(capacityByPriorityClass[uniext.PriorityProd], overSellPercents.percents)
+	guaranteedFree := quotav1.Mask(quotav1.Subtract(guaranteedCapacity, allRequested), overSellable)
 
 	free := map[uniext.PriorityClass]corev1.ResourceList{}
-	for priorityClassType, resourceList := range capacity {
-		free[priorityClassType] = quotav1.Mask(quotav1.Subtract(resourceList, allRequested), noOverSellable)
-		overCommittableFree := quotav1.Mask(quotav1.Subtract(resourceList, requested[priorityClassType]), overSellable)
-		free[priorityClassType] = quotav1.Add(free[priorityClassType], overCommittableFree)
-	}
-
-	guaranteedCapacity := getResourceByOverSell(capacity[uniext.PriorityProd])
-	guaranteedFree := quotav1.Mask(quotav1.Subtract(guaranteedCapacity, allRequested), overSellable)
-	for priorityType, freeResource := range free {
+	for priorityClassType, capacity := range capacityByPriorityClass {
+		free[priorityClassType] = quotav1.Subtract(quotav1.Mask(capacity, noOverSellable), quotav1.Mask(allRequested, noOverSellable))
+		overSellableFree := quotav1.Subtract(quotav1.Mask(capacity, overSellable), quotav1.Mask(requested[priorityClassType], overSellable))
 		for resourceName, quantity := range guaranteedFree {
-			if quantity.Cmp(freeResource[resourceName]) < 0 {
-				free[priorityType][resourceName] = quantity
+			if quantity.Cmp(overSellableFree[resourceName]) < 0 {
+				overSellableFree[resourceName] = quantity
 			}
 		}
+		free[priorityClassType] = quotav1.Add(free[priorityClassType], overSellableFree)
 	}
 	return free
 }
 
-func getResourceByOverSell(resourceList corev1.ResourceList) corev1.ResourceList {
+func scaleResourceByOverSell(resourceList corev1.ResourceList, oversellPercents map[corev1.ResourceName]int64) corev1.ResourceList {
 	result := corev1.ResourceList{}
-	for resourceName, percent := range overSellPercents.percents {
+	for resourceName, percent := range oversellPercents {
 		if quantity, found := resourceList[resourceName]; found {
 			result[resourceName] = *resource.NewMilliQuantity(quantity.MilliValue()*percent/100, quantity.Format)
 		}

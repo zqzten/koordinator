@@ -23,6 +23,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	unifiedresourceext "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/extension"
+	cosv1beta1 "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/scheduling/v1beta1"
 	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 	"gitlab.alibaba-inc.com/unischeduler/api/apis/scheduling/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -37,6 +39,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
+	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 )
 
 func Test_statisticsPodUsedResource(t *testing.T) {
@@ -148,7 +151,7 @@ func Test_statisticsPodUsedResource(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := statisticsPodUsedResource(tt.args.candidateNodes, tt.args.nodeOwnedPods, tt.args.podStatistics)
+			got, err := statisticsPodUsedResource(tt.args.candidateNodes, tt.args.nodeOwnedPods, tt.args.podStatistics, nil)
 			tt.wantErr(t, err)
 			for priorityClassType, resourceList := range tt.want[0] {
 				assert.True(t, quotav1.Equals(resourceList, got[0][priorityClassType]))
@@ -176,8 +179,9 @@ func Test_statisticsNodesResource(t *testing.T) {
 					{
 						Resources: corev1.ResourceRequirements{
 							Requests: corev1.ResourceList{
-								corev1.ResourceCPU:    resource.MustParse("1.5"),
-								corev1.ResourceMemory: resource.MustParse("4Gi"),
+								corev1.ResourceCPU:       resource.MustParse("1.5"),
+								corev1.ResourceMemory:    resource.MustParse("4Gi"),
+								extension.GPUMemoryRatio: resource.MustParse("100"),
 							},
 						},
 					},
@@ -208,6 +212,7 @@ func Test_statisticsNodesResource(t *testing.T) {
 							Requests: corev1.ResourceList{
 								corev1.ResourceCPU:    resource.MustParse("1.5"),
 								corev1.ResourceMemory: resource.MustParse("4Gi"),
+								extension.NvidiaGPU:   resource.MustParse("1"),
 							},
 						},
 					},
@@ -222,9 +227,10 @@ func Test_statisticsNodesResource(t *testing.T) {
 		node1Pods = append(node1Pods, pod)
 	}
 	type args struct {
-		candidateNodes *corev1.NodeList
-		nodeOwnedPods  map[string][]*corev1.Pod
-		resourceSpecs  []v1beta1.ResourceSpec
+		candidateNodes  *corev1.NodeList
+		nodeOwnedPods   map[string][]*corev1.Pod
+		resourceSpecs   []v1beta1.ResourceSpec
+		nodeGPUCapacity map[string]corev1.ResourceList
 	}
 	tests := []struct {
 		name                string
@@ -299,6 +305,10 @@ func Test_statisticsNodesResource(t *testing.T) {
 					"node-0": node0Pods,
 					"node-1": node1Pods,
 				},
+				nodeGPUCapacity: map[string]corev1.ResourceList{
+					"node-0": nil,
+					"node-1": nil,
+				},
 				resourceSpecs: []v1beta1.ResourceSpec{
 					{
 						Name:      "test",
@@ -352,6 +362,227 @@ func Test_statisticsNodesResource(t *testing.T) {
 				},
 				uniext.PriorityFree: {
 					corev1.ResourceEphemeralStorage: resource.MustParse("400Gi"),
+				},
+			},
+			wantAllocatableNums: map[string]map[uniext.PriorityClass]int32{
+				"test": {
+					uniext.PriorityProd:  216,
+					uniext.PriorityBatch: 94,
+					uniext.PriorityMid:   0,
+					uniext.PriorityFree:  0,
+				},
+			},
+		},
+		{
+			name: "gpu",
+			args: args{
+				candidateNodes: &corev1.NodeList{
+					Items: []corev1.Node{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "node-0",
+							},
+							Spec: corev1.NodeSpec{
+								Taints: []corev1.Taint{
+									{
+										Key:    "sigma.ali/resource-pool",
+										Value:  "sigma_public",
+										Effect: corev1.TaintEffectNoSchedule,
+									},
+								},
+							},
+							Status: corev1.NodeStatus{
+								Allocatable: corev1.ResourceList{
+									corev1.ResourceCPU:              resource.MustParse("110"),
+									corev1.ResourceMemory:           resource.MustParse("100Gi"),
+									corev1.ResourceEphemeralStorage: resource.MustParse("200Gi"),
+									extension.BatchCPU:              resource.MustParse("50000"),
+									extension.BatchMemory:           resource.MustParse("10Gi"),
+								},
+								Conditions: []corev1.NodeCondition{{
+									Type:   corev1.NodeReady,
+									Status: corev1.ConditionTrue,
+								}},
+							},
+						},
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "node-1",
+							},
+							Spec: corev1.NodeSpec{
+								Taints: []corev1.Taint{
+									{
+										Key:    "sigma.ali/resource-pool",
+										Value:  "sigma_public",
+										Effect: corev1.TaintEffectNoSchedule,
+									},
+								},
+							},
+							Status: corev1.NodeStatus{
+								Allocatable: corev1.ResourceList{
+									corev1.ResourceCPU:              resource.MustParse("110"),
+									corev1.ResourceMemory:           resource.MustParse("100Gi"),
+									corev1.ResourceEphemeralStorage: resource.MustParse("200Gi"),
+									extension.BatchCPU:              resource.MustParse("50000"),
+									extension.BatchMemory:           resource.MustParse("10Gi"),
+								},
+								Conditions: []corev1.NodeCondition{{
+									Type:   corev1.NodeReady,
+									Status: corev1.ConditionTrue,
+								}},
+							},
+						},
+					},
+				},
+				nodeOwnedPods: map[string][]*corev1.Pod{
+					"node-0": node0Pods,
+					"node-1": node1Pods,
+				},
+				nodeGPUCapacity: map[string]corev1.ResourceList{
+					"node-0": map[corev1.ResourceName]resource.Quantity{
+						unifiedresourceext.GPUResourceCore:     resource.MustParse("800"),
+						unifiedresourceext.GPUResourceMem:      resource.MustParse("800Gi"),
+						unifiedresourceext.GPUResourceMemRatio: resource.MustParse("800"),
+					},
+					"node-1": map[corev1.ResourceName]resource.Quantity{
+						unifiedresourceext.GPUResourceCore:     resource.MustParse("800"),
+						unifiedresourceext.GPUResourceMem:      resource.MustParse("800Gi"),
+						unifiedresourceext.GPUResourceMemRatio: resource.MustParse("800"),
+					},
+				},
+				resourceSpecs: []v1beta1.ResourceSpec{
+					{
+						Name:      "test",
+						Resources: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")},
+					},
+				},
+			},
+			wantCapacity: map[uniext.PriorityClass]corev1.ResourceList{
+				uniext.PriorityProd: {
+					corev1.ResourceCPU:                     resource.MustParse("220"),
+					corev1.ResourceMemory:                  resource.MustParse("200Gi"),
+					corev1.ResourceEphemeralStorage:        resource.MustParse("400Gi"),
+					extension.KoordGPU:                     resource.MustParse("1600"),
+					extension.GPUCore:                      resource.MustParse("1600"),
+					extension.GPUMemory:                    resource.MustParse("1600Gi"),
+					extension.GPUMemoryRatio:               resource.MustParse("1600"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("1600"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("1600"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("1600Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("1600"),
+				},
+				uniext.PriorityBatch: {
+					corev1.ResourceCPU:                     resource.MustParse("100"),
+					corev1.ResourceMemory:                  resource.MustParse("20Gi"),
+					corev1.ResourceEphemeralStorage:        resource.MustParse("400Gi"),
+					extension.KoordGPU:                     resource.MustParse("1600"),
+					extension.GPUCore:                      resource.MustParse("1600"),
+					extension.GPUMemory:                    resource.MustParse("1600Gi"),
+					extension.GPUMemoryRatio:               resource.MustParse("1600"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("1600"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("1600"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("1600Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("1600"),
+				},
+				uniext.PriorityMid: {
+					corev1.ResourceEphemeralStorage:        resource.MustParse("400Gi"),
+					extension.KoordGPU:                     resource.MustParse("1600"),
+					extension.GPUCore:                      resource.MustParse("1600"),
+					extension.GPUMemory:                    resource.MustParse("1600Gi"),
+					extension.GPUMemoryRatio:               resource.MustParse("1600"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("1600"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("1600"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("1600Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("1600"),
+				},
+				uniext.PriorityFree: {
+					corev1.ResourceEphemeralStorage:        resource.MustParse("400Gi"),
+					extension.KoordGPU:                     resource.MustParse("1600"),
+					extension.GPUCore:                      resource.MustParse("1600"),
+					extension.GPUMemory:                    resource.MustParse("1600Gi"),
+					extension.GPUMemoryRatio:               resource.MustParse("1600"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("1600"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("1600"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("1600Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("1600"),
+				},
+			},
+			wantRequested: map[uniext.PriorityClass]corev1.ResourceList{
+				uniext.PriorityProd: {
+					corev1.ResourceCPU:                     resource.MustParse("3"),
+					corev1.ResourceMemory:                  resource.MustParse("8Gi"),
+					extension.KoordGPU:                     resource.MustParse("200"),
+					extension.GPUCore:                      resource.MustParse("200"),
+					extension.GPUMemory:                    resource.MustParse("200Gi"),
+					extension.GPUMemoryRatio:               resource.MustParse("200"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("200"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("200"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("200Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("200"),
+				},
+				uniext.PriorityBatch: {
+					corev1.ResourceCPU:                     resource.MustParse("6"),
+					corev1.ResourceMemory:                  resource.MustParse("16Gi"),
+					extension.KoordGPU:                     resource.MustParse("400"),
+					extension.GPUCore:                      resource.MustParse("400"),
+					extension.GPUMemory:                    resource.MustParse("400Gi"),
+					extension.GPUMemoryRatio:               resource.MustParse("400"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("400"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("400"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("400Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("400"),
+				},
+				uniext.PriorityMid:  {},
+				uniext.PriorityFree: {},
+			},
+			wantFree: map[uniext.PriorityClass]corev1.ResourceList{
+				uniext.PriorityProd: {
+					corev1.ResourceCPU:                     resource.MustParse("217"),
+					corev1.ResourceMemory:                  resource.MustParse("176Gi"),
+					corev1.ResourceEphemeralStorage:        resource.MustParse("400Gi"),
+					extension.KoordGPU:                     resource.MustParse("1000"),
+					extension.GPUCore:                      resource.MustParse("1000"),
+					extension.GPUMemory:                    resource.MustParse("1000Gi"),
+					extension.GPUMemoryRatio:               resource.MustParse("1000"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("1000"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("1000"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("1000Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("1000"),
+				},
+				uniext.PriorityBatch: {
+					corev1.ResourceCPU:                     resource.MustParse("94"),
+					corev1.ResourceMemory:                  resource.MustParse("4Gi"),
+					corev1.ResourceEphemeralStorage:        resource.MustParse("400Gi"),
+					extension.KoordGPU:                     resource.MustParse("1000"),
+					extension.GPUCore:                      resource.MustParse("1000"),
+					extension.GPUMemory:                    resource.MustParse("1000Gi"),
+					extension.GPUMemoryRatio:               resource.MustParse("1000"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("1000"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("1000"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("1000Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("1000"),
+				},
+				uniext.PriorityMid: {
+					corev1.ResourceEphemeralStorage:        resource.MustParse("400Gi"),
+					extension.KoordGPU:                     resource.MustParse("1000"),
+					extension.GPUCore:                      resource.MustParse("1000"),
+					extension.GPUMemory:                    resource.MustParse("1000Gi"),
+					extension.GPUMemoryRatio:               resource.MustParse("1000"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("1000"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("1000"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("1000Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("1000"),
+				},
+				uniext.PriorityFree: {
+					corev1.ResourceEphemeralStorage:        resource.MustParse("400Gi"),
+					extension.KoordGPU:                     resource.MustParse("1000"),
+					extension.GPUCore:                      resource.MustParse("1000"),
+					extension.GPUMemory:                    resource.MustParse("1000Gi"),
+					extension.GPUMemoryRatio:               resource.MustParse("1000"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("1000"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("1000"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("1000Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("1000"),
 				},
 			},
 			wantAllocatableNums: map[string]map[uniext.PriorityClass]int32{
@@ -504,10 +735,51 @@ func Test_statisticsNodesResource(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "allocatablePodNums when candidate node is nil",
+			args: args{
+				candidateNodes: &corev1.NodeList{
+					Items: nil,
+				},
+				nodeOwnedPods: map[string][]*corev1.Pod{},
+				resourceSpecs: []v1beta1.ResourceSpec{
+					{
+						Name:      "test",
+						Resources: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")},
+					},
+				},
+			},
+			wantCapacity: map[uniext.PriorityClass]corev1.ResourceList{
+				uniext.PriorityProd:  {},
+				uniext.PriorityBatch: {},
+				uniext.PriorityMid:   {},
+				uniext.PriorityFree:  {},
+			},
+			wantRequested: map[uniext.PriorityClass]corev1.ResourceList{
+				uniext.PriorityProd:  {},
+				uniext.PriorityBatch: {},
+				uniext.PriorityMid:   {},
+				uniext.PriorityFree:  {},
+			},
+			wantFree: map[uniext.PriorityClass]corev1.ResourceList{
+				uniext.PriorityProd:  {},
+				uniext.PriorityBatch: {},
+				uniext.PriorityMid:   {},
+				uniext.PriorityFree:  {},
+			},
+			wantAllocatableNums: map[string]map[uniext.PriorityClass]int32{
+				"test": {
+					uniext.PriorityProd:  0,
+					uniext.PriorityBatch: 0,
+					uniext.PriorityMid:   0,
+					uniext.PriorityFree:  0,
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotCapacity, gotRequested, gotFree, gotAllocatableNums := statisticsNodeRelated(tt.args.candidateNodes, tt.args.nodeOwnedPods, tt.args.resourceSpecs)
+			gotCapacity, gotRequested, gotFree, gotAllocatableNums := statisticsNodeRelated(tt.args.candidateNodes, tt.args.nodeOwnedPods, tt.args.resourceSpecs, tt.args.nodeGPUCapacity)
 			for _, priorityClassType := range priorityClassTypes {
 				klog.Info(priorityClassType)
 				klog.Info(tt.wantCapacity[priorityClassType])
@@ -528,6 +800,12 @@ func TestResourceSummaryReconciler_Reconcile(t *testing.T) {
 	err := clientgoscheme.AddToScheme(scheme)
 	assert.NoError(t, err)
 	err = v1beta1.AddToScheme(scheme)
+	assert.NoError(t, err)
+	err = schedulingv1alpha1.AddToScheme(scheme)
+	assert.NoError(t, err)
+	scheme.AddKnownTypes(cosv1beta1.GroupVersion, &cosv1beta1.Device{})
+	metav1.AddToGroupVersion(scheme, cosv1beta1.GroupVersion)
+
 	assert.NoError(t, err)
 	client := fake.NewClientBuilder().WithScheme(scheme).Build()
 	r := &Reconciler{
