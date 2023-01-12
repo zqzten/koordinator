@@ -118,8 +118,9 @@ func appendUnifiedDeviceAllocStatus(pod *corev1.Pod, deviceAllocations apiext.De
 		pod.Annotations = make(map[string]string)
 	}
 	pod.Annotations[unifiedresourceext.AnnotationMultiDeviceAllocStatus] = string(data)
+	visibleDevices := strings.Join(minors, ",")
 	if len(minors) > 0 {
-		pod.Annotations[unifiedresourceext.AnnotationNVIDIAVisibleDevices] = strings.Join(minors, ",")
+		pod.Annotations[unifiedresourceext.AnnotationNVIDIAVisibleDevices] = visibleDevices
 	}
 
 	if k8sfeature.DefaultFeatureGate.Enabled(features.UnifiedDeviceScheduling) && len(totalGPUResources) > 0 {
@@ -154,11 +155,23 @@ func appendUnifiedDeviceAllocStatus(pod *corev1.Pod, deviceAllocations apiext.De
 			}
 			if needPatch {
 				addContainerGPUResourceForPatch(container, unifiedresourceext.GPUResourceMemRatio, memoryRatio)
+				setContainerEnv(container, &corev1.EnvVar{Name: "NVIDIA_VISIBLE_DEVICES", Value: visibleDevices})
 			}
 		}
 	}
 
 	return nil
+}
+
+func setContainerEnv(container *corev1.Container, envVar *corev1.EnvVar) {
+	for i := range container.Env {
+		if container.Env[i].Name == envVar.Name {
+			container.Env[i] = *envVar
+			return
+		}
+	}
+
+	container.Env = append(container.Env, *envVar)
 }
 
 // addContainerResourceForPatch adds container GPU resources to patch bytes to update pod resource specs
