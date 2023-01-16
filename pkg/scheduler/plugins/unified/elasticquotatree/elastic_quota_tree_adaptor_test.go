@@ -170,12 +170,14 @@ func TestACKQuotaTreeAdaptor_OnQuotaTreeAdd(t *testing.T) {
 	p := pl.(*Plugin)
 	p.OnQuotaTreeAdd(createQuotaTree1())
 	time.Sleep(time.Second)
-	eq, err := p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("root-test1")
+	eq, err := p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("quota1")
 	assert.Nil(t, err)
 	assert.NotNil(t, eq)
-	_, err = p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("root-test2")
+	_, err = p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("quota2")
 	assert.Nil(t, err)
-	_, err = p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("root-test2-child1")
+	_, err = p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("quota3")
+	assert.Nil(t, err)
+	_, err = p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("quota4")
 	assert.Nil(t, err)
 }
 
@@ -193,9 +195,15 @@ func createQuotaTree1() *v1beta1.ElasticQuotaTree {
 						Name: "test2",
 						Children: []v1beta1.ElasticQuotaSpec{
 							{
-								Name: "child1",
+								Name:       "child1",
+								Namespaces: []string{"quota3"},
 							},
 						},
+						Namespaces: []string{"quota2"},
+					},
+					{
+						Name:       extension.RootQuotaName,
+						Namespaces: []string{"quota4"},
 					},
 				},
 			},
@@ -211,16 +219,22 @@ func createQuotaTree2() *v1beta1.ElasticQuotaTree {
 				Name: extension.RootQuotaName,
 				Children: []v1beta1.ElasticQuotaSpec{
 					{
-						Name:       "test3",
-						Namespaces: []string{"quota1"},
+						Name:       "test3_tmp",
+						Namespaces: []string{"quota5"},
 					},
 					{
 						Name: "test4",
 						Children: []v1beta1.ElasticQuotaSpec{
 							{
-								Name: "child1",
+								Name:       "child1",
+								Namespaces: []string{"quota6"},
 							},
 						},
+						Namespaces: []string{"quota7"},
+					},
+					{
+						Name:       extension.RootQuotaName,
+						Namespaces: []string{"quota4"},
 					},
 				},
 			},
@@ -240,17 +254,19 @@ func TestACKQuotaTreeAdaptor_OnQuotaTreeUpdate(t *testing.T) {
 	p.OnQuotaTreeUpdate(nil, createQuotaTree2())
 	time.Sleep(time.Second)
 
-	_, err := p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("root-test1")
+	_, err := p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("quota1")
 	assert.NotNil(t, err)
-	_, err = p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("root-test2")
+	_, err = p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("quota2")
 	assert.NotNil(t, err)
-	_, err = p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("root-test2-child1")
+	_, err = p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("quota3")
 	assert.NotNil(t, err)
-	_, err = p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("root-test3")
+	_, err = p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("quota5")
 	assert.Nil(t, err)
-	_, err = p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("root-test4")
+	_, err = p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("quota6")
 	assert.Nil(t, err)
-	_, err = p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("root-test4-child1")
+	_, err = p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("quota7")
+	assert.Nil(t, err)
+	_, err = p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("quota4")
 	assert.Nil(t, err)
 }
 
@@ -265,10 +281,10 @@ func TestACKQuotaTreeAdaptor_OnQuotaTreeDelete(t *testing.T) {
 	p.OnQuotaTreeDelete(createQuotaTree1())
 	time.Sleep(time.Second)
 
-	_, err := p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("root-test1")
+	_, err := p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("quota1")
 	assert.NotNil(t, err)
-	_, err = p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("root-test2")
+	_, err = p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("quota2")
 	assert.NotNil(t, err)
-	_, err = p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("root-test2-child1")
+	_, err = p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get("quota3")
 	assert.NotNil(t, err)
 }
