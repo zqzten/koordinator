@@ -19,6 +19,7 @@ package ack
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	v1 "k8s.io/api/core/v1"
 
@@ -59,5 +60,6 @@ func GetGangName(pod *v1.Pod) string {
 	if gangName == "" {
 		gangName = pod.Labels[LabelGangName]
 	}
+	gangName = strings.ToLower(gangName)
 	return gangName
 }

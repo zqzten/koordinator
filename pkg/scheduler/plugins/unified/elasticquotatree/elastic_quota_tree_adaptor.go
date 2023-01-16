@@ -171,6 +171,7 @@ func (p *Plugin) OnQuotaTreeAdd(obj interface{}) {
 	}
 	p.createOrUpdateQuotaByTraversalTree("root", quotaTree.Spec.Root)
 	p.deleteElasticQuota(quotaTree.Spec.Root)
+	klog.Infof("QuotaTree %v", quotaTree)
 }
 
 func (p *Plugin) OnQuotaTreeUpdate(oldObj, newObj interface{}) {
@@ -187,10 +188,11 @@ func (p *Plugin) OnQuotaTreeDelete(obj interface{}) {
 
 func (p *Plugin) createOrUpdateQuotaByTraversalTree(parent string, quotaSpec v1beta1.ElasticQuotaSpec) {
 	quotaName := quotaSpec.Name
-	if quotaSpec.Name != extension.RootQuotaName {
-		quotaName = generateElasticQuotaName(parent, quotaSpec.Name)
-		eq, _ := p.quotaLister.ElasticQuotas(ackElasticQuotaTreeNamespace).Get(quotaName)
-		if eq == nil {
+	if quotaSpec.Name != extension.RootQuotaName || len(quotaSpec.Namespaces) > 0 {
+		quotaName = generateElasticQuotaName(quotaSpec.Namespaces)
+		eq, err := p.client.SchedulingV1alpha1().ElasticQuotas(ackElasticQuotaTreeNamespace).Get(context.TODO(), quotaName,
+			metav1.GetOptions{ResourceVersion: "0"})
+		if err != nil {
 			p.createElasticQuota(parent, quotaSpec)
 		} else {
 			p.updateElasticQuota(parent, eq, quotaSpec)
@@ -202,7 +204,7 @@ func (p *Plugin) createOrUpdateQuotaByTraversalTree(parent string, quotaSpec v1b
 }
 
 func (p *Plugin) createElasticQuota(parent string, quotaSpec v1beta1.ElasticQuotaSpec) {
-	quotaName := generateElasticQuotaName(parent, quotaSpec.Name)
+	quotaName := generateElasticQuotaName(quotaSpec.Namespaces)
 	elasticQuota := &apiv1alpha1.ElasticQuota{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        quotaName,
@@ -316,7 +318,7 @@ func (p *Plugin) getToDeleteElasticQuotas(spec v1beta1.ElasticQuotaSpec) []*apiv
 func getQuotaTreeTotalQuota(spec v1beta1.ElasticQuotaSpec, totalQuota map[string]struct{}, parent string) {
 	quotaName := spec.Name
 	if parent != "" {
-		quotaName = generateElasticQuotaName(parent, spec.Name)
+		quotaName = generateElasticQuotaName(spec.Namespaces)
 		totalQuota[quotaName] = struct{}{}
 	}
 
@@ -357,8 +359,10 @@ func toElasticQuotaTree(obj interface{}) *v1beta1.ElasticQuotaTree {
 	return quota
 }
 
-func generateElasticQuotaName(parent, child string) string {
-	return parent + "-" + child
+func generateElasticQuotaName(namespaces []string) string {
+	allNamespace := strings.Join(namespaces, ",")
+	allNamespace = strings.ToLower(allNamespace)
+	return allNamespace
 }
 
 func parseElasticQuotaSpec(quota *apiv1alpha1.ElasticQuota, spec v1beta1.ElasticQuotaSpec, parent string) {
