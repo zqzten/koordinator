@@ -35,6 +35,7 @@ import (
 	unifiednodeports "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/nodeports"
 	unifiedoverquota "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/overquota"
 	unifiedpodconstraint "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/podconstraint"
+	unifiedpodtopologyspread "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/podtopologyspread"
 	unifiedresourcepolicy "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/resourcepolicy"
 	unifiedscheduleresult "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/scheduleresult"
 	unifiedtainttoleration "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/tainttoleration"
@@ -58,4 +59,5 @@ func init() {
 	koordinatorPlugins[unifiednodeports.Name] = unifiednodeports.New
 	koordinatorPlugins[unifiednodeaffinity.Name] = unifiednodeaffinity.New
 	koordinatorPlugins[unifiedinterpodaffinity.Name] = unifiedinterpodaffinity.New
+	koordinatorPlugins[unifiedpodtopologyspread.Name] = unifiedpodtopologyspread.New
 }
