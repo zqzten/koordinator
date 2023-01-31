@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 
 	"gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
-	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -34,10 +33,6 @@ const (
 // It is referenced in pod's annotation by key AnnotationNodeCPUSharePool.
 type CPUSharePool struct {
 	CPUIDs []int `json:"cpuIDs,omitempty"`
-}
-
-func IsVirtualKubeletNode(node *corev1.Node) bool {
-	return node.Labels[uniext.LabelNodeType] == uniext.VKType || node.Labels[uniext.LabelCommonNodeType] == uniext.VKType
 }
 
 func LocalInfoFromNode(node *corev1.Node) (*extension.LocalInfo, error) {
