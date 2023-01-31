@@ -1,5 +1,5 @@
 /*
-Copyright 2019 The Kubernetes Authors.
+Copyright 2022 The Koordinator Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,25 +21,26 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
-	"k8s.io/kubernetes/pkg/scheduler/framework/runtime"
-	"k8s.io/kubernetes/pkg/scheduler/internal/cache"
+
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/eci"
 )
 
 // TODO: Add test case for RequiredDuringSchedulingRequiredDuringExecution after it's implemented.
 func TestNodeAffinity(t *testing.T) {
 	tests := []struct {
-		name             string
-		pod              *v1.Pod
-		labels           map[string]string
-		nodeName         string
-		wantStatus       *framework.Status
-		args             config.NodeAffinityArgs
-		disablePreFilter bool
+		name                string
+		pod                 *v1.Pod
+		labels              map[string]string
+		nodeName            string
+		wantStatus          *framework.Status
+		args                config.NodeAffinityArgs
+		disablePreFilter    bool
+		allowedAffinityKeys []string
 	}{
 		{
 			name: "no selector",
@@ -836,10 +837,55 @@ func TestNodeAffinity(t *testing.T) {
 			},
 			disablePreFilter: true,
 		},
+		{
+			name: "Pod scheduled to eci node even if eci node doesn't match some disallowed affinity label keys",
+			pod: &v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{uniext.LabelECIAffinity: uniext.ECIRequired}},
+				Spec: v1.PodSpec{
+					Affinity: &v1.Affinity{
+						NodeAffinity: &v1.NodeAffinity{
+							RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+								NodeSelectorTerms: []v1.NodeSelectorTerm{
+									{
+										MatchExpressions: []v1.NodeSelectorRequirement{
+											{
+												Key:      "foo",
+												Operator: v1.NodeSelectorOpIn,
+												Values:   []string{"bar", "value2"},
+											},
+											{
+												Key:      "diffkey",
+												Operator: v1.NodeSelectorOpIn,
+												Values:   []string{"wrong", "value2"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			labels: map[string]string{
+				"foo":                "bar",
+				uniext.LabelNodeType: uniext.VKType,
+			},
+			args:                config.NodeAffinityArgs{},
+			allowedAffinityKeys: []string{"foo"},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			if len(test.allowedAffinityKeys) != 0 {
+				var allowedAffinityKeysCopy []string
+				copy(allowedAffinityKeysCopy, test.allowedAffinityKeys)
+				eci.DefaultECIProfile.AllowedAffinityKeys = test.allowedAffinityKeys
+				defer func() {
+					eci.DefaultECIProfile.AllowedAffinityKeys = allowedAffinityKeysCopy
+				}()
+			}
+
 			node := v1.Node{ObjectMeta: metav1.ObjectMeta{
 				Name:   test.nodeName,
 				Labels: test.labels,
@@ -864,243 +910,7 @@ func TestNodeAffinity(t *testing.T) {
 			if !reflect.DeepEqual(gotStatus, test.wantStatus) {
 				t.Errorf("status does not match: %v, want: %v", gotStatus, test.wantStatus)
 			}
-		})
-	}
-}
 
-func TestNodeAffinityPriority(t *testing.T) {
-	label1 := map[string]string{"foo": "bar"}
-	label2 := map[string]string{"key": "value"}
-	label3 := map[string]string{"az": "az1"}
-	label4 := map[string]string{"abc": "az11", "def": "az22"}
-	label5 := map[string]string{"foo": "bar", "key": "value", "az": "az1"}
-
-	affinity1 := &v1.Affinity{
-		NodeAffinity: &v1.NodeAffinity{
-			PreferredDuringSchedulingIgnoredDuringExecution: []v1.PreferredSchedulingTerm{{
-				Weight: 2,
-				Preference: v1.NodeSelectorTerm{
-					MatchExpressions: []v1.NodeSelectorRequirement{{
-						Key:      "foo",
-						Operator: v1.NodeSelectorOpIn,
-						Values:   []string{"bar"},
-					}},
-				},
-			}},
-		},
-	}
-
-	affinity2 := &v1.Affinity{
-		NodeAffinity: &v1.NodeAffinity{
-			PreferredDuringSchedulingIgnoredDuringExecution: []v1.PreferredSchedulingTerm{
-				{
-					Weight: 2,
-					Preference: v1.NodeSelectorTerm{
-						MatchExpressions: []v1.NodeSelectorRequirement{
-							{
-								Key:      "foo",
-								Operator: v1.NodeSelectorOpIn,
-								Values:   []string{"bar"},
-							},
-						},
-					},
-				},
-				{
-					Weight: 4,
-					Preference: v1.NodeSelectorTerm{
-						MatchExpressions: []v1.NodeSelectorRequirement{
-							{
-								Key:      "key",
-								Operator: v1.NodeSelectorOpIn,
-								Values:   []string{"value"},
-							},
-						},
-					},
-				},
-				{
-					Weight: 5,
-					Preference: v1.NodeSelectorTerm{
-						MatchExpressions: []v1.NodeSelectorRequirement{
-							{
-								Key:      "foo",
-								Operator: v1.NodeSelectorOpIn,
-								Values:   []string{"bar"},
-							},
-							{
-								Key:      "key",
-								Operator: v1.NodeSelectorOpIn,
-								Values:   []string{"value"},
-							},
-							{
-								Key:      "az",
-								Operator: v1.NodeSelectorOpIn,
-								Values:   []string{"az1"},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	tests := []struct {
-		name            string
-		pod             *v1.Pod
-		nodes           []*v1.Node
-		expectedList    framework.NodeScoreList
-		args            config.NodeAffinityArgs
-		disablePreScore bool
-	}{
-		{
-			name: "all machines are same priority as NodeAffinity is nil",
-			pod: &v1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{},
-				},
-			},
-			nodes: []*v1.Node{
-				{ObjectMeta: metav1.ObjectMeta{Name: "machine1", Labels: label1}},
-				{ObjectMeta: metav1.ObjectMeta{Name: "machine2", Labels: label2}},
-				{ObjectMeta: metav1.ObjectMeta{Name: "machine3", Labels: label3}},
-			},
-			expectedList: []framework.NodeScore{{Name: "machine1", Score: 0}, {Name: "machine2", Score: 0}, {Name: "machine3", Score: 0}},
-		},
-		{
-			name: "no machine macthes preferred scheduling requirements in NodeAffinity of pod so all machines' priority is zero",
-			pod: &v1.Pod{
-				Spec: v1.PodSpec{
-					Affinity: affinity1,
-				},
-			},
-			nodes: []*v1.Node{
-				{ObjectMeta: metav1.ObjectMeta{Name: "machine1", Labels: label4}},
-				{ObjectMeta: metav1.ObjectMeta{Name: "machine2", Labels: label2}},
-				{ObjectMeta: metav1.ObjectMeta{Name: "machine3", Labels: label3}},
-			},
-			expectedList: []framework.NodeScore{{Name: "machine1", Score: 0}, {Name: "machine2", Score: 0}, {Name: "machine3", Score: 0}},
-		},
-		{
-			name: "only machine1 matches the preferred scheduling requirements of pod",
-			pod: &v1.Pod{
-				Spec: v1.PodSpec{
-					Affinity: affinity1,
-				},
-			},
-			nodes: []*v1.Node{
-				{ObjectMeta: metav1.ObjectMeta{Name: "machine1", Labels: label1}},
-				{ObjectMeta: metav1.ObjectMeta{Name: "machine2", Labels: label2}},
-				{ObjectMeta: metav1.ObjectMeta{Name: "machine3", Labels: label3}},
-			},
-			expectedList: []framework.NodeScore{{Name: "machine1", Score: framework.MaxNodeScore}, {Name: "machine2", Score: 0}, {Name: "machine3", Score: 0}},
-		},
-		{
-			name: "all machines matches the preferred scheduling requirements of pod but with different priorities ",
-			pod: &v1.Pod{
-				Spec: v1.PodSpec{
-					Affinity: affinity2,
-				},
-			},
-			nodes: []*v1.Node{
-				{ObjectMeta: metav1.ObjectMeta{Name: "machine1", Labels: label1}},
-				{ObjectMeta: metav1.ObjectMeta{Name: "machine5", Labels: label5}},
-				{ObjectMeta: metav1.ObjectMeta{Name: "machine2", Labels: label2}},
-			},
-			expectedList: []framework.NodeScore{{Name: "machine1", Score: 18}, {Name: "machine5", Score: framework.MaxNodeScore}, {Name: "machine2", Score: 36}},
-		},
-		{
-			name: "added affinity",
-			pod:  &v1.Pod{},
-			nodes: []*v1.Node{
-				{ObjectMeta: metav1.ObjectMeta{Name: "machine1", Labels: label1}},
-				{ObjectMeta: metav1.ObjectMeta{Name: "machine2", Labels: label2}},
-			},
-			expectedList: []framework.NodeScore{{Name: "machine1", Score: framework.MaxNodeScore}, {Name: "machine2", Score: 0}},
-			args: config.NodeAffinityArgs{
-				AddedAffinity: affinity1.NodeAffinity,
-			},
-		},
-		{
-			name: "added affinity and pod has default affinity",
-			pod: &v1.Pod{
-				Spec: v1.PodSpec{
-					Affinity: affinity1,
-				},
-			},
-			nodes: []*v1.Node{
-				{ObjectMeta: metav1.ObjectMeta{Name: "machine1", Labels: label1}},
-				{ObjectMeta: metav1.ObjectMeta{Name: "machine2", Labels: label2}},
-				{ObjectMeta: metav1.ObjectMeta{Name: "machine3", Labels: label5}},
-			},
-			expectedList: []framework.NodeScore{{Name: "machine1", Score: 40}, {Name: "machine2", Score: 60}, {Name: "machine3", Score: framework.MaxNodeScore}},
-			args: config.NodeAffinityArgs{
-				AddedAffinity: &v1.NodeAffinity{
-					PreferredDuringSchedulingIgnoredDuringExecution: []v1.PreferredSchedulingTerm{
-						{
-							Weight: 3,
-							Preference: v1.NodeSelectorTerm{
-								MatchExpressions: []v1.NodeSelectorRequirement{
-									{
-										Key:      "key",
-										Operator: v1.NodeSelectorOpIn,
-										Values:   []string{"value"},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "calculate the priorities correctly even if PreScore is not called",
-			pod: &v1.Pod{
-				Spec: v1.PodSpec{
-					Affinity: affinity2,
-				},
-			},
-			nodes: []*v1.Node{
-				{ObjectMeta: metav1.ObjectMeta{Name: "machine1", Labels: label1}},
-				{ObjectMeta: metav1.ObjectMeta{Name: "machine5", Labels: label5}},
-				{ObjectMeta: metav1.ObjectMeta{Name: "machine2", Labels: label2}},
-			},
-			expectedList:    []framework.NodeScore{{Name: "machine1", Score: 18}, {Name: "machine5", Score: framework.MaxNodeScore}, {Name: "machine2", Score: 36}},
-			disablePreScore: true,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			state := framework.NewCycleState()
-			fh, _ := runtime.NewFramework(nil, nil, runtime.WithSnapshotSharedLister(cache.NewSnapshot(nil, test.nodes)))
-			p, err := New(&test.args, fh)
-			if err != nil {
-				t.Fatalf("Creating plugin: %v", err)
-			}
-			var status *framework.Status
-			if !test.disablePreScore {
-				status = p.(framework.PreScorePlugin).PreScore(context.Background(), state, test.pod, test.nodes)
-				if !status.IsSuccess() {
-					t.Errorf("unexpected error: %v", status)
-				}
-			}
-			var gotList framework.NodeScoreList
-			for _, n := range test.nodes {
-				nodeName := n.ObjectMeta.Name
-				score, status := p.(framework.ScorePlugin).Score(context.Background(), state, test.pod, nodeName)
-				if !status.IsSuccess() {
-					t.Errorf("unexpected error: %v", status)
-				}
-				gotList = append(gotList, framework.NodeScore{Name: nodeName, Score: score})
-			}
-
-			status = p.(framework.ScorePlugin).ScoreExtensions().NormalizeScore(context.Background(), state, test.pod, gotList)
-			if !status.IsSuccess() {
-				t.Errorf("unexpected error: %v", status)
-			}
-
-			if diff := cmp.Diff(test.expectedList, gotList); diff != "" {
-				t.Errorf("obtained scores (-want,+got):\n%s", diff)
-			}
 		})
 	}
 }

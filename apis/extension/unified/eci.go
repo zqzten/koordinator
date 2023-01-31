@@ -33,6 +33,9 @@ func IsVirtualKubeletNode(node *corev1.Node) bool {
 }
 
 func AffinityECI(pod *corev1.Pod) bool {
+	if pod == nil {
+		return false
+	}
 	eciAffinityLabel := pod.Labels[uniext.LabelECIAffinity]
 	return eciAffinityLabel == uniext.ECIRequired || eciAffinityLabel == uniext.ECIPreferred || k8sfeature.DefaultFeatureGate.Enabled(features.EnableDefaultECIProfile)
 }
