@@ -30,10 +30,12 @@ import (
 	unifiedcustomaffinity "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/custompodaffinity"
 	unifiedeci "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/eci"
 	unifiedelasticquotatree "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/elasticquotatree"
+	unifiednodeports "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/nodeports"
 	unifiedoverquota "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/overquota"
 	unifiedpodconstraint "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/podconstraint"
 	unifiedresourcepolicy "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/resourcepolicy"
 	unifiedscheduleresult "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/scheduleresult"
+	unifiedtainttoleration "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/tainttoleration"
 	unifiedvolumebinding "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/volumebinding"
 )
 
@@ -50,4 +52,7 @@ func init() {
 	koordinatorPlugins[unifiedasiquota.Name] = unifiedasiquota.New
 	koordinatorPlugins[unifiedelasticquotatree.Name] = unifiedelasticquotatree.New
 	koordinatorPlugins[unifiedresourcepolicy.Name] = unifiedresourcepolicy.New
+	koordinatorPlugins[unifiedtainttoleration.Name] = unifiedtainttoleration.New
+	koordinatorPlugins[unifiednodeports.Name] = unifiednodeports.New
+
 }
