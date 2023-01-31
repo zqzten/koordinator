@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 	"gitlab.alibaba-inc.com/unischeduler/api/apis/scheduling/v1beta1"
 	unifiedfake "gitlab.alibaba-inc.com/unischeduler/api/client/clientset/versioned/fake"
 	corev1 "k8s.io/api/core/v1"
@@ -2382,4 +2383,152 @@ func TestScoreWithTopologyRatio(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expectNodeScores, gotNodeScores)
+}
+
+func Test_VirtualKubelet(t *testing.T) {
+	nodes := []*corev1.Node{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-vk-0",
+				Labels: map[string]string{
+					corev1.LabelHostname:       "test-vk-0",
+					uniext.LabelCommonNodeType: uniext.VKType,
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-vk-1",
+				Labels: map[string]string{
+					corev1.LabelHostname:       "test-vk-1",
+					uniext.LabelCommonNodeType: uniext.VKType,
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-vk-2",
+				Labels: map[string]string{
+					corev1.LabelHostname:       "test-vk-2",
+					uniext.LabelCommonNodeType: uniext.VKType,
+				},
+			},
+		},
+	}
+	suit := newPluginTestSuit(t, nodes)
+	p, err := suit.proxyNew(suit.args, suit.Handle)
+	assert.NotNil(t, p)
+	assert.Nil(t, err)
+
+	plg := p.(*Plugin)
+	suit.start()
+
+	for _, node := range nodes {
+		_, err := suit.Handle.ClientSet().CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
+		assert.NoError(t, err)
+	}
+
+	podConstraint := &v1beta1.PodConstraint{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "default",
+			Name:      "test",
+		},
+		Spec: v1beta1.PodConstraintSpec{
+			SpreadRule: v1beta1.SpreadRule{
+				Requires: []v1beta1.SpreadRuleItem{
+					{
+						TopologyKey: corev1.LabelHostname,
+						MaxSkew:     1,
+					},
+				},
+			},
+		},
+	}
+	plg.podConstraintCache.SetPodConstraint(podConstraint)
+
+	//
+	// constructs topology: kubernetes.io/hostname
+	//  +-------+-------+-------+
+	//  |  vk1  |  vk2  |  vk3  |
+	//  |-------+-------+-------|
+	//  |  1    |  5    |  0    |
+	//  +-------+-------+-------+
+	//
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "default",
+			Labels: map[string]string{
+				extunified.LabelPodConstraint: podConstraint.Name,
+			},
+		},
+	}
+	pod.Name = "pod-0-0"
+	plg.podConstraintCache.AddPod(nodes[0], pod)
+	pod.Name = "pod-1-0"
+	plg.podConstraintCache.AddPod(nodes[1], pod)
+	pod.Name = "pod-1-1"
+	plg.podConstraintCache.AddPod(nodes[1], pod)
+	pod.Name = "pod-1-2"
+	plg.podConstraintCache.AddPod(nodes[1], pod)
+	pod.Name = "pod-1-3"
+	plg.podConstraintCache.AddPod(nodes[1], pod)
+	pod.Name = "pod-1-4"
+	plg.podConstraintCache.AddPod(nodes[1], pod)
+
+	cycleState := framework.NewCycleState()
+	testPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "default",
+			Name:      "test-pod",
+			Labels: map[string]string{
+				extunified.LabelPodConstraint: "test",
+			},
+		},
+	}
+	status := plg.PreFilter(context.TODO(), cycleState, testPod)
+	assert.True(t, status.IsSuccess())
+	state, status := getPreFilterState(cycleState)
+	assert.True(t, status.IsSuccess())
+	expectPrefilterState := &preFilterState{
+		items: []*preFilterStateItem{
+			{
+				TopologySpreadConstraintState: &TopologySpreadConstraintState{
+					PodConstraint: podConstraint,
+					RequiredSpreadConstraints: []*TopologySpreadConstraint{
+						{
+							TopologyKey: corev1.LabelHostname,
+							MaxSkew:     1,
+						},
+					},
+					TpKeyToTotalMatchNum: map[string]int{
+						corev1.LabelHostname: 6,
+					},
+					TpPairToMatchNum: map[TopologyPair]int{
+						{TopologyKey: corev1.LabelHostname, TopologyValue: nodes[0].Name}: 1,
+						{TopologyKey: corev1.LabelHostname, TopologyValue: nodes[1].Name}: 5,
+					},
+					TpKeyToCriticalPaths: map[string]*TopologyCriticalPaths{
+						corev1.LabelHostname: {
+							Min: CriticalPath{
+								TopologyValue: nodes[2].Name,
+								MatchNum:      0,
+							},
+							Max: CriticalPath{
+								TopologyValue: nodes[0].Name,
+								MatchNum:      1,
+							},
+						},
+					},
+				},
+				Weight:       1,
+				IgnoredNodes: sets.NewString(),
+			},
+		},
+	}
+	assert.Equal(t, expectPrefilterState, state)
+
+	nodeInfo, err := suit.Handle.SnapshotSharedLister().NodeInfos().Get(nodes[1].Name)
+	assert.NoError(t, err)
+	status = plg.Filter(context.TODO(), cycleState, testPod, nodeInfo)
+	assert.True(t, status.IsSuccess())
 }

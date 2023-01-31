@@ -28,13 +28,14 @@ const (
 	DefaultEnableACUForLSPod    featuregate.Feature = "DefaultEnableACUForLSPod"
 	ResourceSummaryReport       featuregate.Feature = "ResourceSummaryReport"
 	ResourceSummaryReportDryRun featuregate.Feature = "ResourceSummaryReportDryRun"
-	LocalDeviceVolume           featuregate.Feature = "LocalDeviceVolume"
-	EnableLocalVolumeCapacity   featuregate.Feature = "EnableLocalVolumeCapacity"
-	EnableLocalVolumeIOLimit    featuregate.Feature = "EnableLocalVolumeIOLimit"
 )
 
 const (
-	UnifiedDeviceScheduling featuregate.Feature = "UnifiedDeviceScheduling"
+	UnifiedDeviceScheduling   featuregate.Feature = "UnifiedDeviceScheduling"
+	LocalDeviceVolume         featuregate.Feature = "LocalDeviceVolume"
+	EnableLocalVolumeCapacity featuregate.Feature = "EnableLocalVolumeCapacity"
+	EnableLocalVolumeIOLimit  featuregate.Feature = "EnableLocalVolumeIOLimit"
+	EnableDefaultECIProfile   featuregate.Feature = "EnableDefaultECIProfile"
 )
 
 var defaultUnifiedFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -48,6 +49,7 @@ var defaultUnifiedSchedulerFeatureGates = map[featuregate.Feature]featuregate.Fe
 	LocalDeviceVolume:         {Default: false, PreRelease: featuregate.Beta},
 	EnableLocalVolumeCapacity: {Default: true, PreRelease: featuregate.Beta},
 	EnableLocalVolumeIOLimit:  {Default: false, PreRelease: featuregate.Beta},
+	EnableDefaultECIProfile:   {Default: false, PreRelease: featuregate.Beta},
 }
 
 func init() {
