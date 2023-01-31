@@ -287,6 +287,9 @@ func (p *Plugin) filterWithPodConstraint(s *preFilterStateItem, node *corev1.Nod
 	}
 	for _, c := range s.RequiredSpreadConstraints {
 		tpKey := c.TopologyKey
+		if extunified.IsVirtualKubeletNode(node) && tpKey == corev1.LabelHostname {
+			continue
+		}
 		tpVal := node.Labels[tpKey]
 		if tpVal == "" {
 			klog.V(5).Infof("[PodConstraint] node '%s' doesn't have required label '%s'", node.Name, tpKey)
