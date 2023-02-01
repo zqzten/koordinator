@@ -26,7 +26,7 @@ func (r RequiredNodeSelectorAndAffinity) Match(node *corev1.Node) bool {
 func GetRequiredNodeAffinity(pod *corev1.Pod) RequiredNodeSelectorAndAffinity {
 	requiredNodeAffinity := nodeaffinity.GetRequiredNodeAffinity(pod)
 	var requiredECINodeAffinity nodeaffinity.RequiredNodeAffinity
-	if eci.DefaultECIProfile != nil && len(eci.DefaultECIProfile.AllowedAffinityKeys) > 0 {
+	if len(eci.DefaultECIProfile.AllowedAffinityKeys) > 0 {
 		requiredECINodeAffinity = GetRequiredECINodeAffinity(pod)
 	}
 	return RequiredNodeSelectorAndAffinity{
