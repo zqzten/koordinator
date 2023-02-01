@@ -96,6 +96,29 @@ func (pl *VolumeBinding) revertAssumedEphemeralStorage(pod *v1.Pod, nodeName str
 	})
 }
 
+func (pl *VolumeBinding) replaceStorageClassNameIfNeeded(podVolumes *PodVolumes, pod *v1.Pod, nodeName string) {
+	nodeInfo, err := pl.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
+	if err != nil {
+		return
+	}
+	node := nodeInfo.Node()
+	if node == nil {
+		return
+	}
+	if !unified.IsVirtualKubeletNode(node) {
+		return
+	}
+
+	for _, binding := range podVolumes.StaticBindings {
+		binding.pvc = ReplaceStorageClassIfVirtualKubelet(nodeInfo.Node(), pod, binding.pvc, pl.classLister)
+	}
+
+	for i, claim := range podVolumes.DynamicProvisions {
+		podVolumes.DynamicProvisions[i] = ReplaceStorageClassIfVirtualKubelet(nodeInfo.Node(), pod, claim, pl.classLister)
+	}
+	return
+}
+
 func (pl *VolumeBinding) assumeLocalPVCAllocs(podVolumes *PodVolumes, nodeName string, pod *v1.Pod) error {
 	nodeStorageInfo := pl.nodeStorageCache.GetNodeStorageInfo(nodeName)
 	if nodeStorageInfo == nil {

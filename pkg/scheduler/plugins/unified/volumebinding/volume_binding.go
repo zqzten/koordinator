@@ -302,6 +302,7 @@ func (pl *VolumeBinding) Reserve(ctx context.Context, cs *framework.CycleState, 
 	// we don't need to hold the lock as only one node will be reserved for the given pod
 	podVolumes, ok := state.podVolumesByNode[nodeName]
 	if ok {
+		pl.replaceStorageClassNameIfNeeded(podVolumes, pod, nodeName)
 		allBound, err := pl.Binder.AssumePodVolumes(pod, nodeName, podVolumes)
 		if err != nil {
 			return framework.AsStatus(err)
