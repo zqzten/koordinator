@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	storagev1beta1 "k8s.io/api/storage/v1beta1"
@@ -48,10 +49,15 @@ import (
 	pvtesting "k8s.io/kubernetes/pkg/controller/volume/persistentvolume/testing"
 	pvutil "k8s.io/kubernetes/pkg/controller/volume/persistentvolume/util"
 	"k8s.io/kubernetes/pkg/features"
+
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/eci"
 )
 
 var (
 	provisioner = "test-provisioner"
+
+	lvmPVC    = makeTestPVC("unbound-pvc", "1G", "", pvcUnbound, "", "1", &lvmSC.Name)
+	otherSCPV = makeTestPV("pv-node1a", "node1", "5G", "1", nil, otherSC.Name)
 
 	// PVCs for manual binding
 	// TODO: clean up all of these
@@ -246,6 +252,8 @@ func newTestBinder(t *testing.T, stopCh <-chan struct{}, csiStorageCapacity ...b
 				},
 			},
 		},
+		lvmSC,
+		otherSC,
 	}
 	for _, class := range classes {
 		if err := classInformer.Informer().GetIndexer().Add(class); err != nil {
@@ -898,7 +906,8 @@ func TestFindPodVolumesWithoutProvisioning(t *testing.T) {
 		// If nil, use pod PVCs
 		cachePVCs []*v1.PersistentVolumeClaim
 		// If nil, makePod with podPVCs
-		pod *v1.Pod
+		pod      *v1.Pod
+		nodeIsVK bool
 
 		// GenericEphemeralVolume feature enabled?
 		ephemeral bool
@@ -1024,6 +1033,13 @@ func TestFindPodVolumesWithoutProvisioning(t *testing.T) {
 			ephemeral:  false,
 			shouldFail: true,
 		},
+		"lvmClass": {
+			pod:              makeAffinityECIPod([]*v1.PersistentVolumeClaim{lvmPVC}),
+			podPVCs:          []*v1.PersistentVolumeClaim{lvmPVC},
+			nodeIsVK:         true,
+			pvs:              []*v1.PersistentVolume{otherSCPV},
+			expectedBindings: []*BindingInfo{makeBinding(lvmPVC, otherSCPV)},
+		},
 	}
 
 	testNode := &v1.Node{
@@ -1034,6 +1050,12 @@ func TestFindPodVolumesWithoutProvisioning(t *testing.T) {
 			},
 		},
 	}
+
+	originalDefaultStorageClass := eci.DefaultECIProfile.DefaultStorageClass
+	eci.DefaultECIProfile.DefaultStorageClass = otherSC.Name
+	defer func() {
+		eci.DefaultECIProfile.DefaultStorageClass = originalDefaultStorageClass
+	}()
 
 	run := func(t *testing.T, scenario scenarioType, csiStorageCapacity bool, csiDriver *storagev1.CSIDriver) {
 		defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.GenericEphemeralVolume, scenario.ephemeral)()
@@ -1057,6 +1079,13 @@ func TestFindPodVolumesWithoutProvisioning(t *testing.T) {
 		// b. Generate pod with given claims
 		if scenario.pod == nil {
 			scenario.pod = makePod(scenario.podPVCs)
+		}
+
+		if scenario.nodeIsVK {
+			testNode.Labels[uniext.LabelNodeType] = uniext.VKType
+			defer func() {
+				delete(testNode.Labels, uniext.LabelNodeType)
+			}()
 		}
 
 		// Execute

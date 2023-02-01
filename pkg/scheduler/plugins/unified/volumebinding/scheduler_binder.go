@@ -949,7 +949,7 @@ func (b *volumeBinder) findMatchingVolumes(pod *v1.Pod, claimsToBind []*v1.Persi
 	multiLocalVolumeFn := b.checkNodeDeviceStorageClass
 
 	for _, pvc := range claimsToBind {
-		if utilfeature.DefaultFeatureGate.Enabled(koordfeature.LocalDeviceVolume) {
+		if !unified.IsVirtualKubeletNode(node) && utilfeature.DefaultFeatureGate.Enabled(koordfeature.LocalDeviceVolume) {
 			isMatch, shouldPassFilter, suggestedBP := multiLocalVolumeFn(pvc, pod, node, bps)
 			klog.V(5).Infof("checkNodeDiskStorageClass for pod: %s pvc: %s, node: %s, isMatch: %v, shouldPassFilter: %v, suggestedBP: %v", podName, pvc.Name, node.Name, isMatch, shouldPassFilter, suggestedBP)
 			if shouldPassFilter {
@@ -971,6 +971,9 @@ func (b *volumeBinder) findMatchingVolumes(pod *v1.Pod, claimsToBind []*v1.Persi
 			}
 		}
 
+		originalPVC := pvc
+		pvc = ReplaceStorageClassIfVirtualKubelet(node, pod, pvc, b.classLister)
+
 		// Get storage class name from each PVC
 		storageClassName := storagehelpers.GetPersistentVolumeClaimClass(pvc)
 		var allPVs []*v1.PersistentVolume
@@ -986,6 +989,11 @@ func (b *volumeBinder) findMatchingVolumes(pod *v1.Pod, claimsToBind []*v1.Persi
 		if err != nil {
 			return false, nil, nil, err
 		}
+
+		if originalPVC != pvc {
+			pvc = originalPVC
+		}
+
 		if pv == nil {
 			klog.V(5).Infof("No matching volumes for Pod %q, PVC %q on node %q", podName, pvcName, node.Name)
 			unboundClaims = append(unboundClaims, pvc)
@@ -1033,6 +1041,7 @@ func (b *volumeBinder) checkVolumeProvisions(pod *v1.Pod, staticBindings []*Bind
 		if className == "" {
 			continue
 		}
+		className = GetDefaultStorageClassIfVirtualKubelet(node, pod, className, b.classLister)
 		class, err := b.classLister.Get(className)
 		if err != nil {
 			continue
@@ -1051,6 +1060,7 @@ func (b *volumeBinder) checkVolumeProvisions(pod *v1.Pod, staticBindings []*Bind
 		if className == "" {
 			return false, false, false, nil, fmt.Errorf("no class for claim %q", pvcName)
 		}
+		className = GetDefaultStorageClassIfVirtualKubelet(node, pod, className, b.classLister)
 
 		class, err := b.classLister.Get(className)
 		if err != nil {

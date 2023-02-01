@@ -25,12 +25,14 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	storagelisters "k8s.io/client-go/listers/storage/v1"
+	storagehelpers "k8s.io/component-helpers/storage/volume"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/api/v1/resource"
 	pvutil "k8s.io/kubernetes/pkg/controller/volume/persistentvolume/util"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"github.com/koordinator-sh/koordinator/apis/extension/unified"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/eci"
 )
 
 const (
@@ -40,6 +42,36 @@ const (
 	ErrInsufficientIOLimit          = "Insufficient IOLimit"
 	ERrInvalidIOLimitInfo           = "node(s) invalid IOLimit infos"
 )
+
+func GetDefaultStorageClassIfVirtualKubelet(node *corev1.Node, pod *corev1.Pod, storageClassName string, classLister storagelisters.StorageClassLister) string {
+	if !unified.AffinityECI(pod) || !unified.IsVirtualKubeletNode(node) {
+		return storageClassName
+	}
+	if !unified.SupportLocalPV(classLister, storageClassName, nil) && !unified.SupportLVMOrQuotaPathOrDevice(classLister, storageClassName, nil) {
+		return storageClassName
+	}
+	if eci.DefaultECIProfile.DefaultStorageClass == "" {
+		return storageClassName
+	}
+	return eci.DefaultECIProfile.DefaultStorageClass
+}
+
+func ReplaceStorageClassIfVirtualKubelet(node *corev1.Node, pod *corev1.Pod, claim *corev1.PersistentVolumeClaim, classLister storagelisters.StorageClassLister) *corev1.PersistentVolumeClaim {
+	className := storagehelpers.GetPersistentVolumeClaimClass(claim)
+	if className == "" {
+		return claim
+	}
+
+	defaultClassName := GetDefaultStorageClassIfVirtualKubelet(node, pod, className, classLister)
+	if defaultClassName != className {
+		claim = claim.DeepCopy()
+		claim.Spec.StorageClassName = &defaultClassName
+		if _, ok := claim.Annotations[corev1.BetaStorageClassAnnotation]; ok {
+			claim.Annotations[corev1.BetaStorageClassAnnotation] = defaultClassName
+		}
+	}
+	return claim
+}
 
 func HasEnoughStorageCapacity(
 	nodeStorageInfo *NodeStorageInfo,

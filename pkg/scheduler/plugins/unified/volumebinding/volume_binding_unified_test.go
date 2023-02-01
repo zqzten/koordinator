@@ -32,6 +32,8 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
+	storagehelpers "k8s.io/component-helpers/storage/volume"
+	"k8s.io/kubernetes/pkg/controller"
 	pvutil "k8s.io/kubernetes/pkg/controller/volume/persistentvolume/util"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
@@ -40,7 +42,64 @@ import (
 
 	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 	"github.com/koordinator-sh/koordinator/pkg/features"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/eci"
 )
+
+var _ framework.SharedLister = &testSharedLister{}
+
+type testSharedLister struct {
+	nodes       []*v1.Node
+	nodeInfos   []*framework.NodeInfo
+	nodeInfoMap map[string]*framework.NodeInfo
+}
+
+func newTestSharedLister(pods []*v1.Pod, nodes []*v1.Node) *testSharedLister {
+	nodeInfoMap := make(map[string]*framework.NodeInfo)
+	nodeInfos := make([]*framework.NodeInfo, 0)
+	for _, pod := range pods {
+		nodeName := pod.Spec.NodeName
+		if _, ok := nodeInfoMap[nodeName]; !ok {
+			nodeInfoMap[nodeName] = framework.NewNodeInfo()
+		}
+		nodeInfoMap[nodeName].AddPod(pod)
+	}
+	for _, node := range nodes {
+		if _, ok := nodeInfoMap[node.Name]; !ok {
+			nodeInfoMap[node.Name] = framework.NewNodeInfo()
+		}
+		nodeInfoMap[node.Name].SetNode(node)
+	}
+
+	for _, v := range nodeInfoMap {
+		nodeInfos = append(nodeInfos, v)
+	}
+
+	return &testSharedLister{
+		nodes:       nodes,
+		nodeInfos:   nodeInfos,
+		nodeInfoMap: nodeInfoMap,
+	}
+}
+
+func (f *testSharedLister) NodeInfos() framework.NodeInfoLister {
+	return f
+}
+
+func (f *testSharedLister) List() ([]*framework.NodeInfo, error) {
+	return f.nodeInfos, nil
+}
+
+func (f *testSharedLister) HavePodsWithAffinityList() ([]*framework.NodeInfo, error) {
+	return nil, nil
+}
+
+func (f *testSharedLister) HavePodsWithRequiredAntiAffinityList() ([]*framework.NodeInfo, error) {
+	return nil, nil
+}
+
+func (f *testSharedLister) Get(nodeName string) (*framework.NodeInfo, error) {
+	return f.nodeInfoMap[nodeName], nil
+}
 
 var (
 	localPVSC = &storagev1.StorageClass{
@@ -2005,6 +2064,7 @@ func TestVolumeAssignAndUnAssignLocalPVAndMultiVolumeLocalPV(t *testing.T) {
 			opts := []runtime.Option{
 				runtime.WithClientSet(client),
 				runtime.WithInformerFactory(informerFactory),
+				runtime.WithSnapshotSharedLister(newTestSharedLister(nil, []*v1.Node{item.node})),
 			}
 			fh, err := runtime.NewFramework(nil, nil, opts...)
 			if err != nil {
@@ -2143,6 +2203,122 @@ func TestVolumeAssignAndUnAssignLocalPVAndMultiVolumeLocalPV(t *testing.T) {
 			}
 			if item.wantAllocatedVolumesAfterUnAssign != nil && !reflect.DeepEqual(tmpAllocatedVolumes, item.wantAllocatedVolumesAfterUnAssign) {
 				t.Errorf("allocatedVolumes got after unassign does not match: %v, want: %v", tmpAllocatedVolumes, item.wantAllocatedVolumesAfterUnAssign)
+			}
+		})
+	}
+}
+
+func TestVolumeBinding_replaceStorageClassNameIfNeeded(t *testing.T) {
+	tests := []struct {
+		name                string
+		node                *v1.Node
+		affinityECI         bool
+		pvc                 *v1.PersistentVolumeClaim
+		defaultStorageClass string
+		want                string
+	}{
+		{
+			name:                "Pod doesn't affinity ECI, storageClass is the same as origin",
+			node:                &v1.Node{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{extension.LabelNodeType: extension.VKType}}},
+			affinityECI:         false,
+			pvc:                 makePVC("test-pvc", "", lvmSC.Name),
+			defaultStorageClass: otherSC.Name,
+			want:                lvmSC.Name,
+		},
+		{
+			name:                "Node is not virtual kubelet, storageClass is the same as origin",
+			node:                &v1.Node{},
+			affinityECI:         true,
+			pvc:                 makePVC("test-pvc", "", lvmSC.Name),
+			defaultStorageClass: otherSC.Name,
+			want:                lvmSC.Name,
+		},
+		{
+			name:                "storageClass doesn't SupportLocalPV and SupportLVMOrQuotaPathOrDevice, storageClass is the same as origin",
+			node:                &v1.Node{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{extension.LabelNodeType: extension.VKType}}},
+			affinityECI:         true,
+			pvc:                 makePVC("test-pvc", "", cloudSC1.Name),
+			defaultStorageClass: otherSC.Name,
+			want:                cloudSC1.Name,
+		},
+		{
+			name:                "defaultStorageClass is nil, storageClass is the same as origin",
+			node:                &v1.Node{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{extension.LabelNodeType: extension.VKType}}},
+			affinityECI:         true,
+			pvc:                 makePVC("test-pvc", "", lvmSC.Name),
+			defaultStorageClass: "",
+			want:                lvmSC.Name,
+		},
+		{
+			name:                "storageClass SupportLocalPV, storageClass is the same as default",
+			node:                &v1.Node{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{extension.LabelNodeType: extension.VKType}}},
+			affinityECI:         true,
+			pvc:                 makePVC("test-pvc", "", localPVSC.Name),
+			defaultStorageClass: otherSC.Name,
+			want:                otherSC.Name,
+		},
+		{
+			name:                "storageClass is '', storageClass is the same as default",
+			node:                &v1.Node{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{extension.LabelNodeType: extension.VKType}}},
+			affinityECI:         true,
+			pvc:                 makePVC("test-pvc", "", ""),
+			defaultStorageClass: otherSC.Name,
+			want:                "",
+		},
+		{
+			name:                "storageClass SupportLVMOrQuotaPathOrDevice, storageClass is the same as default",
+			node:                &v1.Node{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{extension.LabelNodeType: extension.VKType}}},
+			affinityECI:         true,
+			pvc:                 makePVC("test-pvc", "", lvmSC.Name),
+			defaultStorageClass: otherSC.Name,
+			want:                otherSC.Name,
+		},
+	}
+	for _, tt := range tests {
+
+		t.Run(tt.name, func(t *testing.T) {
+
+			var pod *v1.Pod
+			if tt.affinityECI {
+				pod = makeAffinityECIPod([]*v1.PersistentVolumeClaim{tt.pvc})
+			} else {
+				pod = makePod([]*v1.PersistentVolumeClaim{tt.pvc})
+			}
+			eci.DefaultECIProfile.DefaultStorageClass = tt.defaultStorageClass
+			client := &fake.Clientset{}
+			informerFactory := informers.NewSharedInformerFactory(client, controller.NoResyncPeriodFunc())
+			classInformer := informerFactory.Storage().V1().StorageClasses()
+			classes := []*storagev1.StorageClass{localPVSC, lvmSC, quotaPathIOLimitSC, otherSC}
+			for _, class := range classes {
+				if err := classInformer.Informer().GetIndexer().Add(class); err != nil {
+					t.Fatalf("Failed to add storage class to internal cache: %v", err)
+				}
+			}
+			opts := []runtime.Option{
+				runtime.WithClientSet(client),
+				runtime.WithInformerFactory(informerFactory),
+				runtime.WithSnapshotSharedLister(newTestSharedLister(nil, []*v1.Node{tt.node})),
+			}
+			fh, err := runtime.NewFramework(nil, nil, opts...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			pl := &VolumeBinding{
+				handle:      fh,
+				classLister: classInformer.Lister(),
+			}
+
+			podVolumes := &PodVolumes{
+				StaticBindings:    []*BindingInfo{makeBinding(tt.pvc, nil)},
+				DynamicProvisions: []*v1.PersistentVolumeClaim{tt.pvc},
+			}
+
+			pl.replaceStorageClassNameIfNeeded(podVolumes, pod, tt.node.Name)
+			for _, bindingInfo := range podVolumes.StaticBindings {
+				assert.Equal(t, tt.want, storagehelpers.GetPersistentVolumeClaimClass(bindingInfo.pvc))
+			}
+			for _, pvc := range podVolumes.DynamicProvisions {
+				assert.Equal(t, tt.want, storagehelpers.GetPersistentVolumeClaimClass(pvc))
 			}
 		})
 	}
