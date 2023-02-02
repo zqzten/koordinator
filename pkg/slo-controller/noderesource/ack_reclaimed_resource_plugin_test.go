@@ -22,15 +22,15 @@ import (
 )
 
 func Test_updateNodeWithReclaimedResource(t *testing.T) {
-	enabledCfg := &config.ColocationCfg{
-		ColocationStrategy: config.ColocationStrategy{
+	enabledCfg := &apiext.ColocationCfg{
+		ColocationStrategy: apiext.ColocationStrategy{
 			Enable:                        pointer.BoolPtr(true),
 			CPUReclaimThresholdPercent:    pointer.Int64Ptr(65),
 			MemoryReclaimThresholdPercent: pointer.Int64Ptr(65),
 			DegradeTimeMinutes:            pointer.Int64Ptr(15),
 			UpdateTimeThresholdSeconds:    pointer.Int64Ptr(300),
 			ResourceDiffThreshold:         pointer.Float64Ptr(0.1),
-			ColocationStrategyExtender: config.ColocationStrategyExtender{
+			ColocationStrategyExtender: apiext.ColocationStrategyExtender{
 				Extensions: map[string]interface{}{
 					config.ReclaimedResExtKey: &config.ReclaimedResourceConfig{
 						NodeUpdate: pointer.BoolPtr(true),
@@ -39,15 +39,15 @@ func Test_updateNodeWithReclaimedResource(t *testing.T) {
 			},
 		},
 	}
-	disableCfg := &config.ColocationCfg{
-		ColocationStrategy: config.ColocationStrategy{
+	disableCfg := &apiext.ColocationCfg{
+		ColocationStrategy: apiext.ColocationStrategy{
 			Enable:                        pointer.BoolPtr(false),
 			CPUReclaimThresholdPercent:    pointer.Int64Ptr(65),
 			MemoryReclaimThresholdPercent: pointer.Int64Ptr(65),
 			DegradeTimeMinutes:            pointer.Int64Ptr(15),
 			UpdateTimeThresholdSeconds:    pointer.Int64Ptr(300),
 			ResourceDiffThreshold:         pointer.Float64Ptr(0.1),
-			ColocationStrategyExtender: config.ColocationStrategyExtender{
+			ColocationStrategyExtender: apiext.ColocationStrategyExtender{
 				Extensions: map[string]interface{}{
 					config.ReclaimedResExtKey: &config.ReclaimedResourceConfig{
 						NodeUpdate: pointer.BoolPtr(true),
@@ -56,15 +56,15 @@ func Test_updateNodeWithReclaimedResource(t *testing.T) {
 			},
 		},
 	}
-	nodeNotUpdateCfg := &config.ColocationCfg{
-		ColocationStrategy: config.ColocationStrategy{
+	nodeNotUpdateCfg := &apiext.ColocationCfg{
+		ColocationStrategy: apiext.ColocationStrategy{
 			Enable:                        pointer.BoolPtr(false),
 			CPUReclaimThresholdPercent:    pointer.Int64Ptr(65),
 			MemoryReclaimThresholdPercent: pointer.Int64Ptr(65),
 			DegradeTimeMinutes:            pointer.Int64Ptr(15),
 			UpdateTimeThresholdSeconds:    pointer.Int64Ptr(300),
 			ResourceDiffThreshold:         pointer.Float64Ptr(0.1),
-			ColocationStrategyExtender: config.ColocationStrategyExtender{
+			ColocationStrategyExtender: apiext.ColocationStrategyExtender{
 				Extensions: map[string]interface{}{
 					config.ReclaimedResExtKey: &config.ReclaimedResourceConfig{
 						NodeUpdate: pointer.BoolPtr(false),
@@ -76,7 +76,7 @@ func Test_updateNodeWithReclaimedResource(t *testing.T) {
 
 	type fields struct {
 		Client      client.Client
-		config      *config.ColocationCfg
+		config      *apiext.ColocationCfg
 		SyncContext *SyncContext
 	}
 	type args struct {

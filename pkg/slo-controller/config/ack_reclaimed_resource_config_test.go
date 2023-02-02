@@ -10,6 +10,8 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	"github.com/koordinator-sh/koordinator/apis/extension"
 )
 
 func Test_syncColocationConfigWithReclaimedResourceIfChanged(t *testing.T) {
@@ -102,7 +104,7 @@ func Test_syncColocationConfigWithReclaimedResourceIfChanged(t *testing.T) {
 					Namespace: ConfigNameSpace,
 				},
 				Data: map[string]string{
-					ColocationConfigKey: "{\"metricAggregateDurationSeconds\":60,\"cpuReclaimThresholdPercent\":70," +
+					extension.ColocationConfigKey: "{\"metricAggregateDurationSeconds\":60,\"cpuReclaimThresholdPercent\":70," +
 						"\"memoryReclaimThresholdPercent\":70,\"updateTimeThresholdSeconds\":100," +
 						"\"metricReportIntervalSeconds\":20," +
 						"\"extensions\":{\"reclaimedResource\":{\"NodeUpdate\":false}}}",
