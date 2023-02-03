@@ -30,6 +30,7 @@ import (
 	unifiedcustomaffinity "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/custompodaffinity"
 	unifiedeci "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/eci"
 	unifiedelasticquotatree "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/elasticquotatree"
+	unifiedinterpodaffinity "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/interpodaffinity"
 	unifiednodeaffinity "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/nodeaffinity"
 	unifiednodeports "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/nodeports"
 	unifiedoverquota "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/overquota"
@@ -56,4 +57,5 @@ func init() {
 	koordinatorPlugins[unifiedtainttoleration.Name] = unifiedtainttoleration.New
 	koordinatorPlugins[unifiednodeports.Name] = unifiednodeports.New
 	koordinatorPlugins[unifiednodeaffinity.Name] = unifiednodeaffinity.New
+	koordinatorPlugins[unifiedinterpodaffinity.Name] = unifiedinterpodaffinity.New
 }
