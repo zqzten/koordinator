@@ -73,22 +73,35 @@ func prepareCgroupsController(mgr ctrl.Manager) {
 	_ = resourcesv1alpha1.AddToScheme(mgr.GetScheme())
 }
 
-func startRecommenderController(mgr ctrl.Manager, stopCh <-chan struct{}) {
-	// TODO using same client with koord-manager for recommender
-	failureRateLimiter := workqueue.NewItemExponentialFailureRateLimiter(time.Duration(5)*time.Millisecond,
-		time.Duration(1000)*time.Second)
-	clientset := clientset.NewForConfigOrDie(restConfig)
-	informerFactory := informers.NewSharedInformerFactory(clientset, time.Hour*24)
-	waitInformerSynceds := []cache.InformerSynced{informerFactory.Core().V1().ConfigMaps().Informer().HasSynced,
-		informerFactory.Core().V1().Nodes().Informer().HasSynced}
+type recommenderRunner struct {
+	// TODO: share informers with the controllerManager
+	informerFactory informers.SharedInformerFactory
+	recommender     recommender.ControllerManager
+}
 
-	klog.Infof("start informer factory")
-	go informerFactory.Start(wait.NeverStop)
+func (r *recommenderRunner) Start(ctx context.Context) error {
+	klog.Infof("start informer factory for recommender")
+	go r.informerFactory.Start(ctx.Done())
+	waitInformerSynceds := []cache.InformerSynced{r.informerFactory.Core().V1().ConfigMaps().Informer().HasSynced,
+		r.informerFactory.Core().V1().Nodes().Informer().HasSynced}
 	// wait for node cache and configmap cache
 	if !cache.WaitForCacheSync(wait.NeverStop, waitInformerSynceds...) {
 		klog.Error("timed out waiting for resource cache to sync")
 		os.Exit(1)
 	}
+
+	setupLog.Info("staring recommender")
+	go r.recommender.Start(ctx.Done())
+
+	return nil
+}
+
+func startRecommenderController(mgr ctrl.Manager, stopCh <-chan struct{}) {
+	// TODO using same client with koord-manager for recommender
+	failureRateLimiter := workqueue.NewItemExponentialFailureRateLimiter(time.Duration(5)*time.Millisecond,
+		time.Duration(1000)*time.Second)
+	clientSet := clientset.NewForConfigOrDie(restConfig)
+	informerFactory := informers.NewSharedInformerFactory(clientSet, time.Hour*24)
 
 	recommenderOpt := recommender.Option{
 		Scheme:                             mgr.GetScheme(),
@@ -103,8 +116,15 @@ func startRecommenderController(mgr ctrl.Manager, stopCh <-chan struct{}) {
 	}
 	rc := recommender.NewControllerManager(restConfig, recommenderOpt)
 
-	setupLog.Info("staring recommender")
-	go rc.Start(stopCh)
+	runner := &recommenderRunner{
+		informerFactory: informerFactory,
+		recommender:     rc,
+	}
+	if err := mgr.Add(runner); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Recommender")
+		os.Exit(1)
+	}
+	// controllerManager runs the recommended controllers if it is leader elected or the leader election is disabled
 }
 
 func startCgroupsController(mgr ctrl.Manager, stopCh <-chan struct{}) {
