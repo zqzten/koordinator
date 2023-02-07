@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/hybridnet"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/lazyload"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/maxinstance"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/openlocal"
@@ -24,5 +25,6 @@ import (
 
 func init() {
 	koordinatorPlugins[openlocal.Name] = lazyload.Register(openlocal.Name, openlocal.New, openlocal.OpenLocalCondition)
+	koordinatorPlugins[hybridnet.Name] = lazyload.Register(hybridnet.Name, hybridnet.New, hybridnet.HybridnetCondition)
 	koordinatorPlugins[maxinstance.Name] = maxinstance.New
 }
