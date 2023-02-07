@@ -18,9 +18,11 @@ package main
 
 import (
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/lazyload"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/maxinstance"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/openlocal"
 )
 
 func init() {
 	koordinatorPlugins[openlocal.Name] = lazyload.Register(openlocal.Name, openlocal.New, openlocal.OpenLocalCondition)
+	koordinatorPlugins[maxinstance.Name] = maxinstance.New
 }
