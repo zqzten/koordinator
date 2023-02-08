@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/ack/besteffortscheduling"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/cpusetallocator"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/hybridnet"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/lazyload"
@@ -29,4 +30,6 @@ func init() {
 	koordinatorPlugins[hybridnet.Name] = lazyload.Register(hybridnet.Name, hybridnet.New, hybridnet.HybridnetCondition)
 	koordinatorPlugins[maxinstance.Name] = maxinstance.New
 	koordinatorPlugins[cpusetallocator.Name] = cpusetallocator.New
+	koordinatorPlugins[besteffortscheduling.BatchResourceFitName] = besteffortscheduling.NewFit
+	koordinatorPlugins[besteffortscheduling.BELeastAllocatedName] = besteffortscheduling.NewBELeastAllocated
 }
