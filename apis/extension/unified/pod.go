@@ -1,6 +1,3 @@
-//go:build github
-// +build github
-
 /*
 Copyright 2022 The Koordinator Authors.
 
@@ -17,15 +14,31 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package statesinformer
+package unified
 
 import (
 	corev1 "k8s.io/api/core/v1"
-
-	slov1alpha1 "github.com/koordinator-sh/koordinator/apis/slo/v1alpha1"
 )
 
-// NOTE: functions in this file can be overwritten for extension
+const (
+	AnnotationVirtualNode = "alibabacloud.com/virtual-node-label"
+	AnnotationODPSKata    = "odps-kata"
 
-// fillExtensionMap would fill the Extensions field in PodMetricInfo
-func (r *nodeMetricInformer) fillExtensionMap(info *slov1alpha1.PodMetricInfo, pod *corev1.Pod) {}
+	LabelODPSKataType = "alibabacloud.com/odps-kata-type"
+	LabelPseudoKata   = "pseudo-kata"
+
+	ODPSPodNamespace = "asi-odps"
+)
+
+func IsODPSPseudoKataPod(pod *corev1.Pod) bool {
+	if pod.Namespace != ODPSPodNamespace {
+		return false
+	}
+	if v, ok := pod.Annotations[AnnotationVirtualNode]; !ok || v != AnnotationODPSKata {
+		return false
+	}
+	if v, ok := pod.Labels[LabelODPSKataType]; !ok || v != LabelPseudoKata {
+		return false
+	}
+	return true
+}
