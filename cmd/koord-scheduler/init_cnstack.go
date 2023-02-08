@@ -17,9 +17,10 @@ limitations under the License.
 package main
 
 import (
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/lazyload"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/openlocal"
 )
 
 func init() {
-	koordinatorPlugins[openlocal.Name] = openlocal.New
+	koordinatorPlugins[openlocal.Name] = lazyload.Register(openlocal.Name, openlocal.New, openlocal.OpenLocalCondition)
 }

@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	nodelocalstorage "github.com/alibaba/open-local/pkg/apis/storage/v1alpha1"
 	openlocalfk "github.com/alibaba/open-local/pkg/scheduling-framework"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -46,6 +47,15 @@ var _ = framework.FilterPlugin(&openlocal{})
 var _ = framework.ScorePlugin(&openlocal{})
 var _ = framework.ReservePlugin(&openlocal{})
 var _ = framework.PreBindPlugin(&openlocal{})
+
+func OpenLocalCondition(handle framework.Handle) bool {
+	crdList, err := handle.ClientSet().Discovery().ServerResourcesForGroupVersion(nodelocalstorage.SchemeGroupVersion.String())
+	if err != nil {
+		klog.V(6).Infof("resources %s not found in discovery, err: %s", nodelocalstorage.SchemeGroupVersion, err)
+		return false
+	}
+	return len(crdList.APIResources) > 0
+}
 
 func New(obj runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 	klog.V(1).Info("openlocal start")
