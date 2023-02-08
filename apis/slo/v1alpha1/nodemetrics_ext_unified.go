@@ -23,7 +23,8 @@ import (
 )
 
 const (
-	VirtualResourceKey = "virtual-resource"
+	VirtualResourceKey      = "virtual-resource"
+	KataReservedResourceKey = "kata-reserved-resource"
 )
 
 // GetVirtualResource will retrieve virtual resource from given PodMetricInfo
@@ -55,4 +56,15 @@ func SetVirtualResource(info *PodMetricInfo, resource corev1.ResourceList) {
 		info.Extensions = &ExtensionsMap{Object: map[string]interface{}{}}
 	}
 	info.Extensions.Object[VirtualResourceKey] = resource
+}
+
+// SetKataReservedResource will update PodMetricInfo using values reported by batch-agent under kata scenario.
+func SetKataReservedResource(info *PodMetricInfo, resource corev1.ResourceList) {
+	if info == nil {
+		return
+	}
+	if info.Extensions == nil {
+		info.Extensions = &ExtensionsMap{Object: map[string]interface{}{}}
+	}
+	info.Extensions.Object[KataReservedResourceKey] = resource
 }
