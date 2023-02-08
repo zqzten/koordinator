@@ -18,6 +18,8 @@ package main
 
 import (
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/ack/besteffortscheduling"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/ack/devicesharing/gpushare"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/ack/gputopology"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/cpusetallocator"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/firstfit"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/hybridnet"
@@ -34,4 +36,7 @@ func init() {
 	koordinatorPlugins[besteffortscheduling.BatchResourceFitName] = besteffortscheduling.NewFit
 	koordinatorPlugins[besteffortscheduling.BELeastAllocatedName] = besteffortscheduling.NewBELeastAllocated
 	koordinatorPlugins[firstfit.Name] = firstfit.NewInterceptorPlugin
+	koordinatorPlugins[gpushare.GPUShareName] = gpushare.New
+	koordinatorPlugins[gputopology.GPUTopologyName] = gputopology.New
+
 }
