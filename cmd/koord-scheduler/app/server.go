@@ -62,6 +62,7 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/services"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/sharedlisterext"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/firstfit"
 	utilroutes "github.com/koordinator-sh/koordinator/pkg/util/routes"
 )
 
@@ -402,6 +403,8 @@ func Setup(ctx context.Context, opts *options.Options, outOfTreeRegistryOptions 
 	}
 	eventhandlers.AddScheduleEventHandler(sched, schedulerInternalHandler, frameworkExtenderFactory.KoordinatorSharedInformerFactory())
 	eventhandlers.AddReservationErrorHandler(sched, schedulerInternalHandler, frameworkExtenderFactory.KoordinatorClientSet(), frameworkExtenderFactory.KoordinatorSharedInformerFactory())
+
+	sched.Algorithm = firstfit.NewFirstFitScheduler(sched.Algorithm)
 
 	return &cc, sched, frameworkExtenderFactory, nil
 }

@@ -19,6 +19,7 @@ package main
 import (
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/ack/besteffortscheduling"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/cpusetallocator"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/firstfit"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/hybridnet"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/lazyload"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/maxinstance"
@@ -32,4 +33,5 @@ func init() {
 	koordinatorPlugins[cpusetallocator.Name] = cpusetallocator.New
 	koordinatorPlugins[besteffortscheduling.BatchResourceFitName] = besteffortscheduling.NewFit
 	koordinatorPlugins[besteffortscheduling.BELeastAllocatedName] = besteffortscheduling.NewBELeastAllocated
+	koordinatorPlugins[firstfit.Name] = firstfit.NewInterceptorPlugin
 }
