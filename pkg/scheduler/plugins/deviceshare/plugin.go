@@ -30,6 +30,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
+	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
@@ -325,7 +326,9 @@ func (p *Plugin) Filter(ctx context.Context, cycleState *framework.CycleState, p
 	if node == nil {
 		return framework.NewStatus(framework.Error, "node not found")
 	}
-
+	if extunified.IsVirtualKubeletNode(nodeInfo.Node()) {
+		return nil
+	}
 	nodeDeviceInfo := p.nodeDeviceCache.getNodeDevice(node.Name, false)
 	if nodeDeviceInfo == nil {
 		return framework.NewStatus(framework.UnschedulableAndUnresolvable, ErrMissingDevice)
@@ -385,6 +388,17 @@ func (p *Plugin) Reserve(ctx context.Context, cycleState *framework.CycleState, 
 	if state.skip {
 		return nil
 	}
+	nodeInfo, err := p.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
+	if err != nil {
+		return framework.NewStatus(framework.Error, fmt.Sprintf("getting node %q from Snapshot: %v", nodeName, err))
+	}
+	node := nodeInfo.Node()
+	if node == nil {
+		return framework.NewStatus(framework.Error, "node not found")
+	}
+	if extunified.IsVirtualKubeletNode(node) {
+		return nil
+	}
 
 	nodeDeviceInfo := p.nodeDeviceCache.getNodeDevice(nodeName, false)
 	if nodeDeviceInfo == nil {
@@ -430,6 +444,17 @@ func (p *Plugin) Unreserve(ctx context.Context, cycleState *framework.CycleState
 	if state.skip {
 		return
 	}
+	nodeInfo, err := p.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
+	if err != nil {
+		return
+	}
+	node := nodeInfo.Node()
+	if node == nil {
+		return
+	}
+	if extunified.IsVirtualKubeletNode(node) {
+		return
+	}
 
 	nodeDeviceInfo := p.nodeDeviceCache.getNodeDevice(nodeName, false)
 	if nodeDeviceInfo == nil {
@@ -459,6 +484,17 @@ func (p *Plugin) preBindObject(ctx context.Context, cycleState *framework.CycleS
 	if state.skip {
 		return nil
 	}
+	nodeInfo, err := p.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
+	if err != nil {
+		return framework.NewStatus(framework.Error, fmt.Sprintf("getting node %q from Snapshot: %v", nodeName, err))
+	}
+	node := nodeInfo.Node()
+	if node == nil {
+		return framework.NewStatus(framework.Error, "node not found")
+	}
+	if extunified.IsVirtualKubeletNode(node) {
+		return nil
+	}
 
 	originalObj := object.DeepCopyObject()
 	metaObject := object.(metav1.Object)
@@ -480,7 +516,7 @@ func (p *Plugin) preBindObject(ctx context.Context, cycleState *framework.CycleS
 	// }
 
 	// patch pod or reservation (if the pod is a reserve pod) with new annotations
-	err := util.RetryOnConflictOrTooManyRequests(func() error {
+	err = util.RetryOnConflictOrTooManyRequests(func() error {
 		_, err1 := util.NewPatch().WithHandle(p.handle).AddAnnotations(metaObject.GetAnnotations()).Patch(ctx, originalObj.(metav1.Object))
 		return err1
 	})
