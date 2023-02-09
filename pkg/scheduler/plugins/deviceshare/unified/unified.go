@@ -131,10 +131,12 @@ func ValidateGPURequest(podRequest corev1.ResourceList) (uint, error) {
 
 	if gpuCombination == (deviceshare.NvidiaGPUExist) ||
 		gpuCombination == (deviceshare.KoordGPUExist) ||
+		gpuCombination == (deviceshare.GPUMemoryRatioExist) ||
 		gpuCombination == (deviceshare.GPUCoreExist|deviceshare.GPUMemoryExist) ||
 		gpuCombination == (deviceshare.GPUCoreExist|deviceshare.GPUMemoryRatioExist) ||
 		gpuCombination == (aliyunGPUComputeExist) ||
 		gpuCombination == (unifiedGPUExist) ||
+		gpuCombination == (unifiedGPUMemoryRatioExist) ||
 		gpuCombination == (unifiedGPUCoreExist|unifiedGPUMemoryExist) ||
 		gpuCombination == (unifiedGPUCoreExist|unifiedGPUMemoryRatioExist) {
 		return gpuCombination, nil
@@ -157,6 +159,11 @@ func ConvertGPUResource(podRequest corev1.ResourceList, combination uint) corev1
 	case deviceshare.GPUCoreExist | deviceshare.GPUMemoryRatioExist:
 		return corev1.ResourceList{
 			apiext.GPUCore:        podRequest[apiext.GPUCore],
+			apiext.GPUMemoryRatio: podRequest[apiext.GPUMemoryRatio],
+		}
+	case deviceshare.GPUMemoryRatioExist:
+		return corev1.ResourceList{
+			apiext.GPUCore:        podRequest[apiext.GPUMemoryRatio],
 			apiext.GPUMemoryRatio: podRequest[apiext.GPUMemoryRatio],
 		}
 	case deviceshare.KoordGPUExist:
@@ -183,6 +190,11 @@ func ConvertGPUResource(podRequest corev1.ResourceList, combination uint) corev1
 	case unifiedGPUCoreExist | unifiedGPUMemoryRatioExist:
 		return corev1.ResourceList{
 			apiext.GPUCore:        podRequest[unifiedresourceext.GPUResourceCore],
+			apiext.GPUMemoryRatio: podRequest[unifiedresourceext.GPUResourceMemRatio],
+		}
+	case unifiedGPUMemoryRatioExist:
+		return corev1.ResourceList{
+			apiext.GPUCore:        podRequest[unifiedresourceext.GPUResourceMemRatio],
 			apiext.GPUMemoryRatio: podRequest[unifiedresourceext.GPUResourceMemRatio],
 		}
 	case unifiedGPUExist:
