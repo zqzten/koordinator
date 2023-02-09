@@ -41,10 +41,14 @@ func (gm *GPUModelCache) Init(handle framework.Handle) error {
 		kubeConfig.AcceptContentTypes = runtime.ContentTypeJSON
 		koordClientSet := versioned.NewForConfigOrDie(&kubeConfig)
 		koordSharedInformerFactory := koordinatorinformers.NewSharedInformerFactory(koordClientSet, 0)
-		client = frameworkext.NewExtendedHandle(
+		var err error
+		client, err = frameworkext.NewExtendedHandle(
 			frameworkext.WithKoordinatorClientSet(koordClientSet),
 			frameworkext.WithKoordinatorSharedInformerFactory(koordSharedInformerFactory),
 		)
+		if err != nil {
+			return err
+		}
 	}
 	if GlobalGPUModelCache == nil {
 		GlobalGPUModelCache = &GPUModelCache{
