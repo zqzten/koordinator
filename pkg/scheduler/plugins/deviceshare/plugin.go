@@ -30,6 +30,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
+	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
@@ -147,7 +148,9 @@ func (p *Plugin) Filter(ctx context.Context, cycleState *framework.CycleState, p
 	if nodeInfo.Node() == nil {
 		return framework.NewStatus(framework.Error, "node not found")
 	}
-
+	if extunified.IsVirtualKubeletNode(nodeInfo.Node()) {
+		return nil
+	}
 	nodeDeviceInfo := p.nodeDeviceCache.getNodeDevice(nodeInfo.Node().Name)
 	if nodeDeviceInfo == nil {
 		return framework.NewStatus(framework.UnschedulableAndUnresolvable, ErrMissingDevice)
@@ -172,6 +175,17 @@ func (p *Plugin) Reserve(ctx context.Context, cycleState *framework.CycleState, 
 		return status
 	}
 	if state.skip {
+		return nil
+	}
+	nodeInfo, err := p.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
+	if err != nil {
+		return framework.NewStatus(framework.Error, fmt.Sprintf("getting node %q from Snapshot: %v", nodeName, err))
+	}
+	node := nodeInfo.Node()
+	if node == nil {
+		return framework.NewStatus(framework.Error, "node not found")
+	}
+	if extunified.IsVirtualKubeletNode(node) {
 		return nil
 	}
 
@@ -203,6 +217,17 @@ func (p *Plugin) Unreserve(ctx context.Context, cycleState *framework.CycleState
 	if state.skip {
 		return
 	}
+	nodeInfo, err := p.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
+	if err != nil {
+		return
+	}
+	node := nodeInfo.Node()
+	if node == nil {
+		return
+	}
+	if extunified.IsVirtualKubeletNode(node) {
+		return
+	}
 
 	nodeDeviceInfo := p.nodeDeviceCache.getNodeDevice(nodeName)
 	if nodeDeviceInfo == nil {
@@ -222,6 +247,17 @@ func (p *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState, 
 		return status
 	}
 	if state.skip {
+		return nil
+	}
+	nodeInfo, err := p.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
+	if err != nil {
+		return framework.NewStatus(framework.Error, fmt.Sprintf("getting node %q from Snapshot: %v", nodeName, err))
+	}
+	node := nodeInfo.Node()
+	if node == nil {
+		return framework.NewStatus(framework.Error, "node not found")
+	}
+	if extunified.IsVirtualKubeletNode(node) {
 		return nil
 	}
 

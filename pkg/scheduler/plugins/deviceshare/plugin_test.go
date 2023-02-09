@@ -54,6 +54,7 @@ type fakeExtendedHandle struct {
 	frameworkext.ExtendedHandle
 	cs                    *kubefake.Clientset
 	sharedInformerFactory informers.SharedInformerFactory
+	snapShotSharedLister  framework.SharedLister
 	cosclientset.Interface
 }
 
@@ -63,6 +64,10 @@ func (f *fakeExtendedHandle) ClientSet() clientset.Interface {
 
 func (f *fakeExtendedHandle) SharedInformerFactory() informers.SharedInformerFactory {
 	return f.sharedInformerFactory
+}
+
+func (f *fakeExtendedHandle) SnapshotSharedLister() framework.SharedLister {
+	return f.snapShotSharedLister
 }
 
 var _ framework.SharedLister = &testSharedLister{}
@@ -133,6 +138,7 @@ type pluginTestSuit struct {
 func proxyPluginFactory(extendHandle *fakeExtendedHandle, factory runtime.PluginFactory) runtime.PluginFactory {
 	return func(configuration apiruntime.Object, f framework.Handle) (framework.Plugin, error) {
 		extendHandle.sharedInformerFactory = f.SharedInformerFactory()
+		extendHandle.snapShotSharedLister = f.SnapshotSharedLister()
 		return factory(configuration, extendHandle)
 	}
 }
@@ -1501,7 +1507,15 @@ func Test_Plugin_Reserve(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := &Plugin{nodeDeviceCache: tt.args.nodeDeviceCache, allocator: &defaultAllocator{}}
+			nodes := []*corev1.Node{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:   tt.args.nodeName,
+						Labels: map[string]string{},
+					},
+				},
+			}
+			p := &Plugin{nodeDeviceCache: tt.args.nodeDeviceCache, allocator: &defaultAllocator{}, handle: &fakeExtendedHandle{snapShotSharedLister: newTestSharedLister(nil, nodes)}}
 			cycleState := framework.NewCycleState()
 			if tt.args.state != nil {
 				cycleState.Write(stateKey, tt.args.state)
@@ -1839,7 +1853,16 @@ func Test_Plugin_Unreserve(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := &Plugin{nodeDeviceCache: tt.args.nodeDeviceCache, allocator: &defaultAllocator{}}
+			nodes := []*corev1.Node{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:   "test-node",
+						Labels: map[string]string{},
+					},
+				},
+			}
+			p := &Plugin{nodeDeviceCache: tt.args.nodeDeviceCache, allocator: &defaultAllocator{}, handle: &fakeExtendedHandle{snapShotSharedLister: newTestSharedLister(nil, nodes)}}
+
 			cycleState := framework.NewCycleState()
 			if tt.args.state != nil {
 				cycleState.Write(stateKey, tt.args.state)
@@ -1941,11 +1964,12 @@ func Test_Plugin_PreBind(t *testing.T) {
 					},
 				},
 			},
-			handle: &fakeExtendedHandle{cs: kubefake.NewSimpleClientset(testPod)},
+			handle: &fakeExtendedHandle{cs: kubefake.NewSimpleClientset(testPod), snapShotSharedLister: newTestSharedLister(nil, []*corev1.Node{{ObjectMeta: metav1.ObjectMeta{Name: "test-node"}}})},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+
 			p := &Plugin{nodeDeviceCache: newNodeDeviceCache(), handle: tt.handle, allocator: &defaultAllocator{}}
 			cycleState := framework.NewCycleState()
 			if tt.args.state != nil {
