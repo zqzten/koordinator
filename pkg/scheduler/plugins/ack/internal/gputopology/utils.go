@@ -31,10 +31,10 @@ func iterateGPUS(gpus []int, callback func([]int)) {
 	}
 }
 
-// this function is used to get the min bandwith of given gpu combination
+// this function is used to get the min bandwidth of given gpu combination
 // for example,if given gpus [1,2,3]
-// we will calculate the bandwith of [1,2],[1,3],[2,3]
-// and pick the min bandwith
+// we will calculate the bandwidth of [1,2],[1,3],[2,3]
+// and pick the min bandwidth
 func getGPULinkMinBandwidth(gpus []int, callback func([]int)) {
 	var iterate func(gpus, accum []int, size int)
 	iterate = func(gpus, accum []int, size int) {
@@ -122,7 +122,7 @@ func GetGPUsAndMinBandwidth(availableGPUs []string, hints []GPUTopologyHint, req
 		if mergedAffinity.Count() != requestGPUs {
 			continue
 		}
-		// found the topology hint whose value of min bandwith is max
+		// found the topology hint whose value of min bandwidth is max
 		if result == nil || result.MinBandwidth < topo.MinBandwidth {
 			result = &GPUTopologyHint{Affinity: mergedAffinity, MinBandwidth: topo.MinBandwidth}
 		}

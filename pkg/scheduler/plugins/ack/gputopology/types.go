@@ -11,7 +11,7 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/ack/internal/gputopology"
 )
 
-var GetTopologyGroupPodsInterval = time.Duration(10 * time.Millisecond)
+var GetTopologyGroupPodsInterval = 10 * time.Millisecond
 
 type ContainerIndex int
 

@@ -632,11 +632,11 @@ func buildPolicyArgs(podRequests map[v1.ResourceName]int, requestDeviceCount int
 	result := map[v1.ResourceName]policy.PolicyArgs{}
 	for resourceName, podRequestCount := range podRequests {
 		totalDeviceResourceCount, availableDeviceResourceCount := getNodeDeviceResourceCount(resourceName, nodeResourceManager, maxPodsPerDevice)
-		// if not avaiable devices,skip it
+		// if not available devices,skip it
 		if len(totalDeviceResourceCount) == 0 || len(availableDeviceResourceCount) == 0 {
 			continue
 		}
-		// detect the node is satified the pod request
+		// detect the node is satisfied the pod request
 		policyArgs := policy.PolicyArgs{
 			TotalDevices:                totalDeviceResourceCount,
 			AvailableDevices:            availableDeviceResourceCount,

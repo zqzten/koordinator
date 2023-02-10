@@ -55,7 +55,7 @@ func GetContainerRequestResourceByName(resourceName v1.ResourceName, pod *v1.Pod
 	total := map[gputopology.ContainerIndex]int{}
 	containers := pod.Spec.Containers
 	for index, container := range containers {
-		if val, ok := container.Resources.Limits[v1.ResourceName(resourceName)]; ok && int(val.Value()) != 0 {
+		if val, ok := container.Resources.Limits[resourceName]; ok && int(val.Value()) != 0 {
 			total[gputopology.ContainerIndex(index)] = int(val.Value())
 		}
 	}

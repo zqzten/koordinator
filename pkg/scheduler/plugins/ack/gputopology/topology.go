@@ -511,7 +511,7 @@ func getTopologyGroupPods(currentPod *v1.Pod, podLister corelisters.PodLister, c
 		return err
 	}
 	var getPods = func() ([]*v1.Pod, error) {
-		selector := labels.Set(labels.Set{groupLabelKey: groupName}).AsSelector()
+		selector := labels.Set{groupLabelKey: groupName}.AsSelector()
 		pods, err := podLister.Pods(currentPod.Namespace).List(selector)
 		if err != nil {
 			return nil, err

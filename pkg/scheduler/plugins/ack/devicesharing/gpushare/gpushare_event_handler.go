@@ -204,7 +204,7 @@ func getPodResourceFromV1(pod *v1.Pod) map[v1.ResourceName]noderesource.PodResou
 	if !found || deviceIndex == "" {
 		return nil
 	}
-	value, found = pod.Annotations[GPUShareV1TotalGPUMemoryFlag]
+	value = pod.Annotations[GPUShareV1TotalGPUMemoryFlag]
 	totalGPUMemory, err := strconv.Atoi(value)
 	if err != nil {
 		klog.Infof("failed to parse total gpu memory from pod annotation %v,reason: %v", GPUShareV1TotalGPUMemoryFlag, err)
@@ -228,7 +228,7 @@ func getPodResourceFromV1(pod *v1.Pod) map[v1.ResourceName]noderesource.PodResou
 		},
 	}
 	return map[v1.ResourceName]noderesource.PodResource{
-		v1.ResourceName(GPUShareResourceMemoryName): podResource,
+		GPUShareResourceMemoryName: podResource,
 	}
 }
 
@@ -279,33 +279,6 @@ func getPodResourceFromV2(pod *v1.Pod) map[v1.ResourceName]noderesource.PodResou
 			AllocatedResources:  allContainersAllocatedResources,
 		}
 		podResources[v1.ResourceName(resourceInfo.Name)] = podResource
-	}
-	return podResources
-}
-
-func getPodResourceFromV3(pod *v1.Pod) map[v1.ResourceName]noderesource.PodResource {
-	podResources := map[v1.ResourceName]noderesource.PodResource{}
-	resourceNames := GetResourceInfoList().GetNames()
-	for _, resourceName := range resourceNames {
-		// map[int]map[string]int{} represents: map[ContainerIndex]map[DeviceIndex]AllocatedGPUMemory
-		annotationKey := GetResourceInfoList().GetPodAnnotationKey(resourceName)
-		if annotationKey == "" {
-			continue
-		}
-		value := pod.Annotations[annotationKey]
-		if value == "" {
-			continue
-		}
-		podResource := noderesource.PodResource{
-			PodUID:       pod.UID,
-			PodName:      pod.Name,
-			PodNamespace: pod.Namespace,
-		}
-		if err := noderesource.BuildPodContainersAllocatedResources(value, &podResource); err != nil {
-			klog.Errorf("failed to parse allocation from annotation%v=%v: %v", annotationKey, value, err)
-			continue
-		}
-		podResources[resourceName] = podResource
 	}
 	return podResources
 }
