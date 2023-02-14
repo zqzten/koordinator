@@ -24,10 +24,12 @@ import (
 	"k8s.io/client-go/informers"
 	appslisters "k8s.io/client-go/listers/apps/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
+	scheduledconfigv1beta2config "k8s.io/kube-scheduler/config/v1beta2"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config"
+	"k8s.io/kubernetes/pkg/scheduler/apis/config/v1beta2"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config/validation"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
-	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/names"
+	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 )
 
 const (
@@ -70,7 +72,7 @@ var _ framework.EnqueueExtensions = &PodTopologySpread{}
 
 const (
 	// Name is the name of the plugin used in the plugin registry and configurations.
-	Name = names.PodTopologySpread
+	Name = "UnifiedPodTopologySpread"
 )
 
 // Name returns name of the plugin. It is used in logs, etc.
@@ -109,11 +111,36 @@ func New(plArgs runtime.Object, h framework.Handle) (framework.Plugin, error) {
 }
 
 func getArgs(obj runtime.Object) (config.PodTopologySpreadArgs, error) {
-	ptr, ok := obj.(*config.PodTopologySpreadArgs)
-	if !ok {
-		return config.PodTopologySpreadArgs{}, fmt.Errorf("want args to be of type PodTopologySpreadArgs, got %T", obj)
+	podTopologySpreadArgs, err := getDefaultPodTopologySpreadArgs()
+	if err != nil {
+		return config.PodTopologySpreadArgs{}, err
 	}
-	return *ptr, nil
+
+	if obj != nil {
+		switch t := obj.(type) {
+		case *config.PodTopologySpreadArgs:
+			podTopologySpreadArgs = t
+		case *runtime.Unknown:
+			unknownObj := t
+			if err := frameworkruntime.DecodeInto(unknownObj, podTopologySpreadArgs); err != nil {
+				return config.PodTopologySpreadArgs{}, err
+			}
+		default:
+			return config.PodTopologySpreadArgs{}, fmt.Errorf("want args to be of type PodTopologySpreadArgs, got %T", obj)
+		}
+	}
+	return *podTopologySpreadArgs, nil
+}
+
+func getDefaultPodTopologySpreadArgs() (*config.PodTopologySpreadArgs, error) {
+	var v1beta2args scheduledconfigv1beta2config.PodTopologySpreadArgs
+	v1beta2.SetDefaults_PodTopologySpreadArgs(&v1beta2args)
+	var podTopologySpreadArgs config.PodTopologySpreadArgs
+	err := v1beta2.Convert_v1beta2_PodTopologySpreadArgs_To_config_PodTopologySpreadArgs(&v1beta2args, &podTopologySpreadArgs, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &podTopologySpreadArgs, nil
 }
 
 func (pl *PodTopologySpread) setListers(factory informers.SharedInformerFactory) {
