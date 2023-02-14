@@ -28,6 +28,7 @@ const (
 	DefaultEnableACUForLSPod    featuregate.Feature = "DefaultEnableACUForLSPod"
 	ResourceSummaryReport       featuregate.Feature = "ResourceSummaryReport"
 	ResourceSummaryReportDryRun featuregate.Feature = "ResourceSummaryReportDryRun"
+	RecommenderControl          featuregate.Feature = "RecommenderControl"
 )
 
 const (
@@ -42,6 +43,7 @@ var defaultUnifiedFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec
 	DefaultEnableACUForLSPod:    {Default: true, PreRelease: featuregate.Beta},
 	ResourceSummaryReport:       {Default: true, PreRelease: featuregate.Beta},
 	ResourceSummaryReportDryRun: {Default: false, PreRelease: featuregate.Beta},
+	RecommenderControl:          {Default: false, PreRelease: featuregate.Beta},
 }
 
 var defaultUnifiedSchedulerFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
