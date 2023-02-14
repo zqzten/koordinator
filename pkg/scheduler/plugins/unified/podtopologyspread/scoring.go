@@ -24,8 +24,9 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
+
+	nodeaffinityhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/nodeaffinity"
 )
 
 const preScoreStateKey = "PreScore" + Name
@@ -141,7 +142,7 @@ func (pl *PodTopologySpread) PreScore(
 	}
 
 	// Ignore parsing errors for backwards compatibility.
-	requiredNodeAffinity := nodeaffinity.GetRequiredNodeAffinity(pod)
+	requiredNodeAffinity := nodeaffinityhelper.GetRequiredNodeAffinity(pod)
 	processAllNode := func(i int) {
 		nodeInfo := allNodes[i]
 		node := nodeInfo.Node()
@@ -150,7 +151,7 @@ func (pl *PodTopologySpread) PreScore(
 		}
 		// (1) `node` should satisfy incoming pod's NodeSelector/NodeAffinity
 		// (2) All topologyKeys need to be present in `node`
-		match, _ := requiredNodeAffinity.Match(node)
+		match := requiredNodeAffinity.Match(node)
 		if !match || (requireAllTopologies && !nodeLabelsMatchSpreadConstraints(node.Labels, state.Constraints)) {
 			return
 		}
