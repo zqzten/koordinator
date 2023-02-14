@@ -29,6 +29,7 @@ require (
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.1
+	gitlab.alibaba-inc.com/cos/recommender v0.4.4-122.0.20230215023005-ee4271f23a72
 	gitlab.alibaba-inc.com/cos/scheduling-api v0.0.0-20210630080232-14abe8ce6989
 	gitlab.alibaba-inc.com/cos/unified-resource-api v1.22.3-1.0.20220705131219-d0d01381562f
 	gitlab.alibaba-inc.com/sigma/sigma-k8s-api v1.1.3
@@ -83,7 +84,7 @@ require (
 	github.com/Microsoft/hcsshim v0.8.23 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e // indirect
-	github.com/asaskevich/govalidator v0.0.0-20190424111038-f61b66f89f4a // indirect
+	github.com/asaskevich/govalidator v0.0.0-20200907205600-7a23bdc65eef // indirect
 	github.com/aws/aws-sdk-go v1.38.49 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.2.0 // indirect
@@ -147,7 +148,7 @@ require (
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2 // indirect
 	github.com/mistifyio/go-zfs v2.1.2-0.20190413222219-f784269be439+incompatible // indirect
-	github.com/mitchellh/mapstructure v1.1.2 // indirect
+	github.com/mitchellh/mapstructure v1.4.1 // indirect
 	github.com/moby/ipvs v1.0.1 // indirect
 	github.com/moby/spdystream v0.2.0 // indirect
 	github.com/moby/sys/mountinfo v0.4.1 // indirect
@@ -172,6 +173,7 @@ require (
 	github.com/quobyte/api v0.1.8 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rubiojr/go-vhd v0.0.0-20200706105327-02e210299021 // indirect
+	github.com/satori/go.uuid v1.2.0 // indirect
 	github.com/seccomp/libseccomp-golang v0.9.1 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/storageos/go-api v2.2.0+incompatible // indirect
@@ -222,6 +224,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280 // indirect
 	k8s.io/kube-proxy v0.0.0 // indirect
 	k8s.io/legacy-cloud-providers v0.0.0 // indirect
+	k8s.io/metrics v0.22.6 // indirect
 	k8s.io/mount-utils v0.22.6 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.33 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
