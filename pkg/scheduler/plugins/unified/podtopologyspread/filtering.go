@@ -24,9 +24,11 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
+
+	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	nodeaffinityhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/nodeaffinity"
 )
 
 const preFilterStateKey = "PreFilter" + Name
@@ -222,7 +224,7 @@ func (pl *PodTopologySpread) calPreFilterState(pod *v1.Pod) (*preFilterState, er
 		TpKeyToCriticalPaths: make(map[string]*criticalPaths, len(constraints)),
 		TpPairToMatchNum:     make(map[topologyPair]*int32, sizeHeuristic(len(allNodes), constraints)),
 	}
-	requiredSchedulingTerm := nodeaffinity.GetRequiredNodeAffinity(pod)
+	requiredSchedulingTerm := nodeaffinityhelper.GetRequiredNodeAffinity(pod)
 	for _, n := range allNodes {
 		node := n.Node()
 		if node == nil {
@@ -232,7 +234,7 @@ func (pl *PodTopologySpread) calPreFilterState(pod *v1.Pod) (*preFilterState, er
 		// In accordance to design, if NodeAffinity or NodeSelector is defined,
 		// spreading is applied to nodes that pass those filters.
 		// Ignore parsing errors for backwards compatibility.
-		match, _ := requiredSchedulingTerm.Match(node)
+		match := requiredSchedulingTerm.Match(node)
 		if !match {
 			continue
 		}
@@ -253,6 +255,7 @@ func (pl *PodTopologySpread) calPreFilterState(pod *v1.Pod) (*preFilterState, er
 		for _, constraint := range constraints {
 			pair := topologyPair{key: constraint.TopologyKey, value: node.Labels[constraint.TopologyKey]}
 			tpCount := s.TpPairToMatchNum[pair]
+			klog.Info(pair, tpCount)
 			if tpCount == nil {
 				continue
 			}
@@ -294,6 +297,9 @@ func (pl *PodTopologySpread) Filter(ctx context.Context, cycleState *framework.C
 	podLabelSet := labels.Set(pod.Labels)
 	for _, c := range s.Constraints {
 		tpKey := c.TopologyKey
+		if extunified.IsVirtualKubeletNode(node) && tpKey == v1.LabelHostname {
+			continue
+		}
 		tpVal, ok := node.Labels[c.TopologyKey]
 		if !ok {
 			klog.V(5).Infof("node '%s' doesn't have required label '%s'", node.Name, tpKey)
