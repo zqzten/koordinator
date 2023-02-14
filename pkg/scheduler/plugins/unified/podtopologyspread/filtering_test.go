@@ -22,6 +22,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
+	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -1789,6 +1791,187 @@ func TestMultipleConstraints(t *testing.T) {
 	}
 }
 
+func TestMultipleConstraintsECI(t *testing.T) {
+	selector, err := metav1.LabelSelectorAsSelector(st.MakeLabelSelector().Exists("foo").Obj())
+	assert.NoError(t, err)
+	tests := []struct {
+		name               string
+		pod                *v1.Pod
+		nodes              []*v1.Node
+		existingPods       []*v1.Pod
+		wantStatusCode     map[string]framework.Code
+		wantPrefilterState *preFilterState
+	}{
+		{
+			name: "two Constraints on zone and node, spreads = 3/3, 2/1/0/3, eci node pass",
+			pod: st.MakePod().Name("p").Label("foo", "").Label(uniext.LabelECIAffinity, uniext.ECIRequired).
+				SpreadConstraint(1, "zone", v1.DoNotSchedule, st.MakeLabelSelector().Exists("foo").Obj()).
+				SpreadConstraint(1, v1.LabelHostname, v1.DoNotSchedule, st.MakeLabelSelector().Exists("foo").Obj()).
+				Obj(),
+			nodes: []*v1.Node{
+				st.MakeNode().Name("node-a").Label("zone", "zone1").Label(v1.LabelHostname, "node-a").Obj(),
+				st.MakeNode().Name("node-b").Label("zone", "zone1").Label(v1.LabelHostname, "node-b").Obj(),
+				st.MakeNode().Name("node-x").Label("zone", "zone2").Label(v1.LabelHostname, "node-x").Obj(),
+				st.MakeNode().Name("node-y").Label("zone", "zone2").Label(v1.LabelHostname, "node-y").Label(uniext.LabelNodeType, uniext.VKType).Obj(),
+			},
+			existingPods: []*v1.Pod{
+				st.MakePod().Name("p-a1").Node("node-a").Label("foo", "").Obj(),
+				st.MakePod().Name("p-a2").Node("node-a").Label("foo", "").Obj(),
+				st.MakePod().Name("p-b1").Node("node-b").Label("foo", "").Obj(),
+				st.MakePod().Name("p-y1").Node("node-y").Label("foo", "").Obj(),
+				st.MakePod().Name("p-y2").Node("node-y").Label("foo", "").Obj(),
+				st.MakePod().Name("p-y3").Node("node-y").Label("foo", "").Obj(),
+			},
+			wantStatusCode: map[string]framework.Code{
+				"node-a": framework.Unschedulable,
+				"node-b": framework.Unschedulable,
+				"node-x": framework.Success,
+				"node-y": framework.Success,
+			},
+			wantPrefilterState: &preFilterState{
+				Constraints: []topologySpreadConstraint{
+					{
+						MaxSkew:     1,
+						TopologyKey: "zone",
+						Selector:    selector,
+					},
+					{
+						MaxSkew:     1,
+						TopologyKey: v1.LabelHostname,
+						Selector:    selector,
+					},
+				},
+				TpKeyToCriticalPaths: map[string]*criticalPaths{
+					"zone": {
+						{
+							TopologyValue: "zone2",
+							MatchNum:      3,
+						},
+						{
+							TopologyValue: "zone1",
+							MatchNum:      3,
+						},
+					},
+					v1.LabelHostname: {
+						{
+							TopologyValue: "node-x",
+							MatchNum:      0,
+						},
+						{
+							TopologyValue: "node-b",
+							MatchNum:      1,
+						},
+					},
+				},
+				TpPairToMatchNum: map[topologyPair]*int32{
+					{key: "zone", value: "zone1"}:            pointer.Int32(3),
+					{key: "zone", value: "zone2"}:            pointer.Int32(3),
+					{key: v1.LabelHostname, value: "node-a"}: pointer.Int32(2),
+					{key: v1.LabelHostname, value: "node-b"}: pointer.Int32(1),
+					{key: v1.LabelHostname, value: "node-x"}: pointer.Int32(0),
+					{key: v1.LabelHostname, value: "node-y"}: pointer.Int32(3),
+				},
+			},
+		},
+		{
+			// 1. to fulfill "zone" constraint, incoming pod can be placed on any zone (hence any node)
+			// 2. to fulfill "node" constraint, incoming pod can be placed on node-x
+			// intersection of (1) and (2) returns node-x
+			name: "two Constraints on zone and node, spreads = 3/3, 2/1/0/3, only eci node and allowed node have topology state",
+			pod: st.MakePod().Name("p").Label("foo", "").Label(uniext.LabelECIAffinity, uniext.ECIRequired).
+				SpreadConstraint(1, "zone", v1.DoNotSchedule, st.MakeLabelSelector().Exists("foo").Obj()).
+				SpreadConstraint(1, v1.LabelHostname, v1.DoNotSchedule, st.MakeLabelSelector().Exists("foo").Obj()).
+				NodeAffinityIn("not-allowed", []string{"not-allowed"}).
+				Obj(),
+			nodes: []*v1.Node{
+				st.MakeNode().Name("node-a").Label("zone", "zone1").Label(v1.LabelHostname, "node-a").Obj(),
+				st.MakeNode().Name("node-b").Label("zone", "zone1").Label(v1.LabelHostname, "node-b").Label("not-allowed", "not-allowed").Obj(),
+				st.MakeNode().Name("node-x").Label("zone", "zone2").Label(v1.LabelHostname, "node-x").Obj(),
+				st.MakeNode().Name("node-y").Label("zone", "zone2").Label(v1.LabelHostname, "node-y").Label(uniext.LabelNodeType, uniext.VKType).Obj(),
+			},
+			existingPods: []*v1.Pod{
+				st.MakePod().Name("p-a1").Node("node-a").Label("foo", "").Obj(),
+				st.MakePod().Name("p-a2").Node("node-a").Label("foo", "").Obj(),
+				st.MakePod().Name("p-b1").Node("node-b").Label("foo", "").Obj(),
+				st.MakePod().Name("p-y1").Node("node-y").Label("foo", "").Obj(),
+				st.MakePod().Name("p-y2").Node("node-y").Label("foo", "").Obj(),
+				st.MakePod().Name("p-y3").Node("node-y").Label("foo", "").Obj(),
+			},
+			wantStatusCode: map[string]framework.Code{
+				"node-a": framework.Success,
+				"node-b": framework.Success,
+				"node-x": framework.Success,
+				"node-y": framework.Success,
+			},
+			wantPrefilterState: &preFilterState{
+				Constraints: []topologySpreadConstraint{
+					{
+						MaxSkew:     1,
+						TopologyKey: "zone",
+						Selector:    selector,
+					},
+					{
+						MaxSkew:     1,
+						TopologyKey: v1.LabelHostname,
+						Selector:    selector,
+					},
+				},
+				TpKeyToCriticalPaths: map[string]*criticalPaths{
+					"zone": {
+						{
+							TopologyValue: "zone1",
+							MatchNum:      3,
+						},
+						{
+							TopologyValue: "zone2",
+							MatchNum:      3,
+						},
+					},
+					v1.LabelHostname: {
+						{
+							TopologyValue: "node-b",
+							MatchNum:      1,
+						},
+						{
+							TopologyValue: "node-y",
+							MatchNum:      3,
+						},
+					},
+				},
+				TpPairToMatchNum: map[topologyPair]*int32{
+					{key: "zone", value: "zone1"}:            pointer.Int32(3),
+					{key: "zone", value: "zone2"}:            pointer.Int32(3),
+					{key: v1.LabelHostname, value: "node-b"}: pointer.Int32(1),
+					{key: v1.LabelHostname, value: "node-y"}: pointer.Int32(3),
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			snapshot := NewSnapshot(tt.existingPods, tt.nodes)
+			pl := plugintesting.SetupPlugin(t, New, &config.PodTopologySpreadArgs{DefaultingType: config.ListDefaulting}, snapshot)
+			p := pl.(*PodTopologySpread)
+			state := framework.NewCycleState()
+			preFilterStatus := p.PreFilter(context.Background(), state, tt.pod)
+			if !preFilterStatus.IsSuccess() {
+				t.Errorf("preFilter failed with status: %v", preFilterStatus)
+			}
+			gotPrefilterState, err := getPreFilterState(state)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantPrefilterState.TpPairToMatchNum, gotPrefilterState.TpPairToMatchNum)
+
+			for _, node := range tt.nodes {
+				nodeInfo, _ := snapshot.NodeInfos().Get(node.Name)
+				status := p.Filter(context.Background(), state, tt.pod, nodeInfo)
+				if len(tt.wantStatusCode) != 0 && status.Code() != tt.wantStatusCode[node.Name] {
+					t.Errorf("[%s]: expected error code %v got %v", node.Name, tt.wantStatusCode[node.Name], status.Code())
+				}
+			}
+		})
+	}
+}
+
 func TestPreFilterDisabled(t *testing.T) {
 	pod := &v1.Pod{}
 	nodeInfo := framework.NewNodeInfo()
@@ -1797,7 +1980,7 @@ func TestPreFilterDisabled(t *testing.T) {
 	p := plugintesting.SetupPlugin(t, New, &config.PodTopologySpreadArgs{DefaultingType: config.ListDefaulting}, NewEmptySnapshot())
 	cycleState := framework.NewCycleState()
 	gotStatus := p.(*PodTopologySpread).Filter(context.Background(), cycleState, pod, nodeInfo)
-	wantStatus := framework.AsStatus(fmt.Errorf(`reading "PreFilterPodTopologySpread" from cycleState: %w`, framework.ErrNotFound))
+	wantStatus := framework.AsStatus(fmt.Errorf(`reading "PreFilterUnifiedPodTopologySpread" from cycleState: %w`, framework.ErrNotFound))
 	if !reflect.DeepEqual(gotStatus, wantStatus) {
 		t.Errorf("status does not match: %v, want: %v", gotStatus, wantStatus)
 	}
