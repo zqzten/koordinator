@@ -225,6 +225,54 @@ func TestAutopilotAllocator(t *testing.T) {
 		wantErr         bool
 	}{
 		{
+			name:         "request 1 GPU and 1 VF but with invalid RDMA Topology",
+			deviceCR:     fakeDeviceCR,
+			rdmaTopology: &unified.RDMATopology{},
+			gpuWanted:    1,
+			want:         nil,
+			wantErr:      true,
+		},
+		{
+			name:           "request 1 GPU and 1 VF but invalid Device Topology",
+			deviceCR:       fakeDeviceCR,
+			deviceTopology: &unified.DeviceTopology{},
+			gpuWanted:      1,
+			want:           nil,
+			wantErr:        true,
+		},
+		{
+			name:         "allocate 0 GPU and 1 VF but invalid RDMA Topology",
+			deviceCR:     fakeDeviceCR,
+			rdmaTopology: &unified.RDMATopology{},
+			gpuWanted:    0,
+			want:         nil,
+			wantErr:      true,
+		},
+		{
+			name:           "allocate 0 GPU and 1 VF but invalid Device Topology",
+			deviceCR:       fakeDeviceCR,
+			deviceTopology: &unified.DeviceTopology{},
+			gpuWanted:      0,
+			want:           nil,
+			wantErr:        true,
+		},
+		{
+			name:      "allocate 0 GPU and 1 VF",
+			deviceCR:  fakeDeviceCR,
+			gpuWanted: 0,
+			want: apiext.DeviceAllocations{
+				schedulingv1alpha1.RDMA: []*apiext.DeviceAllocation{
+					{
+						Minor: 1,
+						Resources: corev1.ResourceList{
+							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
+					},
+				},
+			},
+		},
+		{
 			name:      "allocate 1 GPU and 1 VF",
 			deviceCR:  fakeDeviceCR,
 			gpuWanted: 1,
@@ -745,12 +793,14 @@ func TestAutopilotAllocator(t *testing.T) {
 			nodeDevice := deviceCache.getNodeDevice("test-node-1")
 			assert.NotNil(t, nodeDevice)
 
-			podRequest := corev1.ResourceList{
-				apiext.NvidiaGPU: *resource.NewQuantity(int64(tt.gpuWanted), resource.DecimalSI),
+			podRequest := corev1.ResourceList{}
+			if tt.gpuWanted > 0 {
+				podRequest[apiext.NvidiaGPU] = *resource.NewQuantity(int64(tt.gpuWanted), resource.DecimalSI)
+				combination, err := ValidateGPURequest(podRequest)
+				assert.NoError(t, err)
+				podRequest = ConvertGPUResource(podRequest, combination)
 			}
-			combination, err := ValidateGPURequest(podRequest)
-			assert.NoError(t, err)
-			podRequest = ConvertGPUResource(podRequest, combination)
+
 			podRequest[apiext.KoordRDMA] = *resource.NewQuantity(1, resource.DecimalSI)
 
 			nodeDevice.lock.Lock()
