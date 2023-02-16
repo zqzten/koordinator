@@ -144,7 +144,10 @@ func (a *AutopilotAllocator) Allocate(nodeName string, pod *corev1.Pod, podReque
 		return nil, err
 	}
 	if len(rdmaTopology.VFs) == 0 {
-		return nodeDevice.tryAllocateDevice(podRequest)
+		rdmaRequest := podRequest[apiext.KoordRDMA]
+		if !rdmaRequest.IsZero() {
+			return nil, fmt.Errorf("invalid RDMA Topology")
+		}
 	}
 	deviceTopology, err := unified.GetDeviceTopology(device.Annotations)
 	if err != nil {
@@ -217,7 +220,7 @@ func (a *AutopilotAllocator) allocateNonGPUDevices(
 ) (apiext.DeviceAllocations, error) {
 	deviceAllocations := apiext.DeviceAllocations{}
 	rdmaRequest := podRequest[apiext.KoordRDMA]
-	if !rdmaRequest.IsZero() && rdmaTopology != nil && len(rdmaTopology.VFs) > 0 {
+	if !rdmaRequest.IsZero() {
 		rdmaAllocations, err := a.allocateVFs(nodeName, rdmaRequest, 1, false, nil, deviceTopology, rdmaTopology)
 		if err != nil {
 			return nil, err
