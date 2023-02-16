@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"path"
 
+	quotav1 "gitlab.alibaba-inc.com/unischeduler/api/apis/quotas/v1"
 	sev1 "gitlab.alibaba-inc.com/unischeduler/api/apis/scheduling/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -161,6 +162,11 @@ func (p *Interpreter) CreateReservation(ctx context.Context, job *koordsev1alpha
 		reserveResource.Labels[LabelEnableMigrate] = "true"
 		reserveResource.Spec.ConfirmState = sev1.ReserveResourceConfirmState(job.Labels[LabelMigrationConfirmState])
 	}
+
+	delete(reserveResource.Labels, quotav1.LabelQuotaID)
+	delete(reserveResource.Labels, quotav1.LabelQuotaName)
+	delete(reserveResource.Spec.Template.Labels, quotav1.LabelQuotaID)
+	delete(reserveResource.Spec.Template.Labels, quotav1.LabelQuotaName)
 
 	err := p.Client.Create(ctx, reserveResource)
 	if k8serrors.IsAlreadyExists(err) {
