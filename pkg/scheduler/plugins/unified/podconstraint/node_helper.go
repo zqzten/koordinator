@@ -19,14 +19,13 @@ package podconstraint
 import (
 	unischeduling "gitlab.alibaba-inc.com/unischeduler/api/apis/scheduling/v1beta1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/podconstraint/cache"
 )
 
-func GetNodeSelectorAndAffinity(podConstraintCache *PodConstraintCache, pod *corev1.Pod) (map[string]string, *corev1.Affinity, *framework.Status) {
+func GetNodeSelectorAndAffinity(podConstraintCache *cache.PodConstraintCache, pod *corev1.Pod) (map[string]string, *corev1.Affinity, *framework.Status) {
 	var nodeSelectorTerms []corev1.NodeSelectorTerm
 	var preferredSchedulingTerms []corev1.PreferredSchedulingTerm
 	nodeSelector := make(map[string]string)
@@ -102,17 +101,4 @@ func mergeRequiredNodeAffinity(fromPod []corev1.NodeSelectorTerm, fromConstraint
 		fromPod = append(fromPod, fromConstraint...)
 	}
 	return fromPod
-}
-
-func MatchesNodeSelectorAndAffinityTerms(nodeSelector map[string]string, affinity *corev1.Affinity, node *corev1.Node) (bool, error) {
-	if len(nodeSelector) > 0 {
-		selector := labels.SelectorFromSet(nodeSelector)
-		if !selector.Matches(labels.Set(node.Labels)) {
-			return false, nil
-		}
-	}
-
-	return nodeaffinity.GetRequiredNodeAffinity(&corev1.Pod{
-		Spec: corev1.PodSpec{Affinity: affinity},
-	}).Match(node)
 }
