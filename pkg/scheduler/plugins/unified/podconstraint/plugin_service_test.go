@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/podconstraint/cache"
 )
 
 func TestEndpointsQueryConstraintState(t *testing.T) {
@@ -72,7 +73,7 @@ func TestEndpointsQueryConstraintState(t *testing.T) {
 			},
 		},
 	}
-	suit := newPluginTestSuit(t, nodes)
+	suit := newPluginTestSuit(t, nodes, nil)
 	p, err := suit.proxyNew(suit.args, suit.Handle)
 	assert.NotNil(t, p)
 	assert.Nil(t, err)
@@ -133,7 +134,7 @@ func TestEndpointsQueryConstraintState(t *testing.T) {
 	plg.podConstraintCache.AddPod(nodes[2], pod)
 
 	expectConstraintStateResponse := &constraintStatesResponse{
-		RequiredSpreadConstraints: []*TopologySpreadConstraint{
+		RequiredSpreadConstraints: []*cache.TopologySpreadConstraint{
 			{
 				TopologyKey: corev1.LabelTopologyZone,
 				MaxSkew:     1,
@@ -142,15 +143,15 @@ func TestEndpointsQueryConstraintState(t *testing.T) {
 		TpKeyToTotalMatchNum: map[string]int{
 			corev1.LabelTopologyZone: 6,
 		},
-		TpPairToMatchNum: map[TopologyPair]int{
+		TpPairToMatchNum: map[cache.TopologyPair]int{
 			{TopologyKey: corev1.LabelTopologyZone, TopologyValue: "na610"}: 2,
 			{TopologyKey: corev1.LabelTopologyZone, TopologyValue: "na620"}: 2,
 			{TopologyKey: corev1.LabelTopologyZone, TopologyValue: "na630"}: 2,
 		},
-		TpKeyToCriticalPaths: map[string]*TopologyCriticalPaths{
+		TpKeyToCriticalPaths: map[string]*cache.TopologyCriticalPaths{
 			corev1.LabelTopologyZone: {
-				Min: CriticalPath{MatchNum: 2, TopologyValue: "na630"},
-				Max: CriticalPath{MatchNum: 2, TopologyValue: "na620"},
+				Min: cache.CriticalPath{MatchNum: 2, TopologyValue: "na630"},
+				Max: cache.CriticalPath{MatchNum: 2, TopologyValue: "na620"},
 			},
 		},
 	}
@@ -206,7 +207,7 @@ func TestEndpointsQueryAllocSet(t *testing.T) {
 			},
 		},
 	}
-	suit := newPluginTestSuit(t, nodes)
+	suit := newPluginTestSuit(t, nodes, nil)
 	p, err := suit.proxyNew(suit.args, suit.Handle)
 	assert.NotNil(t, p)
 	assert.Nil(t, err)

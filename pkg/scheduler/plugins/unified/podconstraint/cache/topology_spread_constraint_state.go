@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package podconstraint
+package cache
 
 import (
 	"fmt"
@@ -40,7 +40,7 @@ type TopologySpreadConstraintState struct {
 	TpKeyToCriticalPaths map[string]*TopologyCriticalPaths
 }
 
-func newTopologySpreadConstraintState(constraint *unischeduling.PodConstraint, spreadTypeRequired *bool) *TopologySpreadConstraintState {
+func NewTopologySpreadConstraintState(constraint *unischeduling.PodConstraint, spreadTypeRequired *bool) *TopologySpreadConstraintState {
 	s := &TopologySpreadConstraintState{
 		PodConstraint:        constraint,
 		DefaultPodConstraint: IsPodConstraintDefault(constraint),
@@ -72,7 +72,7 @@ func (p *TopologyPair) UnmarshalText(text []byte) error {
 	return nil
 }
 
-func (s *TopologySpreadConstraintState) copyRequiredSpreadConstraints() []*TopologySpreadConstraint {
+func (s *TopologySpreadConstraintState) CopyRequiredSpreadConstraints() []*TopologySpreadConstraint {
 	if len(s.RequiredSpreadConstraints) == 0 {
 		return nil
 	}
@@ -81,7 +81,7 @@ func (s *TopologySpreadConstraintState) copyRequiredSpreadConstraints() []*Topol
 	return spreadConstraints
 }
 
-func (s *TopologySpreadConstraintState) copyPreferredSpreadConstraints() []*TopologySpreadConstraint {
+func (s *TopologySpreadConstraintState) CopyPreferredSpreadConstraints() []*TopologySpreadConstraint {
 	if len(s.PreferredSpreadConstraints) == 0 {
 		return nil
 	}
@@ -90,7 +90,7 @@ func (s *TopologySpreadConstraintState) copyPreferredSpreadConstraints() []*Topo
 	return spreadConstraints
 }
 
-func (s *TopologySpreadConstraintState) copyTpPairToMatchNum() map[TopologyPair]int {
+func (s *TopologySpreadConstraintState) CopyTpPairToMatchNum() map[TopologyPair]int {
 	if s.TpPairToMatchNum == nil {
 		return nil
 	}
@@ -101,7 +101,7 @@ func (s *TopologySpreadConstraintState) copyTpPairToMatchNum() map[TopologyPair]
 	return tpPairToMatchNum
 }
 
-func (s *TopologySpreadConstraintState) copyTpKeyToTotalMatchNum() map[string]int {
+func (s *TopologySpreadConstraintState) CopyTpKeyToTotalMatchNum() map[string]int {
 	if s.TpKeyToTotalMatchNum == nil {
 		return nil
 	}
@@ -112,7 +112,7 @@ func (s *TopologySpreadConstraintState) copyTpKeyToTotalMatchNum() map[string]in
 	return tpKeyToTotalMatchNum
 }
 
-func (s *TopologySpreadConstraintState) copyTpKeyToCriticalPath() map[string]*TopologyCriticalPaths {
+func (s *TopologySpreadConstraintState) CopyTpKeyToCriticalPath() map[string]*TopologyCriticalPaths {
 	if s.TpKeyToCriticalPaths == nil {
 		return nil
 	}
@@ -135,15 +135,15 @@ func (s *TopologySpreadConstraintState) copyTpKeyToCriticalPath() map[string]*To
 func (s *TopologySpreadConstraintState) updateWithPodConstraint(constraint *unischeduling.PodConstraint, spreadTypeRequired *bool) (hasNewTopologyKey bool) {
 	s.Lock()
 	defer s.Unlock()
-	constraintKey := getNamespacedName(constraint.Namespace, constraint.Name)
-	if constraintKey != getNamespacedName(s.PodConstraint.Namespace, s.PodConstraint.Name) {
+	constraintKey := GetNamespacedName(constraint.Namespace, constraint.Name)
+	if constraintKey != GetNamespacedName(s.PodConstraint.Namespace, s.PodConstraint.Name) {
 		return
 	}
 	if s.DefaultPodConstraint && spreadTypeRequired != nil && *spreadTypeRequired != s.SpreadTypeRequired {
 		s.SpreadTypeRequired = *spreadTypeRequired
 	}
-	requiredSpreadConstraints := spreadRulesToTopologySpreadConstraint(constraint.Spec.SpreadRule.Requires)
-	preferredSpreadConstraints := spreadRulesToTopologySpreadConstraint(constraint.Spec.SpreadRule.Affinities)
+	requiredSpreadConstraints := SpreadRulesToTopologySpreadConstraint(constraint.Spec.SpreadRule.Requires)
+	preferredSpreadConstraints := SpreadRulesToTopologySpreadConstraint(constraint.Spec.SpreadRule.Affinities)
 
 	topologyKeys := sets.NewString()
 	for _, constraints := range [][]*TopologySpreadConstraint{requiredSpreadConstraints, preferredSpreadConstraints} {
@@ -181,8 +181,9 @@ func (s *TopologySpreadConstraintState) updateWithPodConstraint(constraint *unis
 }
 
 func (s *TopologySpreadConstraintState) update(node *corev1.Node, podReplicasDelta int) {
-	if !(nodeLabelsMatchSpreadConstraints(node.Labels, s.RequiredSpreadConstraints) &&
-		nodeLabelsMatchSpreadConstraints(node.Labels, s.PreferredSpreadConstraints)) {
+	// todo 这里需要两个都判断吗
+	if !(NodeLabelsMatchSpreadConstraints(node.Labels, s.RequiredSpreadConstraints) &&
+		NodeLabelsMatchSpreadConstraints(node.Labels, s.PreferredSpreadConstraints)) {
 		return
 	}
 	topologyKeySet := sets.NewString()
@@ -223,7 +224,7 @@ func (s *TopologySpreadConstraintState) update(node *corev1.Node, podReplicasDel
 	}
 }
 
-func nodeLabelsMatchSpreadConstraints(nodeLabels map[string]string, constraints []*TopologySpreadConstraint) bool {
+func NodeLabelsMatchSpreadConstraints(nodeLabels map[string]string, constraints []*TopologySpreadConstraint) bool {
 	// if node has all topology constraint key, return true
 	for _, c := range constraints {
 		if _, ok := nodeLabels[c.TopologyKey]; !ok {

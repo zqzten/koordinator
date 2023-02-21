@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package podconstraint
+package cache
 
 import (
 	"context"
@@ -34,7 +34,7 @@ type podConstraintEventHandler struct {
 	podConstraintCache *PodConstraintCache
 }
 
-func registerPodConstraintEventHandler(handle framework.Handle, podConstraintCache *PodConstraintCache) error {
+func RegisterPodConstraintEventHandler(handle framework.Handle, podConstraintCache *PodConstraintCache) error {
 	unifiedClient, ok := handle.(unifiedclientset.Interface)
 	if !ok {
 		kubeConfig := handle.KubeConfig()

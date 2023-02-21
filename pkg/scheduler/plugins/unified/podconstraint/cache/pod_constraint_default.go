@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package podconstraint
+package cache
 
 import (
 	"fmt"
@@ -40,6 +40,7 @@ func IsConstraintNameDefault(constraintName string) bool {
 }
 
 func BuildDefaultPodConstraint(namespace, name string, required bool) *unischeduling.PodConstraint {
+	// required default 和 preferred default 的 tpKey其实是一样的，所以 spreadType 不会影响 default podConstraint 的 matchNum
 	if required {
 		return buildRequiredDefaultPodConstraint(namespace, name)
 	} else {
