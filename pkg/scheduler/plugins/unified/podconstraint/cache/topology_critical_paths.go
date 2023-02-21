@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package podconstraint
+package cache
 
 import (
 	"math"
@@ -28,7 +28,6 @@ type TopologyCriticalPaths struct {
 // CriticalPath traces the minimum matchNum and  matchNum in the Topology
 // 1. 需要使用者及时追踪新增的TopologyValue并将其MatchNum更新至0
 // 2. 需要使用者及时追踪现有的TopologyValue的MatchNum有变化
-// 3. todo 需要使用者确保Pod分配遵循尽量Spread原则
 type CriticalPath struct {
 	// TopologyValue denotes the topology value mapping to topology key.
 	TopologyValue string `json:"topologyValue,omitempty"`

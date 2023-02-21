@@ -23,32 +23,33 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/services"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/podconstraint/cache"
 )
 
 var _ services.APIServiceProvider = &Plugin{}
 
 type constraintStatesResponse struct {
-	DefaultPodConstraint       bool                        `json:"defaultPodConstraint,omitempty"`
-	SpreadTypeRequired         bool                        `json:"spreadTypeRequired,omitempty"`
-	RequiredSpreadConstraints  []*TopologySpreadConstraint `json:"requiredSpreadConstraints,omitempty"`
-	PreferredSpreadConstraints []*TopologySpreadConstraint `json:"preferredSpreadConstraints,omitempty"`
+	DefaultPodConstraint       bool                              `json:"defaultPodConstraint,omitempty"`
+	SpreadTypeRequired         bool                              `json:"spreadTypeRequired,omitempty"`
+	RequiredSpreadConstraints  []*cache.TopologySpreadConstraint `json:"requiredSpreadConstraints,omitempty"`
+	PreferredSpreadConstraints []*cache.TopologySpreadConstraint `json:"preferredSpreadConstraints,omitempty"`
 	// TpPairToMatchNum is keyed with topologyPair, and valued with the number of matching pods.
-	TpPairToMatchNum     map[TopologyPair]int              `json:"tpPairToMatchNum,omitempty"`
-	TpKeyToTotalMatchNum map[string]int                    `json:"tpKeyToTotalMatchNum,omitempty"`
-	TpKeyToCriticalPaths map[string]*TopologyCriticalPaths `json:"tpKeyToCriticalPaths,omitempty"`
+	TpPairToMatchNum     map[cache.TopologyPair]int              `json:"tpPairToMatchNum,omitempty"`
+	TpKeyToTotalMatchNum map[string]int                          `json:"tpKeyToTotalMatchNum,omitempty"`
+	TpKeyToCriticalPaths map[string]*cache.TopologyCriticalPaths `json:"tpKeyToCriticalPaths,omitempty"`
 }
 
-func newConstraintStateResponse(constraintState *TopologySpreadConstraintState) *constraintStatesResponse {
+func newConstraintStateResponse(constraintState *cache.TopologySpreadConstraintState) *constraintStatesResponse {
 	constraintState.RLock()
 	defer constraintState.RUnlock()
 	constraintStateResponse := &constraintStatesResponse{
 		DefaultPodConstraint:       constraintState.DefaultPodConstraint,
 		SpreadTypeRequired:         constraintState.SpreadTypeRequired,
-		RequiredSpreadConstraints:  constraintState.copyRequiredSpreadConstraints(),
-		PreferredSpreadConstraints: constraintState.copyPreferredSpreadConstraints(),
-		TpPairToMatchNum:           constraintState.copyTpPairToMatchNum(),
-		TpKeyToTotalMatchNum:       constraintState.copyTpKeyToTotalMatchNum(),
-		TpKeyToCriticalPaths:       constraintState.copyTpKeyToCriticalPath(),
+		RequiredSpreadConstraints:  constraintState.CopyRequiredSpreadConstraints(),
+		PreferredSpreadConstraints: constraintState.CopyPreferredSpreadConstraints(),
+		TpPairToMatchNum:           constraintState.CopyTpPairToMatchNum(),
+		TpKeyToTotalMatchNum:       constraintState.CopyTpKeyToTotalMatchNum(),
+		TpKeyToCriticalPaths:       constraintState.CopyTpKeyToCriticalPath(),
 	}
 	return constraintStateResponse
 }
@@ -57,16 +58,16 @@ func (p *Plugin) RegisterEndpoints(group *gin.RouterGroup) {
 	group.GET("/constraintStates/:constraintNamespace/:constraintName", func(c *gin.Context) {
 		constraintNamespace := c.Param("constraintNamespace")
 		constraintName := c.Param("constraintName")
-		constraintState := p.podConstraintCache.GetState(getNamespacedName(constraintNamespace, constraintName))
+		constraintState := p.podConstraintCache.GetState(cache.GetNamespacedName(constraintNamespace, constraintName))
 		if constraintState == nil {
-			services.ResponseErrorMessage(c, http.StatusNotFound, "cannot find constraintState %s", getNamespacedName(constraintNamespace, constraintName))
+			services.ResponseErrorMessage(c, http.StatusNotFound, "cannot find constraintState %s", cache.GetNamespacedName(constraintNamespace, constraintName))
 			return
 		}
 		constraintStateResponse := newConstraintStateResponse(constraintState)
 		c.JSON(http.StatusOK, constraintStateResponse)
 	})
 	group.GET("/allocSet", func(c *gin.Context) {
-		allocSet := sets.NewString(p.podConstraintCache.allocSet.List()...)
+		allocSet := sets.NewString(p.podConstraintCache.AllocSet.List()...)
 		c.JSON(http.StatusOK, allocSet)
 	})
 }

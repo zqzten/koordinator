@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package podconstraint
+package cache
 
 import (
 	"sync"
@@ -34,20 +34,25 @@ type PodConstraintCache struct {
 	enableDefaultPodConstraint bool
 	constraintToPodAllocations map[string]map[string]*podAllocation
 	constraintStateCache       map[string]*TopologySpreadConstraintState
-	allocSet                   sets.String
+	AllocSet                   sets.String
 }
 
-func newPodConstraintCache(handle framework.Handle, enableDefaultPodConstraint bool) *PodConstraintCache {
-	return &PodConstraintCache{
+func NewPodConstraintCache(handle framework.Handle, enableDefaultPodConstraint bool) (*PodConstraintCache, error) {
+	cache := &PodConstraintCache{
 		handle:                     handle,
 		enableDefaultPodConstraint: enableDefaultPodConstraint,
 		constraintToPodAllocations: make(map[string]map[string]*podAllocation),
 		constraintStateCache:       make(map[string]*TopologySpreadConstraintState),
-		allocSet:                   sets.NewString(),
+		AllocSet:                   sets.NewString(),
 	}
+	if err := RegisterPodConstraintEventHandler(handle, cache); err != nil {
+		return nil, err
+	}
+	RegisterPodEventHandler(handle, cache)
+	return cache, nil
 }
 
-func getNamespacedName(namespace, name string) string {
+func GetNamespacedName(namespace, name string) string {
 	result := types.NamespacedName{
 		Namespace: namespace,
 		Name:      name,
@@ -59,7 +64,7 @@ func (c *PodConstraintCache) SetPodConstraint(constraint *unischeduling.PodConst
 	hasNewTopologyKey, _ := c.UpdateStateIfNeed(constraint, nil)
 	if hasNewTopologyKey {
 		// todo 这个还没有解决新的TopologyKey添加之后有可能出现的账本不匹配问题
-		c.updateStateWithNewConstraint(getNamespacedName(constraint.Namespace, constraint.Name))
+		c.updateStateWithNewConstraint(GetNamespacedName(constraint.Namespace, constraint.Name))
 	}
 }
 
@@ -72,10 +77,10 @@ func (c *PodConstraintCache) UpdateStateIfNeed(constraint *unischeduling.PodCons
 
 func (c *PodConstraintCache) updateStateIfNeed(constraint *unischeduling.PodConstraint, spreadTypeRequired *bool) (
 	hasNewTopologyKey bool, state *TopologySpreadConstraintState) {
-	constraintKey := getNamespacedName(constraint.Namespace, constraint.Name)
+	constraintKey := GetNamespacedName(constraint.Namespace, constraint.Name)
 	state = c.constraintStateCache[constraintKey]
 	if state == nil {
-		state = newTopologySpreadConstraintState(constraint, spreadTypeRequired)
+		state = NewTopologySpreadConstraintState(constraint, spreadTypeRequired)
 		c.constraintStateCache[constraintKey] = state
 	} else {
 		hasNewTopologyKey = state.updateWithPodConstraint(constraint, spreadTypeRequired)
@@ -115,7 +120,7 @@ func (c *PodConstraintCache) updateStateWithNewConstraint(podConstraintKey strin
 func (c *PodConstraintCache) DelPodConstraint(constraint *unischeduling.PodConstraint) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	key := getNamespacedName(constraint.Namespace, constraint.Name)
+	key := GetNamespacedName(constraint.Namespace, constraint.Name)
 	delete(c.constraintToPodAllocations, key)
 	delete(c.constraintStateCache, key)
 }
@@ -154,13 +159,13 @@ func (c *PodConstraintCache) addPod(node *corev1.Node, pod *corev1.Pod, constrai
 	if len(constraints) == 0 {
 		return
 	}
-	podKey := getNamespacedName(pod.Namespace, pod.Name)
-	if c.allocSet.Has(podKey) {
+	podKey := GetNamespacedName(pod.Namespace, pod.Name)
+	if c.AllocSet.Has(podKey) {
 		return
 	}
-	c.allocSet.Insert(podKey)
+	c.AllocSet.Insert(podKey)
 	for _, constraint := range constraints {
-		constraintKey := getNamespacedName(constraint.Namespace, constraint.Name)
+		constraintKey := GetNamespacedName(constraint.Namespace, constraint.Name)
 		allocations, ok := c.constraintToPodAllocations[constraintKey]
 		if !ok {
 			allocations = make(map[string]*podAllocation)
@@ -201,21 +206,21 @@ func (c *PodConstraintCache) getConstraintsDiff(oldPod, newPod *corev1.Pod) (
 	oldConstraints := c.getWeightConstraints(oldPod)
 	oldConstraintKeys := sets.NewString()
 	for _, oldConstraint := range oldConstraints {
-		oldConstraintKeys.Insert(getNamespacedName(oldConstraint.Namespace, oldConstraint.Name))
+		oldConstraintKeys.Insert(GetNamespacedName(oldConstraint.Namespace, oldConstraint.Name))
 	}
 	newConstraints := c.getWeightConstraints(newPod)
 	newConstraintKeys := sets.NewString()
 	for _, newConstraint := range newConstraints {
-		newConstraintKeys.Insert(getNamespacedName(newConstraint.Namespace, newConstraint.Name))
+		newConstraintKeys.Insert(GetNamespacedName(newConstraint.Namespace, newConstraint.Name))
 	}
 	for _, oldConstraint := range oldConstraints {
-		if newConstraintKeys.Has(getNamespacedName(oldConstraint.Namespace, oldConstraint.Name)) {
+		if newConstraintKeys.Has(GetNamespacedName(oldConstraint.Namespace, oldConstraint.Name)) {
 			continue
 		}
 		constraintsToDelete = append(constraintsToDelete, oldConstraint)
 	}
 	for _, newConstraint := range newConstraints {
-		if oldConstraintKeys.Has(getNamespacedName(newConstraint.Namespace, newConstraint.Name)) {
+		if oldConstraintKeys.Has(GetNamespacedName(newConstraint.Namespace, newConstraint.Name)) {
 			continue
 		}
 		constraintsToAdd = append(constraintsToAdd, newConstraint)
@@ -237,13 +242,13 @@ func (c *PodConstraintCache) deletePod(node *corev1.Node, pod *corev1.Pod, const
 	if len(constraints) == 0 {
 		return
 	}
-	podKey := getNamespacedName(pod.Namespace, pod.Name)
-	if !c.allocSet.Has(podKey) {
+	podKey := GetNamespacedName(pod.Namespace, pod.Name)
+	if !c.AllocSet.Has(podKey) {
 		return
 	}
-	c.allocSet.Delete(podKey)
+	c.AllocSet.Delete(podKey)
 	for _, constraint := range constraints {
-		constraintKey := getNamespacedName(constraint.Namespace, constraint.Name)
+		constraintKey := GetNamespacedName(constraint.Namespace, constraint.Name)
 
 		cachedAllocation := c.constraintToPodAllocations[constraintKey]
 		delete(cachedAllocation, podKey)
@@ -277,6 +282,6 @@ func (c *PodConstraintCache) GetState(constraintKey string) *TopologySpreadConst
 
 func (c *PodConstraintCache) GetDefaultPodConstraintState(namespace string, spreadUnit string) *TopologySpreadConstraintState {
 	defaultPodConstraintName := GetDefaultPodConstraintName(spreadUnit)
-	constraintKey := getNamespacedName(namespace, defaultPodConstraintName)
+	constraintKey := GetNamespacedName(namespace, defaultPodConstraintName)
 	return c.GetState(constraintKey)
 }

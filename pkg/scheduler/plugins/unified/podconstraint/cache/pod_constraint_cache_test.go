@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package podconstraint
+package cache
 
 import (
 	"context"
@@ -23,13 +23,80 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"gitlab.alibaba-inc.com/unischeduler/api/apis/scheduling/v1beta1"
+	unifiedfake "gitlab.alibaba-inc.com/unischeduler/api/client/clientset/versioned/fake"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/informers"
+	kubefake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/kubernetes/pkg/scheduler/framework"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/defaultbinder"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/queuesort"
+	"k8s.io/kubernetes/pkg/scheduler/framework/runtime"
+	schedulertesting "k8s.io/kubernetes/pkg/scheduler/testing"
 	"k8s.io/utils/pointer"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 )
+
+var _ framework.SharedLister = &testSharedLister{}
+
+type testSharedLister struct {
+	nodes       []*corev1.Node
+	nodeInfos   []*framework.NodeInfo
+	nodeInfoMap map[string]*framework.NodeInfo
+}
+
+func newTestSharedLister(pods []*corev1.Pod, nodes []*corev1.Node) *testSharedLister {
+	nodeInfoMap := make(map[string]*framework.NodeInfo)
+	nodeInfos := make([]*framework.NodeInfo, 0)
+	for _, pod := range pods {
+		nodeName := pod.Spec.NodeName
+		if _, ok := nodeInfoMap[nodeName]; !ok {
+			nodeInfoMap[nodeName] = framework.NewNodeInfo()
+		}
+		nodeInfoMap[nodeName].AddPod(pod)
+	}
+	for _, node := range nodes {
+		if _, ok := nodeInfoMap[node.Name]; !ok {
+			nodeInfoMap[node.Name] = framework.NewNodeInfo()
+		}
+
+		nodeInfoMap[node.Name].SetNode(node)
+		nodeInfos = append(nodeInfos, nodeInfoMap[node.Name])
+	}
+
+	return &testSharedLister{
+		nodes:       nodes,
+		nodeInfos:   nodeInfos,
+		nodeInfoMap: nodeInfoMap,
+	}
+}
+
+func (f *testSharedLister) NodeInfos() framework.NodeInfoLister {
+	return f
+}
+
+func (f *testSharedLister) List() ([]*framework.NodeInfo, error) {
+	return f.nodeInfos, nil
+}
+
+func (f *testSharedLister) HavePodsWithAffinityList() ([]*framework.NodeInfo, error) {
+	return nil, nil
+}
+
+func (f *testSharedLister) HavePodsWithRequiredAntiAffinityList() ([]*framework.NodeInfo, error) {
+	return nil, nil
+}
+
+func (f *testSharedLister) Get(nodeName string) (*framework.NodeInfo, error) {
+	return f.nodeInfoMap[nodeName], nil
+}
+
+type frameworkHandleExtender struct {
+	framework.Handle
+	*unifiedfake.Clientset
+}
 
 func TestPodConstraintCache_AddConstraint(t *testing.T) {
 	nodes := []*corev1.Node{
@@ -70,18 +137,32 @@ func TestPodConstraintCache_AddConstraint(t *testing.T) {
 			},
 		},
 	}
-	suit := newPluginTestSuit(t, nodes)
-	p, err := suit.proxyNew(suit.args, suit.Handle)
-	assert.NotNil(t, p)
+
+	cs := kubefake.NewSimpleClientset()
+	informerFactory := informers.NewSharedInformerFactory(cs, 0)
+	snapshot := newTestSharedLister(nil, nodes)
+	fh, err := schedulertesting.NewFramework(
+		[]schedulertesting.RegisterPluginFunc{
+			schedulertesting.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
+			schedulertesting.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
+		},
+		"koord-scheduler",
+		runtime.WithClientSet(cs),
+		runtime.WithInformerFactory(informerFactory),
+		runtime.WithSnapshotSharedLister(snapshot),
+	)
 	assert.Nil(t, err)
 
-	plg := p.(*Plugin)
-	suit.start()
-
 	for _, node := range nodes {
-		_, err := suit.Handle.ClientSet().CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
+		_, err := fh.ClientSet().CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
 		assert.NoError(t, err)
 	}
+	unifiedClientSet := unifiedfake.NewSimpleClientset()
+	podConstraintCache, err := NewPodConstraintCache(frameworkHandleExtender{
+		Handle:    fh,
+		Clientset: unifiedClientSet,
+	}, true)
+	assert.NoError(t, err)
 
 	podConstraint := &v1beta1.PodConstraint{
 		ObjectMeta: metav1.ObjectMeta{
@@ -99,7 +180,7 @@ func TestPodConstraintCache_AddConstraint(t *testing.T) {
 			},
 		},
 	}
-	plg.podConstraintCache.SetPodConstraint(podConstraint)
+	podConstraintCache.SetPodConstraint(podConstraint)
 
 	//
 	// constructs topology: topology.kubernetes.io/zone
@@ -118,19 +199,19 @@ func TestPodConstraintCache_AddConstraint(t *testing.T) {
 		},
 	}
 	pod.Name = "pod-1"
-	plg.podConstraintCache.AddPod(nodes[0], pod)
+	podConstraintCache.AddPod(nodes[0], pod)
 	pod.Name = "pod-2"
-	plg.podConstraintCache.AddPod(nodes[0], pod)
+	podConstraintCache.AddPod(nodes[0], pod)
 	pod.Name = "pod-3"
-	plg.podConstraintCache.AddPod(nodes[1], pod)
+	podConstraintCache.AddPod(nodes[1], pod)
 	pod.Name = "pod-4"
-	plg.podConstraintCache.AddPod(nodes[1], pod)
+	podConstraintCache.AddPod(nodes[1], pod)
 	pod.Name = "pod-5"
-	plg.podConstraintCache.AddPod(nodes[2], pod)
+	podConstraintCache.AddPod(nodes[2], pod)
 	pod.Name = "pod-6"
-	plg.podConstraintCache.AddPod(nodes[2], pod)
+	podConstraintCache.AddPod(nodes[2], pod)
 
-	gotState := plg.podConstraintCache.GetState(getNamespacedName(podConstraint.Namespace, podConstraint.Name))
+	gotState := podConstraintCache.GetState(GetNamespacedName(podConstraint.Namespace, podConstraint.Name))
 	expectState := &TopologySpreadConstraintState{
 		PodConstraint: podConstraint,
 		RequiredSpreadConstraints: []*TopologySpreadConstraint{
@@ -169,26 +250,41 @@ func TestPodConstraintCache_AddConstraintWithNewConstraint(t *testing.T) {
 			},
 		},
 	}
-	suit := newPluginTestSuit(t, nodes)
-	p, err := suit.proxyNew(suit.args, suit.Handle)
-	assert.NotNil(t, p)
+
+	cs := kubefake.NewSimpleClientset()
+	informerFactory := informers.NewSharedInformerFactory(cs, 0)
+	snapshot := newTestSharedLister(nil, nodes)
+	fh, err := schedulertesting.NewFramework(
+		[]schedulertesting.RegisterPluginFunc{
+			schedulertesting.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
+			schedulertesting.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
+		},
+		"koord-scheduler",
+		runtime.WithClientSet(cs),
+		runtime.WithInformerFactory(informerFactory),
+		runtime.WithSnapshotSharedLister(snapshot),
+	)
 	assert.Nil(t, err)
 
-	plg := p.(*Plugin)
-	suit.start()
-
 	for _, node := range nodes {
-		_, err := suit.Handle.ClientSet().CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
+		_, err := fh.ClientSet().CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
 		assert.NoError(t, err)
 	}
+	unifiedClientSet := unifiedfake.NewSimpleClientset()
+	podConstraintCache, err := NewPodConstraintCache(frameworkHandleExtender{
+		Handle:    fh,
+		Clientset: unifiedClientSet,
+	}, true)
+	assert.NoError(t, err)
+
 	var ch = make(chan int)
-	suit.Handle.SharedInformerFactory().Core().V1().Nodes().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	fh.SharedInformerFactory().Core().V1().Nodes().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			ch <- 1
 		},
 	})
-	suit.Handle.SharedInformerFactory().Start(context.TODO().Done())
-	suit.Handle.SharedInformerFactory().WaitForCacheSync(context.TODO().Done())
+	fh.SharedInformerFactory().Start(context.TODO().Done())
+	fh.SharedInformerFactory().WaitForCacheSync(context.TODO().Done())
 	<-ch
 
 	podConstraint := &v1beta1.PodConstraint{
@@ -207,7 +303,7 @@ func TestPodConstraintCache_AddConstraintWithNewConstraint(t *testing.T) {
 			},
 		},
 	}
-	plg.podConstraintCache.SetPodConstraint(podConstraint)
+	podConstraintCache.SetPodConstraint(podConstraint)
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -221,9 +317,9 @@ func TestPodConstraintCache_AddConstraintWithNewConstraint(t *testing.T) {
 			NodeName: nodes[0].Name,
 		},
 	}
-	plg.podConstraintCache.AddPod(nodes[0], pod)
+	podConstraintCache.AddPod(nodes[0], pod)
 
-	gotState := plg.podConstraintCache.GetState(getNamespacedName(podConstraint.Namespace, podConstraint.Name))
+	gotState := podConstraintCache.GetState(GetNamespacedName(podConstraint.Namespace, podConstraint.Name))
 	expectState := &TopologySpreadConstraintState{
 		PodConstraint: podConstraint,
 		RequiredSpreadConstraints: []*TopologySpreadConstraint{
@@ -250,9 +346,9 @@ func TestPodConstraintCache_AddConstraintWithNewConstraint(t *testing.T) {
 		TopologyKey: corev1.LabelHostname,
 		MaxSkew:     1,
 	})
-	plg.podConstraintCache.SetPodConstraint(podConstraint)
+	podConstraintCache.SetPodConstraint(podConstraint)
 
-	gotState = plg.podConstraintCache.GetState(getNamespacedName(podConstraint.Namespace, podConstraint.Name))
+	gotState = podConstraintCache.GetState(GetNamespacedName(podConstraint.Namespace, podConstraint.Name))
 	expectState = &TopologySpreadConstraintState{
 		PodConstraint: podConstraint,
 		RequiredSpreadConstraints: []*TopologySpreadConstraint{
@@ -299,26 +395,40 @@ func TestPodConstraintCache_AddConstraintWithDeleteOneConstraint(t *testing.T) {
 			},
 		},
 	}
-	suit := newPluginTestSuit(t, nodes)
-	p, err := suit.proxyNew(suit.args, suit.Handle)
-	assert.NotNil(t, p)
+	cs := kubefake.NewSimpleClientset()
+	informerFactory := informers.NewSharedInformerFactory(cs, 0)
+	snapshot := newTestSharedLister(nil, nodes)
+	fh, err := schedulertesting.NewFramework(
+		[]schedulertesting.RegisterPluginFunc{
+			schedulertesting.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
+			schedulertesting.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
+		},
+		"koord-scheduler",
+		runtime.WithClientSet(cs),
+		runtime.WithInformerFactory(informerFactory),
+		runtime.WithSnapshotSharedLister(snapshot),
+	)
 	assert.Nil(t, err)
 
-	plg := p.(*Plugin)
-	suit.start()
-
 	for _, node := range nodes {
-		_, err := suit.Handle.ClientSet().CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
+		_, err := fh.ClientSet().CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
 		assert.NoError(t, err)
 	}
+	unifiedClientSet := unifiedfake.NewSimpleClientset()
+	podConstraintCache, err := NewPodConstraintCache(frameworkHandleExtender{
+		Handle:    fh,
+		Clientset: unifiedClientSet,
+	}, true)
+	assert.NoError(t, err)
+
 	var ch = make(chan int)
-	suit.Handle.SharedInformerFactory().Core().V1().Nodes().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	fh.SharedInformerFactory().Core().V1().Nodes().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			ch <- 1
 		},
 	})
-	suit.Handle.SharedInformerFactory().Start(context.TODO().Done())
-	suit.Handle.SharedInformerFactory().WaitForCacheSync(context.TODO().Done())
+	fh.SharedInformerFactory().Start(context.TODO().Done())
+	fh.SharedInformerFactory().WaitForCacheSync(context.TODO().Done())
 	<-ch
 
 	podConstraint := &v1beta1.PodConstraint{
@@ -341,7 +451,7 @@ func TestPodConstraintCache_AddConstraintWithDeleteOneConstraint(t *testing.T) {
 			},
 		},
 	}
-	plg.podConstraintCache.SetPodConstraint(podConstraint)
+	podConstraintCache.SetPodConstraint(podConstraint)
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -355,9 +465,9 @@ func TestPodConstraintCache_AddConstraintWithDeleteOneConstraint(t *testing.T) {
 			NodeName: nodes[0].Name,
 		},
 	}
-	plg.podConstraintCache.AddPod(nodes[0], pod)
+	podConstraintCache.AddPod(nodes[0], pod)
 
-	gotState := plg.podConstraintCache.GetState(getNamespacedName(podConstraint.Namespace, podConstraint.Name))
+	gotState := podConstraintCache.GetState(GetNamespacedName(podConstraint.Namespace, podConstraint.Name))
 	expectState := &TopologySpreadConstraintState{
 		PodConstraint: podConstraint,
 		RequiredSpreadConstraints: []*TopologySpreadConstraint{
@@ -407,9 +517,9 @@ func TestPodConstraintCache_AddConstraintWithDeleteOneConstraint(t *testing.T) {
 			},
 		},
 	}
-	plg.podConstraintCache.SetPodConstraint(podConstraint)
+	podConstraintCache.SetPodConstraint(podConstraint)
 
-	gotState = plg.podConstraintCache.GetState(getNamespacedName(podConstraint.Namespace, podConstraint.Name))
+	gotState = podConstraintCache.GetState(GetNamespacedName(podConstraint.Namespace, podConstraint.Name))
 	expectState = &TopologySpreadConstraintState{
 		PodConstraint: podConstraint,
 		RequiredSpreadConstraints: []*TopologySpreadConstraint{
@@ -434,13 +544,27 @@ func TestPodConstraintCache_AddConstraintWithDeleteOneConstraint(t *testing.T) {
 }
 
 func TestPodConstraintCache_DelPodConstraint(t *testing.T) {
-	suit := newPluginTestSuit(t, nil)
-	p, err := suit.proxyNew(suit.args, suit.Handle)
-	assert.NotNil(t, p)
+	cs := kubefake.NewSimpleClientset()
+	informerFactory := informers.NewSharedInformerFactory(cs, 0)
+	snapshot := newTestSharedLister(nil, nil)
+	fh, err := schedulertesting.NewFramework(
+		[]schedulertesting.RegisterPluginFunc{
+			schedulertesting.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
+			schedulertesting.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
+		},
+		"koord-scheduler",
+		runtime.WithClientSet(cs),
+		runtime.WithInformerFactory(informerFactory),
+		runtime.WithSnapshotSharedLister(snapshot),
+	)
 	assert.Nil(t, err)
 
-	plg := p.(*Plugin)
-	suit.start()
+	unifiedClientSet := unifiedfake.NewSimpleClientset()
+	podConstraintCache, err := NewPodConstraintCache(frameworkHandleExtender{
+		Handle:    fh,
+		Clientset: unifiedClientSet,
+	}, true)
+	assert.NoError(t, err)
 
 	podConstraint := &v1beta1.PodConstraint{
 		ObjectMeta: metav1.ObjectMeta{
@@ -458,9 +582,9 @@ func TestPodConstraintCache_DelPodConstraint(t *testing.T) {
 			},
 		},
 	}
-	plg.podConstraintCache.SetPodConstraint(podConstraint)
+	podConstraintCache.SetPodConstraint(podConstraint)
 
-	gotState := plg.podConstraintCache.GetState(getNamespacedName(podConstraint.Namespace, podConstraint.Name))
+	gotState := podConstraintCache.GetState(GetNamespacedName(podConstraint.Namespace, podConstraint.Name))
 	expectState := &TopologySpreadConstraintState{
 		PodConstraint: podConstraint,
 		RequiredSpreadConstraints: []*TopologySpreadConstraint{
@@ -479,20 +603,33 @@ func TestPodConstraintCache_DelPodConstraint(t *testing.T) {
 	}
 	assert.Equal(t, expectState, gotState)
 
-	plg.podConstraintCache.DelPodConstraint(podConstraint)
+	podConstraintCache.DelPodConstraint(podConstraint)
 
-	gotState = plg.podConstraintCache.GetState(getNamespacedName(podConstraint.Namespace, podConstraint.Name))
+	gotState = podConstraintCache.GetState(GetNamespacedName(podConstraint.Namespace, podConstraint.Name))
 	assert.Nil(t, gotState)
 }
 
 func TestConstraintTopologyValue(t *testing.T) {
-	suit := newPluginTestSuit(t, nil)
-	p, err := suit.proxyNew(suit.args, suit.Handle)
-	assert.NotNil(t, p)
+	cs := kubefake.NewSimpleClientset()
+	informerFactory := informers.NewSharedInformerFactory(cs, 0)
+	snapshot := newTestSharedLister(nil, nil)
+	fh, err := schedulertesting.NewFramework(
+		[]schedulertesting.RegisterPluginFunc{
+			schedulertesting.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
+			schedulertesting.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
+		},
+		"koord-scheduler",
+		runtime.WithClientSet(cs),
+		runtime.WithInformerFactory(informerFactory),
+		runtime.WithSnapshotSharedLister(snapshot),
+	)
 	assert.Nil(t, err)
-
-	plg := p.(*Plugin)
-	suit.start()
+	unifiedClientSet := unifiedfake.NewSimpleClientset()
+	podConstraintCache, err := NewPodConstraintCache(frameworkHandleExtender{
+		Handle:    fh,
+		Clientset: unifiedClientSet,
+	}, true)
+	assert.NoError(t, err)
 
 	//
 	// constructs PodConstraint with TopologyRatio
@@ -534,9 +671,9 @@ func TestConstraintTopologyValue(t *testing.T) {
 			},
 		},
 	}
-	plg.podConstraintCache.SetPodConstraint(podConstraint)
+	podConstraintCache.SetPodConstraint(podConstraint)
 
-	gotState := plg.podConstraintCache.GetState(getNamespacedName(podConstraint.Namespace, podConstraint.Name))
+	gotState := podConstraintCache.GetState(GetNamespacedName(podConstraint.Namespace, podConstraint.Name))
 	expectState := &TopologySpreadConstraintState{
 		PodConstraint: podConstraint,
 		RequiredSpreadConstraints: []*TopologySpreadConstraint{
