@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package podconstraint
+package cache
 
 import (
 	"context"
@@ -33,7 +33,7 @@ type podEventHandler struct {
 	podConstraintCache *PodConstraintCache
 }
 
-func registerPodEventHandler(handle framework.Handle, podConstraintCache *PodConstraintCache) {
+func RegisterPodEventHandler(handle framework.Handle, podConstraintCache *PodConstraintCache) {
 	podInformer := handle.SharedInformerFactory().Core().V1().Pods().Informer()
 	eventHandler := cache.FilteringResourceEventHandler{
 		FilterFunc: func(obj interface{}) bool {
