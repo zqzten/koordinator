@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package podconstraint
+package cache
 
 import (
 	unischeduling "gitlab.alibaba-inc.com/unischeduler/api/apis/scheduling/v1beta1"
@@ -35,7 +35,7 @@ type TopologySpreadConstraint struct {
 	TopologySumRatio  int            `json:"topologySumRatio,omitempty"`
 }
 
-func spreadRulesToTopologySpreadConstraint(spreadRules []unischeduling.SpreadRuleItem) []*TopologySpreadConstraint {
+func SpreadRulesToTopologySpreadConstraint(spreadRules []unischeduling.SpreadRuleItem) []*TopologySpreadConstraint {
 	var constraints []*TopologySpreadConstraint
 	uniqueKeys := sets.NewString()
 	for _, rule := range spreadRules {
