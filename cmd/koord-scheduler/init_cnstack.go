@@ -24,6 +24,8 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/firstfit"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/hybridnet"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/lazyload"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/license"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/license/extender"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/maxinstance"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/openlocal"
 )
@@ -36,7 +38,12 @@ func init() {
 	koordinatorPlugins[besteffortscheduling.BatchResourceFitName] = besteffortscheduling.NewFit
 	koordinatorPlugins[besteffortscheduling.BELeastAllocatedName] = besteffortscheduling.NewBELeastAllocated
 	koordinatorPlugins[firstfit.Name] = firstfit.NewInterceptorPlugin
-	koordinatorPlugins[gpushare.GPUShareName] = gpushare.New
+	koordinatorPlugins[gpushare.GPUShareName] = license.Register(
+		gpushare.GPUShareName,
+		gpushare.New,
+		extender.GPUShareLicenseCheckFunc,
+		extender.GPUShareResponsibleForPodFunc,
+	)
 	koordinatorPlugins[gputopology.GPUTopologyName] = gputopology.New
 
 }
