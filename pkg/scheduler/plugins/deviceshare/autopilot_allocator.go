@@ -145,7 +145,7 @@ func (a *AutopilotAllocator) Allocate(nodeName string, pod *corev1.Pod, podReque
 	}
 	if len(rdmaTopology.VFs) == 0 {
 		rdmaRequest := podRequest[apiext.ResourceRDMA]
-		if !rdmaRequest.IsZero() {
+		if !rdmaRequest.IsZero() && mustAllocateVF(pod) {
 			return nil, fmt.Errorf("invalid RDMA Topology")
 		}
 	}
@@ -157,7 +157,7 @@ func (a *AutopilotAllocator) Allocate(nodeName string, pod *corev1.Pod, podReque
 
 	podRequest = podRequest.DeepCopy()
 	if !hasDeviceResource(podRequest, schedulingv1alpha1.GPU) {
-		return a.allocateNonGPUDevices(nodeName, nodeDevice, podRequest, deviceTopology, rdmaTopology)
+		return a.allocateNonGPUDevices(nodeName, nodeDevice, podRequest, mustAllocateVF(pod), deviceTopology, rdmaTopology)
 	}
 
 	nodeDeviceTotal := nodeDevice.deviceTotal[schedulingv1alpha1.GPU]
@@ -183,21 +183,28 @@ func (a *AutopilotAllocator) Allocate(nodeName string, pod *corev1.Pod, podReque
 		gpuRequestPerCard = gpuRequest
 	}
 
-	deviceAllocations, _, err := a.allocateResourcesByPCIE(nodeName, nodeDevice, gpuRequestPerCard, rdmaRequest, int(gpuWanted), deviceTopology, rdmaTopology)
+	deviceAllocations, _, err := a.allocateResourcesByPCIE(nodeName, nodeDevice, gpuRequestPerCard, rdmaRequest, mustAllocateVF(pod), int(gpuWanted), deviceTopology, rdmaTopology)
 	if err != nil {
 		var zeroRDMARequest resource.Quantity
 		var allocatedPCIEs sets.Int
-		deviceAllocations, allocatedPCIEs, err = a.allocateResourcesByPCIE(nodeName, nodeDevice, gpuRequestPerCard, zeroRDMARequest, int(gpuWanted), deviceTopology, rdmaTopology)
+		deviceAllocations, allocatedPCIEs, err = a.allocateResourcesByPCIE(nodeName, nodeDevice, gpuRequestPerCard, zeroRDMARequest, false, int(gpuWanted), deviceTopology, rdmaTopology)
 		if err != nil {
 			return nil, err
 		}
-		if !rdmaRequest.IsZero() {
+		if !rdmaRequest.IsZero() && mustAllocateVF(pod) {
 			rdmaAllocations, err := a.allocateVFs(nodeName, rdmaRequest, len(allocatedPCIEs), false, allocatedPCIEs, deviceTopology, rdmaTopology)
 			if err != nil {
 				return nil, err
 			}
 			deviceAllocations[schedulingv1alpha1.RDMA] = rdmaAllocations
 		}
+	}
+	if !rdmaRequest.IsZero() && !mustAllocateVF(pod) {
+		rdmaAllocations, err := a.allocatePFs(nodeDevice, rdmaRequest)
+		if err != nil {
+			return nil, err
+		}
+		deviceAllocations[schedulingv1alpha1.RDMA] = rdmaAllocations
 	}
 
 	nvSwitches, err := a.allocateNVSwitches(len(deviceAllocations[schedulingv1alpha1.GPU]), nodeDevice)
@@ -215,13 +222,20 @@ func (a *AutopilotAllocator) allocateNonGPUDevices(
 	nodeName string,
 	nodeDevice *nodeDevice,
 	podRequest corev1.ResourceList,
+	requireAllocateVF bool,
 	deviceTopology *unified.DeviceTopology,
 	rdmaTopology *unified.RDMATopology,
 ) (apiext.DeviceAllocations, error) {
 	deviceAllocations := apiext.DeviceAllocations{}
 	rdmaRequest := podRequest[apiext.ResourceRDMA]
 	if !rdmaRequest.IsZero() {
-		rdmaAllocations, err := a.allocateVFs(nodeName, rdmaRequest, 1, false, nil, deviceTopology, rdmaTopology)
+		var rdmaAllocations []*apiext.DeviceAllocation
+		var err error
+		if requireAllocateVF {
+			rdmaAllocations, err = a.allocateVFs(nodeName, rdmaRequest, 1, false, nil, deviceTopology, rdmaTopology)
+		} else {
+			rdmaAllocations, err = a.allocatePFs(nodeDevice, rdmaRequest)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -245,6 +259,7 @@ func (a *AutopilotAllocator) allocateResourcesByPCIE(
 	nodeDevice *nodeDevice,
 	gpuRequestPerCard corev1.ResourceList,
 	rdmaRequest resource.Quantity,
+	requireAllocateVF bool,
 	gpuWanted int,
 	deviceTopology *unified.DeviceTopology,
 	rdmaTopology *unified.RDMATopology,
@@ -283,7 +298,7 @@ func (a *AutopilotAllocator) allocateResourcesByPCIE(
 	}
 
 	deviceAllocations := acc.result
-	if !rdmaRequest.IsZero() {
+	if !rdmaRequest.IsZero() && requireAllocateVF {
 		rdmaAllocations, err := a.allocateVFs(nodeName, rdmaRequest, acc.allocatedPCIEs.Len(), true, acc.allocatedPCIEs, deviceTopology, rdmaTopology)
 		if err != nil {
 			return nil, nil, err
@@ -482,6 +497,28 @@ func (a *AutopilotAllocator) allocateVFFromRDMA(
 		}
 	}
 	return freeVF, bondSlaves, rdmaMinor
+}
+
+func (a *AutopilotAllocator) allocatePFs(nodeDevice *nodeDevice, rdmaRequest resource.Quantity) ([]*apiext.DeviceAllocation, error) {
+	totalRDMADevices := nodeDevice.deviceTotal[schedulingv1alpha1.RDMA]
+	if len(totalRDMADevices) == 0 {
+		return nil, fmt.Errorf("insufficient RDMA devices")
+	}
+	allocations := make([]*apiext.DeviceAllocation, 0, len(totalRDMADevices))
+	for minor, resources := range totalRDMADevices {
+		if len(resources) > 0 {
+			allocations = append(allocations, &apiext.DeviceAllocation{
+				Minor: int32(minor),
+				Resources: corev1.ResourceList{
+					apiext.ResourceRDMA: rdmaRequest,
+				},
+			})
+		}
+	}
+	if len(allocations) == 0 {
+		return nil, fmt.Errorf("insufficient RDMA devices")
+	}
+	return allocations, nil
 }
 
 func (a *AutopilotAllocator) allocateNVSwitches(numGPU int, nodeDeviceInfo *nodeDevice) ([]*apiext.DeviceAllocation, error) {
@@ -836,4 +873,8 @@ func matchDriverVersions(pod *corev1.Pod, device *schedulingv1alpha1.Device) (st
 		}
 	}
 	return matchedVersion, nil
+}
+
+func mustAllocateVF(pod *corev1.Pod) bool {
+	return !pod.Spec.HostNetwork || (pod.Spec.RuntimeClassName != nil && *pod.Spec.RuntimeClassName == "rund")
 }
