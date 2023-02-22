@@ -272,22 +272,22 @@ func TestPlugin_OnQuotaAdd2(t *testing.T) {
 	gqm := pl.GetGroupQuotaManager()
 	quota := CreateQuota2("1", "", 0, 0, 0, 0, 0, 0, false)
 	quota.Spec.Min = corev1.ResourceList{
-		corev1.ResourceCPU:            *resource.NewMilliQuantity(100*1000, resource.DecimalSI),
-		corev1.ResourceMemory:         *resource.NewQuantity(1000, resource.BinarySI),
-		extension.NvidiaGPU:           *resource.NewQuantity(8, resource.DecimalSI),
-		extension.NvidiaGPU + "-a100": *resource.NewQuantity(8, resource.DecimalSI),
+		corev1.ResourceCPU:                    *resource.NewMilliQuantity(100*1000, resource.DecimalSI),
+		corev1.ResourceMemory:                 *resource.NewQuantity(1000, resource.BinarySI),
+		extension.ResourceNvidiaGPU:           *resource.NewQuantity(8, resource.DecimalSI),
+		extension.ResourceNvidiaGPU + "-a100": *resource.NewQuantity(8, resource.DecimalSI),
 	}
 	quota.Spec.Max = corev1.ResourceList{
-		corev1.ResourceCPU:            *resource.NewMilliQuantity(200*1000, resource.DecimalSI),
-		corev1.ResourceMemory:         *resource.NewQuantity(2000, resource.BinarySI),
-		extension.NvidiaGPU:           *resource.NewQuantity(16, resource.DecimalSI),
-		extension.NvidiaGPU + "-a100": *resource.NewQuantity(16, resource.DecimalSI),
+		corev1.ResourceCPU:                    *resource.NewMilliQuantity(200*1000, resource.DecimalSI),
+		corev1.ResourceMemory:                 *resource.NewQuantity(2000, resource.BinarySI),
+		extension.ResourceNvidiaGPU:           *resource.NewQuantity(16, resource.DecimalSI),
+		extension.ResourceNvidiaGPU + "-a100": *resource.NewQuantity(16, resource.DecimalSI),
 	}
 	sharedWeight := corev1.ResourceList{
-		corev1.ResourceCPU:            *resource.NewMilliQuantity(300*1000, resource.DecimalSI),
-		corev1.ResourceMemory:         *resource.NewQuantity(3000, resource.BinarySI),
-		extension.NvidiaGPU:           *resource.NewQuantity(32, resource.DecimalSI),
-		extension.NvidiaGPU + "-a100": *resource.NewQuantity(32, resource.DecimalSI),
+		corev1.ResourceCPU:                    *resource.NewMilliQuantity(300*1000, resource.DecimalSI),
+		corev1.ResourceMemory:                 *resource.NewQuantity(3000, resource.BinarySI),
+		extension.ResourceNvidiaGPU:           *resource.NewQuantity(32, resource.DecimalSI),
+		extension.ResourceNvidiaGPU + "-a100": *resource.NewQuantity(32, resource.DecimalSI),
 	}
 	sharedWeightStr, _ := json.Marshal(sharedWeight)
 	quota.Annotations[extension.AnnotationSharedWeight] = string(sharedWeightStr)
@@ -303,7 +303,7 @@ func TestPlugin_OnQuotaAdd2(t *testing.T) {
 	assert.Equal(t, quotaInfo.CalculateInfo.Min, corev1.ResourceList{
 		corev1.ResourceCPU:             *resource.NewMilliQuantity(100*1000, resource.DecimalSI),
 		corev1.ResourceMemory:          *resource.NewQuantity(1000, resource.BinarySI),
-		extension.NvidiaGPU:            *resource.NewQuantity(8, resource.DecimalSI),
+		extension.ResourceNvidiaGPU:    *resource.NewQuantity(8, resource.DecimalSI),
 		"nvidia.com/gpu-a100":          *resource.NewQuantity(8, resource.DecimalSI),
 		unified.GPUCardRatio:           *resource.NewQuantity(800, resource.DecimalSI),
 		unified.GPUCardRatio + "-a100": *resource.NewQuantity(800, resource.DecimalSI),
@@ -311,7 +311,7 @@ func TestPlugin_OnQuotaAdd2(t *testing.T) {
 	assert.Equal(t, quotaInfo.CalculateInfo.Max, corev1.ResourceList{
 		corev1.ResourceCPU:             *resource.NewMilliQuantity(200*1000, resource.DecimalSI),
 		corev1.ResourceMemory:          *resource.NewQuantity(2000, resource.BinarySI),
-		extension.NvidiaGPU:            *resource.NewQuantity(16, resource.DecimalSI),
+		extension.ResourceNvidiaGPU:    *resource.NewQuantity(16, resource.DecimalSI),
 		"nvidia.com/gpu-a100":          *resource.NewQuantity(16, resource.DecimalSI),
 		unified.GPUCardRatio:           *resource.NewQuantity(1600, resource.DecimalSI),
 		unified.GPUCardRatio + "-a100": *resource.NewQuantity(1600, resource.DecimalSI),
@@ -319,7 +319,7 @@ func TestPlugin_OnQuotaAdd2(t *testing.T) {
 	assert.True(t, v1.Equals(quotaInfo.CalculateInfo.SharedWeight, corev1.ResourceList{
 		corev1.ResourceCPU:             *resource.NewMilliQuantity(300*1000, resource.DecimalSI),
 		corev1.ResourceMemory:          *resource.NewQuantity(3000, resource.BinarySI),
-		extension.NvidiaGPU:            *resource.NewQuantity(32, resource.DecimalSI),
+		extension.ResourceNvidiaGPU:    *resource.NewQuantity(32, resource.DecimalSI),
 		"nvidia.com/gpu-a100":          *resource.NewQuantity(32, resource.DecimalSI),
 		unified.GPUCardRatio:           *resource.NewQuantity(3200, resource.DecimalSI),
 		unified.GPUCardRatio + "-a100": *resource.NewQuantity(3200, resource.DecimalSI),
@@ -328,22 +328,22 @@ func TestPlugin_OnQuotaAdd2(t *testing.T) {
 	//update
 	quota = CreateQuota2("1", "", 0, 0, 0, 0, 0, 0, false)
 	quota.Spec.Min = corev1.ResourceList{
-		corev1.ResourceCPU:            *resource.NewMilliQuantity(1000*1000, resource.DecimalSI),
-		corev1.ResourceMemory:         *resource.NewQuantity(10000, resource.BinarySI),
-		extension.NvidiaGPU:           *resource.NewQuantity(80, resource.DecimalSI),
-		extension.NvidiaGPU + "-a100": *resource.NewQuantity(80, resource.DecimalSI),
+		corev1.ResourceCPU:                    *resource.NewMilliQuantity(1000*1000, resource.DecimalSI),
+		corev1.ResourceMemory:                 *resource.NewQuantity(10000, resource.BinarySI),
+		extension.ResourceNvidiaGPU:           *resource.NewQuantity(80, resource.DecimalSI),
+		extension.ResourceNvidiaGPU + "-a100": *resource.NewQuantity(80, resource.DecimalSI),
 	}
 	quota.Spec.Max = corev1.ResourceList{
-		corev1.ResourceCPU:            *resource.NewMilliQuantity(2000*1000, resource.DecimalSI),
-		corev1.ResourceMemory:         *resource.NewQuantity(20000, resource.BinarySI),
-		extension.NvidiaGPU:           *resource.NewQuantity(160, resource.DecimalSI),
-		extension.NvidiaGPU + "-a100": *resource.NewQuantity(160, resource.DecimalSI),
+		corev1.ResourceCPU:                    *resource.NewMilliQuantity(2000*1000, resource.DecimalSI),
+		corev1.ResourceMemory:                 *resource.NewQuantity(20000, resource.BinarySI),
+		extension.ResourceNvidiaGPU:           *resource.NewQuantity(160, resource.DecimalSI),
+		extension.ResourceNvidiaGPU + "-a100": *resource.NewQuantity(160, resource.DecimalSI),
 	}
 	sharedWeight = corev1.ResourceList{
-		corev1.ResourceCPU:            *resource.NewMilliQuantity(3000*1000, resource.DecimalSI),
-		corev1.ResourceMemory:         *resource.NewQuantity(30000, resource.BinarySI),
-		extension.NvidiaGPU:           *resource.NewQuantity(320, resource.DecimalSI),
-		extension.NvidiaGPU + "-a100": *resource.NewQuantity(320, resource.DecimalSI),
+		corev1.ResourceCPU:                    *resource.NewMilliQuantity(3000*1000, resource.DecimalSI),
+		corev1.ResourceMemory:                 *resource.NewQuantity(30000, resource.BinarySI),
+		extension.ResourceNvidiaGPU:           *resource.NewQuantity(320, resource.DecimalSI),
+		extension.ResourceNvidiaGPU + "-a100": *resource.NewQuantity(320, resource.DecimalSI),
 	}
 	sharedWeightStr, _ = json.Marshal(sharedWeight)
 	quota.Annotations[extension.AnnotationSharedWeight] = string(sharedWeightStr)
@@ -353,7 +353,7 @@ func TestPlugin_OnQuotaAdd2(t *testing.T) {
 	assert.Equal(t, quotaInfo.CalculateInfo.Min, corev1.ResourceList{
 		corev1.ResourceCPU:             *resource.NewMilliQuantity(1000*1000, resource.DecimalSI),
 		corev1.ResourceMemory:          *resource.NewQuantity(10000, resource.BinarySI),
-		extension.NvidiaGPU:            *resource.NewQuantity(80, resource.DecimalSI),
+		extension.ResourceNvidiaGPU:    *resource.NewQuantity(80, resource.DecimalSI),
 		"nvidia.com/gpu-a100":          *resource.NewQuantity(80, resource.DecimalSI),
 		unified.GPUCardRatio:           *resource.NewQuantity(8000, resource.DecimalSI),
 		unified.GPUCardRatio + "-a100": *resource.NewQuantity(8000, resource.DecimalSI),
@@ -361,7 +361,7 @@ func TestPlugin_OnQuotaAdd2(t *testing.T) {
 	assert.Equal(t, quotaInfo.CalculateInfo.Max, corev1.ResourceList{
 		corev1.ResourceCPU:             *resource.NewMilliQuantity(2000*1000, resource.DecimalSI),
 		corev1.ResourceMemory:          *resource.NewQuantity(20000, resource.BinarySI),
-		extension.NvidiaGPU:            *resource.NewQuantity(160, resource.DecimalSI),
+		extension.ResourceNvidiaGPU:    *resource.NewQuantity(160, resource.DecimalSI),
 		"nvidia.com/gpu-a100":          *resource.NewQuantity(160, resource.DecimalSI),
 		unified.GPUCardRatio:           *resource.NewQuantity(16000, resource.DecimalSI),
 		unified.GPUCardRatio + "-a100": *resource.NewQuantity(16000, resource.DecimalSI),
@@ -369,7 +369,7 @@ func TestPlugin_OnQuotaAdd2(t *testing.T) {
 	assert.True(t, v1.Equals(quotaInfo.CalculateInfo.SharedWeight, corev1.ResourceList{
 		corev1.ResourceCPU:             *resource.NewMilliQuantity(3000*1000, resource.DecimalSI),
 		corev1.ResourceMemory:          *resource.NewQuantity(30000, resource.BinarySI),
-		extension.NvidiaGPU:            *resource.NewQuantity(320, resource.DecimalSI),
+		extension.ResourceNvidiaGPU:    *resource.NewQuantity(320, resource.DecimalSI),
 		"nvidia.com/gpu-a100":          *resource.NewQuantity(320, resource.DecimalSI),
 		unified.GPUCardRatio:           *resource.NewQuantity(32000, resource.DecimalSI),
 		unified.GPUCardRatio + "-a100": *resource.NewQuantity(32000, resource.DecimalSI),
@@ -389,24 +389,24 @@ func TestPlugin_OnNodeAdd2(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "node1",
 						Labels: map[string]string{
-							extension.GPUModel: "A100",
+							extension.LabelGPUModel: "A100",
 						},
 					},
 					Status: corev1.NodeStatus{
 						Allocatable: corev1.ResourceList{
-							corev1.ResourceCPU:       *resource.NewMilliQuantity(100*1000, resource.DecimalSI),
-							corev1.ResourceMemory:    *resource.NewQuantity(1000, resource.BinarySI),
-							extension.GPUMemoryRatio: *resource.NewQuantity(800, resource.DecimalSI),
+							corev1.ResourceCPU:               *resource.NewMilliQuantity(100*1000, resource.DecimalSI),
+							corev1.ResourceMemory:            *resource.NewQuantity(1000, resource.BinarySI),
+							extension.ResourceGPUMemoryRatio: *resource.NewQuantity(800, resource.DecimalSI),
 						},
 					},
 				},
 			},
 			totalRes: corev1.ResourceList{
-				corev1.ResourceCPU:             *resource.NewMilliQuantity(100*1000, resource.DecimalSI),
-				corev1.ResourceMemory:          *resource.NewQuantity(1000, resource.BinarySI),
-				extension.GPUMemoryRatio:       *resource.NewQuantity(800, resource.DecimalSI),
-				unified.GPUCardRatio:           *resource.NewQuantity(800, resource.DecimalSI),
-				unified.GPUCardRatio + "-a100": *resource.NewQuantity(800, resource.DecimalSI),
+				corev1.ResourceCPU:               *resource.NewMilliQuantity(100*1000, resource.DecimalSI),
+				corev1.ResourceMemory:            *resource.NewQuantity(1000, resource.BinarySI),
+				extension.ResourceGPUMemoryRatio: *resource.NewQuantity(800, resource.DecimalSI),
+				unified.GPUCardRatio:             *resource.NewQuantity(800, resource.DecimalSI),
+				unified.GPUCardRatio + "-a100":   *resource.NewQuantity(800, resource.DecimalSI),
 			},
 		},
 	}
@@ -458,14 +458,14 @@ func TestPlugin_OnNodeUpdate2(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "1",
 						Labels: map[string]string{
-							extension.GPUModel: "A100",
+							extension.LabelGPUModel: "A100",
 						},
 					},
 					Status: corev1.NodeStatus{
 						Allocatable: corev1.ResourceList{
-							corev1.ResourceCPU:       *resource.NewMilliQuantity(50*1000, resource.DecimalSI),
-							corev1.ResourceMemory:    *resource.NewQuantity(500, resource.BinarySI),
-							extension.GPUMemoryRatio: *resource.NewQuantity(800, resource.DecimalSI),
+							corev1.ResourceCPU:               *resource.NewMilliQuantity(50*1000, resource.DecimalSI),
+							corev1.ResourceMemory:            *resource.NewQuantity(500, resource.BinarySI),
+							extension.ResourceGPUMemoryRatio: *resource.NewQuantity(800, resource.DecimalSI),
 						},
 					},
 				},
@@ -473,24 +473,24 @@ func TestPlugin_OnNodeUpdate2(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "2",
 						Labels: map[string]string{
-							extension.GPUModel: "A100",
+							extension.LabelGPUModel: "A100",
 						},
 					},
 					Status: corev1.NodeStatus{
 						Allocatable: corev1.ResourceList{
-							corev1.ResourceCPU:       *resource.NewMilliQuantity(50*1000, resource.DecimalSI),
-							corev1.ResourceMemory:    *resource.NewQuantity(500, resource.BinarySI),
-							extension.GPUMemoryRatio: *resource.NewQuantity(800, resource.DecimalSI),
+							corev1.ResourceCPU:               *resource.NewMilliQuantity(50*1000, resource.DecimalSI),
+							corev1.ResourceMemory:            *resource.NewQuantity(500, resource.BinarySI),
+							extension.ResourceGPUMemoryRatio: *resource.NewQuantity(800, resource.DecimalSI),
 						},
 					},
 				},
 			},
 			totalRes: corev1.ResourceList{
-				corev1.ResourceCPU:             *resource.NewMilliQuantity(200*1000, resource.DecimalSI),
-				corev1.ResourceMemory:          *resource.NewQuantity(2000, resource.BinarySI),
-				extension.GPUMemoryRatio:       *resource.NewQuantity(1600, resource.DecimalSI),
-				unified.GPUCardRatio:           *resource.NewQuantity(1600, resource.DecimalSI),
-				unified.GPUCardRatio + "-a100": *resource.NewQuantity(1600, resource.DecimalSI),
+				corev1.ResourceCPU:               *resource.NewMilliQuantity(200*1000, resource.DecimalSI),
+				corev1.ResourceMemory:            *resource.NewQuantity(2000, resource.BinarySI),
+				extension.ResourceGPUMemoryRatio: *resource.NewQuantity(1600, resource.DecimalSI),
+				unified.GPUCardRatio:             *resource.NewQuantity(1600, resource.DecimalSI),
+				unified.GPUCardRatio + "-a100":   *resource.NewQuantity(1600, resource.DecimalSI),
 			},
 		},
 	}
@@ -524,14 +524,14 @@ func TestPlugin_OnNodeDelete2(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "1",
 				Labels: map[string]string{
-					extension.GPUModel: "A100",
+					extension.LabelGPUModel: "A100",
 				},
 			},
 			Status: corev1.NodeStatus{
 				Allocatable: corev1.ResourceList{
-					corev1.ResourceCPU:       *resource.NewMilliQuantity(25*1000, resource.DecimalSI),
-					corev1.ResourceMemory:    *resource.NewQuantity(250, resource.BinarySI),
-					extension.GPUMemoryRatio: *resource.NewQuantity(400, resource.DecimalSI),
+					corev1.ResourceCPU:               *resource.NewMilliQuantity(25*1000, resource.DecimalSI),
+					corev1.ResourceMemory:            *resource.NewQuantity(250, resource.BinarySI),
+					extension.ResourceGPUMemoryRatio: *resource.NewQuantity(400, resource.DecimalSI),
 				},
 			},
 		},
@@ -539,14 +539,14 @@ func TestPlugin_OnNodeDelete2(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "2",
 				Labels: map[string]string{
-					extension.GPUModel: "A100",
+					extension.LabelGPUModel: "A100",
 				},
 			},
 			Status: corev1.NodeStatus{
 				Allocatable: corev1.ResourceList{
-					corev1.ResourceCPU:       *resource.NewMilliQuantity(25*1000, resource.DecimalSI),
-					corev1.ResourceMemory:    *resource.NewQuantity(250, resource.BinarySI),
-					extension.GPUMemoryRatio: *resource.NewQuantity(400, resource.DecimalSI),
+					corev1.ResourceCPU:               *resource.NewMilliQuantity(25*1000, resource.DecimalSI),
+					corev1.ResourceMemory:            *resource.NewQuantity(250, resource.BinarySI),
+					extension.ResourceGPUMemoryRatio: *resource.NewQuantity(400, resource.DecimalSI),
 				},
 			},
 		},
@@ -557,11 +557,11 @@ func TestPlugin_OnNodeDelete2(t *testing.T) {
 	for i, node := range nodes {
 		eQP.OnNodeDelete(node)
 		assert.Equal(t, gqp.GetClusterTotalResource(), corev1.ResourceList{
-			corev1.ResourceCPU:             *resource.NewMilliQuantity(int64(50-25*(i+1))*1000, resource.DecimalSI),
-			corev1.ResourceMemory:          *resource.NewQuantity(int64(500-250*(i+1)), resource.BinarySI),
-			extension.GPUMemoryRatio:       *resource.NewQuantity(int64(800-400*(i+1)), resource.DecimalSI),
-			unified.GPUCardRatio:           *resource.NewQuantity(int64(800-400*(i+1)), resource.DecimalSI),
-			unified.GPUCardRatio + "-a100": *resource.NewQuantity(int64(800-400*(i+1)), resource.DecimalSI),
+			corev1.ResourceCPU:               *resource.NewMilliQuantity(int64(50-25*(i+1))*1000, resource.DecimalSI),
+			corev1.ResourceMemory:            *resource.NewQuantity(int64(500-250*(i+1)), resource.BinarySI),
+			extension.ResourceGPUMemoryRatio: *resource.NewQuantity(int64(800-400*(i+1)), resource.DecimalSI),
+			unified.GPUCardRatio:             *resource.NewQuantity(int64(800-400*(i+1)), resource.DecimalSI),
+			unified.GPUCardRatio + "-a100":   *resource.NewQuantity(int64(800-400*(i+1)), resource.DecimalSI),
 		})
 	}
 }

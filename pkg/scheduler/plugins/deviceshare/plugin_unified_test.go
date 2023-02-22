@@ -113,7 +113,7 @@ func Test_appendRundResult(t *testing.T) {
 			allocResult: apiext.DeviceAllocations{
 				schedulingv1alpha1.GPU: []*apiext.DeviceAllocation{
 					{
-						Minor: 1, Resources: corev1.ResourceList{apiext.KoordGPU: resource.MustParse("100")},
+						Minor: 1, Resources: corev1.ResourceList{apiext.ResourceGPU: resource.MustParse("100")},
 					},
 				},
 			},

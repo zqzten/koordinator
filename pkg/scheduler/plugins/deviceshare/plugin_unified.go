@@ -43,9 +43,9 @@ func (p *Plugin) appendInternalAnnotations(pod *corev1.Pod, allocResult apiext.D
 	ack.AppendAckAnnotations(pod, allocResult)
 	if isVirtualGPUCard(allocResult) {
 		allocMinor := allocResult[schedulingv1alpha1.GPU][0].Minor
-		gpuMemory := p.nodeDeviceCache.getNodeDevice(nodeName).deviceTotal[schedulingv1alpha1.GPU][int(allocMinor)][apiext.GPUMemory]
+		gpuMemory := p.nodeDeviceCache.getNodeDevice(nodeName).deviceTotal[schedulingv1alpha1.GPU][int(allocMinor)][apiext.ResourceGPUMemory]
 		pod.Annotations[ack.AnnotationAliyunEnvMemDev] = fmt.Sprintf("%v", gpuMemory.Value()/1024/1024/1024)
-		gpuMemoryPod := allocResult[schedulingv1alpha1.GPU][0].Resources[apiext.GPUMemory]
+		gpuMemoryPod := allocResult[schedulingv1alpha1.GPU][0].Resources[apiext.ResourceGPUMemory]
 		pod.Annotations[ack.AnnotationAliyunEnvMemPod] = fmt.Sprintf("%v", gpuMemoryPod.Value()/1024/1024/1024)
 	}
 	if err := appendUnifiedDeviceAllocStatus(pod, allocResult); err != nil {
@@ -63,7 +63,7 @@ func isVirtualGPUCard(alloc apiext.DeviceAllocations) bool {
 			continue
 		}
 		for _, deviceAlloc := range deviceAllocations {
-			if deviceAlloc.Resources.Name(apiext.GPUCore, apiresource.DecimalSI).Value() < 100 {
+			if deviceAlloc.Resources.Name(apiext.ResourceGPUCore, apiresource.DecimalSI).Value() < 100 {
 				return true
 			}
 		}
@@ -143,8 +143,8 @@ func appendUnifiedDeviceAllocStatus(pod *corev1.Pod, deviceAllocations apiext.De
 				return err
 			}
 			resources := ConvertGPUResource(container.Resources.Requests, combination)
-			gpuMemoryQuantity := resources[apiext.GPUMemory]
-			gpuMemoryRatioQuantity := resources[apiext.GPUMemoryRatio]
+			gpuMemoryQuantity := resources[apiext.ResourceGPUMemory]
+			gpuMemoryRatioQuantity := resources[apiext.ResourceGPUMemoryRatio]
 			if gpuMemoryQuantity.IsZero() && gpuMemoryRatioQuantity.IsZero() {
 				continue
 			}

@@ -29,16 +29,16 @@ import (
 	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 )
 
-var GPUResourceMemRatio = extension.GPUMemoryRatio
+var GPUResourceMemRatio = extension.ResourceGPUMemoryRatio
 var GPUResourceCardRatio = unified.GPUCardRatio
 
 var NormalGPUNamesForNode = sets.NewString(
-	string(extension.NvidiaGPU),
+	string(extension.ResourceNvidiaGPU),
 )
 
 var PercentageGPUNamesForNode = sets.NewString(
 	string(GPUResourceMemRatio),
-	string(extension.KoordGPU),
+	string(extension.ResourceGPU),
 )
 
 func MaxInt64(a, b int64) int64 {

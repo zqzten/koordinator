@@ -18,16 +18,16 @@ import (
 )
 
 var GPURatioBasedResourceNames = map[corev1.ResourceName]struct{}{
-	extension.KoordGPU:                     {},
-	extension.GPUCore:                      {},
-	extension.GPUMemoryRatio:               {},
+	extension.ResourceGPU:                  {},
+	extension.ResourceGPUCore:              {},
+	extension.ResourceGPUMemoryRatio:       {},
 	unifiedresourceext.GPUResourceAlibaba:  {},
 	unifiedresourceext.GPUResourceCore:     {},
 	unifiedresourceext.GPUResourceMemRatio: {},
 }
 
 var GPUMemBytesResourceNames = map[corev1.ResourceName]struct{}{
-	extension.GPUMemory:               {},
+	extension.ResourceGPUMemory:       {},
 	unifiedresourceext.GPUResourceMem: {},
 }
 
@@ -105,7 +105,7 @@ func addGPUCapacityToNodeAllocatable(nodeAllocatable, gpuCapacity corev1.Resourc
 			nodeAllocatable[resourceName] = *gpuMemBytes
 		}
 	}
-	delete(nodeAllocatable, extension.NvidiaGPU)
+	delete(nodeAllocatable, extension.ResourceNvidiaGPU)
 	delete(nodeAllocatable, unifiedresourceext.GPUResourceEncode)
 	delete(nodeAllocatable, unifiedresourceext.GPUResourceDecode)
 }
@@ -136,10 +136,10 @@ func fillGPUResource(gpuRequest, gpuCapacity corev1.ResourceList) {
 		if ratioExists && memBytesExists {
 			memBytes := memRatioToBytes(gpuMemRatio, gpuMemoryQuantity, gpuMemoryRatioQuantity)
 			gpuRequest[unifiedresourceext.GPUResourceMem] = memBytes
-			gpuRequest[extension.GPUMemory] = memBytes
+			gpuRequest[extension.ResourceGPUMemory] = memBytes
 		}
 	}
-	delete(gpuRequest, extension.NvidiaGPU)
+	delete(gpuRequest, extension.ResourceNvidiaGPU)
 	delete(gpuRequest, unifiedresourceext.GPUResourceEncode)
 	delete(gpuRequest, unifiedresourceext.GPUResourceDecode)
 }
@@ -153,7 +153,7 @@ func convergeToGPUMemRatioIfExists(resourceList corev1.ResourceList) (int64, boo
 			return quantity.Value(), true
 		}
 	}
-	if quantity, ok := resourceList[extension.NvidiaGPU]; ok {
+	if quantity, ok := resourceList[extension.ResourceNvidiaGPU]; ok {
 		return quantity.Value() * 100, true
 	}
 	return 0, false
