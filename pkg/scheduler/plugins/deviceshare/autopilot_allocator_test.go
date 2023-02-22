@@ -220,6 +220,7 @@ func TestAutopilotAllocator(t *testing.T) {
 		deviceTopology  *unified.DeviceTopology
 		rdmaTopology    *unified.RDMATopology
 		gpuWanted       int
+		hostNetwork     bool
 		assignedDevices apiext.DeviceAllocations
 		want            apiext.DeviceAllocations
 		wantErr         bool
@@ -730,6 +731,60 @@ func TestAutopilotAllocator(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:           "1 GPU with hostNetwork",
+			deviceCR:       fakeDeviceCR,
+			deviceTopology: makeTestDeviceTopology(2, 1, 4, 2, 1),
+			rdmaTopology:   &unified.RDMATopology{},
+			gpuWanted:      4,
+			hostNetwork:    true,
+			want: apiext.DeviceAllocations{
+				schedulingv1alpha1.GPU: []*apiext.DeviceAllocation{
+					{
+						Minor:     0,
+						Resources: gpuResourceList,
+					},
+					{
+						Minor:     1,
+						Resources: gpuResourceList,
+					},
+					{
+						Minor:     2,
+						Resources: gpuResourceList,
+					},
+					{
+						Minor:     3,
+						Resources: gpuResourceList,
+					},
+				},
+				schedulingv1alpha1.RDMA: []*apiext.DeviceAllocation{
+					{
+						Minor: 1,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+					},
+					{
+						Minor: 2,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+					},
+					{
+						Minor: 3,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+					},
+					{
+						Minor: 4,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -806,7 +861,13 @@ func TestAutopilotAllocator(t *testing.T) {
 			nodeDevice.lock.Lock()
 			defer nodeDevice.lock.Unlock()
 
-			allocations, err := allocator.Allocate("test-node-1", &corev1.Pod{}, podRequest, nodeDevice)
+			pod := &corev1.Pod{
+				Spec: corev1.PodSpec{
+					HostNetwork: tt.hostNetwork,
+				},
+			}
+
+			allocations, err := allocator.Allocate("test-node-1", pod, podRequest, nodeDevice)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Allocate() error = %v, wantErr %v", err, tt.wantErr)
 				return
