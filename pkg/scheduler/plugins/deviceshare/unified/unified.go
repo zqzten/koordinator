@@ -42,14 +42,14 @@ const (
 )
 
 var deviceResourceNames = map[schedulingv1alpha1.DeviceType][]corev1.ResourceName{
-	schedulingv1alpha1.RDMA: {apiext.KoordRDMA},
-	schedulingv1alpha1.FPGA: {apiext.KoordFPGA},
+	schedulingv1alpha1.RDMA: {apiext.ResourceRDMA},
+	schedulingv1alpha1.FPGA: {apiext.ResourceFPGA},
 	schedulingv1alpha1.GPU: {
-		apiext.NvidiaGPU,
-		apiext.KoordGPU,
-		apiext.GPUCore,
-		apiext.GPUMemory,
-		apiext.GPUMemoryRatio,
+		apiext.ResourceNvidiaGPU,
+		apiext.ResourceGPU,
+		apiext.ResourceGPUCore,
+		apiext.ResourceGPUMemory,
+		apiext.ResourceGPUMemoryRatio,
 		unifiedresourceext.GPUResourceAlibaba,
 		unifiedresourceext.GPUResourceCore,
 		unifiedresourceext.GPUResourceMem,
@@ -76,28 +76,28 @@ func ValidateGPURequest(podRequest corev1.ResourceList) (uint, error) {
 		return gpuCombination, fmt.Errorf("pod request should not be empty")
 	}
 
-	if _, exist := podRequest[apiext.NvidiaGPU]; exist {
+	if _, exist := podRequest[apiext.ResourceNvidiaGPU]; exist {
 		gpuCombination |= deviceshare.NvidiaGPUExist
 	}
-	if koordGPU, exist := podRequest[apiext.KoordGPU]; exist {
-		if koordGPU.Value() > 100 && koordGPU.Value()%100 != 0 {
-			return gpuCombination, fmt.Errorf("failed to validate %v: %v", apiext.KoordGPU, koordGPU.Value())
+	if ResourceGPU, exist := podRequest[apiext.ResourceGPU]; exist {
+		if ResourceGPU.Value() > 100 && ResourceGPU.Value()%100 != 0 {
+			return gpuCombination, fmt.Errorf("failed to validate %v: %v", apiext.ResourceGPU, ResourceGPU.Value())
 		}
 		gpuCombination |= deviceshare.KoordGPUExist
 	}
-	if gpuCore, exist := podRequest[apiext.GPUCore]; exist {
+	if gpuCore, exist := podRequest[apiext.ResourceGPUCore]; exist {
 		// koordinator.sh/gpu-core should be something like: 25, 50, 75, 100, 200, 300
 		if gpuCore.Value() > 100 && gpuCore.Value()%100 != 0 {
-			return gpuCombination, fmt.Errorf("failed to validate %v: %v", apiext.GPUCore, gpuCore.Value())
+			return gpuCombination, fmt.Errorf("failed to validate %v: %v", apiext.ResourceGPUCore, gpuCore.Value())
 		}
 		gpuCombination |= deviceshare.GPUCoreExist
 	}
-	if _, exist := podRequest[apiext.GPUMemory]; exist {
+	if _, exist := podRequest[apiext.ResourceGPUMemory]; exist {
 		gpuCombination |= deviceshare.GPUMemoryExist
 	}
-	if gpuMemRatio, exist := podRequest[apiext.GPUMemoryRatio]; exist {
+	if gpuMemRatio, exist := podRequest[apiext.ResourceGPUMemoryRatio]; exist {
 		if gpuMemRatio.Value() > 100 && gpuMemRatio.Value()%100 != 0 {
-			return gpuCombination, fmt.Errorf("failed to validate %v: %v", apiext.GPUMemoryRatio, gpuMemRatio.Value())
+			return gpuCombination, fmt.Errorf("failed to validate %v: %v", apiext.ResourceGPUMemoryRatio, gpuMemRatio.Value())
 		}
 		gpuCombination |= deviceshare.GPUMemoryRatioExist
 	}
@@ -153,54 +153,54 @@ func ConvertGPUResource(podRequest corev1.ResourceList, combination uint) corev1
 	switch combination {
 	case deviceshare.GPUCoreExist | deviceshare.GPUMemoryExist:
 		return corev1.ResourceList{
-			apiext.GPUCore:   podRequest[apiext.GPUCore],
-			apiext.GPUMemory: podRequest[apiext.GPUMemory],
+			apiext.ResourceGPUCore:   podRequest[apiext.ResourceGPUCore],
+			apiext.ResourceGPUMemory: podRequest[apiext.ResourceGPUMemory],
 		}
 	case deviceshare.GPUCoreExist | deviceshare.GPUMemoryRatioExist:
 		return corev1.ResourceList{
-			apiext.GPUCore:        podRequest[apiext.GPUCore],
-			apiext.GPUMemoryRatio: podRequest[apiext.GPUMemoryRatio],
+			apiext.ResourceGPUCore:        podRequest[apiext.ResourceGPUCore],
+			apiext.ResourceGPUMemoryRatio: podRequest[apiext.ResourceGPUMemoryRatio],
 		}
 	case deviceshare.GPUMemoryRatioExist:
 		return corev1.ResourceList{
-			apiext.GPUCore:        podRequest[apiext.GPUMemoryRatio],
-			apiext.GPUMemoryRatio: podRequest[apiext.GPUMemoryRatio],
+			apiext.ResourceGPUCore:        podRequest[apiext.ResourceGPUMemoryRatio],
+			apiext.ResourceGPUMemoryRatio: podRequest[apiext.ResourceGPUMemoryRatio],
 		}
 	case deviceshare.KoordGPUExist:
 		return corev1.ResourceList{
-			apiext.GPUCore:        podRequest[apiext.KoordGPU],
-			apiext.GPUMemoryRatio: podRequest[apiext.KoordGPU],
+			apiext.ResourceGPUCore:        podRequest[apiext.ResourceGPU],
+			apiext.ResourceGPUMemoryRatio: podRequest[apiext.ResourceGPU],
 		}
 	case deviceshare.NvidiaGPUExist:
-		nvidiaGpu := podRequest[apiext.NvidiaGPU]
+		nvidiaGpu := podRequest[apiext.ResourceNvidiaGPU]
 		return corev1.ResourceList{
-			apiext.GPUCore:        *resource.NewQuantity(nvidiaGpu.Value()*100, resource.DecimalSI),
-			apiext.GPUMemoryRatio: *resource.NewQuantity(nvidiaGpu.Value()*100, resource.DecimalSI),
+			apiext.ResourceGPUCore:        *resource.NewQuantity(nvidiaGpu.Value()*100, resource.DecimalSI),
+			apiext.ResourceGPUMemoryRatio: *resource.NewQuantity(nvidiaGpu.Value()*100, resource.DecimalSI),
 		}
 	case aliyunGPUComputeExist:
 		return corev1.ResourceList{
-			apiext.GPUCore:        podRequest[ack.AliyunGPUCompute],
-			apiext.GPUMemoryRatio: podRequest[ack.AliyunGPUCompute],
+			apiext.ResourceGPUCore:        podRequest[ack.AliyunGPUCompute],
+			apiext.ResourceGPUMemoryRatio: podRequest[ack.AliyunGPUCompute],
 		}
 	case unifiedGPUCoreExist | unifiedGPUMemoryExist:
 		return corev1.ResourceList{
-			apiext.GPUCore:   podRequest[unifiedresourceext.GPUResourceCore],
-			apiext.GPUMemory: podRequest[unifiedresourceext.GPUResourceMem],
+			apiext.ResourceGPUCore:   podRequest[unifiedresourceext.GPUResourceCore],
+			apiext.ResourceGPUMemory: podRequest[unifiedresourceext.GPUResourceMem],
 		}
 	case unifiedGPUCoreExist | unifiedGPUMemoryRatioExist:
 		return corev1.ResourceList{
-			apiext.GPUCore:        podRequest[unifiedresourceext.GPUResourceCore],
-			apiext.GPUMemoryRatio: podRequest[unifiedresourceext.GPUResourceMemRatio],
+			apiext.ResourceGPUCore:        podRequest[unifiedresourceext.GPUResourceCore],
+			apiext.ResourceGPUMemoryRatio: podRequest[unifiedresourceext.GPUResourceMemRatio],
 		}
 	case unifiedGPUMemoryRatioExist:
 		return corev1.ResourceList{
-			apiext.GPUCore:        podRequest[unifiedresourceext.GPUResourceMemRatio],
-			apiext.GPUMemoryRatio: podRequest[unifiedresourceext.GPUResourceMemRatio],
+			apiext.ResourceGPUCore:        podRequest[unifiedresourceext.GPUResourceMemRatio],
+			apiext.ResourceGPUMemoryRatio: podRequest[unifiedresourceext.GPUResourceMemRatio],
 		}
 	case unifiedGPUExist:
 		return corev1.ResourceList{
-			apiext.GPUCore:        podRequest[unifiedresourceext.GPUResourceAlibaba],
-			apiext.GPUMemoryRatio: podRequest[unifiedresourceext.GPUResourceAlibaba],
+			apiext.ResourceGPUCore:        podRequest[unifiedresourceext.GPUResourceAlibaba],
+			apiext.ResourceGPUMemoryRatio: podRequest[unifiedresourceext.GPUResourceAlibaba],
 		}
 	}
 	return nil
@@ -219,12 +219,12 @@ func GetDeviceAllocations(podAnnotations map[string]string) (apiext.DeviceAlloca
 		for deviceType, allocs := range deviceAllocStatus.AllocStatus {
 			switch deviceType {
 			case unifiedschedulingv1beta1.GPU:
-				koordGPUAllocations, err := convertUnifiedGPUAllocs(allocs)
+				ResourceGPUAllocations, err := convertUnifiedGPUAllocs(allocs)
 				if err != nil {
 					return nil, err
 				}
-				if len(koordGPUAllocations) > 0 {
-					deviceAllocations[schedulingv1alpha1.GPU] = koordGPUAllocations
+				if len(ResourceGPUAllocations) > 0 {
+					deviceAllocations[schedulingv1alpha1.GPU] = ResourceGPUAllocations
 				}
 			}
 		}
@@ -234,7 +234,7 @@ func GetDeviceAllocations(podAnnotations map[string]string) (apiext.DeviceAlloca
 }
 
 func convertUnifiedGPUAllocs(allocs []unifiedresourceext.ContainerDeviceAllocStatus) ([]*apiext.DeviceAllocation, error) {
-	koordGPUAllocs := make(map[int32]*apiext.DeviceAllocation)
+	ResourceGPUAllocs := make(map[int32]*apiext.DeviceAllocation)
 	for _, v := range allocs {
 		for _, alloc := range v.DeviceAllocStatus.Allocs {
 			if len(alloc.Resources) == 0 {
@@ -252,21 +252,21 @@ func convertUnifiedGPUAllocs(allocs []unifiedresourceext.ContainerDeviceAllocSta
 				return nil, err
 			}
 			resourceList = ConvertGPUResource(resourceList, combination)
-			koordAllocation := koordGPUAllocs[alloc.Minor]
+			koordAllocation := ResourceGPUAllocs[alloc.Minor]
 			if koordAllocation == nil {
 				koordAllocation = &apiext.DeviceAllocation{
 					Minor: alloc.Minor,
 				}
-				koordGPUAllocs[alloc.Minor] = koordAllocation
+				ResourceGPUAllocs[alloc.Minor] = koordAllocation
 			}
 			koordAllocation.Resources = quotav1.Add(koordAllocation.Resources, resourceList)
 		}
 	}
-	if len(koordGPUAllocs) == 0 {
+	if len(ResourceGPUAllocs) == 0 {
 		return nil, nil
 	}
-	koordDeviceAllocation := make([]*apiext.DeviceAllocation, 0, len(koordGPUAllocs))
-	for _, allocation := range koordGPUAllocs {
+	koordDeviceAllocation := make([]*apiext.DeviceAllocation, 0, len(ResourceGPUAllocs))
+	for _, allocation := range ResourceGPUAllocs {
 		koordDeviceAllocation = append(koordDeviceAllocation, allocation)
 	}
 	if len(koordDeviceAllocation) > 1 {
