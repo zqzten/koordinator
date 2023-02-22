@@ -27,7 +27,7 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 )
 
-var GPUResourceMem = extension.GPUMemory
+var GPUResourceMem = extension.ResourceGPUMemory
 
 var GlobalGPUModelCache *GPUModelCache
 
@@ -39,7 +39,7 @@ type GPUModelCache struct {
 }
 
 func GetNodeGPUModel(nodeLabels map[string]string) string {
-	return nodeLabels[extension.GPUModel]
+	return nodeLabels[extension.LabelGPUModel]
 }
 
 func (gm *GPUModelCache) UpdateByNode(node *v1.Node) {
@@ -124,7 +124,7 @@ func GetPodGPUModel(pod *v1.Pod) string {
 	}
 
 	if pod.Spec.NodeSelector != nil {
-		if model, ok := pod.Spec.NodeSelector[extension.GPUModel]; ok {
+		if model, ok := pod.Spec.NodeSelector[extension.LabelGPUModel]; ok {
 			return model
 		}
 	}
@@ -137,7 +137,7 @@ func GetPodGPUModel(pod *v1.Pod) string {
 			for ei := range term.MatchExpressions {
 				e := term.MatchExpressions[ei]
 				gpuModel := ""
-				if e.Key == extension.GPUModel && e.Operator == v1.NodeSelectorOpIn && len(e.Values) == 1 {
+				if e.Key == extension.LabelGPUModel && e.Operator == v1.NodeSelectorOpIn && len(e.Values) == 1 {
 					gpuModel = e.Values[0]
 				}
 				if gpuModel != "" {

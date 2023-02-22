@@ -41,9 +41,9 @@ import (
 
 var (
 	gpuResourceList = corev1.ResourceList{
-		apiext.GPUCore:        *resource.NewQuantity(100, resource.DecimalSI),
-		apiext.GPUMemoryRatio: *resource.NewQuantity(100, resource.DecimalSI),
-		apiext.GPUMemory:      *resource.NewQuantity(85198045184, resource.BinarySI),
+		apiext.ResourceGPUCore:        *resource.NewQuantity(100, resource.DecimalSI),
+		apiext.ResourceGPUMemoryRatio: *resource.NewQuantity(100, resource.DecimalSI),
+		apiext.ResourceGPUMemory:      *resource.NewQuantity(85198045184, resource.BinarySI),
 	}
 
 	fakeDeviceCR = &schedulingv1alpha1.Device{
@@ -62,7 +62,7 @@ var (
 					Minor:  pointer.Int32(1),
 					Health: true,
 					Resources: corev1.ResourceList{
-						apiext.KoordRDMA: *resource.NewQuantity(100, resource.DecimalSI),
+						apiext.ResourceRDMA: *resource.NewQuantity(100, resource.DecimalSI),
 					},
 				},
 				{
@@ -71,7 +71,7 @@ var (
 					Minor:  pointer.Int32(2),
 					Health: true,
 					Resources: corev1.ResourceList{
-						apiext.KoordRDMA: *resource.NewQuantity(100, resource.DecimalSI),
+						apiext.ResourceRDMA: *resource.NewQuantity(100, resource.DecimalSI),
 					},
 				},
 				{
@@ -80,7 +80,7 @@ var (
 					Minor:  pointer.Int32(3),
 					Health: true,
 					Resources: corev1.ResourceList{
-						apiext.KoordRDMA: *resource.NewQuantity(100, resource.DecimalSI),
+						apiext.ResourceRDMA: *resource.NewQuantity(100, resource.DecimalSI),
 					},
 				},
 				{
@@ -89,7 +89,7 @@ var (
 					Minor:  pointer.Int32(4),
 					Health: true,
 					Resources: corev1.ResourceList{
-						apiext.KoordRDMA: *resource.NewQuantity(100, resource.DecimalSI),
+						apiext.ResourceRDMA: *resource.NewQuantity(100, resource.DecimalSI),
 					},
 				},
 				{
@@ -265,7 +265,7 @@ func TestAutopilotAllocator(t *testing.T) {
 					{
 						Minor: 1,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
 					},
@@ -287,7 +287,7 @@ func TestAutopilotAllocator(t *testing.T) {
 					{
 						Minor: 1,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
 					},
@@ -313,7 +313,7 @@ func TestAutopilotAllocator(t *testing.T) {
 					{
 						Minor: 1,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
 					},
@@ -343,14 +343,14 @@ func TestAutopilotAllocator(t *testing.T) {
 					{
 						Minor: 1,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
 					},
 					{
 						Minor: 2,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond2","busID":"0000:90:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth2","eth3"]}`),
 					},
@@ -384,14 +384,14 @@ func TestAutopilotAllocator(t *testing.T) {
 					{
 						Minor: 1,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
 					},
 					{
 						Minor: 2,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond2","busID":"0000:90:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth2","eth3"]}`),
 					},
@@ -433,21 +433,21 @@ func TestAutopilotAllocator(t *testing.T) {
 					{
 						Minor: 1,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
 					},
 					{
 						Minor: 2,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond2","busID":"0000:90:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth2","eth3"]}`),
 					},
 					{
 						Minor: 3,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond3","busID":"0000:51:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth4","eth5"]}`),
 					},
@@ -497,28 +497,28 @@ func TestAutopilotAllocator(t *testing.T) {
 					{
 						Minor: 1,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
 					},
 					{
 						Minor: 2,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond2","busID":"0000:90:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth2","eth3"]}`),
 					},
 					{
 						Minor: 3,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond3","busID":"0000:51:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth4","eth5"]}`),
 					},
 					{
 						Minor: 4,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond4","busID":"0000:b9:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth6","eth7"]}`),
 					},
@@ -540,7 +540,7 @@ func TestAutopilotAllocator(t *testing.T) {
 					{
 						Minor: 1,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
 					},
@@ -561,7 +561,7 @@ func TestAutopilotAllocator(t *testing.T) {
 					{
 						Minor: 2,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond2","busID":"0000:90:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth2","eth3"]}`),
 					},
@@ -583,7 +583,7 @@ func TestAutopilotAllocator(t *testing.T) {
 					{
 						Minor: 1,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}]}`),
 					},
@@ -608,14 +608,14 @@ func TestAutopilotAllocator(t *testing.T) {
 					{
 						Minor: 1,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.3","minor":1,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
 					},
 					{
 						Minor: 2,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond2","busID":"0000:90:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth2","eth3"]}`),
 					},
@@ -651,7 +651,7 @@ func TestAutopilotAllocator(t *testing.T) {
 					{
 						Minor: 1,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:20:00.0","minor":0,"priority":"VFPriorityHigh"}]}`),
 					},
@@ -687,7 +687,7 @@ func TestAutopilotAllocator(t *testing.T) {
 					{
 						Minor: 1,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:20:00.0","minor":0,"priority":"VFPriorityHigh"}]}`),
 					},
@@ -716,14 +716,14 @@ func TestAutopilotAllocator(t *testing.T) {
 					{
 						Minor: 1,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:20:00.1","minor":1,"priority":"VFPriorityHigh"}]}`),
 					},
 					{
 						Minor: 2,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond2","busID":"0000:21:00.0","minor":0,"priority":"VFPriorityHigh"}]}`),
 					},
@@ -771,7 +771,7 @@ func TestAutopilotAllocator(t *testing.T) {
 							{
 								Resources: corev1.ResourceRequirements{
 									Requests: corev1.ResourceList{
-										apiext.NvidiaGPU: *resource.NewQuantity(1, resource.DecimalSI),
+										apiext.ResourceNvidiaGPU: *resource.NewQuantity(1, resource.DecimalSI),
 									},
 								},
 							},
@@ -795,13 +795,13 @@ func TestAutopilotAllocator(t *testing.T) {
 
 			podRequest := corev1.ResourceList{}
 			if tt.gpuWanted > 0 {
-				podRequest[apiext.NvidiaGPU] = *resource.NewQuantity(int64(tt.gpuWanted), resource.DecimalSI)
+				podRequest[apiext.ResourceNvidiaGPU] = *resource.NewQuantity(int64(tt.gpuWanted), resource.DecimalSI)
 				combination, err := ValidateGPURequest(podRequest)
 				assert.NoError(t, err)
 				podRequest = ConvertGPUResource(podRequest, combination)
 			}
 
-			podRequest[apiext.KoordRDMA] = *resource.NewQuantity(1, resource.DecimalSI)
+			podRequest[apiext.ResourceRDMA] = *resource.NewQuantity(1, resource.DecimalSI)
 
 			nodeDevice.lock.Lock()
 			defer nodeDevice.lock.Unlock()
@@ -895,7 +895,7 @@ func TestMatchDriverVersions(t *testing.T) {
 			assert.NotNil(t, nodeDevice)
 
 			podRequest := corev1.ResourceList{
-				apiext.NvidiaGPU: *resource.NewQuantity(int64(1), resource.DecimalSI),
+				apiext.ResourceNvidiaGPU: *resource.NewQuantity(int64(1), resource.DecimalSI),
 			}
 			combination, err := ValidateGPURequest(podRequest)
 			assert.NoError(t, err)
@@ -978,14 +978,14 @@ func TestAutopilotAllocatorReserveAndUnreserve(t *testing.T) {
 			{
 				Minor: 1,
 				Resources: corev1.ResourceList{
-					apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+					apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 				},
 				Extension: json.RawMessage(`{"vfs":[{"busID":"0000:1f:00.3","minor":1,"priority":"VFPriorityHigh"}]}`),
 			},
 			{
 				Minor: 2,
 				Resources: corev1.ResourceList{
-					apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+					apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 				},
 				Extension: json.RawMessage(`{"vfs":[{"busID":"0000:90:00.2","minor":0,"priority":"VFPriorityHigh"}]}`),
 			},
@@ -1022,10 +1022,10 @@ func TestAutopilotAllocatorReserveAndUnreserve(t *testing.T) {
 		},
 		schedulingv1alpha1.RDMA: {
 			1: corev1.ResourceList{
-				apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+				apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 			},
 			2: corev1.ResourceList{
-				apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+				apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 			},
 		},
 		unified.NVSwitchDeviceType: {
@@ -1070,7 +1070,7 @@ func TestAutopilotAllocateNVSwitch(t *testing.T) {
 					{
 						Minor: 1,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
 					},
@@ -1096,7 +1096,7 @@ func TestAutopilotAllocateNVSwitch(t *testing.T) {
 					{
 						Minor: 1,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
 					},
@@ -1134,14 +1134,14 @@ func TestAutopilotAllocateNVSwitch(t *testing.T) {
 					{
 						Minor: 1,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
 					},
 					{
 						Minor: 2,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond2","busID":"0000:90:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth2","eth3"]}`),
 					},
@@ -1205,28 +1205,28 @@ func TestAutopilotAllocateNVSwitch(t *testing.T) {
 					{
 						Minor: 1,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
 					},
 					{
 						Minor: 2,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond2","busID":"0000:90:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth2","eth3"]}`),
 					},
 					{
 						Minor: 3,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond3","busID":"0000:51:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth4","eth5"]}`),
 					},
 					{
 						Minor: 4,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond4","busID":"0000:b9:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth6","eth7"]}`),
 					},
@@ -1286,7 +1286,7 @@ func TestAutopilotAllocateNVSwitch(t *testing.T) {
 					{
 						Minor: 1,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}]}`),
 					},
@@ -1315,7 +1315,7 @@ func TestAutopilotAllocateNVSwitch(t *testing.T) {
 					{
 						Minor: 2,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond2","busID":"0000:90:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth2","eth3"]}`),
 					},
@@ -1373,7 +1373,7 @@ func TestAutopilotAllocateNVSwitch(t *testing.T) {
 							{
 								Resources: corev1.ResourceRequirements{
 									Requests: corev1.ResourceList{
-										apiext.NvidiaGPU: *resource.NewQuantity(1, resource.DecimalSI),
+										apiext.ResourceNvidiaGPU: *resource.NewQuantity(1, resource.DecimalSI),
 									},
 								},
 							},
@@ -1396,12 +1396,12 @@ func TestAutopilotAllocateNVSwitch(t *testing.T) {
 			assert.NotNil(t, nodeDevice)
 
 			podRequest := corev1.ResourceList{
-				apiext.NvidiaGPU: *resource.NewQuantity(int64(tt.gpuWanted), resource.DecimalSI),
+				apiext.ResourceNvidiaGPU: *resource.NewQuantity(int64(tt.gpuWanted), resource.DecimalSI),
 			}
 			combination, err := ValidateGPURequest(podRequest)
 			assert.NoError(t, err)
 			podRequest = ConvertGPUResource(podRequest, combination)
-			podRequest[apiext.KoordRDMA] = *resource.NewQuantity(1, resource.DecimalSI)
+			podRequest[apiext.ResourceRDMA] = *resource.NewQuantity(1, resource.DecimalSI)
 
 			nodeDevice.lock.Lock()
 			defer nodeDevice.lock.Unlock()
