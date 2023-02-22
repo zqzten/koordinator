@@ -29,21 +29,21 @@ import (
 )
 
 var NormalGPUNamesForQuota = sets.NewString(
-	string(extension.NvidiaGPU),
+	string(extension.ResourceNvidiaGPU),
 )
 
 var PercentageGPUNamesForQuota = sets.NewString(
 	string(GPUResourceCardRatio),
-	string(extension.KoordGPU),
+	string(extension.ResourceGPU),
 )
 
-//解析quota的配置维度尝试翻译成card-ratio：
-//nvida/gpu:20                      ------>  alibabacloud.com/gpu-card-ratio:2000
-//alibabacloud.com/gpu:20           ------>  alibabacloud.com/gpu-card-ratio:2000
-//nvida/gpu-v100-16gb               ------>  alibabacloud.com/gpu-card-ratio-v100-16gb:2000
-//alibabacloud.com/gpu-v100-16gb:20 ------>  alibabacloud.com/gpu-card-ratio-v100-16gb:2000
-//老的key不删掉，仅用于显示使用
-//我们暂时不考虑quota组直接配置gpucore\membyte\memratio等，目前以及可见未来没有这种需求，我们暂时也不额外处理
+// 解析quota的配置维度尝试翻译成card-ratio：
+// nvida/gpu:20                      ------>  alibabacloud.com/gpu-card-ratio:2000
+// alibabacloud.com/gpu:20           ------>  alibabacloud.com/gpu-card-ratio:2000
+// nvida/gpu-v100-16gb               ------>  alibabacloud.com/gpu-card-ratio-v100-16gb:2000
+// alibabacloud.com/gpu-v100-16gb:20 ------>  alibabacloud.com/gpu-card-ratio-v100-16gb:2000
+// 老的key不删掉，仅用于显示使用
+// 我们暂时不考虑quota组直接配置gpucore\membyte\memratio等，目前以及可见未来没有这种需求，我们暂时也不额外处理
 func NormalizeGpuResourcesToCardRatioForQuota(res v1.ResourceList) v1.ResourceList {
 	if len(res) == 0 {
 		return res
