@@ -27,16 +27,16 @@ const GPUCardRatio corev1.ResourceName = apiext.ResourceDomainPrefix + "gpu-card
 
 var (
 	koordGPUResourcesToUnified = map[corev1.ResourceName]corev1.ResourceName{
-		apiext.KoordGPU:       unifiedresourceext.GPUResourceAlibaba,
-		apiext.GPUCore:        unifiedresourceext.GPUResourceCore,
-		apiext.GPUMemory:      unifiedresourceext.GPUResourceMem,
-		apiext.GPUMemoryRatio: unifiedresourceext.GPUResourceMemRatio,
+		apiext.ResourceGPU:            unifiedresourceext.GPUResourceAlibaba,
+		apiext.ResourceGPUCore:        unifiedresourceext.GPUResourceCore,
+		apiext.ResourceGPUMemory:      unifiedresourceext.GPUResourceMem,
+		apiext.ResourceGPUMemoryRatio: unifiedresourceext.GPUResourceMemRatio,
 	}
 	unifiedGPUResourcesToKoord = map[corev1.ResourceName]corev1.ResourceName{
-		unifiedresourceext.GPUResourceAlibaba:  apiext.KoordGPU,
-		unifiedresourceext.GPUResourceCore:     apiext.GPUCore,
-		unifiedresourceext.GPUResourceMem:      apiext.GPUMemory,
-		unifiedresourceext.GPUResourceMemRatio: apiext.GPUMemoryRatio,
+		unifiedresourceext.GPUResourceAlibaba:  apiext.ResourceGPU,
+		unifiedresourceext.GPUResourceCore:     apiext.ResourceGPUCore,
+		unifiedresourceext.GPUResourceMem:      apiext.ResourceGPUMemory,
+		unifiedresourceext.GPUResourceMemRatio: apiext.ResourceGPUMemoryRatio,
 	}
 )
 

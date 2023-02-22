@@ -144,7 +144,7 @@ func (a *AutopilotAllocator) Allocate(nodeName string, pod *corev1.Pod, podReque
 		return nil, err
 	}
 	if len(rdmaTopology.VFs) == 0 {
-		rdmaRequest := podRequest[apiext.KoordRDMA]
+		rdmaRequest := podRequest[apiext.ResourceRDMA]
 		if !rdmaRequest.IsZero() {
 			return nil, fmt.Errorf("invalid RDMA Topology")
 		}
@@ -165,19 +165,19 @@ func (a *AutopilotAllocator) Allocate(nodeName string, pod *corev1.Pod, podReque
 		return nil, fmt.Errorf("node does not have enough GPU")
 	}
 
-	rdmaRequest := podRequest[apiext.KoordRDMA]
+	rdmaRequest := podRequest[apiext.ResourceRDMA]
 	gpuRequest := quotav1.Mask(podRequest, DeviceResourceNames[schedulingv1alpha1.GPU])
 	fillGPUTotalMem(nodeDeviceTotal, gpuRequest)
 
 	gpuWanted := int64(1)
 	var gpuRequestPerCard corev1.ResourceList
 	if isMultipleGPUPod(gpuRequest) {
-		gpuCore, gpuMem, gpuMemRatio := gpuRequest[apiext.GPUCore], gpuRequest[apiext.GPUMemory], gpuRequest[apiext.GPUMemoryRatio]
+		gpuCore, gpuMem, gpuMemRatio := gpuRequest[apiext.ResourceGPUCore], gpuRequest[apiext.ResourceGPUMemory], gpuRequest[apiext.ResourceGPUMemoryRatio]
 		gpuWanted = gpuCore.Value() / 100
 		gpuRequestPerCard = corev1.ResourceList{
-			apiext.GPUCore:        *resource.NewQuantity(gpuCore.Value()/gpuWanted, resource.DecimalSI),
-			apiext.GPUMemory:      *resource.NewQuantity(gpuMem.Value()/gpuWanted, resource.BinarySI),
-			apiext.GPUMemoryRatio: *resource.NewQuantity(gpuMemRatio.Value()/gpuWanted, resource.DecimalSI),
+			apiext.ResourceGPUCore:        *resource.NewQuantity(gpuCore.Value()/gpuWanted, resource.DecimalSI),
+			apiext.ResourceGPUMemory:      *resource.NewQuantity(gpuMem.Value()/gpuWanted, resource.BinarySI),
+			apiext.ResourceGPUMemoryRatio: *resource.NewQuantity(gpuMemRatio.Value()/gpuWanted, resource.DecimalSI),
 		}
 	} else {
 		gpuRequestPerCard = gpuRequest
@@ -219,14 +219,14 @@ func (a *AutopilotAllocator) allocateNonGPUDevices(
 	rdmaTopology *unified.RDMATopology,
 ) (apiext.DeviceAllocations, error) {
 	deviceAllocations := apiext.DeviceAllocations{}
-	rdmaRequest := podRequest[apiext.KoordRDMA]
+	rdmaRequest := podRequest[apiext.ResourceRDMA]
 	if !rdmaRequest.IsZero() {
 		rdmaAllocations, err := a.allocateVFs(nodeName, rdmaRequest, 1, false, nil, deviceTopology, rdmaTopology)
 		if err != nil {
 			return nil, err
 		}
 		deviceAllocations[schedulingv1alpha1.RDMA] = rdmaAllocations
-		delete(podRequest, apiext.KoordRDMA)
+		delete(podRequest, apiext.ResourceRDMA)
 	}
 	if len(podRequest) > 0 {
 		otherDeviceAllocations, err := nodeDevice.tryAllocateDevice(podRequest)
@@ -330,8 +330,8 @@ allocateLoop:
 			pcieSwitches = skippedPCIEs
 		}
 		for _, pcie := range pcieSwitches {
-			totalFreeGPUCore := sumDeviceResource(pcie.nodeDevice.deviceFree[schedulingv1alpha1.GPU], apiext.GPUCore)
-			gpuCoreRequest := gpuRequestPerCard[apiext.GPUCore]
+			totalFreeGPUCore := sumDeviceResource(pcie.nodeDevice.deviceFree[schedulingv1alpha1.GPU], apiext.ResourceGPUCore)
+			gpuCoreRequest := gpuRequestPerCard[apiext.ResourceGPUCore]
 			freeCount := int(totalFreeGPUCore / gpuCoreRequest.Value())
 			if freeCount == 0 {
 				freeCount = 1
@@ -347,7 +347,7 @@ allocateLoop:
 			for i := 0; i < freeCount; i++ {
 				resourceRequest := gpuRequestPerCard.DeepCopy()
 				if !rdmaRequest.IsZero() {
-					resourceRequest[apiext.KoordRDMA] = rdmaRequest
+					resourceRequest[apiext.ResourceRDMA] = rdmaRequest
 				}
 				deviceAllocations, err := pcie.nodeDevice.tryAllocateDevice(resourceRequest)
 				if err != nil {
@@ -425,7 +425,7 @@ allocateVFLoop:
 					rdmaAllocations = append(rdmaAllocations, &apiext.DeviceAllocation{
 						Minor: rdmaMinor,
 						Resources: corev1.ResourceList{
-							apiext.KoordRDMA: rdmaRequest,
+							apiext.ResourceRDMA: rdmaRequest,
 						},
 						Extension: data,
 					})
@@ -709,7 +709,7 @@ func (a *deviceAccumulator) freePCIESwitches() []*pcieSwitch {
 		}
 		iDeviceResources := iPCIE.nodeDevice.deviceFree[schedulingv1alpha1.GPU]
 		jDeviceResources := jPCIE.nodeDevice.deviceFree[schedulingv1alpha1.GPU]
-		return sumDeviceResource(iDeviceResources, apiext.GPUCore) < sumDeviceResource(jDeviceResources, apiext.GPUCore)
+		return sumDeviceResource(iDeviceResources, apiext.ResourceGPUCore) < sumDeviceResource(jDeviceResources, apiext.ResourceGPUCore)
 	})
 	return a.pcieSwitches
 }
@@ -739,9 +739,9 @@ func (a *deviceAccumulator) freePCIESwitchesInNode() []*pcieSwitchGroup {
 				group.total[k] += len(v)
 			}
 			resources := pcie.nodeDevice.deviceFree[schedulingv1alpha1.GPU]
-			group.free[schedulingv1alpha1.GPU] += sumDeviceResource(resources, apiext.GPUCore)
+			group.free[schedulingv1alpha1.GPU] += sumDeviceResource(resources, apiext.ResourceGPUCore)
 			resources = pcie.nodeDevice.deviceFree[schedulingv1alpha1.RDMA]
-			group.free[schedulingv1alpha1.RDMA] += sumDeviceResource(resources, apiext.KoordRDMA)
+			group.free[schedulingv1alpha1.RDMA] += sumDeviceResource(resources, apiext.ResourceRDMA)
 		}
 		groups = append(groups, group)
 	}
@@ -779,9 +779,9 @@ func (a *deviceAccumulator) freePCIESwitchesInSocket() []*pcieSwitchGroup {
 				group.total[k] += len(v)
 			}
 			resources := pcie.nodeDevice.deviceFree[schedulingv1alpha1.GPU]
-			group.free[schedulingv1alpha1.GPU] += sumDeviceResource(resources, apiext.GPUCore)
+			group.free[schedulingv1alpha1.GPU] += sumDeviceResource(resources, apiext.ResourceGPUCore)
 			resources = pcie.nodeDevice.deviceFree[schedulingv1alpha1.RDMA]
-			group.free[schedulingv1alpha1.RDMA] += sumDeviceResource(resources, apiext.KoordRDMA)
+			group.free[schedulingv1alpha1.RDMA] += sumDeviceResource(resources, apiext.ResourceRDMA)
 		}
 		groups = append(groups, group)
 	}

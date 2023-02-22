@@ -127,9 +127,9 @@ func newNode(name, model string) *v1.Node {
 	}
 	if model != "" {
 		n.Labels = map[string]string{
-			extension.GPUModel: model,
+			extension.LabelGPUModel: model,
 		}
-		n.Status.Allocatable[extension.NvidiaGPU] = resource.MustParse("1")
+		n.Status.Allocatable[extension.ResourceNvidiaGPU] = resource.MustParse("1")
 	}
 	return n
 }
@@ -147,7 +147,7 @@ func newDevice(name, capacity string) *v1alpha1.Device {
 					Health: true,
 					Type:   v1alpha1.GPU,
 					Resources: v1.ResourceList{
-						extension.GPUMemory: resource.MustParse(capacity),
+						extension.ResourceGPUMemory: resource.MustParse(capacity),
 					},
 				},
 			},

@@ -27,16 +27,16 @@ import (
 	"github.com/koordinator-sh/koordinator/apis/extension"
 )
 
-var GPUResourceCore = extension.GPUCore
+var GPUResourceCore = extension.ResourceGPUCore
 
 var NormalGPUNamesForPod = sets.NewString(
-	string(extension.NvidiaGPU),
+	string(extension.ResourceNvidiaGPU),
 )
 
 var PercentageGPUNamesForPod = sets.NewString(
 	string(GPUResourceMemRatio),
 	string(GPUResourceCore),
-	string(extension.KoordGPU),
+	string(extension.ResourceGPU),
 )
 
 func NormalizeGPUResourcesToCardRatioForPod(res v1.ResourceList, gpuModel string) v1.ResourceList {

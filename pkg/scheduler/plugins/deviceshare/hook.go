@@ -82,7 +82,7 @@ func getUnifiedGPUResourcesFromDeviceCache(nodeDevice *nodeDevice) corev1.Resour
 
 	if memoryRatio, ok := gpuResources[unifiedresourceext.GPUResourceMemRatio]; ok {
 		gpuCount := memoryRatio.Value() / 100
-		gpuResources[apiext.NvidiaGPU] = *resource.NewQuantity(gpuCount, resource.DecimalSI)
+		gpuResources[apiext.ResourceNvidiaGPU] = *resource.NewQuantity(gpuCount, resource.DecimalSI)
 	}
 	return gpuResources
 }
