@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"path"
 
+	"github.com/spf13/pflag"
 	quotav1 "gitlab.alibaba-inc.com/unischeduler/api/apis/quotas/v1"
 	sev1 "gitlab.alibaba-inc.com/unischeduler/api/apis/scheduling/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -46,8 +47,15 @@ const (
 	LabelEnableMigrate = "alibabacloud.com/enable-migrate"
 )
 
+var (
+	enableUnifiedReservation = true
+	koordNewInterpreter      func(mgr ctrl.Manager) reservation.Interpreter
+)
+
 func init() {
+	koordNewInterpreter = reservation.NewInterpreter
 	reservation.NewInterpreter = NewInterpreter
+	pflag.BoolVar(&enableUnifiedReservation, "enable-unified-reservation", enableUnifiedReservation, "enable unified reservation, enable by default")
 }
 
 // +kubebuilder:rbac:groups=scheduling.alibabacloud.com,resources=reserveresources,verbs=get;list;watch;create;update;patch;delete
@@ -60,6 +68,9 @@ type Interpreter struct {
 }
 
 func NewInterpreter(mgr ctrl.Manager) reservation.Interpreter {
+	if !enableUnifiedReservation {
+		return koordNewInterpreter(mgr)
+	}
 	_ = sev1.AddToScheme(mgr.GetScheme())
 
 	return &Interpreter{
