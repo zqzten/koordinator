@@ -95,7 +95,7 @@ func newNodeLocalVolumeInfo(node *v1.Node) (*NodeLocalVolumeInfo, error) {
 	}
 	for _, storage := range localStorageInfo {
 		switch storage.LocalStorageType {
-		case unified.NodeLocalVolumeLVM:
+		case unified.NodeLocalVolumeLVM, unified.NodeLocalLoopDevice:
 			localVolume := &LocalVolume{
 				HostPath: storage.Name, // LVM 类型无目录名称，直接使用vgName表示
 				Capacity: storage.Capacity,

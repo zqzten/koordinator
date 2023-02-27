@@ -181,6 +181,8 @@ func (e *pvcEventHandler) GetLocalStorage(pvc *v1.PersistentVolumeClaim) (string
 			selectedStorage = class.Parameters[unified.CSIQuotaPathRootPath]
 		case unified.CSILocalVolumeDevice:
 			// do nothing
+		case unified.CSILocalLoopDevice:
+			selectedStorage = class.Parameters[unified.CSILoopDeviceRootPath]
 		default:
 			klog.V(4).Infof("unknown volume type %s, pvc: %s/%s, selectedStorage: %s, storageClassName: %s",
 				volumeType, pvc.Namespace, pvc.Name, selectedStorage, storageClassName)
