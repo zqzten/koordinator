@@ -212,6 +212,12 @@ func (b *volumeBinder) addRequestedIoLimitFromPVC(
 			}
 			requestLocalVolumeIOLimit[rootPath].Add(ioLimit)
 		case unified.CSILocalVolumeDevice:
+		case unified.CSILocalLoopDevice:
+			rootPath := class.Parameters[unified.CSILoopDeviceRootPath]
+			if _, ok := requestLocalVolumeIOLimit[rootPath]; !ok {
+				requestLocalVolumeIOLimit[rootPath] = &unified.LocalStorageIOLimitInfo{}
+			}
+			requestLocalVolumeIOLimit[rootPath].Add(ioLimit)
 		default:
 			klog.V(5).Infof("Unknown type %s of local volume in StorageClass %s", csiType, className)
 			return nil, fmt.Errorf("unknown type %s of local volume in StorageClass %s", csiType, className)

@@ -1117,7 +1117,9 @@ func (b *volumeBinder) checkVolumeProvisions(pod *v1.Pod, staticBindings []*Bind
 				rootPath := class.Parameters[unified.CSIQuotaPathRootPath]
 				localVolumesInBytes[rootPath] += quantity.Value()
 			case unified.CSILocalVolumeDevice:
-
+			case unified.CSILocalLoopDevice:
+				rootPath := class.Parameters[unified.CSILoopDeviceRootPath]
+				localVolumesInBytes[rootPath] += quantity.Value()
 			default:
 				klog.V(5).Infof("Unknow type %s of local volume in StorageClass %s", csiType, className)
 				return false, true, true, nil, nil

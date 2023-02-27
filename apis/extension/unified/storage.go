@@ -63,6 +63,7 @@ const (
 	CSILocalVolumeQuotaPath = "QuotaPath"
 	// CSILocalVolumeDevice declares the type of LocalVolume in storageClass is "Device"
 	CSILocalVolumeDevice = "Device"
+	CSILocalLoopDevice   = "LoopDevice"
 	// NodeLocalVolumeLVM declares the type of LocalVolume in node's annotation is "lvm"
 	// eg: csi.alibabacloud.com/storage-capacity:
 	// [{"type": "volumegroup", "name": "vg1", "capacity": 105151127552}]
@@ -73,6 +74,8 @@ const (
 	NodeLocalVolumeQuotaPath = "quotapath"
 	// NodeLocalVolumeDevice declares the type of LocalVolume is "device"
 	NodeLocalVolumeDevice = "device"
+	// NodeLocalLoopDevice declares the type of LocalVolume is "loopdevice"
+	NodeLocalLoopDevice = "loopdevice"
 )
 
 const (
@@ -87,6 +90,8 @@ const (
 	CSILVMType = "lvmType"
 	// CSIQuotaPathRootPath indicates the name of the directory where QuotaPath resides.
 	CSIQuotaPathRootPath = "rootPath"
+	// CSIQuotaPathRootPath indicates the name of the directory where QuotaPath resides.
+	CSILoopDeviceRootPath = "rootPath"
 )
 
 const (
@@ -247,6 +252,9 @@ func SupportLocalPV(classLister storagelisters.StorageClassLister, className str
 
 func SupportLVMOrQuotaPathOrDevice(classLister storagelisters.StorageClassLister, className string, storageClass *storagev1.StorageClass) bool {
 	if storageClass == nil {
+		if className == "" {
+			return false
+		}
 		var err error
 		storageClass, err = classLister.Get(className)
 		if err != nil {

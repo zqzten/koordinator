@@ -188,7 +188,8 @@ func (pl *VolumeBinding) assumeLocalPVCAllocs(podVolumes *PodVolumes, nodeName s
 			case unified.CSILocalVolumeQuotaPath:
 				localPVCAlloc.MountPoint = class.Parameters[unified.CSIQuotaPathRootPath]
 			case unified.CSILocalVolumeDevice:
-
+			case unified.CSILocalLoopDevice:
+				localPVCAlloc.MountPoint = class.Parameters[unified.CSILoopDeviceRootPath]
 			default:
 				return fmt.Errorf("unknow type %s of local volume in StorageClass %s", csiType, className)
 			}
