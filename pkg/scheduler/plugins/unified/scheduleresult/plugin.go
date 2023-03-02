@@ -21,11 +21,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	apimachinerytypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
@@ -55,40 +51,20 @@ func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error)
 func (p *Plugin) Name() string { return Name }
 
 func (p *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
-	podOriginal := pod
-	pod = pod.DeepCopy()
-	if pod.Labels == nil {
-		pod.Labels = make(map[string]string)
-	}
-	pod.Labels[extunified.K8sLabelScheduleNodeName] = nodeName
-	if pod.Annotations == nil {
-		pod.Annotations = make(map[string]string)
-	}
+	labels := map[string]string{extunified.K8sLabelScheduleNodeName: nodeName}
+	annotations := map[string]string{}
 	updateTime := time.Now().In(time.FixedZone("CST", 8*3600)).Format(time.RFC3339Nano)
-	pod.Annotations[extunified.AnnotationSchedulerUpdateTime] = updateTime
-	pod.Annotations[extunified.AnnotationSchedulerBindTime] = updateTime
-	patchBytes, err := util.GeneratePodPatch(podOriginal, pod)
+	annotations[extunified.AnnotationSchedulerUpdateTime] = updateTime
+	annotations[extunified.AnnotationSchedulerBindTime] = updateTime
+	// patch pod or reservation (if the pod is a reserve pod) with new annotations
+	err := util.RetryOnConflictOrTooManyRequests(func() error {
+		_, err1 := util.NewPatch().WithHandle(p.handle).AddAnnotations(annotations).AddLabels(labels).PatchPodOrReservation(pod)
+		return err1
+	})
 	if err != nil {
+		klog.V(3).ErrorS(err, "Failed to preBind Pod", "pod", klog.KObj(pod))
 		return framework.NewStatus(framework.Error, err.Error())
 	}
-	if string(patchBytes) == "{}" {
-		return nil
-	}
-	err = retry.OnError(
-		retry.DefaultRetry,
-		errors.IsTooManyRequests,
-		func() error {
-			_, err := p.handle.ClientSet().CoreV1().Pods(pod.Namespace).
-				Patch(ctx, pod.Name, apimachinerytypes.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
-			if err != nil {
-				klog.Error("Failed to patch Pod %s/%s, patch: %v, err: %v", pod.Namespace, pod.Name, string(patchBytes), err)
-			}
-			return err
-		})
-	if err != nil {
-		return framework.NewStatus(framework.Error, err.Error())
-	}
-
-	klog.V(4).Infof("Successfully patch Pod %s/%s, patch: %v", pod.Namespace, pod.Name, string(patchBytes))
+	klog.V(4).Infof("Successfully preBind Pod %s/%s with schedule result", pod.Namespace, pod.Name)
 	return nil
 }
