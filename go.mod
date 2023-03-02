@@ -60,6 +60,7 @@ require (
 	k8s.io/kubelet v0.22.6
 	k8s.io/kubernetes v1.22.6
 	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448
+	sigs.k8s.io/cluster-api-provider-nested/virtualcluster v0.0.0-20230303040457-24e3cc409d77
 	sigs.k8s.io/controller-runtime v0.10.3
 	sigs.k8s.io/descheduler v0.26.0
 	sigs.k8s.io/scheduler-plugins v0.22.6
@@ -107,7 +108,7 @@ require (
 	github.com/docker/distribution v2.8.1+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
-	github.com/emicklei/go-restful v2.9.5+incompatible // indirect
+	github.com/emicklei/go-restful v2.9.6+incompatible // indirect
 	github.com/euank/go-kmsg-parser v2.0.0+incompatible // indirect
 	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/form3tech-oss/jwt-go v3.2.3+incompatible // indirect
