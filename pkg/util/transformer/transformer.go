@@ -17,16 +17,20 @@ limitations under the License.
 package transformer
 
 import (
+	"encoding/json"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
+	syncerconsts "sigs.k8s.io/cluster-api-provider-nested/virtualcluster/pkg/syncer/constants"
 
 	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 )
 
 var podTransformers = []func(pod *corev1.Pod){
 	TransformSigmaIgnoreResourceContainers,
+	TransformTenantPod,
 }
 
 func InstallPodTransformer(podInformer cache.SharedIndexInformer) {
@@ -67,5 +71,14 @@ func TransformSigmaIgnoreResourceContainers(pod *corev1.Pod) {
 				container.Resources.Requests[k] = *resource.NewQuantity(0, v.Format)
 			}
 		}
+	}
+}
+
+func TransformTenantPod(pod *corev1.Pod) {
+	if len(pod.OwnerReferences) != 0 {
+		return
+	}
+	if tenantOwnerReferences, ok := pod.Annotations[syncerconsts.LabelOwnerReferences]; ok {
+		_ = json.Unmarshal([]byte(tenantOwnerReferences), &pod.OwnerReferences)
 	}
 }
