@@ -129,6 +129,9 @@ func (p *Plugin) ScoreExtensions() framework.ScoreExtensions {
 }
 
 func (p *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
+	if util.IsReservePod(pod) {
+		return nil
+	}
 	if _, ok := pod.Annotations[core.PodDeletionCost]; ok {
 		return nil
 	}
@@ -166,6 +169,5 @@ func (p *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState, 
 	if err != nil {
 		return framework.NewStatus(framework.Error, err.Error())
 	}
-
 	return nil
 }
