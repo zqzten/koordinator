@@ -48,11 +48,12 @@ require (
 	k8s.io/api v0.26.0
 	k8s.io/apimachinery v0.26.0
 	k8s.io/apiserver v0.26.0
-	k8s.io/client-go v0.26.0
+	k8s.io/client-go v11.0.1-0.20190409021438-1a26190bd76a+incompatible
 	k8s.io/code-generator v0.26.0
 	k8s.io/component-base v0.26.0
 	k8s.io/component-helpers v0.26.0
 	k8s.io/cri-api v0.22.6
+	k8s.io/csi-translation-lib v0.22.6
 	k8s.io/klog/v2 v2.80.1
 	k8s.io/kube-scheduler v0.22.6
 	k8s.io/kubectl v0.22.6
@@ -183,7 +184,6 @@ require (
 	github.com/vishvananda/netlink v1.1.1-0.20201029203352-d40f9887b852 // indirect
 	github.com/vishvananda/netns v0.0.0-20200728191858-db3c7e526aae // indirect
 	github.com/vmware/govmomi v0.20.3 // indirect
-	gitlab.alibaba-inc.com/cos/unified-resource-api v1.22.3-1.0.20220705131219-d0d01381562f // indirect
 	go.etcd.io/etcd/api/v3 v3.5.5 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.5 // indirect
 	go.etcd.io/etcd/client/v3 v3.5.5 // indirect
@@ -218,7 +218,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/apiextensions-apiserver v0.22.6 // indirect
 	k8s.io/cloud-provider v0.22.6 // indirect
-	k8s.io/csi-translation-lib v0.22.6 // indirect
 	k8s.io/gengo v0.0.0-20220902162205-c0856e24416d // indirect
 	k8s.io/klog v1.0.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280 // indirect
