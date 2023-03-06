@@ -47,7 +47,7 @@ func IsPodCfsQuotaNeedUnset(annotations map[string]string) (bool, error) {
 
 // IsPodCPUBurstable checks if cpu burst is allowed for the pod.
 func IsPodCPUBurstable(pod *corev1.Pod) bool {
-	qosClass := unified.GetPodQoSClass(pod)
+	qosClass := apiext.GetPodQoSClass(pod)
 	return qosClass != apiext.QoSLSR && qosClass != apiext.QoSLSE && qosClass != apiext.QoSBE
 }
 
