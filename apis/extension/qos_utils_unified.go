@@ -1,3 +1,6 @@
+//go:build !github
+// +build !github
+
 /*
 Copyright 2022 The Koordinator Authors.
 
@@ -14,34 +17,28 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package unified
+package extension
 
 import (
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/koordinator-sh/koordinator/apis/extension"
+	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 )
 
-func GetPodQoSClass(pod *corev1.Pod) extension.QoSClass {
+func GetPodQoSClass(pod *corev1.Pod) QoSClass {
 	if pod == nil || pod.Labels == nil {
-		return extension.QoSNone
+		return QoSNone
 	}
-	if _, ok := pod.Labels[extension.LabelPodQoS]; ok {
-		return extension.GetPodQoSClass(pod)
-	}
-	if qos, ok := pod.Labels[LabelPodQoSClass]; ok {
-		return getPodQoSClassByName(qos)
-	}
-	// If pod has not  qos label, default as none-qos pod.
-	return extension.QoSNone
+	return GetQoSClassByAttrs(pod.Labels, pod.Annotations)
 }
-func getPodQoSClassByName(qos string) extension.QoSClass {
-	q := extension.QoSClass(qos)
 
-	switch q {
-	case extension.QoSLSE, extension.QoSLSR, extension.QoSLS, extension.QoSBE, extension.QoSSystem:
-		return q
+func GetQoSClassByAttrs(labels, annotations map[string]string) QoSClass {
+	// annotations are for old format adaption reason
+	if qos, exist := labels[LabelPodQoS]; exist {
+		return GetPodQoSClassByName(qos)
 	}
-
-	return extension.QoSNone
+	if qos, exist := labels[uniext.LabelPodQoSClass]; exist {
+		return GetPodQoSClassByName(qos)
+	}
+	return QoSNone
 }
