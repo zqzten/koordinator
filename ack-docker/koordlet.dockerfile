@@ -21,6 +21,7 @@ RUN go build -a -o koordlet cmd/koordlet/main.go
 
 FROM --platform=$TARGETPLATFORM nvidia/cuda:11.6.1-base-ubuntu20.04
 WORKDIR /
+ENV NVIDIA_VISIBLE_DEVICES=""
 RUN apt-get update && apt-get upgrade -y && rm -rf /var/cache/apt/
 COPY --from=builder /go/src/github.com/koordinator-sh/koordinator/koordlet .
 ENTRYPOINT ["/koordlet"]
