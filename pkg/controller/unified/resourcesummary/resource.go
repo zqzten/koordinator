@@ -107,7 +107,7 @@ func priorityPodRequestedToNormal(resourceList corev1.ResourceList, unifiedPrior
 }
 
 func scaleCPUAndACU(pod *corev1.Pod, node *corev1.Node, resourceList corev1.ResourceList) {
-	podQoS := extunified.GetPodQoSClass(pod)
+	podQoS := extension.GetPodQoSClass(pod)
 	if isNodeEnabledACU(node) {
 		acuRatio := getACURatio(node)
 		if podQoS == extension.QoSLS && utilfeature.DefaultFeatureGate.Enabled(features.DefaultEnableACUForLSPod) {
