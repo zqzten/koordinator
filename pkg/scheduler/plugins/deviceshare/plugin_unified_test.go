@@ -23,16 +23,42 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	cosclientset "gitlab.alibaba-inc.com/cos/unified-resource-api/client/clientset/versioned"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/informers"
+	clientset "k8s.io/client-go/kubernetes"
+	kubefake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/utils/pointer"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 )
+
+type fakeExtendedHandle struct {
+	frameworkext.ExtendedHandle
+	cs                    *kubefake.Clientset
+	sharedInformerFactory informers.SharedInformerFactory
+	snapShotSharedLister  framework.SharedLister
+	cosclientset.Interface
+}
+
+func (f *fakeExtendedHandle) ClientSet() clientset.Interface {
+	return f.cs
+}
+
+func (f *fakeExtendedHandle) SharedInformerFactory() informers.SharedInformerFactory {
+	return f.sharedInformerFactory
+}
+
+func (f *fakeExtendedHandle) SnapshotSharedLister() framework.SharedLister {
+	return f.snapShotSharedLister
+}
 
 func Test_appendNetworkingVFMetas(t *testing.T) {
 	pod := &corev1.Pod{}
@@ -168,7 +194,6 @@ func Test_appendRundResult(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			suit := newPluginTestSuit(t, nil)
-			extendedHandle := suit.ExtendedHandle
 
 			fakeDevice := fakeDeviceCR.DeepCopy()
 			var pciInfos []unified.DevicePCIInfo
@@ -204,10 +229,10 @@ func Test_appendRundResult(t *testing.T) {
 			assert.NoError(t, err)
 			fakeDevice.Annotations[unified.AnnotationDevicePCIInfos] = string(data)
 
-			_, err = extendedHandle.KoordinatorClientSet().SchedulingV1alpha1().Devices().Create(context.TODO(), fakeDevice, metav1.CreateOptions{})
+			_, err = suit.ExtenderFactory.KoordinatorClientSet().SchedulingV1alpha1().Devices().Create(context.TODO(), fakeDevice, metav1.CreateOptions{})
 			assert.NoError(t, err)
 
-			pl, err := suit.proxyNew(&config.DeviceShareArgs{}, suit.ExtendedHandle)
+			pl, err := suit.proxyNew(&config.DeviceShareArgs{}, suit.Framework)
 			assert.NoError(t, err)
 
 			suit.SharedInformerFactory().Start(nil)
