@@ -25,6 +25,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	"github.com/koordinator-sh/koordinator/pkg/koordlet/resourceexecutor"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/runtimehooks/protocol"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/util/system"
 )
@@ -137,7 +138,15 @@ func TestSetContainerShares(t *testing.T) {
 				assert.Nil(t, containerCtx.Response.Resources.CPUShares, "CPUShares value should be nil")
 			} else {
 				assert.Equal(t, *tt.wantCPUShare, *containerCtx.Response.Resources.CPUShares, "container CPUShares should be equal")
-				containerCtx.ReconcilerDone()
+
+				e := resourceexecutor.NewResourceUpdateExecutor()
+				stop := make(chan struct{})
+				defer func() {
+					close(stop)
+				}()
+				e.Run(stop)
+
+				containerCtx.ReconcilerDone(e)
 				gotCPUShare := testHelper.ReadCgroupFileContents(containerCtx.Request.CgroupParent, system.CPUShares)
 				assert.Equal(t, strconv.FormatInt(*tt.wantCPUShare, 10), gotCPUShare, "container CPUShares should be equal")
 			}

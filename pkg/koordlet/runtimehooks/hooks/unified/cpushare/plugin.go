@@ -22,6 +22,7 @@ import (
 	"k8s.io/klog/v2"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	"github.com/koordinator-sh/koordinator/pkg/koordlet/runtimehooks/hooks"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/runtimehooks/protocol"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/runtimehooks/reconciler"
 	sysutil "github.com/koordinator-sh/koordinator/pkg/koordlet/util/system"
@@ -35,7 +36,7 @@ const (
 type plugin struct {
 }
 
-func (p *plugin) Register() {
+func (p *plugin) Register(op hooks.Options) {
 	klog.V(5).Infof("register hook %v", Name)
 	reconciler.RegisterCgroupReconciler(reconciler.ContainerLevel, sysutil.CPUShares, description, SetContainerShares, reconciler.NoneFilter())
 }

@@ -14,45 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package unified
+package overquota
 
 import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/sharedlisterext"
 )
 
-type NodeInfoHookFn func(nodeInfo *framework.NodeInfo)
-
-var nodeInfoHookFns []NodeInfoHookFn
-
-func RegisterNodeInfoHooker(hooker NodeInfoHookFn) {
-	nodeInfoHookFns = append(nodeInfoHookFns, hooker)
-}
-
 func init() {
-	RegisterNodeInfoHooker(hookNodeInfoByOverQuota)
-}
-
-func HookNodeInfos(nodeInfos []*framework.NodeInfo) (hookedNodeInfos []*framework.NodeInfo) {
-	for _, nodeInfo := range nodeInfos {
-		hookedNodeInfo := HookNodeInfo(nodeInfo)
-		hookedNodeInfos = append(hookedNodeInfos, hookedNodeInfo)
-	}
-	return
-}
-
-func HookNodeInfo(nodeInfo *framework.NodeInfo) (hookedNodeInfo *framework.NodeInfo) {
-	node := nodeInfo.Node()
-	if node == nil || len(nodeInfoHookFns) == 0 {
-		return nodeInfo
-	}
-
-	hookedNodeInfo = nodeInfo.Clone()
-	for _, hookFn := range nodeInfoHookFns {
-		hookFn(hookedNodeInfo)
-	}
-	return hookedNodeInfo
+	sharedlisterext.RegisterNodeInfoTransformer(hookNodeInfoByOverQuota)
 }
 
 func hookNodeInfoByOverQuota(nodeInfo *framework.NodeInfo) {
