@@ -115,6 +115,7 @@ type pluginTestSuit struct {
 	framework.Framework
 	koordClientSet                   koordclientset.Interface
 	ExtendedHandle                   frameworkext.ExtendedHandle
+	ExtenderFactory                  *frameworkext.FrameworkExtenderFactory
 	koordinatorSharedInformerFactory koordinatorinformers.SharedInformerFactory
 	proxyNew                         runtime.PluginFactory
 }
@@ -148,6 +149,7 @@ func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
 	return &pluginTestSuit{
 		Framework:                        fh,
 		koordClientSet:                   koordClientSet,
+		ExtenderFactory:                  extenderFactory,
 		koordinatorSharedInformerFactory: koordSharedInformerFactory,
 		proxyNew:                         proxyNew,
 	}
@@ -2534,7 +2536,15 @@ func Test_Plugin_Reserve(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := &Plugin{nodeDeviceCache: tt.args.nodeDeviceCache, allocator: &defaultAllocator{}}
+			nodes := []*corev1.Node{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:   tt.args.nodeName,
+						Labels: map[string]string{},
+					},
+				},
+			}
+			p := &Plugin{nodeDeviceCache: tt.args.nodeDeviceCache, allocator: &defaultAllocator{}, handle: &fakeExtendedHandle{snapShotSharedLister: newTestSharedLister(nil, nodes)}}
 			cycleState := framework.NewCycleState()
 			if tt.args.state != nil {
 				cycleState.Write(stateKey, tt.args.state)
@@ -2914,7 +2924,16 @@ func Test_Plugin_Unreserve(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := &Plugin{nodeDeviceCache: tt.args.nodeDeviceCache, allocator: &defaultAllocator{}}
+			nodes := []*corev1.Node{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:   "test-node",
+						Labels: map[string]string{},
+					},
+				},
+			}
+			p := &Plugin{nodeDeviceCache: tt.args.nodeDeviceCache, allocator: &defaultAllocator{}, handle: &fakeExtendedHandle{snapShotSharedLister: newTestSharedLister(nil, nodes)}}
+
 			cycleState := framework.NewCycleState()
 			if tt.args.state != nil {
 				cycleState.Write(stateKey, tt.args.state)
@@ -3055,6 +3074,7 @@ func Test_Plugin_PreBind(t *testing.T) {
 			suit.koordinatorSharedInformerFactory.Start(nil)
 			suit.Framework.SharedInformerFactory().WaitForCacheSync(nil)
 			suit.koordinatorSharedInformerFactory.WaitForCacheSync(nil)
+
 			cycleState := framework.NewCycleState()
 			if tt.args.state != nil {
 				cycleState.Write(stateKey, tt.args.state)

@@ -28,7 +28,7 @@ import (
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
-	unifiedhook "github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/unified"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/sharedlisterext"
 )
 
 var hook = &nodeInfoHook{}
@@ -38,7 +38,7 @@ type nodeInfoHook struct {
 }
 
 func init() {
-	unifiedhook.RegisterNodeInfoHooker(hook.hookNodeInfo)
+	sharedlisterext.RegisterNodeInfoTransformer(hook.hookNodeInfo)
 }
 
 func (h *nodeInfoHook) hookNodeInfo(nodeInfo *framework.NodeInfo) {
