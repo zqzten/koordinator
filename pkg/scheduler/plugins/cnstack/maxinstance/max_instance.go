@@ -14,10 +14,10 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
-	v1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
+	"github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/reservation"
-	"github.com/koordinator-sh/koordinator/pkg/util"
+	reservationutil "github.com/koordinator-sh/koordinator/pkg/util/reservation"
 )
 
 const (
@@ -154,18 +154,18 @@ func (mi *MaxInstance) deletePod(obj interface{}) {
 
 func (mi *MaxInstance) addReservation(obj interface{}) {
 	r := obj.(*v1alpha1.Reservation)
-	if util.IsReservationActive(r) {
-		pod := util.NewReservePod(r)
-		mi.addToCache(pod, util.GetReservationNodeName(r))
+	if reservationutil.IsReservationActive(r) {
+		pod := reservationutil.NewReservePod(r)
+		mi.addToCache(pod, reservationutil.GetReservationNodeName(r))
 	}
 }
 
 func (mi *MaxInstance) updateReservation(oldObj, newObj interface{}) {
 	oldR := oldObj.(*v1alpha1.Reservation)
 	newR := newObj.(*v1alpha1.Reservation)
-	if util.IsReservationActive(oldR) && !util.IsReservationActive(newR) {
-		pod := util.NewReservePod(newR)
-		mi.deleteFromCache(pod, util.GetReservationNodeName(newR))
+	if reservationutil.IsReservationActive(oldR) && !reservationutil.IsReservationActive(newR) {
+		pod := reservationutil.NewReservePod(newR)
+		mi.deleteFromCache(pod, reservationutil.GetReservationNodeName(newR))
 	}
 }
 
@@ -183,8 +183,8 @@ func (mi *MaxInstance) deleteReservation(obj interface{}) {
 	if r == nil {
 		return
 	}
-	pod := util.NewReservePod(r)
-	mi.deleteFromCache(pod, util.GetReservationNodeName(r))
+	pod := reservationutil.NewReservePod(r)
+	mi.deleteFromCache(pod, reservationutil.GetReservationNodeName(r))
 }
 
 func (mi *MaxInstance) addToCache(pod *v1.Pod, nodeName string) {

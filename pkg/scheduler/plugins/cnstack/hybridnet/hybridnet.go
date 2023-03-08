@@ -32,7 +32,7 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
-	"github.com/koordinator-sh/koordinator/pkg/util"
+	reservationutil "github.com/koordinator-sh/koordinator/pkg/util/reservation"
 )
 
 const (
@@ -83,7 +83,7 @@ func (hn *hybridnet) Name() string {
 }
 
 func (hn *hybridnet) Filter(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
-	if !util.IsReservePod(pod) {
+	if !reservationutil.IsReservePod(pod) {
 		klog.V(3).Info("is not reserve pod")
 		return framework.NewStatus(framework.Success, "")
 	}

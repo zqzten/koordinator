@@ -71,9 +71,9 @@ var _ framework.PermitPlugin = &LicensePlugin{}
 var _ framework.PreBindPlugin = &LicensePlugin{}
 var _ framework.BindPlugin = &LicensePlugin{}
 var _ framework.PostBindPlugin = &LicensePlugin{}
-var _ frameworkext.PreFilterPhaseHook = &LicensePlugin{}
-var _ frameworkext.FilterPhaseHook = &LicensePlugin{}
-var _ frameworkext.ScorePhaseHook = &LicensePlugin{}
+var _ frameworkext.PreFilterTransformer = &LicensePlugin{}
+var _ frameworkext.FilterTransformer = &LicensePlugin{}
+var _ frameworkext.ScoreTransformer = &LicensePlugin{}
 
 // LicensePlugin supports license check of Scheduler Plugin
 func Register(name string, factory frameworkruntime.PluginFactory, condition LicenseCheckFunc, responsible ResponsibleForPodFunc) frameworkruntime.PluginFactory {
@@ -324,11 +324,11 @@ func (lp *LicensePlugin) PostBind(ctx context.Context, state *framework.CycleSta
 	klog.V(6).Infof("license check plugin %q invalid, PostBind return", lp.name)
 }
 
-func (lp *LicensePlugin) PreFilterHook(handle frameworkext.ExtendedHandle, state *framework.CycleState, pod *corev1.Pod) (*corev1.Pod, bool) {
+func (lp *LicensePlugin) BeforePreFilter(handle frameworkext.ExtendedHandle, state *framework.CycleState, pod *corev1.Pod) (*corev1.Pod, bool) {
 	if lp.stateLicenseValid(state) {
-		if p, ok := lp.plugin.(frameworkext.PreFilterPhaseHook); ok {
+		if p, ok := lp.plugin.(frameworkext.PreFilterTransformer); ok {
 			klog.V(6).Infof("license check plugin %q valid, delegating plugin run PreFilterHook", lp.name)
-			return p.PreFilterHook(handle, state, pod)
+			return p.BeforePreFilter(handle, state, pod)
 		}
 		klog.V(6).Infof("license check plugin %q valid, PreFilterHook not implemented return false", lp.name)
 		return pod, false
@@ -337,11 +337,11 @@ func (lp *LicensePlugin) PreFilterHook(handle frameworkext.ExtendedHandle, state
 	return pod, false
 }
 
-func (lp *LicensePlugin) FilterHook(handle frameworkext.ExtendedHandle, state *framework.CycleState, pod *corev1.Pod, nodeInfo *framework.NodeInfo) (*corev1.Pod, *framework.NodeInfo, bool) {
+func (lp *LicensePlugin) BeforeFilter(handle frameworkext.ExtendedHandle, state *framework.CycleState, pod *corev1.Pod, nodeInfo *framework.NodeInfo) (*corev1.Pod, *framework.NodeInfo, bool) {
 	if lp.stateLicenseValid(state) {
-		if p, ok := lp.plugin.(frameworkext.FilterPhaseHook); ok {
+		if p, ok := lp.plugin.(frameworkext.FilterTransformer); ok {
 			klog.V(6).Infof("license check plugin %q valid, delegating plugin run FilterHook", lp.name)
-			return p.FilterHook(handle, state, pod, nodeInfo)
+			return p.BeforeFilter(handle, state, pod, nodeInfo)
 		}
 		klog.V(6).Infof("license check plugin %q valid, FilterHook not implemented return false", lp.name)
 		return pod, nodeInfo, false
@@ -350,11 +350,11 @@ func (lp *LicensePlugin) FilterHook(handle frameworkext.ExtendedHandle, state *f
 	return pod, nodeInfo, false
 }
 
-func (lp *LicensePlugin) ScoreHook(handle frameworkext.ExtendedHandle, state *framework.CycleState, pod *corev1.Pod, nodes []*corev1.Node) (*corev1.Pod, []*corev1.Node, bool) {
+func (lp *LicensePlugin) BeforeScore(handle frameworkext.ExtendedHandle, state *framework.CycleState, pod *corev1.Pod, nodes []*corev1.Node) (*corev1.Pod, []*corev1.Node, bool) {
 	if lp.stateLicenseValid(state) {
-		if p, ok := lp.plugin.(frameworkext.ScorePhaseHook); ok {
+		if p, ok := lp.plugin.(frameworkext.ScoreTransformer); ok {
 			klog.V(6).Infof("license check plugin %q valid, delegating plugin run ScoreHook", lp.name)
-			return p.ScoreHook(handle, state, pod, nodes)
+			return p.BeforeScore(handle, state, pod, nodes)
 		}
 		klog.V(6).Infof("license check plugin %q valid, ScoreHook not implemented return false", lp.name)
 		return pod, nodes, false

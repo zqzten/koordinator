@@ -51,9 +51,9 @@ var _ framework.PermitPlugin = &LazyLoadPlugin{}
 var _ framework.PreBindPlugin = &LazyLoadPlugin{}
 var _ framework.BindPlugin = &LazyLoadPlugin{}
 var _ framework.PostBindPlugin = &LazyLoadPlugin{}
-var _ frameworkext.PreFilterPhaseHook = &LazyLoadPlugin{}
-var _ frameworkext.FilterPhaseHook = &LazyLoadPlugin{}
-var _ frameworkext.ScorePhaseHook = &LazyLoadPlugin{}
+var _ frameworkext.PreFilterTransformer = &LazyLoadPlugin{}
+var _ frameworkext.FilterTransformer = &LazyLoadPlugin{}
+var _ frameworkext.ScoreTransformer = &LazyLoadPlugin{}
 
 // LazyLoadPlugin supports lazy loading of Scheduler Plugin
 func Register(name string, factory frameworkruntime.PluginFactory, condition ConditionFunc) frameworkruntime.PluginFactory {
@@ -233,33 +233,33 @@ func (llp *LazyLoadPlugin) PostBind(ctx context.Context, state *framework.CycleS
 	klog.V(6).Infof("lazy load plugin %q uninitialized, PostBind return", llp.name)
 }
 
-func (llp *LazyLoadPlugin) PreFilterHook(handle frameworkext.ExtendedHandle, state *framework.CycleState, pod *corev1.Pod) (*corev1.Pod, bool) {
+func (llp *LazyLoadPlugin) BeforePreFilter(handle frameworkext.ExtendedHandle, state *framework.CycleState, pod *corev1.Pod) (*corev1.Pod, bool) {
 	if llp.plugin != nil {
-		if p, ok := llp.plugin.(frameworkext.PreFilterPhaseHook); ok {
+		if p, ok := llp.plugin.(frameworkext.PreFilterTransformer); ok {
 			klog.V(6).Infof("lazy load plugin %q initialized, delegating plugin run PreFilterHook", llp.name)
-			return p.PreFilterHook(handle, state, pod)
+			return p.BeforePreFilter(handle, state, pod)
 		}
 	}
 	klog.V(6).Infof("lazy load plugin %q uninitialized, PreFilterHook return false", llp.name)
 	return pod, false
 }
 
-func (llp *LazyLoadPlugin) FilterHook(handle frameworkext.ExtendedHandle, cycleState *framework.CycleState, pod *corev1.Pod, nodeInfo *framework.NodeInfo) (*corev1.Pod, *framework.NodeInfo, bool) {
+func (llp *LazyLoadPlugin) BeforeFilter(handle frameworkext.ExtendedHandle, cycleState *framework.CycleState, pod *corev1.Pod, nodeInfo *framework.NodeInfo) (*corev1.Pod, *framework.NodeInfo, bool) {
 	if llp.plugin != nil {
-		if p, ok := llp.plugin.(frameworkext.FilterPhaseHook); ok {
+		if p, ok := llp.plugin.(frameworkext.FilterTransformer); ok {
 			klog.V(6).Infof("lazy load plugin %q initialized, delegating plugin run FilterHook", llp.name)
-			return p.FilterHook(handle, cycleState, pod, nodeInfo)
+			return p.BeforeFilter(handle, cycleState, pod, nodeInfo)
 		}
 	}
 	klog.V(6).Infof("lazy load plugin %q uninitialized, FilterHook return false", llp.name)
 	return pod, nodeInfo, false
 }
 
-func (llp *LazyLoadPlugin) ScoreHook(handle frameworkext.ExtendedHandle, cycleState *framework.CycleState, pod *corev1.Pod, nodes []*corev1.Node) (*corev1.Pod, []*corev1.Node, bool) {
+func (llp *LazyLoadPlugin) BeforeScore(handle frameworkext.ExtendedHandle, cycleState *framework.CycleState, pod *corev1.Pod, nodes []*corev1.Node) (*corev1.Pod, []*corev1.Node, bool) {
 	if llp.plugin != nil {
-		if p, ok := llp.plugin.(frameworkext.ScorePhaseHook); ok {
+		if p, ok := llp.plugin.(frameworkext.ScoreTransformer); ok {
 			klog.V(6).Infof("lazy load plugin %q initialized, delegating plugin run ScoreHook", llp.name)
-			return p.ScoreHook(handle, cycleState, pod, nodes)
+			return p.BeforeScore(handle, cycleState, pod, nodes)
 		}
 	}
 	klog.V(6).Infof("lazy load plugin %q uninitialized, ScoreHook return false", llp.name)

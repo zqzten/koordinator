@@ -31,7 +31,7 @@ import (
 	"github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/reservation"
-	"github.com/koordinator-sh/koordinator/pkg/util"
+	reservationutil "github.com/koordinator-sh/koordinator/pkg/util/reservation"
 )
 
 const (
@@ -110,8 +110,8 @@ func (ol *openlocal) Name() string {
 
 func (ol *openlocal) addReservation(obj interface{}) {
 	r := obj.(*v1alpha1.Reservation)
-	if util.IsReservationActive(r) {
-		pod := util.NewReservePod(r)
+	if reservationutil.IsReservationActive(r) {
+		pod := reservationutil.NewReservePod(r)
 		pod.Status.Phase = corev1.PodRunning
 		ol.OnPodAdd(pod)
 	}
@@ -120,8 +120,8 @@ func (ol *openlocal) addReservation(obj interface{}) {
 func (ol *openlocal) updateReservation(oldObj, newObj interface{}) {
 	oldR := oldObj.(*v1alpha1.Reservation)
 	newR := newObj.(*v1alpha1.Reservation)
-	if util.IsReservationActive(oldR) && !util.IsReservationActive(newR) {
-		pod := util.NewReservePod(newR)
+	if reservationutil.IsReservationActive(oldR) && !reservationutil.IsReservationActive(newR) {
+		pod := reservationutil.NewReservePod(newR)
 		pod.Status.Phase = corev1.PodRunning
 		ol.OnPodDelete(pod)
 	}
@@ -141,7 +141,7 @@ func (ol *openlocal) deleteReservation(obj interface{}) {
 	if r == nil {
 		return
 	}
-	pod := util.NewReservePod(r)
+	pod := reservationutil.NewReservePod(r)
 	ol.OnPodDelete(pod)
 }
 
