@@ -25,12 +25,14 @@ import (
 	"k8s.io/klog/v2"
 	syncerconsts "sigs.k8s.io/cluster-api-provider-nested/virtualcluster/pkg/syncer/constants"
 
+	"github.com/koordinator-sh/koordinator/apis/extension"
 	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 )
 
 var podTransformers = []func(pod *corev1.Pod){
 	TransformSigmaIgnoreResourceContainers,
 	TransformTenantPod,
+	TransformNonProdPodResourceSpec,
 }
 
 func InstallPodTransformer(podInformer cache.SharedIndexInformer) {
@@ -80,5 +82,43 @@ func TransformTenantPod(pod *corev1.Pod) {
 	}
 	if tenantOwnerReferences, ok := pod.Annotations[syncerconsts.LabelOwnerReferences]; ok {
 		_ = json.Unmarshal([]byte(tenantOwnerReferences), &pod.OwnerReferences)
+	}
+}
+
+func TransformNonProdPodResourceSpec(pod *corev1.Pod) {
+	priorityClass := unified.GetPriorityClass(pod)
+	if priorityClass == extension.PriorityNone || priorityClass == extension.PriorityProd {
+		return
+	}
+
+	for _, containers := range [][]corev1.Container{pod.Spec.InitContainers, pod.Spec.Containers} {
+		for i := range containers {
+			container := &containers[i]
+			replaceAndEraseResource(priorityClass, container.Resources.Requests, corev1.ResourceCPU)
+			replaceAndEraseResource(priorityClass, container.Resources.Requests, corev1.ResourceMemory)
+
+			replaceAndEraseResource(priorityClass, container.Resources.Limits, corev1.ResourceCPU)
+			replaceAndEraseResource(priorityClass, container.Resources.Limits, corev1.ResourceMemory)
+		}
+	}
+
+	if pod.Spec.Overhead != nil {
+		replaceAndEraseResource(priorityClass, pod.Spec.Overhead, corev1.ResourceCPU)
+		replaceAndEraseResource(priorityClass, pod.Spec.Overhead, corev1.ResourceMemory)
+	}
+}
+
+func replaceAndEraseResource(priorityClass extension.PriorityClass, resourceList corev1.ResourceList, resourceName corev1.ResourceName) {
+	extendResourceName := extension.ResourceNameMap[priorityClass][resourceName]
+	if extendResourceName == "" {
+		return
+	}
+	quantity, ok := resourceList[resourceName]
+	if ok {
+		if resourceName == corev1.ResourceCPU {
+			quantity = *resource.NewQuantity(quantity.MilliValue(), resource.DecimalSI)
+		}
+		resourceList[extendResourceName] = quantity
+		delete(resourceList, resourceName)
 	}
 }
