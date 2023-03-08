@@ -24,7 +24,6 @@ import (
 	_ "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota/unified"
 	_ "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/volumebinding/metrics"
 
-	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/unified"
 	unifiedasiquota "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/asiquotaadaptor"
 	unifiedcpuset "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/cpusetallocator"
 	unifiedcustomaffinity "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/custompodaffinity"
@@ -43,8 +42,6 @@ import (
 )
 
 func init() {
-	schedulingHooks = append(schedulingHooks, unified.NewHook())
-
 	koordinatorPlugins[unifiedcpuset.Name] = unifiedcpuset.New
 	koordinatorPlugins[unifiedeci.Name] = unifiedeci.New
 	koordinatorPlugins[unifiedoverquota.Name] = unifiedoverquota.New
