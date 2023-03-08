@@ -20,13 +20,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	cosclientset "gitlab.alibaba-inc.com/cos/unified-resource-api/client/clientset/versioned"
-	cosfake "gitlab.alibaba-inc.com/cos/unified-resource-api/client/clientset/versioned/fake"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/informers"
-	kubefake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/utils/pointer"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
@@ -36,26 +32,15 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 )
 
-type fakeExtendedHandle struct {
-	frameworkext.ExtendedHandle
-	cs                    *kubefake.Clientset
-	sharedInformerFactory informers.SharedInformerFactory
-	cosclientset.Interface
-}
-
 func TestGPUModelCache(t *testing.T) {
 	koordClientSet := koordfake.NewSimpleClientset()
 	koordSharedInformerFactory := koordinatorinformers.NewSharedInformerFactory(koordClientSet, 0)
-	extendHandle, _ := frameworkext.NewExtendedHandle(
-		frameworkext.WithKoordinatorClientSet(koordClientSet),
-		frameworkext.WithKoordinatorSharedInformerFactory(koordSharedInformerFactory),
-	)
-	fakeHandle := &fakeExtendedHandle{
-		ExtendedHandle: extendHandle,
-		cs:             kubefake.NewSimpleClientset(),
-		Interface:      cosfake.NewSimpleClientset(),
+	frameworkext.NewFrameworkExtenderFactory()
+	GlobalGPUModelCache = &GPUModelCache{
+		koordSharedInformerFactory: koordSharedInformerFactory,
+		ModelToMemCapacity:         make(map[string]int64),
+		NodeToGpuModel:             make(map[string]string),
 	}
-	GlobalGPUModelCache.Init(fakeHandle)
 	// node 1: no gpu device
 	n1 := newNode("n1", "")
 	GlobalGPUModelCache.UpdateByNodeInternal(n1, nil)

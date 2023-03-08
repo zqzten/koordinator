@@ -24,7 +24,7 @@ import (
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
 	"github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
-	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
+	koordinatorinformers "github.com/koordinator-sh/koordinator/pkg/client/informers/externalversions"
 )
 
 var GPUResourceMem = extension.ResourceGPUMemory
@@ -32,10 +32,10 @@ var GPUResourceMem = extension.ResourceGPUMemory
 var GlobalGPUModelCache *GPUModelCache
 
 type GPUModelCache struct {
-	mut                sync.Mutex
-	client             frameworkext.ExtendedHandle
-	ModelToMemCapacity map[string]int64
-	NodeToGpuModel     map[string]string
+	mut                        sync.Mutex
+	koordSharedInformerFactory koordinatorinformers.SharedInformerFactory
+	ModelToMemCapacity         map[string]int64
+	NodeToGpuModel             map[string]string
 }
 
 func GetNodeGPUModel(nodeLabels map[string]string) string {
@@ -43,7 +43,7 @@ func GetNodeGPUModel(nodeLabels map[string]string) string {
 }
 
 func (gm *GPUModelCache) UpdateByNode(node *v1.Node) {
-	deviceObj, err := gm.client.KoordinatorSharedInformerFactory().Scheduling().V1alpha1().Devices().Lister().Get(node.Name)
+	deviceObj, err := gm.koordSharedInformerFactory.Scheduling().V1alpha1().Devices().Lister().Get(node.Name)
 
 	if err != nil {
 		klog.Errorf("node has gpu resource but can not find Device, err: %v", err)

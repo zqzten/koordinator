@@ -34,27 +34,22 @@ func init() {
 }
 
 func (gm *GPUModelCache) Init(handle framework.Handle) error {
+	var koordSharedInformerFactory koordinatorinformers.SharedInformerFactory
 	client, ok := handle.(frameworkext.ExtendedHandle)
 	if !ok {
 		kubeConfig := *handle.KubeConfig()
 		kubeConfig.ContentType = runtime.ContentTypeJSON
 		kubeConfig.AcceptContentTypes = runtime.ContentTypeJSON
 		koordClientSet := versioned.NewForConfigOrDie(&kubeConfig)
-		koordSharedInformerFactory := koordinatorinformers.NewSharedInformerFactory(koordClientSet, 0)
-		var err error
-		client, err = frameworkext.NewExtendedHandle(
-			frameworkext.WithKoordinatorClientSet(koordClientSet),
-			frameworkext.WithKoordinatorSharedInformerFactory(koordSharedInformerFactory),
-		)
-		if err != nil {
-			return err
-		}
+		koordSharedInformerFactory = koordinatorinformers.NewSharedInformerFactory(koordClientSet, 0)
+	} else {
+		koordSharedInformerFactory = client.KoordinatorSharedInformerFactory()
 	}
 	if GlobalGPUModelCache == nil {
 		GlobalGPUModelCache = &GPUModelCache{
-			client:             client,
-			ModelToMemCapacity: make(map[string]int64),
-			NodeToGpuModel:     make(map[string]string),
+			koordSharedInformerFactory: koordSharedInformerFactory,
+			ModelToMemCapacity:         make(map[string]int64),
+			NodeToGpuModel:             make(map[string]string),
 		}
 	}
 	return nil

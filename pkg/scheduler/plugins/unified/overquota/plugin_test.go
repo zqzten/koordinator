@@ -36,7 +36,8 @@ import (
 	schedulertesting "k8s.io/kubernetes/pkg/scheduler/testing"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
-	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/unified"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/sharedlisterext"
 )
 
 var _ framework.SharedLister = &testSharedLister{}
@@ -507,7 +508,7 @@ func TestPlugin_Filter(t *testing.T) {
 
 			status := plg.PreFilter(context.TODO(), tt.cycleState, tt.pod)
 			assert.True(t, status.IsSuccess())
-			newPod, newNodeInfo, hooked := unified.NewHook().FilterHook(nil, tt.cycleState, tt.pod, nodeInfo)
+			newPod, newNodeInfo, hooked := sharedlisterext.NewNodeInfoTransformer().(frameworkext.FilterTransformer).BeforeFilter(nil, tt.cycleState, tt.pod, nodeInfo)
 			if hooked {
 				tt.pod = newPod
 				nodeInfo = newNodeInfo
