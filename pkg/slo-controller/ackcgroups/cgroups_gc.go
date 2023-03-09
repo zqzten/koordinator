@@ -81,14 +81,9 @@ func (r *CgroupsInfoRecycler) recycleLoop(stopCh <-chan struct{}) {
 			r.recycleCgroups()
 		case <-ticker.C:
 			r.recycleDanglings()
-		default:
-			// handle stopCh at last fot ut
-			select {
-			case <-stopCh:
-				klog.Infof("cgroup info recycler is exit")
-				return
-			default:
-			}
+		case <-stopCh:
+			klog.Infof("cgroup info recycler is exit")
+			return
 		}
 	}
 }

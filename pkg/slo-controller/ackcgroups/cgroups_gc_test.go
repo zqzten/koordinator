@@ -492,18 +492,16 @@ func TestCgroupsInfoRecycler_recycleCgroups(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		stopCh := make(chan struct{}, 1)
+		//stopCh := make(chan struct{}, 1)
 		clientBuilder := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(tt.fields.obj...)
 		client := clientBuilder.Build()
 		t.Run(tt.name, func(t *testing.T) {
 			client.Create(context.TODO(), tt.fields.originNodeSLO)
 			r := NewCgroupsInfoRecycler(client)
-			stopCh <- struct{}{}
 			r.AddCgroups(cgroupsSub(tt.args.oldCgroup, tt.args.newCgroup))
-			r.recycleLoop(stopCh)
-			//r.recycleCgroups()
+			r.recycleCgroups()
 			if equal, msg := getAndCompareNodeSLOCgroup(r.Client, testNodeName, tt.want.nodeSLO); !equal {
-				t.Errorf("NodeSLO not equal, msg: %v", msg)
+				t.Errorf("NodeSLO not equal, name %v, msg: %v", tt.name, msg)
 			}
 		})
 	}
@@ -658,15 +656,13 @@ func TestCgroupsInfoRecycler_recyclePods(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		stopCh := make(chan struct{}, 1)
 		clientBuilder := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(tt.fields.obj...)
 		client := clientBuilder.Build()
 		t.Run(tt.name, func(t *testing.T) {
 			r := NewCgroupsInfoRecycler(client)
 			r.Client.Delete(context.TODO(), testPod)
-			stopCh <- struct{}{}
 			r.AddPod(testNs, testPodNameDelete, testNodeName)
-			r.recycleLoop(stopCh)
+			r.recyclePods()
 			if equal, msg := getAndCompareNodeSLOCgroup(r.Client, testNodeName, tt.want.nodeSLO); !equal {
 				t.Errorf("NodeSLO not equal, msg: %v", msg)
 			}
