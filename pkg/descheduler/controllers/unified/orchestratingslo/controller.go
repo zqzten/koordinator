@@ -77,7 +77,7 @@ var _ framework.DeschedulePlugin = &Reconciler{}
 type Reconciler struct {
 	client.Client
 	handle        framework.Handle
-	finder        *controllerfinder.ControllerFinder
+	finder        controllerfinder.Interface
 	eventRecorder record.EventRecorder
 	podCache      PodAssumeCache
 	mutex         sync.RWMutex

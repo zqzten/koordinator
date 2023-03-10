@@ -178,6 +178,7 @@ rules:
   verbs:
   - get
   - list
+  - watch
 - apiGroups:
   - scheduling.koordinator.sh
   resources:
