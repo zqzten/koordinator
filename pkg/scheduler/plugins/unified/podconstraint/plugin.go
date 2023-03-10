@@ -20,8 +20,10 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	k8sfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
+	"github.com/koordinator-sh/koordinator/pkg/features"
 	schedulingconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/podconstraint/cache"
 )
@@ -40,9 +42,10 @@ var (
 )
 
 type Plugin struct {
-	handle             framework.Handle
-	pluginArgs         *schedulingconfig.UnifiedPodConstraintArgs
-	podConstraintCache *cache.PodConstraintCache
+	handle                                   framework.Handle
+	pluginArgs                               *schedulingconfig.UnifiedPodConstraintArgs
+	enableNodeInclusionPolicyInPodConstraint bool
+	podConstraintCache                       *cache.PodConstraintCache
 }
 
 func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error) {
@@ -55,9 +58,10 @@ func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error)
 		return nil, err
 	}
 	return &Plugin{
-		handle:             handle,
-		pluginArgs:         pluginArgs,
-		podConstraintCache: podConstraintCache,
+		handle:                                   handle,
+		pluginArgs:                               pluginArgs,
+		podConstraintCache:                       podConstraintCache,
+		enableNodeInclusionPolicyInPodConstraint: k8sfeature.DefaultFeatureGate.Enabled(features.EnableNodeInclusionPolicyInPodConstraint),
 	}, nil
 }
 

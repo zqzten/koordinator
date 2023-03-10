@@ -216,8 +216,10 @@ func TestPodConstraintCache_AddConstraint(t *testing.T) {
 		PodConstraint: podConstraint,
 		RequiredSpreadConstraints: []*TopologySpreadConstraint{
 			{
-				TopologyKey: corev1.LabelTopologyZone,
-				MaxSkew:     1,
+				TopologyKey:        corev1.LabelTopologyZone,
+				MaxSkew:            1,
+				NodeAffinityPolicy: v1beta1.NodeInclusionPolicyHonor,
+				NodeTaintsPolicy:   v1beta1.NodeInclusionPolicyIgnore,
 			},
 		},
 		TpKeyToTotalMatchNum: map[string]int{
@@ -324,8 +326,10 @@ func TestPodConstraintCache_AddConstraintWithNewConstraint(t *testing.T) {
 		PodConstraint: podConstraint,
 		RequiredSpreadConstraints: []*TopologySpreadConstraint{
 			{
-				TopologyKey: corev1.LabelTopologyZone,
-				MaxSkew:     1,
+				TopologyKey:        corev1.LabelTopologyZone,
+				MaxSkew:            1,
+				NodeAffinityPolicy: v1beta1.NodeInclusionPolicyHonor,
+				NodeTaintsPolicy:   v1beta1.NodeInclusionPolicyIgnore,
 			},
 		},
 		TpKeyToTotalMatchNum: map[string]int{
@@ -353,12 +357,16 @@ func TestPodConstraintCache_AddConstraintWithNewConstraint(t *testing.T) {
 		PodConstraint: podConstraint,
 		RequiredSpreadConstraints: []*TopologySpreadConstraint{
 			{
-				TopologyKey: corev1.LabelTopologyZone,
-				MaxSkew:     1,
+				TopologyKey:        corev1.LabelTopologyZone,
+				MaxSkew:            1,
+				NodeAffinityPolicy: v1beta1.NodeInclusionPolicyHonor,
+				NodeTaintsPolicy:   v1beta1.NodeInclusionPolicyIgnore,
 			},
 			{
-				TopologyKey: corev1.LabelHostname,
-				MaxSkew:     1,
+				TopologyKey:        corev1.LabelHostname,
+				MaxSkew:            1,
+				NodeAffinityPolicy: v1beta1.NodeInclusionPolicyHonor,
+				NodeTaintsPolicy:   v1beta1.NodeInclusionPolicyIgnore,
 			},
 		},
 		TpKeyToTotalMatchNum: map[string]int{
@@ -472,12 +480,16 @@ func TestPodConstraintCache_AddConstraintWithDeleteOneConstraint(t *testing.T) {
 		PodConstraint: podConstraint,
 		RequiredSpreadConstraints: []*TopologySpreadConstraint{
 			{
-				TopologyKey: corev1.LabelTopologyZone,
-				MaxSkew:     1,
+				TopologyKey:        corev1.LabelTopologyZone,
+				MaxSkew:            1,
+				NodeAffinityPolicy: v1beta1.NodeInclusionPolicyHonor,
+				NodeTaintsPolicy:   v1beta1.NodeInclusionPolicyIgnore,
 			},
 			{
-				TopologyKey: corev1.LabelHostname,
-				MaxSkew:     1,
+				TopologyKey:        corev1.LabelHostname,
+				MaxSkew:            1,
+				NodeAffinityPolicy: v1beta1.NodeInclusionPolicyHonor,
+				NodeTaintsPolicy:   v1beta1.NodeInclusionPolicyIgnore,
 			},
 		},
 		TpKeyToTotalMatchNum: map[string]int{
@@ -524,8 +536,10 @@ func TestPodConstraintCache_AddConstraintWithDeleteOneConstraint(t *testing.T) {
 		PodConstraint: podConstraint,
 		RequiredSpreadConstraints: []*TopologySpreadConstraint{
 			{
-				TopologyKey: corev1.LabelTopologyZone,
-				MaxSkew:     1,
+				TopologyKey:        corev1.LabelTopologyZone,
+				MaxSkew:            1,
+				NodeAffinityPolicy: v1beta1.NodeInclusionPolicyHonor,
+				NodeTaintsPolicy:   v1beta1.NodeInclusionPolicyIgnore,
 			},
 		},
 		TpKeyToTotalMatchNum: map[string]int{
@@ -589,8 +603,10 @@ func TestPodConstraintCache_DelPodConstraint(t *testing.T) {
 		PodConstraint: podConstraint,
 		RequiredSpreadConstraints: []*TopologySpreadConstraint{
 			{
-				TopologyKey: corev1.LabelTopologyZone,
-				MaxSkew:     1,
+				TopologyKey:        corev1.LabelTopologyZone,
+				MaxSkew:            1,
+				NodeAffinityPolicy: v1beta1.NodeInclusionPolicyHonor,
+				NodeTaintsPolicy:   v1beta1.NodeInclusionPolicyIgnore,
 			},
 		},
 		TpKeyToTotalMatchNum: map[string]int{},
@@ -685,7 +701,9 @@ func TestConstraintTopologyValue(t *testing.T) {
 					"na620": 2,
 					"na630": 6,
 				},
-				TopologySumRatio: 10,
+				TopologySumRatio:   10,
+				NodeAffinityPolicy: v1beta1.NodeInclusionPolicyHonor,
+				NodeTaintsPolicy:   v1beta1.NodeInclusionPolicyIgnore,
 			},
 		},
 		TpKeyToTotalMatchNum: map[string]int{},

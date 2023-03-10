@@ -90,8 +90,10 @@ func TestScore(t *testing.T) {
 						},
 						PreferredSpreadConstraints: []*cache.TopologySpreadConstraint{
 							{
-								TopologyKey: corev1.LabelTopologyZone,
-								MaxSkew:     1,
+								TopologyKey:        corev1.LabelTopologyZone,
+								MaxSkew:            1,
+								NodeAffinityPolicy: v1beta1.NodeInclusionPolicyHonor,
+								NodeTaintsPolicy:   v1beta1.NodeInclusionPolicyIgnore,
 							},
 						},
 						TpPairToMatchNum: map[cache.TopologyPair]*int32{
@@ -180,8 +182,10 @@ func TestScore(t *testing.T) {
 						},
 						PreferredSpreadConstraints: []*cache.TopologySpreadConstraint{
 							{
-								TopologyKey: corev1.LabelTopologyZone,
-								MaxSkew:     1,
+								TopologyKey:        corev1.LabelTopologyZone,
+								MaxSkew:            1,
+								NodeAffinityPolicy: v1beta1.NodeInclusionPolicyHonor,
+								NodeTaintsPolicy:   v1beta1.NodeInclusionPolicyIgnore,
 							},
 						},
 						TpPairToMatchNum: map[cache.TopologyPair]*int32{
@@ -271,8 +275,10 @@ func TestScore(t *testing.T) {
 						},
 						PreferredSpreadConstraints: []*cache.TopologySpreadConstraint{
 							{
-								TopologyKey: corev1.LabelTopologyZone,
-								MaxSkew:     1,
+								TopologyKey:        corev1.LabelTopologyZone,
+								MaxSkew:            1,
+								NodeAffinityPolicy: v1beta1.NodeInclusionPolicyHonor,
+								NodeTaintsPolicy:   v1beta1.NodeInclusionPolicyIgnore,
 							},
 						},
 						TpPairToMatchNum: map[cache.TopologyPair]*int32{
@@ -397,7 +403,9 @@ func TestScore(t *testing.T) {
 									"na620": 2,
 									"na630": 6,
 								},
-								TopologySumRatio: 10,
+								TopologySumRatio:   10,
+								NodeAffinityPolicy: v1beta1.NodeInclusionPolicyHonor,
+								NodeTaintsPolicy:   v1beta1.NodeInclusionPolicyIgnore,
 							},
 						},
 						TpPairToMatchNum: map[cache.TopologyPair]*int32{
@@ -522,12 +530,16 @@ func TestScoreWithWeightedSpreadUnits(t *testing.T) {
 					{
 						PreferredSpreadConstraints: []*cache.TopologySpreadConstraint{
 							{
-								TopologyKey: corev1.LabelHostname,
-								MaxSkew:     1,
+								TopologyKey:        corev1.LabelHostname,
+								MaxSkew:            1,
+								NodeAffinityPolicy: v1beta1.NodeInclusionPolicyHonor,
+								NodeTaintsPolicy:   v1beta1.NodeInclusionPolicyIgnore,
 							},
 							{
-								TopologyKey: corev1.LabelTopologyZone,
-								MaxSkew:     1,
+								TopologyKey:        corev1.LabelTopologyZone,
+								MaxSkew:            1,
+								NodeAffinityPolicy: v1beta1.NodeInclusionPolicyHonor,
+								NodeTaintsPolicy:   v1beta1.NodeInclusionPolicyIgnore,
 							},
 						},
 						Weight: 100,
@@ -541,12 +553,16 @@ func TestScoreWithWeightedSpreadUnits(t *testing.T) {
 					{
 						PreferredSpreadConstraints: []*cache.TopologySpreadConstraint{
 							{
-								TopologyKey: corev1.LabelHostname,
-								MaxSkew:     1,
+								TopologyKey:        corev1.LabelHostname,
+								MaxSkew:            1,
+								NodeAffinityPolicy: v1beta1.NodeInclusionPolicyHonor,
+								NodeTaintsPolicy:   v1beta1.NodeInclusionPolicyIgnore,
 							},
 							{
-								TopologyKey: corev1.LabelTopologyZone,
-								MaxSkew:     1,
+								TopologyKey:        corev1.LabelTopologyZone,
+								MaxSkew:            1,
+								NodeAffinityPolicy: v1beta1.NodeInclusionPolicyHonor,
+								NodeTaintsPolicy:   v1beta1.NodeInclusionPolicyIgnore,
 							},
 						},
 						Weight: 10,

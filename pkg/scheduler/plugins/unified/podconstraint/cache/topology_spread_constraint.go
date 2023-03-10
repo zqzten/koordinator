@@ -18,8 +18,14 @@ package cache
 
 import (
 	unischeduling "gitlab.alibaba-inc.com/unischeduler/api/apis/scheduling/v1beta1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	v1helper "k8s.io/component-helpers/scheduling/corev1"
 	"k8s.io/utils/pointer"
+
+	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	nodeaffinityhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/nodeaffinity"
+	tainttolerationhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/tainttoleration"
 )
 
 // TopologySpreadConstraint
@@ -27,12 +33,37 @@ import (
 // 1. 没到MinTopologyValues时尽量让每个TopologyValue都有一个
 // 2. 到了之后再按照MaxCount、MaxSkew、TopologyValueToRatios去匹配
 type TopologySpreadConstraint struct {
-	TopologyKey       string         `json:"topologyKey,omitempty"`
-	MinTopologyValues int            `json:"minTopologyValues,omitempty"`
-	MaxCount          int            `json:"maxCount,omitempty"`
-	MaxSkew           int            `json:"maxSkew,omitempty"`
-	TopologyRatios    map[string]int `json:"topologyRatios,omitempty"`
-	TopologySumRatio  int            `json:"topologySumRatio,omitempty"`
+	TopologyKey        string                            `json:"topologyKey,omitempty"`
+	MinTopologyValues  int                               `json:"minTopologyValues,omitempty"`
+	MaxCount           int                               `json:"maxCount,omitempty"`
+	MaxSkew            int                               `json:"maxSkew,omitempty"`
+	TopologyRatios     map[string]int                    `json:"topologyRatios,omitempty"`
+	TopologySumRatio   int                               `json:"topologySumRatio,omitempty"`
+	NodeAffinityPolicy unischeduling.NodeInclusionPolicy `json:"nodeAffinityPolicy,omitempty"`
+	NodeTaintsPolicy   unischeduling.NodeInclusionPolicy `json:"nodeTaintsPolicy,omitempty"`
+}
+
+func (tsc *TopologySpreadConstraint) MatchNodeInclusionPolicies(pod *corev1.Pod, node *corev1.Node, requiredNodeAffinity nodeaffinityhelper.RequiredNodeSelectorAndAffinity) bool {
+	if tsc.NodeAffinityPolicy == unischeduling.NodeInclusionPolicyHonor {
+		isMatch := requiredNodeAffinity.Match(node)
+		if !isMatch {
+			return false
+		}
+	}
+	if tsc.NodeTaintsPolicy == unischeduling.NodeInclusionPolicyHonor {
+		tolerations := pod.Spec.Tolerations
+		if extunified.AffinityECI(pod) && extunified.IsVirtualKubeletNode(node) {
+			tolerations = tainttolerationhelper.TolerationsToleratesECI(pod)
+		}
+		_, isUnTolerated := v1helper.FindMatchingUntoleratedTaint(node.Spec.Taints, tolerations, func(t *corev1.Taint) bool {
+			// PodToleratesNodeTaints is only interested in NoSchedule and NoExecute taints.
+			return t.Effect == corev1.TaintEffectNoSchedule || t.Effect == corev1.TaintEffectNoExecute
+		})
+		if isUnTolerated {
+			return false
+		}
+	}
+	return true
 }
 
 func SpreadRulesToTopologySpreadConstraint(spreadRules []unischeduling.SpreadRuleItem) []*TopologySpreadConstraint {
@@ -75,6 +106,14 @@ func SpreadRulesToTopologySpreadConstraint(spreadRules []unischeduling.SpreadRul
 				sumRatio = 1
 			}
 			constraint.TopologySumRatio = sumRatio
+		}
+		constraint.NodeAffinityPolicy = unischeduling.NodeInclusionPolicyHonor
+		if rule.NodeAffinityPolicy != nil {
+			constraint.NodeAffinityPolicy = *rule.NodeAffinityPolicy
+		}
+		constraint.NodeTaintsPolicy = unischeduling.NodeInclusionPolicyIgnore
+		if rule.NodeTaintsPolicy != nil {
+			constraint.NodeTaintsPolicy = *rule.NodeTaintsPolicy
 		}
 		constraints = append(constraints, &constraint)
 	}

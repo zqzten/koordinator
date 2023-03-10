@@ -136,8 +136,10 @@ func TestEndpointsQueryConstraintState(t *testing.T) {
 	expectConstraintStateResponse := &constraintStatesResponse{
 		RequiredSpreadConstraints: []*cache.TopologySpreadConstraint{
 			{
-				TopologyKey: corev1.LabelTopologyZone,
-				MaxSkew:     1,
+				TopologyKey:        corev1.LabelTopologyZone,
+				MaxSkew:            1,
+				NodeAffinityPolicy: v1beta1.NodeInclusionPolicyHonor,
+				NodeTaintsPolicy:   v1beta1.NodeInclusionPolicyIgnore,
 			},
 		},
 		TpKeyToTotalMatchNum: map[string]int{
