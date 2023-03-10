@@ -32,11 +32,12 @@ const (
 )
 
 const (
-	UnifiedDeviceScheduling   featuregate.Feature = "UnifiedDeviceScheduling"
-	LocalDeviceVolume         featuregate.Feature = "LocalDeviceVolume"
-	EnableLocalVolumeCapacity featuregate.Feature = "EnableLocalVolumeCapacity"
-	EnableLocalVolumeIOLimit  featuregate.Feature = "EnableLocalVolumeIOLimit"
-	EnableDefaultECIProfile   featuregate.Feature = "EnableDefaultECIProfile"
+	UnifiedDeviceScheduling                  featuregate.Feature = "UnifiedDeviceScheduling"
+	LocalDeviceVolume                        featuregate.Feature = "LocalDeviceVolume"
+	EnableLocalVolumeCapacity                featuregate.Feature = "EnableLocalVolumeCapacity"
+	EnableLocalVolumeIOLimit                 featuregate.Feature = "EnableLocalVolumeIOLimit"
+	EnableDefaultECIProfile                  featuregate.Feature = "EnableDefaultECIProfile"
+	EnableNodeInclusionPolicyInPodConstraint featuregate.Feature = "EnableNodeInclusionPolicyInPodConstraint"
 )
 
 var defaultUnifiedFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -47,11 +48,12 @@ var defaultUnifiedFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec
 }
 
 var defaultUnifiedSchedulerFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
-	UnifiedDeviceScheduling:   {Default: false, PreRelease: featuregate.Beta},
-	LocalDeviceVolume:         {Default: false, PreRelease: featuregate.Beta},
-	EnableLocalVolumeCapacity: {Default: true, PreRelease: featuregate.Beta},
-	EnableLocalVolumeIOLimit:  {Default: false, PreRelease: featuregate.Beta},
-	EnableDefaultECIProfile:   {Default: false, PreRelease: featuregate.Beta},
+	UnifiedDeviceScheduling:                  {Default: false, PreRelease: featuregate.Beta},
+	LocalDeviceVolume:                        {Default: false, PreRelease: featuregate.Beta},
+	EnableLocalVolumeCapacity:                {Default: true, PreRelease: featuregate.Beta},
+	EnableLocalVolumeIOLimit:                 {Default: false, PreRelease: featuregate.Beta},
+	EnableDefaultECIProfile:                  {Default: false, PreRelease: featuregate.Beta},
+	EnableNodeInclusionPolicyInPodConstraint: {Default: true, PreRelease: featuregate.Beta},
 }
 
 func init() {
