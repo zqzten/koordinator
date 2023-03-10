@@ -68,6 +68,8 @@ func (f fakeEvictor) Name() string { return "fakeEvictor" }
 
 func (f fakeEvictor) Filter(pod *v1.Pod) bool { return true }
 
+func (f fakeEvictor) PreEvictionFilter(pod *v1.Pod) bool { return true }
+
 func (f fakeEvictor) Evict(ctx context.Context, pod *v1.Pod, evictionOptions framework.EvictOptions) bool {
 	var v1beta2args v1alpha2.MigrationControllerArgs
 	v1alpha2.SetDefaults_MigrationControllerArgs(&v1beta2args)
