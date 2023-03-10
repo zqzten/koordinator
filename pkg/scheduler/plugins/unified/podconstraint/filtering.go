@@ -25,13 +25,11 @@ import (
 	unischeduling "gitlab.alibaba-inc.com/unischeduler/api/apis/scheduling/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1helper "k8s.io/component-helpers/scheduling/corev1"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	nodeaffinityhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/nodeaffinity"
-	tainttolerationhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/tainttoleration"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/podconstraint/cache"
 )
 
@@ -202,22 +200,6 @@ func (p *Plugin) calPrefilterState(pod *corev1.Pod) (*preFilterState, *framework
 		if node == nil {
 			continue
 		}
-		isMatch := requiredNodeAffinity.Match(node)
-		if !isMatch {
-			continue
-		}
-		tolerations := pod.Spec.Tolerations
-		if extunified.AffinityECI(pod) && extunified.IsVirtualKubeletNode(node) {
-			tolerations = tainttolerationhelper.TolerationsToleratesECI(pod)
-		}
-		_, isUnTolerated := v1helper.FindMatchingUntoleratedTaint(node.Spec.Taints, tolerations, func(t *corev1.Taint) bool {
-			// PodToleratesNodeTaints is only interested in NoSchedule and NoExecute taints.
-			return t.Effect == corev1.TaintEffectNoSchedule || t.Effect == corev1.TaintEffectNoExecute
-		})
-		if isUnTolerated {
-			continue
-		}
-
 		for _, stateItem := range state.items {
 			func() {
 				if !cache.NodeLabelsMatchSpreadConstraints(node.Labels, stateItem.RequiredSpreadConstraints) {
@@ -228,6 +210,9 @@ func (p *Plugin) calPrefilterState(pod *corev1.Pod) (*preFilterState, *framework
 					tpVal := node.Labels[tpKey]
 					if tpVal == "" {
 						continue
+					}
+					if p.enableNodeInclusionPolicyInPodConstraint && !c.MatchNodeInclusionPolicies(pod, node, requiredNodeAffinity) {
+						return
 					}
 					pair := cache.TopologyPair{TopologyKey: c.TopologyKey, TopologyValue: node.Labels[c.TopologyKey]}
 					stateItem.TpPairToMatchNum[pair] = new(int32)
