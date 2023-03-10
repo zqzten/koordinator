@@ -31,9 +31,9 @@ require (
 	github.com/stretchr/testify v1.8.1
 	gitlab.alibaba-inc.com/cos/recommender v0.4.4-122.0.20230215023005-ee4271f23a72
 	gitlab.alibaba-inc.com/cos/scheduling-api v0.0.0-20210630080232-14abe8ce6989
-	gitlab.alibaba-inc.com/cos/unified-resource-api v1.22.3-1.0.20220705131219-d0d01381562f
+	gitlab.alibaba-inc.com/cos/unified-resource-api v1.22.3-1.0.20221213101318-186061b012a8
 	gitlab.alibaba-inc.com/sigma/sigma-k8s-api v1.1.3
-	gitlab.alibaba-inc.com/unischeduler/api v0.0.2-0.20220913032323-136f56c351d2
+	gitlab.alibaba-inc.com/unischeduler/api v0.0.3-0.20230310104007-5217d7060e60
 	go.uber.org/atomic v1.10.0
 	go.uber.org/multierr v1.6.0
 	golang.org/x/crypto v0.1.0

@@ -26,12 +26,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
-	v1helper "k8s.io/component-helpers/scheduling/corev1"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	nodeaffinityhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/nodeaffinity"
-	tainttolerationhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/tainttoleration"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/podconstraint/cache"
 )
 
@@ -158,22 +156,6 @@ func (p *Plugin) PreScore(ctx context.Context, cycleState *framework.CycleState,
 			return
 		}
 
-		isMatch := requiredNodeAffinity.Match(node)
-		if !isMatch {
-			return
-		}
-		tolerations := pod.Spec.Tolerations
-		if extunified.AffinityECI(pod) && extunified.IsVirtualKubeletNode(node) {
-			tolerations = tainttolerationhelper.TolerationsToleratesECI(pod)
-		}
-		_, isUnTolerated := v1helper.FindMatchingUntoleratedTaint(node.Spec.Taints, tolerations, func(t *corev1.Taint) bool {
-			// PodToleratesNodeTaints is only interested in NoSchedule and NoExecute taints.
-			return t.Effect == corev1.TaintEffectNoSchedule || t.Effect == corev1.TaintEffectNoExecute
-		})
-		if isUnTolerated {
-			return
-		}
-
 		for _, stateItem := range state.items {
 			if !cache.NodeLabelsMatchSpreadConstraints(node.Labels, stateItem.PreferredSpreadConstraints) {
 				continue
@@ -189,6 +171,9 @@ func (p *Plugin) PreScore(ctx context.Context, cycleState *framework.CycleState,
 				tpCount := stateItem.TpPairToMatchNum[pair]
 				if tpCount == nil {
 					continue
+				}
+				if p.enableNodeInclusionPolicyInPodConstraint && !c.MatchNodeInclusionPolicies(pod, node, requiredNodeAffinity) {
+					return
 				}
 				count := countPodsMatchConstraint(nodeInfo.Pods, stateItem.PodConstraint.Namespace, stateItem.PodConstraint.Name)
 				atomic.AddInt32(tpCount, int32(count))

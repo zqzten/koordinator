@@ -89,14 +89,14 @@ func appendUnifiedDeviceAllocStatus(pod *corev1.Pod, deviceAllocations apiext.De
 		if len(allocations) <= 0 {
 			continue
 		}
-		unifiedAllocs := make([]unifiedresourceext.Alloc, 0, len(allocations))
+		unifiedAllocs := make([]unifiedschedulingv1beta1.Alloc, 0, len(allocations))
 		for _, deviceAllocation := range allocations {
 			resources := extunified.ConvertToUnifiedGPUResources(deviceAllocation.Resources)
 			resourceList := make(map[string]apiresource.Quantity)
 			for name, quantity := range resources {
 				resourceList[string(name)] = quantity
 			}
-			unifiedAlloc := unifiedresourceext.Alloc{
+			unifiedAlloc := unifiedschedulingv1beta1.Alloc{
 				Minor:     deviceAllocation.Minor,
 				Resources: resourceList,
 				IsSharing: !isExclusiveGPURes(resourceList),
