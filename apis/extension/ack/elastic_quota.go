@@ -24,8 +24,7 @@ import (
 )
 
 const (
-	LabelQuotaName            = api.AlibabaCloudPrefix + "/quota-name"
-	AnnotationQuotaNamespaces = extension.QuotaKoordinatorPrefix + "/namespaces"
+	LabelQuotaName = api.AlibabaCloudPrefix + "/quota-name"
 )
 
 func init() {
