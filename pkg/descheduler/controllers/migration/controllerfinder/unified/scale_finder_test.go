@@ -1,0 +1,116 @@
+package unified
+
+import (
+	"context"
+	"testing"
+
+	appsv1alpha1 "github.com/openkruise/kruise-api/apps/v1alpha1"
+	appsv1beta1 "github.com/openkruise/kruise-api/apps/v1beta1"
+	kruisepolicyv1alpha1 "github.com/openkruise/kruise-api/policy/v1alpha1"
+	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	sev1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
+	"github.com/koordinator-sh/koordinator/pkg/descheduler/controllers/migration/controllerfinder"
+)
+
+var (
+	_ controllerfinder.Interface = &fakeControllerFinder{}
+)
+
+type fakeControllerFinder struct {
+	replicas int32
+	err      error
+	pub      *kruisepolicyv1alpha1.PodUnavailableBudget
+	pubErr   error
+}
+
+func (f *fakeControllerFinder) GetPodsForRef(apiVersion, kind, name, ns string, labelSelector *metav1.LabelSelector, active bool) ([]*corev1.Pod, int32, error) {
+	return nil, 0, nil
+}
+
+func (f *fakeControllerFinder) GetExpectedScaleForPod(pods *corev1.Pod) (int32, error) {
+	return f.replicas, f.err
+}
+
+func TestControllerFinder_GetExpectedScaleForPod(t *testing.T) {
+	tests := []struct {
+		name             string
+		controllerFinder controllerfinder.Interface
+		pod              *corev1.Pod
+		pub              *kruisepolicyv1alpha1.PodUnavailableBudget
+		want             int32
+		wantErr          bool
+	}{
+		{
+			name:    "pod is nil",
+			pod:     nil,
+			want:    0,
+			wantErr: false,
+		},
+		{
+			name: "from controller",
+			controllerFinder: &fakeControllerFinder{
+				err:      nil,
+				replicas: 10,
+			},
+			pod:     &corev1.Pod{},
+			want:    10,
+			wantErr: false,
+		},
+		{
+			name: "from pub",
+			controllerFinder: &fakeControllerFinder{
+				replicas: 0,
+			},
+			pub: &kruisepolicyv1alpha1.PodUnavailableBudget{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "pub-1",
+					Annotations: map[string]string{
+						kruisepolicyv1alpha1.PubProtectTotalReplicas: "10",
+					},
+				},
+			},
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						PodRelatedPubAnnotation: "pub-1",
+					},
+				},
+			},
+			want:    10,
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			_ = sev1alpha1.AddToScheme(scheme)
+			_ = clientgoscheme.AddToScheme(scheme)
+			_ = appsv1alpha1.AddToScheme(scheme)
+			_ = appsv1beta1.AddToScheme(scheme)
+			_ = kruisepolicyv1alpha1.AddToScheme(scheme)
+			runtimeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+			if tt.pub != nil {
+				assert.NoError(t, runtimeClient.Create(context.TODO(), tt.pub))
+			}
+
+			s := &ControllerFinder{
+				Interface: tt.controllerFinder,
+				Client:    runtimeClient,
+			}
+			got, err := s.GetExpectedScaleForPod(tt.pod)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetExpectedScaleForPod() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("GetExpectedScaleForPod() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
