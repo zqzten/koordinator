@@ -18,5 +18,6 @@ package main
 
 import (
 	_ "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	_ "github.com/koordinator-sh/koordinator/pkg/descheduler/controllers/migration/controllerfinder/unified"
 	_ "github.com/koordinator-sh/koordinator/pkg/descheduler/controllers/migration/unified"
 )
