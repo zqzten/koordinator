@@ -43,6 +43,7 @@ import (
 	"k8s.io/klog/v2"
 
 	slov1alpha1 "github.com/koordinator-sh/koordinator/apis/slo/v1alpha1"
+	"github.com/koordinator-sh/koordinator/pkg/koordlet/audit"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/metriccache"
 	cgroupscrdutil "github.com/koordinator-sh/koordinator/pkg/koordlet/resmanager/plugins/ackcgroupcrd/util"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/resourceexecutor"
@@ -379,7 +380,9 @@ func (c *plugin) executePodPlan(podPlan *cgroupscrdutil.PodReconcilePlan) {
 }
 
 func (c *plugin) execPodCfsQuota(plan *cgroupscrdutil.PodReconcilePlan, podDir string, targetVal int) {
-	if updatePlan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.CPUCFSQuotaName, podDir, strconv.Itoa(targetVal)); err == nil {
+	eventHelper := audit.V(3).Pod(plan.Owner.Namespace, plan.Owner.Name).Reason("cgroup-crd-reconcile").Message(
+		"set pod cfs quota to %v", strconv.Itoa(targetVal))
+	if updatePlan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.CPUCFSQuotaName, podDir, strconv.Itoa(targetVal), eventHelper); err == nil {
 		c.resexecutor.Update(true, updatePlan)
 	} else {
 		klog.V(4).Infof("new cgroup resource %v for pod %v failed, error %v",
@@ -389,7 +392,9 @@ func (c *plugin) execPodCfsQuota(plan *cgroupscrdutil.PodReconcilePlan, podDir s
 
 func (c *plugin) execPodMemLimit(plan *cgroupscrdutil.PodReconcilePlan, podDir string, targetVal int) {
 	// ignore MemorySWLimitName, which is abandon >= 120
-	limitUpdatePlan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.MemoryLimitName, podDir, strconv.Itoa(targetVal))
+	eventHelper := audit.V(3).Pod(plan.Owner.Namespace, plan.Owner.Name).Reason("cgroup-crd-reconcile").Message(
+		"set memory limit to %v", strconv.Itoa(targetVal))
+	limitUpdatePlan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.MemoryLimitName, podDir, strconv.Itoa(targetVal), eventHelper)
 	if err != nil {
 		klog.V(4).Infof("new cgroup resource %v for pod %v failed, error %v",
 			sysutil.MemoryLimitName, plan.Owner.String(), err)
@@ -400,7 +405,9 @@ func (c *plugin) execPodMemLimit(plan *cgroupscrdutil.PodReconcilePlan, podDir s
 
 func (c *plugin) execContainerCfsQuota(plan *cgroupscrdutil.PodReconcilePlan, containerDir string,
 	targetVal int) {
-	if updatePlan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.CPUCFSQuotaName, containerDir, strconv.Itoa(targetVal)); err == nil {
+	eventHelper := audit.V(3).Container(plan.Owner.String()).Reason("cgroup-crd-reconcile").Message(
+		"set cfs quota to %v", strconv.Itoa(targetVal))
+	if updatePlan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.CPUCFSQuotaName, containerDir, strconv.Itoa(targetVal), eventHelper); err == nil {
 		c.resexecutor.UpdateBatch(true, updatePlan)
 	} else {
 		klog.V(4).Infof("new cgroup resource %v for pod %v failed, error %v",
@@ -410,7 +417,9 @@ func (c *plugin) execContainerCfsQuota(plan *cgroupscrdutil.PodReconcilePlan, co
 
 func (c *plugin) execContainerMemLimit(plan *cgroupscrdutil.PodReconcilePlan, containerDir string,
 	targetVal int) {
-	limitupdatePlan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.MemoryLimitName, containerDir, strconv.Itoa(targetVal))
+	eventHelper := audit.V(3).Container(plan.Owner.String()).Reason("cgroup-crd-reconcile").Message(
+		"set memory limit to %v", strconv.Itoa(targetVal))
+	limitupdatePlan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.MemoryLimitName, containerDir, strconv.Itoa(targetVal), eventHelper)
 	if err != nil {
 		klog.V(4).Infof("new cgroup resource %v for pod %v failed, error %v",
 			sysutil.MemoryLimitName, plan.Owner.String(), err)
@@ -427,7 +436,9 @@ func (c *plugin) execContainerBlkio(podPlan *cgroupscrdutil.PodReconcilePlan, co
 	if len(blkio.DeviceReadBps) != 0 {
 		content := cgroupscrdutil.GenerateBklioContent(blkio.DeviceReadBps)
 		if content != "" {
-			if plan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.BlkioTRBpsName, containerDir, content); err == nil {
+			eventHelper := audit.V(3).Container(podPlan.Owner.String()).Reason("cgroup-crd-reconcile").Message(
+				"set blkio throttle read bps to %v", content)
+			if plan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.BlkioTRBpsName, containerDir, content, eventHelper); err == nil {
 				updatePlans = append(updatePlans, plan)
 			} else {
 				klog.V(4).Infof("new cgroup resource %v for pod %v failed, error %v",
@@ -438,7 +449,9 @@ func (c *plugin) execContainerBlkio(podPlan *cgroupscrdutil.PodReconcilePlan, co
 	if len(blkio.DeviceWriteBps) != 0 {
 		content := cgroupscrdutil.GenerateBklioContent(blkio.DeviceWriteBps)
 		if content != "" {
-			if plan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.BlkioTWBpsName, containerDir, content); err == nil {
+			eventHelper := audit.V(3).Container(podPlan.Owner.String()).Reason("cgroup-crd-reconcile").Message(
+				"set blkio throttle write bps to %v", content)
+			if plan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.BlkioTWBpsName, containerDir, content, eventHelper); err == nil {
 				updatePlans = append(updatePlans, plan)
 			} else {
 				klog.V(4).Infof("new cgroup resource %v for pod %v failed, error %v",
@@ -448,7 +461,9 @@ func (c *plugin) execContainerBlkio(podPlan *cgroupscrdutil.PodReconcilePlan, co
 	}
 	if len(blkio.DeviceReadIOps) != 0 {
 		if content := cgroupscrdutil.GenerateBklioContent(blkio.DeviceReadIOps); content != "" {
-			if plan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.BlkioTRIopsName, containerDir, content); err == nil {
+			eventHelper := audit.V(3).Container(podPlan.Owner.String()).Reason("cgroup-crd-reconcile").Message(
+				"set blkio throttle read iops to %v", content)
+			if plan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.BlkioTRIopsName, containerDir, content, eventHelper); err == nil {
 				updatePlans = append(updatePlans, plan)
 			} else {
 				klog.V(4).Infof("new cgroup resource %v for pod %v failed, error %v",
@@ -458,7 +473,9 @@ func (c *plugin) execContainerBlkio(podPlan *cgroupscrdutil.PodReconcilePlan, co
 	}
 	if len(blkio.DeviceWriteIOps) != 0 {
 		if content := cgroupscrdutil.GenerateBklioContent(blkio.DeviceWriteIOps); content != "" {
-			if plan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.BlkioTWIopsName, containerDir, content); err == nil {
+			eventHelper := audit.V(3).Container(podPlan.Owner.String()).Reason("cgroup-crd-reconcile").Message(
+				"set blkio throttle write iops to %v", content)
+			if plan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.BlkioTWIopsName, containerDir, content, eventHelper); err == nil {
 				updatePlans = append(updatePlans, plan)
 			} else {
 				klog.V(4).Infof("new cgroup resource %v for pod %v failed, error %v",
@@ -487,7 +504,9 @@ func (c *plugin) execContainerCPUSet(plan *cgroupscrdutil.PodReconcilePlan, cont
 		return
 	}
 
-	updatePlan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.CPUSetCPUSName, containerDir, cpusetStr)
+	eventHelper := audit.V(3).Container(plan.Owner.String()).Reason("cgroup-crd-reconcile").Message(
+		"set blkio throttle write iops to %v", cpusetStr)
+	updatePlan, err := resourceexecutor.DefaultCgroupUpdaterFactory.New(sysutil.CPUSetCPUSName, containerDir, cpusetStr, eventHelper)
 	if err != nil {
 		klog.V(4).Infof("new cgroup resource %v for pod %v failed, error %v",
 			sysutil.CPUSetCPUSName, plan.Owner.String(), err)
@@ -543,7 +562,9 @@ func (c *plugin) execContainerCPUSetMap(plan *cgroupscrdutil.PodReconcilePlan, c
 		} else {
 			cgroupResource = sysutil.NewCommonCgroupResource(sysutil.ResourceType(fileName), fileName, sysutil.CgroupCPUSetDir)
 		}
-		updatePlan, err := resourceexecutor.NewDetailCgroupUpdater(cgroupResource, containerDir, fileContent, resourceexecutor.CommonCgroupUpdateFunc)
+		eventHelper := audit.V(3).Container(plan.Owner.String()).Reason("cgroup-crd-reconcile").Message(
+			"set container cpuset file %v to %v", fileName, fileContent)
+		updatePlan, err := resourceexecutor.NewDetailCgroupUpdater(cgroupResource, containerDir, fileContent, resourceexecutor.CommonCgroupUpdateFunc, eventHelper)
 		if err != nil {
 			klog.Warningf("failed to new cgroup updater pod %v/%v for container %v on dir %v, error %v",
 				cgroupResource, plan.PodMeta.Pod.Namespace, plan.PodMeta.Pod.Name, containerDir, err)
@@ -564,7 +585,9 @@ func (c *plugin) execContainerCPUAcctMap(plan *cgroupscrdutil.PodReconcilePlan, 
 		} else {
 			cgroupResource = sysutil.NewCommonCgroupResource(sysutil.ResourceType(fileName), fileName, sysutil.CgroupCPUAcctDir)
 		}
-		updatePlan, err := resourceexecutor.NewDetailCgroupUpdater(cgroupResource, containerDir, fileContent, resourceexecutor.CommonCgroupUpdateFunc)
+		eventHelper := audit.V(3).Container(plan.Owner.String()).Reason("cgroup-crd-reconcile").Message(
+			"set container cpuacct file %v to %v", fileName, fileContent)
+		updatePlan, err := resourceexecutor.NewDetailCgroupUpdater(cgroupResource, containerDir, fileContent, resourceexecutor.CommonCgroupUpdateFunc, eventHelper)
 		if err != nil {
 			klog.Warningf("failed to new cgroup updater pod %v/%v for container %v on dir %v, error %v",
 				cgroupResource, plan.PodMeta.Pod.Namespace, plan.PodMeta.Pod.Name, containerDir, err)
@@ -585,7 +608,9 @@ func (c *plugin) execPodCPUAcctMap(plan *cgroupscrdutil.PodReconcilePlan, podDir
 		} else {
 			cgroupResource = sysutil.NewCommonCgroupResource(sysutil.ResourceType(fileName), fileName, sysutil.CgroupCPUAcctDir)
 		}
-		updatePlan, err := resourceexecutor.NewDetailCgroupUpdater(cgroupResource, podDir, fileContent, resourceexecutor.CommonCgroupUpdateFunc)
+		eventHelper := audit.V(3).Container(plan.Owner.String()).Reason("cgroup-crd-reconcile").Message(
+			"set pod cpuacct file %v to %v", fileName, fileContent)
+		updatePlan, err := resourceexecutor.NewDetailCgroupUpdater(cgroupResource, podDir, fileContent, resourceexecutor.CommonCgroupUpdateFunc, eventHelper)
 		if err != nil {
 			klog.Warningf("failed to new cgroup updater pod %v/%v  %v on dir %v, error %v",
 				cgroupResource, plan.PodMeta.Pod.Namespace, plan.PodMeta.Pod.Name, podDir, err)
