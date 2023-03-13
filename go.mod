@@ -21,7 +21,7 @@ require (
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.19.0
 	github.com/opencontainers/runc v1.0.2
-	github.com/openkruise/kruise-api v1.3.0
+	github.com/openkruise/kruise-api v1.3.1-0.20230111022228-0631c9ba996b
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/prashantv/gostub v1.1.0
 	github.com/prometheus/client_golang v1.14.0
