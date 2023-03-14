@@ -31,25 +31,6 @@ const (
 	NodeZoneType = "Node"
 )
 
-// MultiplyResourceList scales quantity by factor
-func MultiplyResourceList(a corev1.ResourceList, factor float64) corev1.ResourceList {
-	result := corev1.ResourceList{}
-	for key, quantity := range a {
-		if key != corev1.ResourceCPU {
-			value := quantity.Value()
-			newValue := int64(float64(value) * factor)
-			newQuant := resource.NewQuantity(newValue, quantity.Format)
-			result[key] = *newQuant
-		} else {
-			value := quantity.MilliValue()
-			newValue := int64(float64(value) * factor)
-			newQuant := resource.NewMilliQuantity(newValue, quantity.Format)
-			result[key] = *newQuant
-		}
-	}
-	return result
-}
-
 func NewZeroResourceList() corev1.ResourceList {
 	return corev1.ResourceList{
 		corev1.ResourceCPU:    *resource.NewQuantity(0, resource.DecimalSI),
