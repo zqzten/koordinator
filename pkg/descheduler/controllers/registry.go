@@ -17,6 +17,7 @@ limitations under the License.
 package controllers
 
 import (
+	"github.com/koordinator-sh/koordinator/pkg/descheduler/controllers/drain"
 	"github.com/koordinator-sh/koordinator/pkg/descheduler/controllers/migration"
 	"github.com/koordinator-sh/koordinator/pkg/descheduler/framework/runtime"
 )
@@ -24,5 +25,6 @@ import (
 func NewControllerRegistry() runtime.Registry {
 	return runtime.Registry{
 		migration.Name: migration.New,
+		drain.Name:     drain.New,
 	}
 }
