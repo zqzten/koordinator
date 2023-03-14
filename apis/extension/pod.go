@@ -74,10 +74,10 @@ func getPodCPUBurstAnnotation(annotations map[string]string) (string, bool) {
 }
 
 func getPodMemoryQoSAnnotation(annotations map[string]string) (string, bool) {
-	if koordCPUBurst, exist := annotations[AnnotationPodMemoryQoS]; exist {
-		return koordCPUBurst, true
-	} else if ackCPUBurst, exist := annotations[uniext.AnnotationPodMemoryQOS]; exist {
-		return ackCPUBurst, true
+	if koordMemoryQoS, exist := annotations[AnnotationPodMemoryQoS]; exist {
+		return koordMemoryQoS, true
+	} else if ackMemoryQoS, exist := annotations[uniext.AnnotationPodMemoryQOS]; exist {
+		return ackMemoryQoS, true
 	}
 	return "", false
 }

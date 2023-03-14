@@ -23,9 +23,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/runtime"
 
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/resmanager/plugins/ackcgroupcrd"
+	ackdsa "github.com/koordinator-sh/koordinator/pkg/koordlet/resmanager/plugins/ackdsaaccelerate"
 )
 
 // for third party extension plugins
 func init() {
 	runtime.Must(RegisterQOSExtPlugin(ackcgroupcrd.FeatureName, ackcgroupcrd.FeatureSpec, ackcgroupcrd.Plugin))
+	runtime.Must(RegisterQOSExtPlugin(ackdsa.DsaAccelerateFeatureName, ackdsa.DsaAccelerateFeatureSpec, ackdsa.DsaAcceleratePlugin))
 }

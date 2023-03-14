@@ -7,6 +7,11 @@
 bin
 testbin/*
 
+# Binaries for dsa set up
+!bin/conf/
+!bin/disable-dsa.sh
+!bin/enable-dsa.sh
+
 # Go dependencies folder
 vendor
 

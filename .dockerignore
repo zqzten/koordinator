@@ -4,5 +4,9 @@ bin/
 testbin/
 #vendor/
 
+!bin/disable-dsa.sh
+!bin/enable-dsa.sh
+!bin/conf/
+
 !bin/start-koord-manager.sh
 !bin/kubectl*

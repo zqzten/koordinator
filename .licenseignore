@@ -7,9 +7,14 @@ pkg/slo-controller/config/ack_reclaimed_resource_config.go
 pkg/slo-controller/config/ack_reclaimed_resource_config_test.go
 pkg/slo-controller/noderesource/ack_reclaimed_resource_plugin.go
 pkg/slo-controller/noderesource/ack_reclaimed_resource_plugin_test.go
+pkg/slo-controller/nodeslo/ack_dsa_accelerate_config.go
+pkg/slo-controller/nodeslo/ack_dsa_accelerate_config_test.go
+pkg/slo-controller/nodeslo/ack_dsa_accelerate_plugin.go
+pkg/slo-controller/nodeslo/ack_dsa_accelerate_plugin_test.go
 pkg/scheduler/plugins/ack
 pkg/scheduler/plugins/cnstack
-pkg/koordlet/resmanager/plugins/ackcgroupcrd
+pkg/koordlet/resmanager/plugins
+pkg/util/ack_config.go
 pkg/util/ack_extended_resource.go
 pkg/util/ack_extended_resource_test.go
 pkg/util/cpuset/cpuset.go
