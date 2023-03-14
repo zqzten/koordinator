@@ -2,6 +2,7 @@ package unified
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	appsv1alpha1 "github.com/openkruise/kruise-api/apps/v1alpha1"
@@ -13,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	sev1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
@@ -24,14 +26,15 @@ var (
 )
 
 type fakeControllerFinder struct {
-	replicas int32
-	err      error
-	pub      *kruisepolicyv1alpha1.PodUnavailableBudget
-	pubErr   error
+	replicas           int32
+	podsFromController []*corev1.Pod
+	podsFromActual     []*corev1.Pod
+	err                error
+	pub                *kruisepolicyv1alpha1.PodUnavailableBudget
 }
 
 func (f *fakeControllerFinder) GetPodsForRef(ref *metav1.OwnerReference, namespace string, labelSelector *metav1.LabelSelector, active bool) ([]*corev1.Pod, int32, error) {
-	return nil, 0, nil
+	return f.podsFromController, f.replicas, nil
 }
 
 func (f *fakeControllerFinder) GetExpectedScaleForPod(pods *corev1.Pod) (int32, error) {
@@ -39,7 +42,7 @@ func (f *fakeControllerFinder) GetExpectedScaleForPod(pods *corev1.Pod) (int32, 
 }
 
 func (f *fakeControllerFinder) ListPodsByWorkloads(workloadUIDs []types.UID, ns string, labelSelector *metav1.LabelSelector, active bool) ([]*corev1.Pod, error) {
-	return nil, nil
+	return f.podsFromActual, nil
 }
 
 func TestControllerFinder_GetExpectedScaleForPod(t *testing.T) {
@@ -63,7 +66,22 @@ func TestControllerFinder_GetExpectedScaleForPod(t *testing.T) {
 				err:      nil,
 				replicas: 10,
 			},
-			pod:     &corev1.Pod{},
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-pod",
+					Annotations: map[string]string{
+						PodRelatedPubAnnotation: "pub-1",
+					},
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: "",
+							Kind:       "",
+							Name:       "",
+							UID:        "test-uid",
+						},
+					},
+				},
+			},
 			want:    10,
 			wantErr: false,
 		},
@@ -82,8 +100,39 @@ func TestControllerFinder_GetExpectedScaleForPod(t *testing.T) {
 			},
 			pod: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-pod",
 					Annotations: map[string]string{
 						PodRelatedPubAnnotation: "pub-1",
+					},
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: "",
+							Kind:       "",
+							Name:       "",
+							UID:        "test-uid",
+						},
+					},
+				},
+			},
+			want:    10,
+			wantErr: false,
+		},
+		{
+			name: "from actual pod num",
+			controllerFinder: &fakeControllerFinder{
+				replicas: 0,
+			},
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-pod",
+					Annotations: map[string]string{
+						PodRelatedPubAnnotation: "pub-1",
+					},
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							UID:        "test-uid",
+							Controller: pointer.Bool(true),
+						},
 					},
 				},
 			},
@@ -104,6 +153,35 @@ func TestControllerFinder_GetExpectedScaleForPod(t *testing.T) {
 				assert.NoError(t, runtimeClient.Create(context.TODO(), tt.pub))
 			}
 
+			var pods []*corev1.Pod
+			if tt.pod != nil {
+				assert.NoError(t, runtimeClient.Create(context.TODO(), tt.pod))
+				pods = append(pods, tt.pod)
+				for i := 1; i < int(tt.want); i++ {
+					pod := &corev1.Pod{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: fmt.Sprintf("test-pod-%d", i),
+							Annotations: map[string]string{
+								PodRelatedPubAnnotation: tt.pod.Annotations[PodRelatedPubAnnotation],
+							},
+							OwnerReferences: []metav1.OwnerReference{
+								{
+									UID:        tt.pod.OwnerReferences[0].UID,
+									Controller: pointer.Bool(true),
+								},
+							},
+						},
+					}
+					pods = append(pods, pod)
+					assert.NoError(t, runtimeClient.Create(context.TODO(), pod))
+				}
+			}
+			if tt.controllerFinder != nil {
+				if tt.controllerFinder.(*fakeControllerFinder).replicas != 0 {
+					tt.controllerFinder.(*fakeControllerFinder).podsFromController = pods
+				}
+				tt.controllerFinder.(*fakeControllerFinder).podsFromActual = pods
+			}
 			s := &ControllerFinder{
 				Interface: tt.controllerFinder,
 				Client:    runtimeClient,
