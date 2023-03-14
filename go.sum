@@ -196,8 +196,8 @@ github.com/alecthomas/units v0.0.0-20190717042225-c3de453c63f4/go.mod h1:ybxpYRF
 github.com/alecthomas/units v0.0.0-20190924025748-f65c72e2690d/go.mod h1:rBZYJk541a8SKzHPHnH3zbiI+7dagKZ0cgpgrD7Fyho=
 github.com/alexflint/go-filemutex v0.0.0-20171022225611-72bdc8eae2ae/go.mod h1:CgnQgUtFrFz9mxFNtED3jI5tLDjKlOM+oUF/sTk6ps0=
 github.com/alexkohler/prealloc v1.0.0/go.mod h1:VetnK3dIgFBBKmg0YnD9F9x6Icjd+9cvfHR56wJVlKE=
-github.com/alibaba/open-local v0.6.2-0.20230203093354-5dcb7820b4b8 h1:HiIYQVLZf8swNjqYswsxRroeZhf+WZJgUvpEvnR2f5M=
-github.com/alibaba/open-local v0.6.2-0.20230203093354-5dcb7820b4b8/go.mod h1:+rptaJeKYVOWyPwqnJBiCjG10JrjudZxOPIoRVeiLHA=
+github.com/alibaba/open-local v0.7.0 h1:FnrwEG67LRo0S7C2gbSj3QbWBaeaapgt7YxVRKH+UXI=
+github.com/alibaba/open-local v0.7.0/go.mod h1:t8VEizA5sMiPo7UjYxqFpqtsmX9jpkjNP0wy1TP1qig=
 github.com/alibaba/pouch v0.0.0-20190328125340-37051654f368/go.mod h1:U18Kv0/rJR1OjsxqgEbMJU29pFSCpKCzr44GZD6T3dI=
 github.com/andybalholm/brotli v1.0.2/go.mod h1:loMXtMfwqflxFJPmdbJO0a3KNoPuLBgiu3qAvBg8x/Y=
 github.com/andybalholm/brotli v1.0.3/go.mod h1:fO7iG3H7G2nSZ7m0zPUDn85XEX2GTukHGRSepvi9Eig=

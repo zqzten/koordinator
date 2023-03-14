@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/NVIDIA/go-nvml v0.11.6-0.0.20220823120812-7e2082095e82
 	github.com/alibaba/hybridnet v0.7.7
-	github.com/alibaba/open-local v0.6.2-0.20230203093354-5dcb7820b4b8
+	github.com/alibaba/open-local v0.7.0
 	github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5
 	github.com/docker/docker v20.10.21+incompatible
 	github.com/evanphx/json-patch v5.6.0+incompatible
