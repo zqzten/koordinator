@@ -366,18 +366,19 @@ func appendRundResult(pod *corev1.Pod, allocResult apiext.DeviceAllocations, pl 
 		pod.Annotations[extunified.AnnotationRundNVSwitchOrder] = strings.Join(nvSwitches, ",")
 	}
 
-	device, err := deviceLister.Get(pod.Spec.NodeName)
-	if err != nil {
-		return err
+	if len(allocResult[schedulingv1alpha1.GPU]) > 0 {
+		device, err := deviceLister.Get(pod.Spec.NodeName)
+		if err != nil {
+			return err
+		}
+		matchedVersion, err := matchDriverVersions(pod, device)
+		if err != nil {
+			return nil
+		}
+		if matchedVersion == "" {
+			return fmt.Errorf("unmatched driver versions")
+		}
+		pod.Annotations[extunified.AnnotationRundNvidiaDriverVersion] = matchedVersion
 	}
-	matchedVersion, err := matchDriverVersions(pod, device)
-	if err != nil {
-		return nil
-	}
-	if matchedVersion == "" {
-		return fmt.Errorf("unmatched driver versions")
-	}
-
-	pod.Annotations[extunified.AnnotationRundNvidiaDriverVersion] = matchedVersion
 	return nil
 }
