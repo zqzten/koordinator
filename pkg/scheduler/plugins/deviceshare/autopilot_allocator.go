@@ -129,7 +129,7 @@ func (a *AutopilotAllocator) Allocate(nodeName string, pod *corev1.Pod, podReque
 		return nil, err
 	}
 
-	if pod.Spec.RuntimeClassName != nil && *pod.Spec.RuntimeClassName == "rund" {
+	if pod.Spec.RuntimeClassName != nil && *pod.Spec.RuntimeClassName == "rund" && hasDeviceResource(podRequest, schedulingv1alpha1.GPU) {
 		matchedVersion, err := matchDriverVersions(pod, device)
 		if err != nil {
 			return nil, err
