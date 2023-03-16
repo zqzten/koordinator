@@ -449,7 +449,12 @@ func (r *Reconciler) listUnhealthyPods(orchestratingSLO *unifiedsev1.Orchestrati
 func (r *Reconciler) getRelatedPods(orchestratingSLO *unifiedsev1.OrchestratingSLO, labelSelector *metav1.LabelSelector) ([]*v1.Pod, error) {
 	if orchestratingSLO.Spec.TargetReference != nil {
 		targetRef := orchestratingSLO.Spec.TargetReference
-		pods, _, err := r.finder.GetPodsForRef(targetRef.APIVersion, targetRef.Kind, targetRef.Name, orchestratingSLO.Namespace, labelSelector, false)
+		ref := &metav1.OwnerReference{
+			APIVersion: targetRef.APIVersion,
+			Kind:       targetRef.Kind,
+			Name:       targetRef.Name,
+		}
+		pods, _, err := r.finder.GetPodsForRef(ref, orchestratingSLO.Namespace, labelSelector, false)
 		return pods, err
 	} else if labelSelector != nil && orchestratingSLO.Spec.Selector != nil {
 		innerLabelSelector := orchestratingSLO.Spec.Selector.DeepCopy()

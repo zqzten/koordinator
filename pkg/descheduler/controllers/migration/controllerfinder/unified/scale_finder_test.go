@@ -11,6 +11,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -29,12 +30,16 @@ type fakeControllerFinder struct {
 	pubErr   error
 }
 
-func (f *fakeControllerFinder) GetPodsForRef(apiVersion, kind, name, ns string, labelSelector *metav1.LabelSelector, active bool) ([]*corev1.Pod, int32, error) {
+func (f *fakeControllerFinder) GetPodsForRef(ref *metav1.OwnerReference, namespace string, labelSelector *metav1.LabelSelector, active bool) ([]*corev1.Pod, int32, error) {
 	return nil, 0, nil
 }
 
 func (f *fakeControllerFinder) GetExpectedScaleForPod(pods *corev1.Pod) (int32, error) {
 	return f.replicas, f.err
+}
+
+func (f *fakeControllerFinder) ListPodsByWorkloads(workloadUIDs []types.UID, ns string, labelSelector *metav1.LabelSelector, active bool) ([]*corev1.Pod, error) {
+	return nil, nil
 }
 
 func TestControllerFinder_GetExpectedScaleForPod(t *testing.T) {
