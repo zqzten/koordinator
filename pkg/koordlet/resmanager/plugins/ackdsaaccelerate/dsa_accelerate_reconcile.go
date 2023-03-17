@@ -86,7 +86,7 @@ func (d *plugin) reconcile() {
 	// only check once
 	support, err := dsautil.IsSupportDsa()
 	if err != nil {
-		klog.Infof("check support dsa failed, err: %v", err)
+		klog.Warningf("check support dsa failed, err: %v", err)
 	}
 	if !support {
 		return

@@ -24,10 +24,12 @@ import (
 
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/resmanager/plugins/ackcgroupcrd"
 	ackdsa "github.com/koordinator-sh/koordinator/pkg/koordlet/resmanager/plugins/ackdsaaccelerate"
+	ackml "github.com/koordinator-sh/koordinator/pkg/koordlet/resmanager/plugins/ackmemorylocality"
 )
 
 // for third party extension plugins
 func init() {
 	runtime.Must(RegisterQOSExtPlugin(ackcgroupcrd.FeatureName, ackcgroupcrd.FeatureSpec, ackcgroupcrd.Plugin))
 	runtime.Must(RegisterQOSExtPlugin(ackdsa.DsaAccelerateFeatureName, ackdsa.DsaAccelerateFeatureSpec, ackdsa.DsaAcceleratePlugin))
+	runtime.Must(RegisterQOSExtPlugin(ackml.MemoryLocalityFeatureName, ackml.MemoryLocalityFeatureSpec, ackml.MemoryLocalityPlugin))
 }

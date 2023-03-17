@@ -31,6 +31,33 @@ import (
 	uniapiext "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/extension"
 )
 
+// IsPodCPUSet checks if the pod is cpu bind according to
+// resource-status and cpu-set.
+func IsPodCPUSet(annotations map[string]string) (bool, error) {
+	if annotations == nil {
+		return false, nil
+	}
+	// 1. check koordinator cpuset protocols
+	cpusetVal, err := GetCPUSetFromPod(annotations)
+	if err != nil {
+		return false, err
+	}
+	if cpusetVal != "" {
+		return true, nil
+	}
+
+	// 2. check ack cpuset protocols
+	// assert cpuset only check for annotations
+	pod := &corev1.Pod{}
+	pod.Annotations = annotations
+	if isPodCPUSet, err := uniapiext.IsPodCPUSet(pod); err != nil {
+		return false, fmt.Errorf("failed to check cpuset, err: %v", err)
+	} else if !isPodCPUSet { // does not unset if the pod is not cpuset
+		return false, nil
+	}
+	return true, nil
+}
+
 // IsPodCfsQuotaNeedUnset checks if the pod-level and container-level cfs_quota should be unset to avoid unnecessary
 // throttles.
 // https://aone.alibaba-inc.com/v2/project/1053428/req/43543780#

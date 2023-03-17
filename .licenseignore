@@ -1,4 +1,5 @@
 vendor
+pkg/apis/ackplugins
 pkg/descheduler
 pkg/descheduler/controllers/migration/controllerfinder
 pkg/scheduler/plugins/coscheduling
@@ -7,10 +8,10 @@ pkg/slo-controller/config/ack_reclaimed_resource_config.go
 pkg/slo-controller/config/ack_reclaimed_resource_config_test.go
 pkg/slo-controller/noderesource/ack_reclaimed_resource_plugin.go
 pkg/slo-controller/noderesource/ack_reclaimed_resource_plugin_test.go
-pkg/slo-controller/nodeslo/ack_dsa_accelerate_config.go
-pkg/slo-controller/nodeslo/ack_dsa_accelerate_config_test.go
 pkg/slo-controller/nodeslo/ack_dsa_accelerate_plugin.go
 pkg/slo-controller/nodeslo/ack_dsa_accelerate_plugin_test.go
+pkg/slo-controller/nodeslo/ack_memory_locality_plugin.go
+pkg/slo-controller/nodeslo/ack_memory_locality_plugin_test.go
 pkg/scheduler/plugins/ack
 pkg/scheduler/plugins/cnstack
 pkg/koordlet/resmanager/plugins
