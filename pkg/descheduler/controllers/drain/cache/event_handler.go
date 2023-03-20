@@ -116,8 +116,7 @@ func (c *drainNodeCache) OnReservationAdd(obj interface{}) {
 	}
 
 	if r.IsScheduled() {
-		ni := c.getOrCreateNodeInfo(r.GetScheduledNodeName())
-		ni.addReservation(r.String())
+		c.addReservationToCache(r.GetScheduledNodeName(), r.String())
 	}
 }
 
@@ -133,14 +132,12 @@ func (c *drainNodeCache) OnReservationUpdate(oldObj, newObj interface{}) {
 	}
 
 	if newR.IsScheduled() && !newR.IsAllocated() {
-		ni := c.getOrCreateNodeInfo(newR.GetScheduledNodeName())
-		ni.addReservation(newR.String())
+		c.addReservationToCache(newR.GetScheduledNodeName(), newR.String())
 		return
 	}
 
 	if newR.IsScheduled() && newR.IsAllocated() {
-		ni := c.getOrCreateNodeInfo(newR.GetScheduledNodeName())
-		ni.deleteReservation(newR.String())
+		c.deleteReservationFromCache(newR.GetScheduledNodeName(), newR.String())
 		return
 	}
 }
@@ -151,7 +148,6 @@ func (c *drainNodeCache) OnReservationDelete(obj interface{}) {
 		return
 	}
 	if r.IsScheduled() {
-		ni := c.getOrCreateNodeInfo(r.GetScheduledNodeName())
-		ni.deleteReservation(r.String())
+		c.deleteReservationFromCache(r.GetScheduledNodeName(), r.String())
 	}
 }
