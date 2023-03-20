@@ -135,6 +135,23 @@ func (c *drainNodeCache) deletePodFromCache(p *v1.Pod) {
 	n.updateStatus(nil)
 }
 
+func (c *drainNodeCache) addReservationToCache(nName, rName string) {
+	klog.V(3).Infof("update reservation %v/%v in node %v", rName, nName)
+	ni := c.getOrCreateNodeInfo(nName)
+	ni.addReservation(rName)
+	ni.updateStatus(nil)
+}
+
+func (c *drainNodeCache) deleteReservationFromCache(nName, rName string) {
+	klog.V(3).Infof("delete reservation %v from node %v", rName, nName)
+	n := c.GetNodeInfo(nName)
+	if n == nil {
+		return
+	}
+	n.deleteReservation(rName)
+	n.updateStatus(nil)
+}
+
 func (ni *NodeInfo) updateStatus(n *v1.Node) {
 	ni.Lock()
 	defer ni.Unlock()
