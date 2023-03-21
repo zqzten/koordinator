@@ -1,4 +1,4 @@
-package noderesource
+package ackreclaimedresource
 
 import (
 	corev1 "k8s.io/api/core/v1"
@@ -13,11 +13,13 @@ import (
 
 const Name = "updateReclaimedResource"
 
-func init() {
-	_ = framework.RegisterNodePrepareExtender(Name, &Plugin{})
-}
+var _ framework.NodePreparePlugin = (*Plugin)(nil)
 
 type Plugin struct{}
+
+func (r *Plugin) Name() string {
+	return Name
+}
 
 func (r *Plugin) Execute(strategy *extension.ColocationStrategy, node *corev1.Node, nr *framework.NodeResource) error {
 	// update reclaimed resource according to batch resources

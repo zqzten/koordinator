@@ -19,6 +19,7 @@ package cgroupscrd
 import (
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/koordinator-sh/koordinator/pkg/koordlet/resourceexecutor"
 	koordutil "github.com/koordinator-sh/koordinator/pkg/koordlet/util"
 	sysutil "github.com/koordinator-sh/koordinator/pkg/koordlet/util/system"
 	"github.com/koordinator-sh/koordinator/pkg/util"
@@ -47,9 +48,10 @@ func getResourceLimitOpt(curVal, targetVal int) ResourceLimitScaleOpt {
 	return opt
 }
 
-func GetPodCPULimitOpt(podPlan *PodReconcilePlan) (ResourceLimitScaleOpt, int, error) {
+func GetPodCPULimitOpt(podPlan *PodReconcilePlan, reader resourceexecutor.CgroupReader) (ResourceLimitScaleOpt, int, error) {
 	opt := ResourceLimitRemain
-	curPodCfsQuota, err := koordutil.GetPodCurCFSQuota(podPlan.PodMeta.CgroupDir)
+	podDir := koordutil.GetPodCgroupDirWithKube(podPlan.PodMeta.CgroupDir)
+	curPodCfsQuota, err := reader.ReadCPUQuota(podDir)
 	if err != nil {
 		return opt, -1, err
 	}
@@ -57,9 +59,10 @@ func GetPodCPULimitOpt(podPlan *PodReconcilePlan) (ResourceLimitScaleOpt, int, e
 	return getResourceLimitOpt(int(curPodCfsQuota), targetPodCfsQuota), targetPodCfsQuota, nil
 }
 
-func GetPodMemLimitOpt(podPlan *PodReconcilePlan) (ResourceLimitScaleOpt, int, error) {
+func GetPodMemLimitOpt(podPlan *PodReconcilePlan, reader resourceexecutor.CgroupReader) (ResourceLimitScaleOpt, int, error) {
 	opt := ResourceLimitRemain
-	curPodMemLimit, err := koordutil.GetPodCurMemLimitBytes(podPlan.PodMeta.CgroupDir)
+	podDir := koordutil.GetPodCgroupDirWithKube(podPlan.PodMeta.CgroupDir)
+	curPodMemLimit, err := reader.ReadMemoryLimit(podDir)
 	if err != nil {
 		return opt, -1, err
 	}

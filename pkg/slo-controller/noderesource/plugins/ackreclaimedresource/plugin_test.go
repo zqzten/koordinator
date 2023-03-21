@@ -1,4 +1,4 @@
-package noderesource
+package ackreclaimedresource
 
 import (
 	"testing"
@@ -299,6 +299,7 @@ func TestPluginExecute(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := &Plugin{}
+			assert.Equal(t, Name, p.Name())
 			gotErr := p.Execute(tt.args.strategy, tt.args.node, tt.args.nr)
 			assert.Equal(t, tt.wantErr, gotErr != nil)
 			gotNode := tt.args.node

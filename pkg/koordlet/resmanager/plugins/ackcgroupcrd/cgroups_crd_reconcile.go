@@ -294,14 +294,14 @@ func (c *plugin) executePodPlan(podPlan *cgroupscrdutil.PodReconcilePlan) {
 	podDir := koordletutil.GetPodCgroupDirWithKube(podPlan.PodMeta.CgroupDir)
 
 	// pod cpu limit
-	podCPULimitOpt, targetPodCfsQuota, err := cgroupscrdutil.GetPodCPULimitOpt(podPlan)
+	podCPULimitOpt, targetPodCfsQuota, err := cgroupscrdutil.GetPodCPULimitOpt(podPlan, c.reader)
 	if err != nil {
 		klog.Warningf("prepare pod %v/%v cpu limit operation failed during cgroups crd reconcile",
 			podPlan.PodMeta.Pod.Namespace, podPlan.PodMeta.Pod.Name)
 	}
 
 	// pod memory limit
-	podMemoryLimitOpt, targetPodMemLimit, err := cgroupscrdutil.GetPodMemLimitOpt(podPlan)
+	podMemoryLimitOpt, targetPodMemLimit, err := cgroupscrdutil.GetPodMemLimitOpt(podPlan, c.reader)
 	if err != nil {
 		klog.Warningf("prepare pod %v/%v memory limit operation failed during cgroups crd reconcile",
 			podPlan.PodMeta.Pod.Namespace, podPlan.PodMeta.Pod.Name)

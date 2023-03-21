@@ -1,5 +1,5 @@
-//go:build github
-// +build github
+//go:build !github
+// +build !github
 
 /*
 Copyright 2022 The Koordinator Authors.
@@ -21,6 +21,7 @@ package noderesource
 
 import (
 	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/framework"
+	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/plugins/ackreclaimedresource"
 	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/plugins/batchresource"
 )
 
@@ -37,6 +38,7 @@ var (
 	// NodeSyncPlugin implements the check of resource updating.
 	nodePreparePlugins = []framework.NodePreparePlugin{
 		&batchresource.Plugin{},
+		&ackreclaimedresource.Plugin{},
 	}
 	// NodePreparePlugin implements node resource preparing for the calculated results.
 	nodeSyncPlugins = []framework.NodeSyncPlugin{
