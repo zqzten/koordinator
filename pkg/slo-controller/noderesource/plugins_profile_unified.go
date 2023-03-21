@@ -1,5 +1,5 @@
-//go:build github
-// +build github
+//go:build !github
+// +build !github
 
 /*
 Copyright 2022 The Koordinator Authors.
@@ -22,43 +22,28 @@ package noderesource
 import (
 	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/framework"
 	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/plugins/batchresource"
-	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/plugins/midresource"
+	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/plugins/vk"
 )
 
-// NOTE: functions in this file can be overwritten for extension
-
 func init() {
-	// set default plugins
-	NodeResourcePlugins = append(NodeResourcePlugins, midresource.PluginName)
-	NodeResourcePlugins = append(NodeResourcePlugins, batchresource.PluginName)
-}
-
-func addPlugins(filter framework.FilterFn) {
 	// NOTE: plugins run in order of the registration.
-	framework.RegisterSetupExtender(filter, setupPlugins...)
-	framework.RegisterNodePrepareExtender(filter, nodePreparePlugins...)
-	framework.RegisterNodeSyncExtender(filter, nodeSyncPlugins...)
-	framework.RegisterNodeMetaSyncExtender(filter, nodeMetaSyncPlugins...)
-	framework.RegisterResourceCalculateExtender(filter, resourceCalculatePlugins...)
+	framework.RegisterNodePrepareExtender(nodePreparePlugins...)
+	framework.RegisterNodeSyncExtender(nodeSyncPlugins...)
+	framework.RegisterResourceCalculateExtender(resourceCalculatePlugins...)
 }
 
 var (
-	setupPlugins = []framework.SetupPlugin{}
-	// NodePreparePlugin implements node resource preparing for the calculated results.
-	nodePreparePlugins = []framework.NodePreparePlugin{
-		&midresource.Plugin{},
-		&batchresource.Plugin{},
-	}
 	// NodeSyncPlugin implements the check of resource updating.
-	nodeSyncPlugins = []framework.NodeSyncPlugin{
-		&midresource.Plugin{},
+	nodePreparePlugins = []framework.NodePreparePlugin{
 		&batchresource.Plugin{},
 	}
-	// NodeMetaSyncPlugin implements the check of node meta updating.
-	nodeMetaSyncPlugins = []framework.NodeMetaSyncPlugin{}
+	// NodePreparePlugin implements node resource preparing for the calculated results.
+	nodeSyncPlugins = []framework.NodeSyncPlugin{
+		&batchresource.Plugin{},
+	}
 	// ResourceCalculatePlugin implements resource counting and overcommitment algorithms.
 	resourceCalculatePlugins = []framework.ResourceCalculatePlugin{
-		&midresource.Plugin{},
 		&batchresource.Plugin{},
+		&vk.Plugin{},
 	}
 )
