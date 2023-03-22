@@ -36,10 +36,10 @@ var gpushareResourceName = []string{"aliyun.com/gpu-mem"}
 var httpClient *http.Client
 
 type CNStackHttpResponse struct {
-	Status     string            `json:"status,omitempty"`
-	ExpireTime string            `json:"expireTime,omitempty"`
-	Info       map[string]string `json:"info,omitempty"`
-	Message    string            `json:"message,omitempty"`
+	Status     string                 `json:"status,omitempty"`
+	ExpireTime string                 `json:"expireTime,omitempty"`
+	Info       map[string]interface{} `json:"info,omitempty"`
+	Message    string                 `json:"message,omitempty"`
 }
 
 const (
@@ -81,35 +81,50 @@ func GPUShareLicenseCheckFunc(handle framework.Handle) bool {
 		klog.Errorf("read response code: %v, body error:%v", resp.StatusCode, string(bytes))
 		return false
 	}
+
+	return isLicenseValid(bytes)
+}
+
+func isLicenseValid(bytes []byte) bool {
 	cr := &CNStackHttpResponse{}
-	err = json.Unmarshal(bytes, cr)
+	err := json.Unmarshal(bytes, cr)
 	if err != nil {
 		klog.Errorf("json unmarshal str:%v, error:%v", string(bytes), err)
 		return false
 	}
-	return convertHttpLicenseInfo(*cr)
-}
-
-func convertHttpLicenseInfo(cr CNStackHttpResponse) bool {
 	switch cr.Status {
 	case CNStackAuthorizeTypeValid:
-		if cr.Info == nil {
+		if len(cr.Info) < 1 {
 			return false
 		}
-		if str, ok := cr.Info[CNStackGpuShareKey]; ok {
-			c, err := strconv.ParseInt(str, 10, 64)
-			if err != nil {
-				return false
-			} else if c <= 0 {
-				return false
-			}
-			return true
+
+		c := getGPUShareCount(cr.Info)
+		if c <= 0 {
+			return false
 		}
+
+		return true
 	case CNStackAuthorizeTypeTrial:
 		return true
 	}
 
 	return false
+}
+
+func getGPUShareCount(info map[string]interface{}) int64 {
+	obj, ok := info[CNStackGpuShareKey]
+	if !ok {
+		return 0
+	}
+	switch v := obj.(type) {
+	case string:
+		c, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return 0
+		}
+		return c
+	}
+	return 0
 }
 
 func GPUShareResponsibleForPodFunc(handle framework.Handle, pod *corev1.Pod) bool {
