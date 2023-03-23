@@ -1589,6 +1589,7 @@ github.com/opencontainers/selinux v1.10.1 h1:09LIPVRP3uuZGQvgR+SgMSNBd1Eb3vlRbGq
 github.com/opencontainers/selinux v1.10.1/go.mod h1:2i0OySw99QjzBBQByd1Gr9gSjvuho1lHsJxIJ3gGbJI=
 github.com/openkruise/kruise v0.10.0 h1:sJmWLIIDtvAZ2Xla6Rup3uoOf3PA/UqQgF14dKJyyew=
 github.com/openkruise/kruise v0.10.0/go.mod h1:5bnhZldeM6ePbT64zgFYRqpFvrnpLeFq/cJ702C08rg=
+github.com/openkruise/kruise-api v0.10.0/go.mod h1:YjDCqMeYwjs/2Be8e/v0/8kqiur87g2g10CBXIBPBgk=
 github.com/openkruise/kruise-api v1.3.0 h1:yfEy64uXgSuX/5RwePLbwUK/uX8RRM8fHJkccel5ZIQ=
 github.com/openkruise/kruise-api v1.3.0/go.mod h1:9ZX+ycdHKNzcA5ezAf35xOa2Mwfa2BYagWr0lKgi5dU=
 github.com/openshift/custom-resource-status v0.0.0-20200602122900-c002fd1547ca/go.mod h1:GDjWl0tX6FNIj82vIxeudWeSx2Ff6nDZ8uJn0ohUFvo=
@@ -2015,8 +2016,8 @@ github.com/zmap/rc2 v0.0.0-20131011165748-24b9757f5521/go.mod h1:3YZ9o3WnatTIZhu
 github.com/zmap/zcertificate v0.0.0-20180516150559-0e3d58b1bac4/go.mod h1:5iU54tB79AMBcySS0R2XIyZBAVmeHranShAFELYx7is=
 github.com/zmap/zcrypto v0.0.0-20210811211718-6f9bc4aff20f/go.mod h1:y/9hjFEub4DtQxTHp/pqticBgdYeCwL97vojV3lsvHY=
 github.com/zmap/zlint/v3 v3.3.1-0.20211019173530-cb17369b4628/go.mod h1:O+4OXRfNLKqOyDl4eKZ1SBlYudKGUBGRFcv+m1KLr28=
-gitlab.alibaba-inc.com/cos/recommender v0.4.3 h1:rZrlgCpbGG5uoffUlepGDwSpaUPtHZcRMTGrHeClOpY=
-gitlab.alibaba-inc.com/cos/recommender v0.4.3/go.mod h1:pA3Ev0CPQY0zW4fWQzts3RFwCal7qCF1qD0NSuqqJRs=
+gitlab.alibaba-inc.com/cos/recommender v0.5.0 h1:GUXXFewtePxFobMR8XUbgOFK2akK2vkmp8TN61AWhcA=
+gitlab.alibaba-inc.com/cos/recommender v0.5.0/go.mod h1:BO89q5bNsABmwnpkrvR8pXJ3I9lAXeRKquf1OC4GodY=
 gitlab.alibaba-inc.com/cos/unified-resource-api v1.22.3-1.0.20220705131219-d0d01381562f h1:ohV0R+dkphs9W4s/NgkZHNSf0uJjO5EgYfVDozl+7x8=
 gitlab.alibaba-inc.com/cos/unified-resource-api v1.22.3-1.0.20220705131219-d0d01381562f/go.mod h1:yHekzAh2JIpKubKJCTYruzqd4WjN0DwBLW9K3foTuNM=
 gitlab.alibaba-inc.com/oecp/hybridnet v0.0.0-20230203061823-079c8c8fa2c8 h1:7HeKPw9oP2wsPpj5xqMUiuY/vzPFKhtxYcToZ6NvEm4=
