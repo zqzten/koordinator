@@ -265,7 +265,9 @@ func prepareFilterNodeInfo(pod *corev1.Pod, nodeInfo *framework.NodeInfo, rOnNod
 	// 1. ignore current pod requests by reducing node requests
 	//    newNode.requests = node.requests - pod.requests
 	podRequests, _ := resourceapi.PodRequestsAndLimits(pod)
-	newNodeInfo.Requested.Add(quotav1.Subtract(util.NewZeroResourceList(), podRequests))
+	if len(rOnNode) > 0 {
+		newNodeInfo.Requested.Add(quotav1.Subtract(util.NewZeroResourceList(), podRequests))
+	}
 	newNodeInfo.Requested.Add(quotav1.Subtract(util.NewZeroResourceList(), allocatedResources))
 
 	// 2. ignore reserved node ports on the reserved node, only non-reserved ports are counted
