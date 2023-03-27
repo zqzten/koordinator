@@ -1,5 +1,5 @@
-//go:build github
-// +build github
+//go:build !github
+// +build !github
 
 /*
 Copyright 2022 The Koordinator Authors.
@@ -24,17 +24,21 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/klog"
 
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/util/system"
 	"github.com/koordinator-sh/koordinator/pkg/util"
+
+	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 )
 
-// NOTE: functions in this file can be overwritten for extension
-
-// GetPodCgroupParentDir gets the full pod cgroup parent with the pod info.
-// @podKubeRelativeDir kubepods-burstable.slice/kubepods-burstable-pod7712555c_ce62_454a_9e18_9ff0217b8941.slice/
-// @return kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod7712555c_ce62_454a_9e18_9ff0217b8941.slice/
 func GetPodCgroupParentDir(pod *corev1.Pod) string {
+	if customCgroupPath, ok := GetUnifiedCustomPodCgroupPath(pod.Annotations); ok {
+		klog.V(6).Infof("use unified custom pod cgroup path for pod %s/%s, custom path: %s",
+			pod.Namespace, pod.Name, customCgroupPath)
+		return customCgroupPath
+	}
+
 	qosClass := util.GetKubeQosClass(pod)
 	return filepath.Join(
 		system.CgroupPathFormatter.ParentDir,
@@ -52,9 +56,6 @@ func GetKubeQoSByCgroupParent(cgroupDir string) corev1.PodQOSClass {
 	return corev1.PodQOSGuaranteed
 }
 
-// GetPodQoSRelativePath gets the relative parent directory of a pod's qos class.
-// @qosClass corev1.PodQOSBurstable
-// @return kubepods.slice/kubepods-burstable.slice/
 func GetPodQoSRelativePath(qosClass corev1.PodQOSClass) string {
 	return filepath.Join(
 		system.CgroupPathFormatter.ParentDir,
@@ -81,4 +82,18 @@ func GetContainerCgroupParentDirByID(podParentDir string, containerID string) (s
 		podParentDir,
 		containerDir,
 	), nil
+}
+
+// GetUnifiedCustomPodCgroupPath gets the unified custom pod cgroup path according to the pod annotations.
+// e.g. unified custom cgroup paths are like:
+// - /kubepods/podb0681405-528b-4956-b89d-53b4d9c148a1
+// - /kubepods/burstable/podb0681405-528b-4956-b89d-53b4d9c148a1
+// - /kubepods/besteffort/podb0681405-528b-4956-b89d-53b4d9c148a1
+// - /system/podb0681405-528b-4956-b89d-53b4d9c148a1
+func GetUnifiedCustomPodCgroupPath(annotations map[string]string) (string, bool) {
+	if annotations == nil {
+		return "", false
+	}
+	customPath, ok := annotations[uniext.AnnotationPodCgroup]
+	return customPath, ok
 }
