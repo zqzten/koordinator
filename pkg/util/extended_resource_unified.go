@@ -1,5 +1,5 @@
-//go:build github
-// +build github
+//go:build !github
+// +build !github
 
 /*
 Copyright 2022 The Koordinator Authors.
@@ -30,19 +30,33 @@ import (
 var ExtendedResourceNames = []corev1.ResourceName{
 	extension.BatchCPU,
 	extension.BatchMemory,
+	corev1.ResourceCPU,
+	corev1.ResourceMemory,
 }
 
+// GetBatchMilliCPUFromResourceList gets the batch milli-cpu request for Batch pods.
+// NOTE: DO NOT use it for Prod pods.
+// TODO: add a GetPodCPURequest for pods of all priorities.
 func GetBatchMilliCPUFromResourceList(r corev1.ResourceList) int64 {
 	// assert r != nil
 	if milliCPU, ok := r[extension.BatchCPU]; ok {
 		return milliCPU.Value()
 	}
+	if cpu, ok := r[corev1.ResourceCPU]; ok {
+		return cpu.MilliValue()
+	}
 	return -1
 }
 
+// GetBatchMemoryFromResourceList gets the batch memory request for Batch pods.
+// NOTE: DO NOT use it for Prod pods.
+// TODO: add a GetPodMemoryRequest for pods of all priorities.
 func GetBatchMemoryFromResourceList(r corev1.ResourceList) int64 {
 	// assert r != nil
 	if memory, ok := r[extension.BatchMemory]; ok {
+		return memory.Value()
+	}
+	if memory, ok := r[corev1.ResourceMemory]; ok {
 		return memory.Value()
 	}
 	return -1
