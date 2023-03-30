@@ -36,6 +36,8 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/helper"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
+
+	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 )
 
 const (
@@ -231,6 +233,9 @@ func (pl *VolumeBinding) Filter(ctx context.Context, cs *framework.CycleState, p
 	}
 
 	if state.skip {
+		if unified.IsVirtualKubeletNode(node) {
+			return nil
+		}
 		return pl.filterWithoutPVC(state, pod, nodeInfo)
 	}
 
