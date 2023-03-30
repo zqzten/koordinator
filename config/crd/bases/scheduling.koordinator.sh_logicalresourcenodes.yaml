@@ -26,6 +26,10 @@ spec:
       jsonPath: .status.phase
       name: Phase
       type: string
+    - description: The status of the Node assigned to LRN
+      jsonPath: .status.nodeStatus.printColumn
+      name: NodeStatus
+      type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
@@ -1028,6 +1032,53 @@ spec:
                 description: NodeName is a request to schedule this LRN onto a specific
                   node.
                 type: string
+              nodeStatus:
+                description: NodeStatus is the status of the Node assigned to this
+                  LRN.
+                properties:
+                  conditions:
+                    description: Conditions is an array of current observed node conditions.
+                      Currently only few conditions will be synced to here.
+                    items:
+                      description: NodeCondition contains condition information for
+                        a node.
+                      properties:
+                        lastHeartbeatTime:
+                          description: Last time we got an update on a given condition.
+                          format: date-time
+                          type: string
+                        lastTransitionTime:
+                          description: Last time the condition transit from one status
+                            to another.
+                          format: date-time
+                          type: string
+                        message:
+                          description: Human readable message indicating details about
+                            last transition.
+                          type: string
+                        reason:
+                          description: (brief) reason for the condition's last transition.
+                          type: string
+                        status:
+                          description: Status of the condition, one of True, False,
+                            Unknown.
+                          type: string
+                        type:
+                          description: Type of node condition.
+                          type: string
+                      required:
+                      - status
+                      - type
+                      type: object
+                    type: array
+                  printColumn:
+                    description: PrintColumn is the print colunm of this Node of LRN.
+                    type: string
+                  unschedulable:
+                    description: Unschedulable controls node schedulability of new
+                      pods. By default, node is schedulable.
+                    type: boolean
+                type: object
               phase:
                 description: Phase is the recently observed lifecycle phase of the
                   LRN.

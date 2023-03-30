@@ -30,6 +30,7 @@ import (
 	_ "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	"github.com/koordinator-sh/koordinator/apis/thirdparty/unified"
 	"github.com/koordinator-sh/koordinator/pkg/controller/resourceflavor"
+	"github.com/koordinator-sh/koordinator/pkg/controller/unified/logicalresourcenode"
 	"github.com/koordinator-sh/koordinator/pkg/controller/unified/resourcesummary"
 	_ "github.com/koordinator-sh/koordinator/pkg/webhook/elasticquota/unified"
 	_ "github.com/koordinator-sh/koordinator/pkg/webhook/pod/validating/unified"
@@ -57,4 +58,6 @@ func init() {
 	_ = kruisev1alpha1.AddToScheme(Scheme)
 	_ = kruisev1beta1.AddToScheme(Scheme)
 	controllerAddFuncs[RecommenderControllerName] = AddRecommender
+
+	controllerAddFuncs["logicalresourcenode"] = logicalresourcenode.Add
 }

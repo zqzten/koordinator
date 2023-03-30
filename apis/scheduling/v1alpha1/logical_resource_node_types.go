@@ -22,9 +22,6 @@ import (
 )
 
 const (
-	// LabelLogicalResourceNodeSingleNodeAllocation indicates if the LRN is single node allocation.
-	LabelLogicalResourceNodeSingleNodeAllocation = "lrn.koordinator.sh/single-node-allocation"
-
 	// AnnotationLogicalResourceNodePodLabelSelector is the label selector that matches pod
 	AnnotationLogicalResourceNodePodLabelSelector = "lrn.koordinator.sh/pod-label-selector"
 
@@ -67,7 +64,6 @@ const (
 	LogicalResourceNodePending   LogicalResourceNodePhase = "Pending"
 	LogicalResourceNodeAvailable LogicalResourceNodePhase = "Available"
 	LogicalResourceNodeUnknown   LogicalResourceNodePhase = "Unknown"
-	LogicalResourceNodeFailed    LogicalResourceNodePhase = "Failed"
 
 	LogicalResourceNodeScheduled corev1.NodeConditionType = "Scheduled"
 )
@@ -86,9 +82,23 @@ type LogicalResourceNodeStatus struct {
 	// NodeName is a request to schedule this LRN onto a specific node.
 	// +optional
 	NodeName string `json:"nodeName,omitempty"`
+	// NodeStatus is the status of the Node assigned to this LRN.
+	// +optional
+	NodeStatus *LRNNodeStatus `json:"nodeStatus,omitempty"`
 	// Allocatable represents the resources of a LRN that are available for scheduling.
 	// +optional
 	Allocatable corev1.ResourceList `json:"allocatable,omitempty"`
+}
+
+// LRNNodeStatus is the status of the Node assigned to this LRN.
+type LRNNodeStatus struct {
+	// Unschedulable controls node schedulability of new pods. By default, node is schedulable.
+	Unschedulable bool `json:"unschedulable,omitempty"`
+	// Conditions is an array of current observed node conditions.
+	// Currently only few conditions will be synced to here.
+	Conditions []corev1.NodeCondition `json:"conditions,omitempty"`
+	// PrintColumn is the print colunm of this Node of LRN.
+	PrintColumn string `json:"printColumn,omitempty"`
 }
 
 type LogicalResourceNodeDevices map[DeviceType][]LogicalResourceNodeDeviceInfo
@@ -106,6 +116,7 @@ type LogicalResourceNodeDeviceInfo struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="NodeName",type="string",JSONPath=".status.nodeName",description="The node of LRN"
 // +kubebuilder:printcolumn:name="Phase",type="string",JSONPath=".status.phase",description="The phase of LRN"
+// +kubebuilder:printcolumn:name="NodeStatus",type="string",JSONPath=".status.nodeStatus.printColumn",description="The status of the Node assigned to LRN"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // LogicalResourceNode is the Schema for the logicalresourcenode API

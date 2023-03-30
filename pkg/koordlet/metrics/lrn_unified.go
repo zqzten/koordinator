@@ -65,7 +65,7 @@ var (
 		Subsystem: KoordletSubsystem,
 		Name:      "node_lrns",
 		Help:      "the LRNs belonging to the node",
-	}, []string{NodeKey, LRNKey, GPUCardModelKey, NodeNameKey, SingleNodeAllocationKey, ASWIDKey, PointOfDeliveryKey,
+	}, []string{NodeKey, LRNKey, GPUCardModelKey, NodeNameKey, ASWIDKey, PointOfDeliveryKey,
 		TenantDLCKey, MachineGroupKey, ResourceGroupKey, QuotaIDKey, QuotaNameKey}))
 
 	LRNCollectors = []prometheus.Collector{
