@@ -39,16 +39,15 @@ const (
 
 	// required by PAI serverless
 	// https://aliyuque.antfin.com/obdvnp/apfnvx/cz000wrokt9ziawf?singleDoc# 《逻辑节点（LRN）方案（v1.0）》
-	GPUCardModelKey         = "gpu_card_model"
-	NodeNameKey             = "node_name"
-	SingleNodeAllocationKey = "single_node_allocation"
-	ASWIDKey                = "asw_id"
-	PointOfDeliveryKey      = "point_of_delivery"
-	TenantDLCKey            = "tenant_dlc_alibaba_inc_com"
-	MachineGroupKey         = "machinegroup"
-	ResourceGroupKey        = "resourcegroup"
-	QuotaIDKey              = "quota_id"
-	QuotaNameKey            = "quota_name"
+	GPUCardModelKey    = "gpu_card_model"
+	NodeNameKey        = "node_name"
+	ASWIDKey           = "asw_id"
+	PointOfDeliveryKey = "point_of_delivery"
+	TenantDLCKey       = "tenant_dlc_alibaba_inc_com"
+	MachineGroupKey    = "machinegroup"
+	ResourceGroupKey   = "resourcegroup"
+	QuotaIDKey         = "quota_id"
+	QuotaNameKey       = "quota_name"
 )
 
 var (
@@ -161,7 +160,6 @@ func setLRNLabels(labels map[string]string, lrn *schedulingv1alpha1.LogicalResou
 	if lrn.Labels == nil {
 		labels[GPUCardModelKey] = ""
 		labels[NodeNameKey] = ""
-		labels[SingleNodeAllocationKey] = ""
 		labels[ASWIDKey] = ""
 		labels[PointOfDeliveryKey] = ""
 		labels[TenantDLCKey] = ""
@@ -172,7 +170,6 @@ func setLRNLabels(labels map[string]string, lrn *schedulingv1alpha1.LogicalResou
 	} else {
 		labels[GPUCardModelKey] = lrn.Labels[unified.LabelGPUCardModel]
 		labels[NodeNameKey] = lrn.Labels[schedulingv1alpha1.LabelNodeNameOfLogicalResourceNode]
-		labels[SingleNodeAllocationKey] = lrn.Labels[schedulingv1alpha1.LabelLogicalResourceNodeSingleNodeAllocation]
 		labels[ASWIDKey] = lrn.Labels[unified.LabelNodeASWID]
 		labels[PointOfDeliveryKey] = lrn.Labels[unified.LabelNodePointOfDelivery]
 		labels[TenantDLCKey] = lrn.Labels[unified.LabelTenantDLC]
