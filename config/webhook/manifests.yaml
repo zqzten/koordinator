@@ -141,6 +141,27 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
+      path: /validate-lrn
+  failurePolicy: Fail
+  name: vlrn.koordinator.sh
+  rules:
+  - apiGroups:
+    - scheduling.koordinator.sh
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - logicalresourcenodes
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
       path: /validate-node
   failurePolicy: Ignore
   name: vnode.koordinator.sh

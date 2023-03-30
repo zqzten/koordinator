@@ -248,6 +248,26 @@ rules:
 - apiGroups:
   - scheduling.koordinator.sh
   resources:
+  - logicalresourcenodes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - scheduling.koordinator.sh
+  resources:
+  - logicalresourcenodes/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - scheduling.koordinator.sh
+  resources:
   - podmigrationjobs
   verbs:
   - create

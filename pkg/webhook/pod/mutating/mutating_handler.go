@@ -116,11 +116,22 @@ func (h *PodMutatingHandler) handleCreate(ctx context.Context, req admission.Req
 		return err
 	}
 
+	if err := h.mutatingLRNPodCreate(ctx, req, obj); err != nil {
+		klog.Errorf("Failed to mutating Pod %s/%s by LogicalResourceNode, err: %v", obj.Namespace, obj.Name, err)
+		return err
+	}
+
 	return nil
 }
 
 func (h *PodMutatingHandler) handleUpdate(ctx context.Context, req admission.Request, obj *corev1.Pod) error {
 	// TODO: add mutating logic for pod update here
+
+	if err := h.mutatingLRNPodUpdate(ctx, req, obj); err != nil {
+		klog.Errorf("Failed to mutating Pod %s/%s update by LogicalResourceNode, err: %v", obj.Namespace, obj.Name, err)
+		return err
+	}
+
 	return nil
 }
 
