@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/spf13/pflag"
 	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -39,6 +40,10 @@ var (
 
 type OverSellPercents struct {
 	percents map[corev1.ResourceName]int64
+}
+
+func (o *OverSellPercents) Type() string {
+	return "overSellPercents"
 }
 
 func (o *OverSellPercents) String() string {
@@ -67,7 +72,7 @@ func (o *OverSellPercents) Set(s string) error {
 	return nil
 }
 
-func InitFlags(fs *flag.FlagSet) {
-	fs.Var(overSellPercents, "over-sell-percents", "--over-sell-percents=(resource-name:percent,)*")
+func init() {
+	pflag.Var(overSellPercents, "over-sell-percents", "--over-sell-percents=(resource-name:percent,)*")
 
 }

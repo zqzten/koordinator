@@ -39,6 +39,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
+	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/controller/unified/resourcesummary/metrics"
 	"github.com/koordinator-sh/koordinator/pkg/features"
 	"github.com/koordinator-sh/koordinator/pkg/util"
@@ -215,6 +216,17 @@ func (r *Reconciler) getCurrentStatus(ctx context.Context, resourceSummary *v1be
 			Resources:       nil,
 		}
 	}
+	nodeOwnedReservations, err := r.getReservationForCandidateNodes(ctx, candidateNodes)
+	if err != nil {
+		klog.Errorf("[ResourceSummary] getReservationForCandidateNodes, err:%v", err)
+		return &v1beta1.ResourceSummaryStatus{
+			Phase:           v1beta1.ResourceSummaryFailed,
+			Message:         err.Error(),
+			Reason:          "FailedStatistics",
+			UpdateTimestamp: metav1.Now(),
+			Resources:       nil,
+		}
+	}
 	podUsedResource, err := statisticsPodUsedResource(candidateNodes, nodeOwnedPods, resourceSummary.Spec.PodStatistics, nodeGPUCapacity)
 	if err != nil {
 		return &v1beta1.ResourceSummaryStatus{
@@ -227,8 +239,8 @@ func (r *Reconciler) getCurrentStatus(ctx context.Context, resourceSummary *v1be
 		}
 	}
 	podUsedStatistics := convertToPodUsedStatistics(resourceSummary.Spec.PodStatistics, podUsedResource)
-	capacity, requested, free, allocatablePodNums := statisticsNodeRelated(candidateNodes, nodeOwnedPods, resourceSummary.Spec.ResourceSpecs, nodeGPUCapacity)
-	nodeResourceSummary := convertToNodeResourceSummary(capacity, requested, free)
+	capacity, requested, free, reservationCapacity, reservationRequested, reservationFree, allocatablePodNums := statisticsNodeRelated(candidateNodes, nodeOwnedPods, nodeOwnedReservations, resourceSummary.Spec.ResourceSpecs, nodeGPUCapacity)
+	nodeResourceSummary := convertToNodeResourceSummary(capacity, requested, free, reservationCapacity, reservationRequested, reservationFree)
 	resourceSpecStats := convertToResourceSpecStats(allocatablePodNums)
 	return &v1beta1.ResourceSummaryStatus{
 		Phase:             v1beta1.ResourceSummarySucceeded,
@@ -356,10 +368,14 @@ func convertToPodUsedStatistics(podStatistics []v1beta1.PodStatistics, rawPodUse
 }
 
 func statisticsNodeRelated(candidateNodes *corev1.NodeList,
-	nodeOwnedPods map[string][]*corev1.Pod, resourceSpecs []v1beta1.ResourceSpec, nodeGPUCapacity map[string]corev1.ResourceList) (capacity, requested, free map[uniext.PriorityClass]corev1.ResourceList, allocatablePodNum map[string]map[uniext.PriorityClass]int32) {
+	nodeOwnedPods map[string][]*corev1.Pod, nodeOwnedReservations map[string][]*schedulingv1alpha1.Reservation, resourceSpecs []v1beta1.ResourceSpec, nodeGPUCapacity map[string]corev1.ResourceList) (capacity, requested, free, reservationCapacity, reservationRequested, reservationFree map[uniext.PriorityClass]corev1.ResourceList, allocatablePodNum map[string]map[uniext.PriorityClass]int32) {
 	capacity = map[uniext.PriorityClass]corev1.ResourceList{}
 	requested = map[uniext.PriorityClass]corev1.ResourceList{}
 	free = map[uniext.PriorityClass]corev1.ResourceList{}
+	reservationCapacity = map[uniext.PriorityClass]corev1.ResourceList{}
+	reservationRequested = map[uniext.PriorityClass]corev1.ResourceList{}
+	reservationFree = map[uniext.PriorityClass]corev1.ResourceList{}
+
 	//  资源规格名 资源等级 计数
 	allocatablePodNum = make(map[string]map[uniext.PriorityClass]int32, len(resourceSpecs))
 	for _, resourceSpec := range resourceSpecs {
@@ -367,12 +383,17 @@ func statisticsNodeRelated(candidateNodes *corev1.NodeList,
 	}
 	for _, node := range candidateNodes.Items {
 		ownedPods := nodeOwnedPods[node.Name]
+		ownedReservations := nodeOwnedReservations[node.Name]
 		gpuCapacity := nodeGPUCapacity[node.Name]
-		nodeCapacity, nodeRequested, nodeFree := statisticsNodeResource(&node, ownedPods, gpuCapacity)
+		nodeCapacity, nodeRequested, nodeFree, nodeReservationCapacity, nodeReservationRequested, nodeReservationFree := statisticsNodeResource(&node, ownedPods, ownedReservations, gpuCapacity)
+
 		for _, priorityClassType := range priorityClassTypes {
 			capacity[priorityClassType] = quotav1.Add(capacity[priorityClassType], nodeCapacity[priorityClassType])
 			requested[priorityClassType] = quotav1.Add(requested[priorityClassType], nodeRequested[priorityClassType])
 			free[priorityClassType] = quotav1.Add(free[priorityClassType], nodeFree[priorityClassType])
+			reservationCapacity[priorityClassType] = quotav1.Add(reservationCapacity[priorityClassType], nodeReservationCapacity[priorityClassType])
+			reservationRequested[priorityClassType] = quotav1.Add(reservationRequested[priorityClassType], nodeReservationRequested[priorityClassType])
+			reservationFree[priorityClassType] = quotav1.Add(reservationFree[priorityClassType], nodeReservationFree[priorityClassType])
 			for _, resourceSpec := range resourceSpecs {
 				allocatablePodNum[resourceSpec.Name][priorityClassType] += calculateAllocatablePodNum(nodeFree[priorityClassType], resourceSpec.Resources)
 			}
@@ -381,7 +402,7 @@ func statisticsNodeRelated(candidateNodes *corev1.NodeList,
 	return
 }
 
-func statisticsNodeResource(node *corev1.Node, ownPods []*corev1.Pod, gpuCapacity corev1.ResourceList) (capacity, requested, free map[uniext.PriorityClass]corev1.ResourceList) {
+func statisticsNodeResource(node *corev1.Node, ownPods []*corev1.Pod, ownedReservations []*schedulingv1alpha1.Reservation, gpuCapacity corev1.ResourceList) (capacity, requested, free, reservationCapacity, reservationRequested, reservationFree map[uniext.PriorityClass]corev1.ResourceList) {
 	capacity = map[uniext.PriorityClass]corev1.ResourceList{}
 	nodeAllocatable := GetAllocatableByOverQuota(node)
 	addGPUCapacityToNodeAllocatable(nodeAllocatable, gpuCapacity)
@@ -399,12 +420,32 @@ func statisticsNodeResource(node *corev1.Node, ownPods []*corev1.Pod, gpuCapacit
 		allRequested = quotav1.Add(allRequested, priorityUsed.Allocated)
 	}
 
+	reservationCapacity = map[uniext.PriorityClass]corev1.ResourceList{}
+	reservationRequested = map[uniext.PriorityClass]corev1.ResourceList{}
+	reservationFree = map[uniext.PriorityClass]corev1.ResourceList{}
+	for _, ownedReservation := range ownedReservations {
+		priorityUsed, priorityCapacity, priorityFree := GetReservationPriorityResource(ownedReservation, node, gpuCapacity)
+		priorityFree.Allocated[corev1.ResourcePods] = *resource.NewQuantity(1, resource.DecimalSI)
+		priorityUsed.Allocated[corev1.ResourcePods] = *resource.NewQuantity(int64(len(ownedReservation.Status.CurrentOwners)), resource.DecimalSI)
+		priorityCapacity.Allocated[corev1.ResourcePods] = *resource.NewQuantity(int64(len(ownedReservation.Status.CurrentOwners))+1, resource.DecimalSI)
+
+		requested[priorityFree.PriorityClass] = quotav1.Add(requested[priorityFree.PriorityClass], priorityFree.Allocated)
+		allRequested = quotav1.Add(allRequested, priorityFree.Allocated)
+
+		reservationCapacity[priorityCapacity.PriorityClass] = quotav1.Add(reservationCapacity[priorityCapacity.PriorityClass], priorityCapacity.Allocated)
+		reservationRequested[priorityUsed.PriorityClass] = quotav1.Add(reservationRequested[priorityUsed.PriorityClass], priorityUsed.Allocated)
+		reservationFree[priorityFree.PriorityClass] = quotav1.Add(reservationFree[priorityFree.PriorityClass], priorityFree.Allocated)
+	}
+
 	for _, priorityClass := range priorityClassTypes {
 		if requested[priorityClass] == nil {
 			requested[priorityClass] = corev1.ResourceList{}
 		} else {
 			requested[priorityClass] = quotav1.Mask(requested[priorityClass], quotav1.ResourceNames(capacity[priorityClass]))
 		}
+		reservationCapacity[priorityClass] = quotav1.Mask(reservationCapacity[priorityClass], quotav1.ResourceNames(capacity[priorityClass]))
+		reservationRequested[priorityClass] = quotav1.Mask(reservationRequested[priorityClass], quotav1.ResourceNames(capacity[priorityClass]))
+		reservationFree[priorityClass] = quotav1.Mask(reservationFree[priorityClass], quotav1.ResourceNames(capacity[priorityClass]))
 	}
 	free = CalculateFree(capacity, requested, allRequested)
 	return
@@ -428,15 +469,18 @@ func calculateAllocatablePodNum(free, request corev1.ResourceList) int32 {
 	return min
 }
 
-func convertToNodeResourceSummary(capacity, requested, free map[uniext.PriorityClass]corev1.ResourceList,
+func convertToNodeResourceSummary(capacity, requested, free, reservationCapacity, reservationRequested, reservationFree map[uniext.PriorityClass]corev1.ResourceList,
 ) []*v1beta1.NodeResourceSummary {
 	rawResourceSummary := map[uniext.PriorityClass]*v1beta1.NodeResourceSummary{}
 	for _, priorityClassType := range priorityClassTypes {
 		rawResourceSummary[priorityClassType] = &v1beta1.NodeResourceSummary{
-			PriorityClass: priorityClassType,
-			Capacity:      capacity[priorityClassType],
-			Allocated:     requested[priorityClassType],
-			Allocatable:   free[priorityClassType],
+			PriorityClass:              priorityClassType,
+			Capacity:                   capacity[priorityClassType],
+			Allocated:                  requested[priorityClassType],
+			Allocatable:                free[priorityClassType],
+			ReserveResourceCapacity:    reservationCapacity[priorityClassType],
+			ReserveResourceAllocated:   reservationRequested[priorityClassType],
+			ReserveResourceAllocatable: reservationFree[priorityClassType],
 		}
 	}
 	var resourceSummaries []*v1beta1.NodeResourceSummary
