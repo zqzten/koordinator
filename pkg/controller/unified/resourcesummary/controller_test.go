@@ -35,6 +35,7 @@ import (
 	quotav1 "k8s.io/apiserver/pkg/quota/v1"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -195,6 +196,50 @@ func Test_statisticsNodesResource(t *testing.T) {
 		pod.Spec.Priority = &priorities[i]
 		node0Pods = append(node0Pods, pod)
 	}
+	var node0Reservations []*schedulingv1alpha1.Reservation
+	for i := 0; i < 3; i++ {
+		reservation := &schedulingv1alpha1.Reservation{
+			Spec: schedulingv1alpha1.ReservationSpec{
+				Template: &corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
+							{
+								Resources: corev1.ResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceCPU:                     resource.MustParse("4000m"),
+										corev1.ResourceMemory:                  resource.MustParse("4Gi"),
+										unifiedresourceext.GPUResourceMemRatio: resource.MustParse("200"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			Status: schedulingv1alpha1.ReservationStatus{
+				Phase: schedulingv1alpha1.ReservationAvailable,
+				Allocatable: corev1.ResourceList{
+					corev1.ResourceCPU:                     resource.MustParse("4000m"),
+					corev1.ResourceMemory:                  resource.MustParse("4Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("200"),
+				},
+				Allocated: corev1.ResourceList{
+					corev1.ResourceCPU:                     resource.MustParse("3000m"),
+					corev1.ResourceMemory:                  resource.MustParse("2Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("100"),
+				},
+				CurrentOwners: []corev1.ObjectReference{{}},
+			},
+		}
+		reservation.Name = fmt.Sprintf("reservation-%s-%d", "node-0", i)
+		reservation.Spec.Template.Spec.Priority = &priorities[i]
+		if i == 2 {
+			reservation.Status.Allocated = corev1.ResourceList{}
+			reservation.Status.CurrentOwners = nil
+		}
+		node0Reservations = append(node0Reservations, reservation)
+
+	}
 	var node1Pods []*corev1.Pod
 	for i := 0; i < 3; i++ {
 		pod := &corev1.Pod{
@@ -226,19 +271,67 @@ func Test_statisticsNodesResource(t *testing.T) {
 		pod.Spec.Priority = &priorities[i]
 		node1Pods = append(node1Pods, pod)
 	}
+	var node1Reservations []*schedulingv1alpha1.Reservation
+	for i := 0; i < 3; i++ {
+		reservation := &schedulingv1alpha1.Reservation{
+			Spec: schedulingv1alpha1.ReservationSpec{
+				Template: &corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
+							{
+								Resources: corev1.ResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceCPU:                     resource.MustParse("4000m"),
+										corev1.ResourceMemory:                  resource.MustParse("4Gi"),
+										unifiedresourceext.GPUResourceMemRatio: resource.MustParse("200"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			Status: schedulingv1alpha1.ReservationStatus{
+				Phase: schedulingv1alpha1.ReservationAvailable,
+				Allocatable: corev1.ResourceList{
+					corev1.ResourceCPU:                     resource.MustParse("4000m"),
+					corev1.ResourceMemory:                  resource.MustParse("4Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("200"),
+				},
+				Allocated: corev1.ResourceList{
+					corev1.ResourceCPU:                     resource.MustParse("3000m"),
+					corev1.ResourceMemory:                  resource.MustParse("2Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("100"),
+				},
+				CurrentOwners: []corev1.ObjectReference{{}},
+			},
+		}
+		reservation.Name = fmt.Sprintf("reservation-%s-%d", "node-1", i)
+		reservation.Spec.Template.Spec.Priority = &priorities[i]
+		if i == 0 {
+			reservation.Status.Allocated = corev1.ResourceList{}
+			reservation.Status.CurrentOwners = nil
+		}
+		node1Reservations = append(node1Reservations, reservation)
+
+	}
 	type args struct {
-		candidateNodes  *corev1.NodeList
-		nodeOwnedPods   map[string][]*corev1.Pod
-		resourceSpecs   []v1beta1.ResourceSpec
-		nodeGPUCapacity map[string]corev1.ResourceList
+		candidateNodes        *corev1.NodeList
+		nodeOwnedPods         map[string][]*corev1.Pod
+		nodeOwnedReservations map[string][]*schedulingv1alpha1.Reservation
+		resourceSpecs         []v1beta1.ResourceSpec
+		nodeGPUCapacity       map[string]corev1.ResourceList
 	}
 	tests := []struct {
-		name                string
-		args                args
-		wantCapacity        map[uniext.PriorityClass]corev1.ResourceList
-		wantRequested       map[uniext.PriorityClass]corev1.ResourceList
-		wantFree            map[uniext.PriorityClass]corev1.ResourceList
-		wantAllocatableNums map[string]map[uniext.PriorityClass]int32
+		name                     string
+		args                     args
+		wantCapacity             map[uniext.PriorityClass]corev1.ResourceList
+		wantRequested            map[uniext.PriorityClass]corev1.ResourceList
+		wantFree                 map[uniext.PriorityClass]corev1.ResourceList
+		wantReservationCapacity  map[uniext.PriorityClass]corev1.ResourceList
+		wantReservationRequested map[uniext.PriorityClass]corev1.ResourceList
+		wantReservationFree      map[uniext.PriorityClass]corev1.ResourceList
+		wantAllocatableNums      map[string]map[uniext.PriorityClass]int32
 	}{
 		{
 			name: "normal",
@@ -374,7 +467,7 @@ func Test_statisticsNodesResource(t *testing.T) {
 			},
 		},
 		{
-			name: "gpu",
+			name: "normal; gpu",
 			args: args{
 				candidateNodes: &corev1.NodeList{
 					Items: []corev1.Node{
@@ -595,6 +688,335 @@ func Test_statisticsNodesResource(t *testing.T) {
 			},
 		},
 		{
+			name: "normal; gpu; reservation",
+			args: args{
+				candidateNodes: &corev1.NodeList{
+					Items: []corev1.Node{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "node-0",
+							},
+							Spec: corev1.NodeSpec{
+								Taints: []corev1.Taint{
+									{
+										Key:    "sigma.ali/resource-pool",
+										Value:  "sigma_public",
+										Effect: corev1.TaintEffectNoSchedule,
+									},
+								},
+							},
+							Status: corev1.NodeStatus{
+								Allocatable: corev1.ResourceList{
+									corev1.ResourceCPU:              resource.MustParse("110"),
+									corev1.ResourceMemory:           resource.MustParse("100Gi"),
+									corev1.ResourceEphemeralStorage: resource.MustParse("200Gi"),
+									extension.BatchCPU:              resource.MustParse("50000"),
+									extension.BatchMemory:           resource.MustParse("30Gi"),
+									corev1.ResourcePods:             resource.MustParse("200"),
+								},
+								Conditions: []corev1.NodeCondition{{
+									Type:   corev1.NodeReady,
+									Status: corev1.ConditionTrue,
+								}},
+							},
+						},
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "node-1",
+							},
+							Spec: corev1.NodeSpec{
+								Taints: []corev1.Taint{
+									{
+										Key:    "sigma.ali/resource-pool",
+										Value:  "sigma_public",
+										Effect: corev1.TaintEffectNoSchedule,
+									},
+								},
+							},
+							Status: corev1.NodeStatus{
+								Allocatable: corev1.ResourceList{
+									corev1.ResourceCPU:              resource.MustParse("110"),
+									corev1.ResourceMemory:           resource.MustParse("100Gi"),
+									corev1.ResourceEphemeralStorage: resource.MustParse("200Gi"),
+									extension.BatchCPU:              resource.MustParse("50000"),
+									extension.BatchMemory:           resource.MustParse("30Gi"),
+									corev1.ResourcePods:             resource.MustParse("200"),
+								},
+								Conditions: []corev1.NodeCondition{{
+									Type:   corev1.NodeReady,
+									Status: corev1.ConditionTrue,
+								}},
+							},
+						},
+					},
+				},
+				nodeOwnedPods: map[string][]*corev1.Pod{
+					"node-0": node0Pods,
+					"node-1": node1Pods,
+				},
+				nodeOwnedReservations: map[string][]*schedulingv1alpha1.Reservation{
+					"node-0": node0Reservations,
+					"node-1": node1Reservations,
+				},
+				nodeGPUCapacity: map[string]corev1.ResourceList{
+					"node-0": map[corev1.ResourceName]resource.Quantity{
+						unifiedresourceext.GPUResourceCore:     resource.MustParse("800"),
+						unifiedresourceext.GPUResourceMem:      resource.MustParse("800Gi"),
+						unifiedresourceext.GPUResourceMemRatio: resource.MustParse("800"),
+					},
+					"node-1": map[corev1.ResourceName]resource.Quantity{
+						unifiedresourceext.GPUResourceCore:     resource.MustParse("800"),
+						unifiedresourceext.GPUResourceMem:      resource.MustParse("800Gi"),
+						unifiedresourceext.GPUResourceMemRatio: resource.MustParse("800"),
+					},
+				},
+				resourceSpecs: []v1beta1.ResourceSpec{
+					{
+						Name: "test",
+						Resources: corev1.ResourceList{
+							corev1.ResourceCPU: resource.MustParse("1"),
+						},
+					},
+				},
+			},
+			wantCapacity: map[uniext.PriorityClass]corev1.ResourceList{
+				uniext.PriorityProd: {
+					corev1.ResourceCPU:                     resource.MustParse("220"),
+					corev1.ResourceMemory:                  resource.MustParse("200Gi"),
+					corev1.ResourceEphemeralStorage:        resource.MustParse("400Gi"),
+					extension.ResourceGPU:                  resource.MustParse("1600"),
+					extension.ResourceGPUCore:              resource.MustParse("1600"),
+					extension.ResourceGPUMemory:            resource.MustParse("1600Gi"),
+					extension.ResourceGPUMemoryRatio:       resource.MustParse("1600"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("1600"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("1600"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("1600Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("1600"),
+					corev1.ResourcePods:                    resource.MustParse("400"),
+				},
+				uniext.PriorityBatch: {
+					corev1.ResourceCPU:                     resource.MustParse("100"),
+					corev1.ResourceMemory:                  resource.MustParse("60Gi"),
+					corev1.ResourceEphemeralStorage:        resource.MustParse("400Gi"),
+					extension.ResourceGPU:                  resource.MustParse("1600"),
+					extension.ResourceGPUCore:              resource.MustParse("1600"),
+					extension.ResourceGPUMemory:            resource.MustParse("1600Gi"),
+					extension.ResourceGPUMemoryRatio:       resource.MustParse("1600"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("1600"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("1600"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("1600Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("1600"),
+					corev1.ResourcePods:                    resource.MustParse("400"),
+				},
+				uniext.PriorityMid: {
+					corev1.ResourceEphemeralStorage:        resource.MustParse("400Gi"),
+					extension.ResourceGPU:                  resource.MustParse("1600"),
+					extension.ResourceGPUCore:              resource.MustParse("1600"),
+					extension.ResourceGPUMemory:            resource.MustParse("1600Gi"),
+					extension.ResourceGPUMemoryRatio:       resource.MustParse("1600"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("1600"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("1600"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("1600Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("1600"),
+					corev1.ResourcePods:                    resource.MustParse("400"),
+				},
+				uniext.PriorityFree: {
+					corev1.ResourceEphemeralStorage:        resource.MustParse("400Gi"),
+					extension.ResourceGPU:                  resource.MustParse("1600"),
+					extension.ResourceGPUCore:              resource.MustParse("1600"),
+					extension.ResourceGPUMemory:            resource.MustParse("1600Gi"),
+					extension.ResourceGPUMemoryRatio:       resource.MustParse("1600"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("1600"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("1600"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("1600Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("1600"),
+					corev1.ResourcePods:                    resource.MustParse("400"),
+				},
+			},
+			wantRequested: map[uniext.PriorityClass]corev1.ResourceList{
+				uniext.PriorityProd: {
+					corev1.ResourceCPU:                     resource.MustParse("8"),
+					corev1.ResourceMemory:                  resource.MustParse("14Gi"),
+					extension.ResourceGPU:                  resource.MustParse("500"),
+					extension.ResourceGPUCore:              resource.MustParse("500"),
+					extension.ResourceGPUMemory:            resource.MustParse("500Gi"),
+					extension.ResourceGPUMemoryRatio:       resource.MustParse("500"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("500"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("500"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("500Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("500"),
+					corev1.ResourcePods:                    resource.MustParse("4"),
+				},
+				uniext.PriorityBatch: {
+					corev1.ResourceCPU:                     resource.MustParse("13"),
+					corev1.ResourceMemory:                  resource.MustParse("26Gi"),
+					extension.ResourceGPU:                  resource.MustParse("900"),
+					extension.ResourceGPUCore:              resource.MustParse("900"),
+					extension.ResourceGPUMemory:            resource.MustParse("900Gi"),
+					extension.ResourceGPUMemoryRatio:       resource.MustParse("900"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("900"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("900"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("900Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("900"),
+					corev1.ResourcePods:                    resource.MustParse("8"),
+				},
+				uniext.PriorityMid:  {},
+				uniext.PriorityFree: {},
+			},
+			wantFree: map[uniext.PriorityClass]corev1.ResourceList{
+				uniext.PriorityProd: {
+					corev1.ResourceCPU:                     resource.MustParse("212"),
+					corev1.ResourceMemory:                  resource.MustParse("160Gi"),
+					corev1.ResourceEphemeralStorage:        resource.MustParse("400Gi"),
+					extension.ResourceGPU:                  resource.MustParse("200"),
+					extension.ResourceGPUCore:              resource.MustParse("200"),
+					extension.ResourceGPUMemory:            resource.MustParse("200Gi"),
+					extension.ResourceGPUMemoryRatio:       resource.MustParse("200"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("200"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("200"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("200Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("200"),
+					corev1.ResourcePods:                    resource.MustParse("388"),
+				},
+				uniext.PriorityBatch: {
+					corev1.ResourceCPU:                     resource.MustParse("87"),
+					corev1.ResourceMemory:                  resource.MustParse("34Gi"),
+					corev1.ResourceEphemeralStorage:        resource.MustParse("400Gi"),
+					extension.ResourceGPU:                  resource.MustParse("200"),
+					extension.ResourceGPUCore:              resource.MustParse("200"),
+					extension.ResourceGPUMemory:            resource.MustParse("200Gi"),
+					extension.ResourceGPUMemoryRatio:       resource.MustParse("200"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("200"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("200"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("200Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("200"),
+					corev1.ResourcePods:                    resource.MustParse("388"),
+				},
+				uniext.PriorityMid: {
+					corev1.ResourceEphemeralStorage:        resource.MustParse("400Gi"),
+					extension.ResourceGPU:                  resource.MustParse("200"),
+					extension.ResourceGPUCore:              resource.MustParse("200"),
+					extension.ResourceGPUMemory:            resource.MustParse("200Gi"),
+					extension.ResourceGPUMemoryRatio:       resource.MustParse("200"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("200"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("200"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("200Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("200"),
+					corev1.ResourcePods:                    resource.MustParse("388"),
+				},
+				uniext.PriorityFree: {
+					corev1.ResourceEphemeralStorage:        resource.MustParse("400Gi"),
+					extension.ResourceGPU:                  resource.MustParse("200"),
+					extension.ResourceGPUCore:              resource.MustParse("200"),
+					extension.ResourceGPUMemory:            resource.MustParse("200Gi"),
+					extension.ResourceGPUMemoryRatio:       resource.MustParse("200"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("200"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("200"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("200Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("200"),
+					corev1.ResourcePods:                    resource.MustParse("388"),
+				},
+			},
+			wantReservationCapacity: map[uniext.PriorityClass]corev1.ResourceList{
+				uniext.PriorityProd: {
+					corev1.ResourceCPU:                     resource.MustParse("8000m"),
+					corev1.ResourceMemory:                  resource.MustParse("8Gi"),
+					extension.ResourceGPU:                  resource.MustParse("400"),
+					extension.ResourceGPUCore:              resource.MustParse("400"),
+					extension.ResourceGPUMemory:            resource.MustParse("400Gi"),
+					extension.ResourceGPUMemoryRatio:       resource.MustParse("400"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("400"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("400"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("400Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("400"),
+					corev1.ResourcePods:                    resource.MustParse("3"),
+				},
+				uniext.PriorityBatch: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceCPU:                     resource.MustParse("16000m"),
+					corev1.ResourceMemory:                  resource.MustParse("16Gi"),
+					extension.ResourceGPU:                  resource.MustParse("800"),
+					extension.ResourceGPUCore:              resource.MustParse("800"),
+					extension.ResourceGPUMemory:            resource.MustParse("800Gi"),
+					extension.ResourceGPUMemoryRatio:       resource.MustParse("800"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("800"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("800"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("800Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("800"),
+					corev1.ResourcePods:                    resource.MustParse("7"),
+				},
+				uniext.PriorityMid:  {},
+				uniext.PriorityFree: {},
+			},
+			wantReservationRequested: map[uniext.PriorityClass]corev1.ResourceList{
+				uniext.PriorityProd: {
+					corev1.ResourceCPU:                     resource.MustParse("3000m"),
+					corev1.ResourceMemory:                  resource.MustParse("2Gi"),
+					extension.ResourceGPU:                  resource.MustParse("100"),
+					extension.ResourceGPUCore:              resource.MustParse("100"),
+					extension.ResourceGPUMemory:            resource.MustParse("100Gi"),
+					extension.ResourceGPUMemoryRatio:       resource.MustParse("100"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("100"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("100"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("100Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("100"),
+					corev1.ResourcePods:                    resource.MustParse("1"),
+				},
+				uniext.PriorityBatch: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceCPU:                     resource.MustParse("9000m"),
+					corev1.ResourceMemory:                  resource.MustParse("6Gi"),
+					extension.ResourceGPU:                  resource.MustParse("300"),
+					extension.ResourceGPUCore:              resource.MustParse("300"),
+					extension.ResourceGPUMemory:            resource.MustParse("300Gi"),
+					extension.ResourceGPUMemoryRatio:       resource.MustParse("300"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("300"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("300"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("300Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("300"),
+					corev1.ResourcePods:                    resource.MustParse("3"),
+				},
+				uniext.PriorityMid:  {},
+				uniext.PriorityFree: {},
+			},
+			wantReservationFree: map[uniext.PriorityClass]corev1.ResourceList{
+				uniext.PriorityProd: {
+					corev1.ResourceCPU:                     resource.MustParse("5000m"),
+					corev1.ResourceMemory:                  resource.MustParse("6Gi"),
+					extension.ResourceGPU:                  resource.MustParse("300"),
+					extension.ResourceGPUCore:              resource.MustParse("300"),
+					extension.ResourceGPUMemory:            resource.MustParse("300Gi"),
+					extension.ResourceGPUMemoryRatio:       resource.MustParse("300"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("300"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("300"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("300Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("300"),
+					corev1.ResourcePods:                    resource.MustParse("2"),
+				},
+				uniext.PriorityBatch: map[corev1.ResourceName]resource.Quantity{
+					corev1.ResourceCPU:                     resource.MustParse("7000m"),
+					corev1.ResourceMemory:                  resource.MustParse("10Gi"),
+					extension.ResourceGPU:                  resource.MustParse("500"),
+					extension.ResourceGPUCore:              resource.MustParse("500"),
+					extension.ResourceGPUMemory:            resource.MustParse("500Gi"),
+					extension.ResourceGPUMemoryRatio:       resource.MustParse("500"),
+					unifiedresourceext.GPUResourceAlibaba:  resource.MustParse("500"),
+					unifiedresourceext.GPUResourceCore:     resource.MustParse("500"),
+					unifiedresourceext.GPUResourceMem:      resource.MustParse("500Gi"),
+					unifiedresourceext.GPUResourceMemRatio: resource.MustParse("500"),
+					corev1.ResourcePods:                    resource.MustParse("4"),
+				},
+				uniext.PriorityMid:  {},
+				uniext.PriorityFree: {},
+			},
+			wantAllocatableNums: map[string]map[uniext.PriorityClass]int32{
+				"test": {
+					uniext.PriorityProd:  211,
+					uniext.PriorityBatch: 87,
+					uniext.PriorityMid:   0,
+					uniext.PriorityFree:  0,
+				},
+			},
+		},
+		{
 			name: "allocatablePodNums",
 			args: args{
 				candidateNodes: &corev1.NodeList{
@@ -779,11 +1201,14 @@ func Test_statisticsNodesResource(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotCapacity, gotRequested, gotFree, gotAllocatableNums := statisticsNodeRelated(tt.args.candidateNodes, tt.args.nodeOwnedPods, tt.args.resourceSpecs, tt.args.nodeGPUCapacity)
+			gotCapacity, gotRequested, gotFree, gotReservationCapacity, gotReservationRequested, gotReservationFree, gotAllocatableNums := statisticsNodeRelated(tt.args.candidateNodes, tt.args.nodeOwnedPods, tt.args.nodeOwnedReservations, tt.args.resourceSpecs, tt.args.nodeGPUCapacity)
 			for _, priorityClassType := range priorityClassTypes {
 				klog.Info(priorityClassType)
-				klog.Info(tt.wantCapacity[priorityClassType])
-				klog.Info(gotCapacity[priorityClassType])
+				klog.Info(tt.wantFree[priorityClassType])
+				klog.Info(gotFree[priorityClassType])
+				assert.True(t, quotav1.Equals(tt.wantReservationCapacity[priorityClassType], gotReservationCapacity[priorityClassType]))
+				assert.True(t, quotav1.Equals(tt.wantReservationRequested[priorityClassType], gotReservationRequested[priorityClassType]))
+				assert.True(t, quotav1.Equals(tt.wantReservationFree[priorityClassType], gotReservationFree[priorityClassType]))
 				assert.True(t, quotav1.Equals(tt.wantCapacity[priorityClassType], gotCapacity[priorityClassType]))
 				assert.True(t, quotav1.Equals(tt.wantRequested[priorityClassType], gotRequested[priorityClassType]))
 				assert.True(t, quotav1.Equals(tt.wantFree[priorityClassType], gotFree[priorityClassType]))
@@ -811,13 +1236,6 @@ func TestResourceSummaryReconciler_Reconcile(t *testing.T) {
 	r := &Reconciler{
 		Client: client,
 	}
-
-	//testEnv := envtest.Environment{}
-	//cfg, err := testEnv.Start()
-	//assert.NoError(t, err)
-	//
-	//_, err = ctrclient.New(cfg, ctrclient.Options{Scheme: scheme})
-	//assert.NoError(t, err)
 
 	nodeName := fmt.Sprintf("node-%d", 0)
 	err = r.Client.Create(context.Background(), &corev1.Node{
@@ -849,6 +1267,47 @@ func TestResourceSummaryReconciler_Reconcile(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
+	reservation := &schedulingv1alpha1.Reservation{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: fmt.Sprintf("reservation-%s-%d", "node-0", 0),
+		},
+		Spec: schedulingv1alpha1.ReservationSpec{
+			Template: &corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("4000m"),
+									corev1.ResourceMemory: resource.MustParse("4Gi"),
+								},
+							},
+						},
+					},
+					Priority: pointer.Int32(uniext.PriorityProdValueMax),
+				},
+			},
+		},
+		Status: schedulingv1alpha1.ReservationStatus{
+			Phase: schedulingv1alpha1.ReservationAvailable,
+			Allocatable: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("4000m"),
+				corev1.ResourceMemory: resource.MustParse("4Gi"),
+			},
+			Allocated: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("1000m"),
+				corev1.ResourceMemory: resource.MustParse("4Gi"),
+			},
+			CurrentOwners: []corev1.ObjectReference{
+				{
+					Namespace: "default",
+					Name:      fmt.Sprintf("pod-%d-%d", 0, 1),
+				},
+			},
+		},
+	}
+	assert.NoError(t, r.Client.Create(context.Background(), reservation))
+
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "test",
@@ -876,6 +1335,7 @@ func TestResourceSummaryReconciler_Reconcile(t *testing.T) {
 	pod.Name = fmt.Sprintf("pod-%d-%d", 0, 1)
 	priority := uniext.PriorityProdValueMax
 	pod.Spec.Priority = &priority
+	extension.SetReservationAllocated(pod, reservation)
 	err = r.Client.Create(context.Background(), pod)
 	assert.NoError(t, err)
 
@@ -1021,23 +1481,6 @@ func TestResourceSummaryReconciler_Reconcile(t *testing.T) {
 		NumNodes:        1,
 		Resources: []*v1beta1.NodeResourceSummary{
 			{
-				PriorityClass: uniext.PriorityProd,
-				Capacity: corev1.ResourceList{
-					corev1.ResourceCPU:              resource.MustParse("110"),
-					corev1.ResourceMemory:           resource.MustParse("100Gi"),
-					corev1.ResourceEphemeralStorage: resource.MustParse("200Gi"),
-				},
-				Allocatable: corev1.ResourceList{
-					corev1.ResourceCPU:              resource.MustParse("109"),
-					corev1.ResourceMemory:           resource.MustParse("88Gi"),
-					corev1.ResourceEphemeralStorage: resource.MustParse("200Gi"),
-				},
-				Allocated: corev1.ResourceList{
-					corev1.ResourceCPU:    resource.MustParse("1"),
-					corev1.ResourceMemory: resource.MustParse("4Gi"),
-				},
-			},
-			{
 				PriorityClass: uniext.PriorityBatch,
 				Capacity: corev1.ResourceList{
 					corev1.ResourceCPU:              resource.MustParse("50"),
@@ -1055,6 +1498,16 @@ func TestResourceSummaryReconciler_Reconcile(t *testing.T) {
 				},
 			},
 			{
+				PriorityClass: uniext.PriorityFree,
+				Capacity: corev1.ResourceList{
+					corev1.ResourceEphemeralStorage: resource.MustParse("200Gi"),
+				},
+				Allocated: corev1.ResourceList{},
+				Allocatable: corev1.ResourceList{
+					corev1.ResourceEphemeralStorage: resource.MustParse("200Gi"),
+				},
+			},
+			{
 				PriorityClass: uniext.PriorityMid,
 				Capacity: corev1.ResourceList{
 					corev1.ResourceEphemeralStorage: resource.MustParse("200Gi"),
@@ -1065,26 +1518,46 @@ func TestResourceSummaryReconciler_Reconcile(t *testing.T) {
 				},
 			},
 			{
-				PriorityClass: uniext.PriorityFree,
+				PriorityClass: uniext.PriorityProd,
 				Capacity: corev1.ResourceList{
+					corev1.ResourceCPU:              resource.MustParse("110"),
+					corev1.ResourceMemory:           resource.MustParse("100Gi"),
 					corev1.ResourceEphemeralStorage: resource.MustParse("200Gi"),
 				},
-				Allocated: corev1.ResourceList{},
 				Allocatable: corev1.ResourceList{
+					corev1.ResourceCPU:              resource.MustParse("106"),
+					corev1.ResourceMemory:           resource.MustParse("88Gi"),
 					corev1.ResourceEphemeralStorage: resource.MustParse("200Gi"),
+				},
+				Allocated: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("4"),
+					corev1.ResourceMemory: resource.MustParse("4Gi"),
+				},
+				ReserveResourceCapacity: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("4"),
+					corev1.ResourceMemory: resource.MustParse("4Gi"),
+				},
+				ReserveResourceAllocatable: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("3"),
+					corev1.ResourceMemory: resource.MustParse("0Gi"),
+				},
+				ReserveResourceAllocated: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("1"),
+					corev1.ResourceMemory: resource.MustParse("4Gi"),
 				},
 			},
 		},
 		ResourceSpecStats: []*v1beta1.ResourceSpecStat{
 			{
-				Name: "50C50Gi",
+				Name: "10C1Gi",
 				Allocatable: []*v1beta1.ResourceSpecStateAllocatable{
-					{
-						PriorityClass: uniext.PriorityProd,
-						Count:         int32(1),
-					},
+
 					{
 						PriorityClass: uniext.PriorityBatch,
+						Count:         int32(2),
+					},
+					{
+						PriorityClass: uniext.PriorityFree,
 						Count:         int32(0),
 					},
 					{
@@ -1092,8 +1565,8 @@ func TestResourceSummaryReconciler_Reconcile(t *testing.T) {
 						Count:         int32(0),
 					},
 					{
-						PriorityClass: uniext.PriorityFree,
-						Count:         int32(0),
+						PriorityClass: uniext.PriorityProd,
+						Count:         int32(10),
 					},
 				},
 			},
@@ -1101,11 +1574,11 @@ func TestResourceSummaryReconciler_Reconcile(t *testing.T) {
 				Name: "500C500Gi",
 				Allocatable: []*v1beta1.ResourceSpecStateAllocatable{
 					{
-						PriorityClass: uniext.PriorityProd,
+						PriorityClass: uniext.PriorityBatch,
 						Count:         int32(0),
 					},
 					{
-						PriorityClass: uniext.PriorityBatch,
+						PriorityClass: uniext.PriorityFree,
 						Count:         int32(0),
 					},
 					{
@@ -1113,29 +1586,30 @@ func TestResourceSummaryReconciler_Reconcile(t *testing.T) {
 						Count:         int32(0),
 					},
 					{
-						PriorityClass: uniext.PriorityFree,
+						PriorityClass: uniext.PriorityProd,
 						Count:         int32(0),
 					},
 				},
 			},
 			{
-				Name: "10C1Gi",
+				Name: "50C50Gi",
 				Allocatable: []*v1beta1.ResourceSpecStateAllocatable{
-					{
-						PriorityClass: uniext.PriorityProd,
-						Count:         int32(10),
-					},
+
 					{
 						PriorityClass: uniext.PriorityBatch,
-						Count:         int32(2),
+						Count:         int32(0),
+					},
+					{
+						PriorityClass: uniext.PriorityFree,
+						Count:         int32(0),
 					},
 					{
 						PriorityClass: uniext.PriorityMid,
 						Count:         int32(0),
 					},
 					{
-						PriorityClass: uniext.PriorityFree,
-						Count:         int32(0),
+						PriorityClass: uniext.PriorityProd,
+						Count:         int32(1),
 					},
 				},
 			},
@@ -1144,6 +1618,13 @@ func TestResourceSummaryReconciler_Reconcile(t *testing.T) {
 			{
 				Name: "test",
 				Allocated: []*v1beta1.PodPriorityUsed{
+					{
+						PriorityClass: uniext.PriorityBatch,
+						Allocated: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("2"),
+							corev1.ResourceMemory: resource.MustParse("8Gi"),
+						},
+					},
 					{
 						PriorityClass: uniext.PriorityFree,
 						Allocated:     corev1.ResourceList{},
@@ -1159,32 +1640,10 @@ func TestResourceSummaryReconciler_Reconcile(t *testing.T) {
 							corev1.ResourceMemory: resource.MustParse("4Gi"),
 						},
 					},
-					{
-						PriorityClass: uniext.PriorityBatch,
-						Allocated: corev1.ResourceList{
-							corev1.ResourceCPU:    resource.MustParse("2"),
-							corev1.ResourceMemory: resource.MustParse("8Gi"),
-						},
-					},
 				},
 			},
 		},
 	}
-	sort.Slice(expectedSummary.Status.Resources, func(i, j int) bool {
-		return expectedSummary.Status.Resources[i].PriorityClass < expectedSummary.Status.Resources[j].PriorityClass
-	})
-	sort.Slice(expectedSummary.Status.ResourceSpecStats, func(i, j int) bool {
-		return expectedSummary.Status.ResourceSpecStats[i].Name < expectedSummary.Status.ResourceSpecStats[j].Name
-	})
-	for _, resourceSpecStat := range expectedSummary.Status.ResourceSpecStats {
-		sort.Slice(resourceSpecStat.Allocatable, func(i, j int) bool {
-			return resourceSpecStat.Allocatable[i].PriorityClass < resourceSpecStat.Allocatable[j].PriorityClass
-		})
-	}
-	expectedPodUsedStatistics := expectedSummary.Status.PodUsedStatistics[0]
-	sort.Slice(expectedPodUsedStatistics.Allocated, func(i, j int) bool {
-		return expectedPodUsedStatistics.Allocated[i].PriorityClass < expectedPodUsedStatistics.Allocated[j].PriorityClass
-	})
 
 	assert.Equal(t, expectedSummary.Status.Phase, newSummary.Status.Phase)
 	assert.Equal(t, expectedSummary.Status.NumNodes, newSummary.Status.NumNodes)
@@ -1192,23 +1651,13 @@ func TestResourceSummaryReconciler_Reconcile(t *testing.T) {
 	for i := 0; i < len(expectedSummary.Status.Resources); i++ {
 		left := expectedSummary.Status.Resources[i]
 		right := newSummary.Status.Resources[i]
-		for k, v := range left.Capacity {
-			assert.True(t, v.Equal(right.Capacity[k]))
-		}
-		for k, v := range left.Allocatable {
-			if !v.Equal(right.Allocatable[k]) {
-				klog.Info(k, " ", v, right.Allocatable[k], "\n")
-			}
-			assert.True(t, v.Equal(right.Allocatable[k]))
-		}
-		for k, v := range left.Allocated {
-			if !v.Equal(right.Allocated[k]) {
-				klog.Info(k, " ", v, right.Allocatable[k], "\n")
-			}
-			assert.True(t, v.Equal(right.Allocated[k]))
-		}
+		assert.True(t, quotav1.Equals(left.Capacity, right.Capacity))
+		assert.True(t, quotav1.Equals(left.Allocatable, right.Allocatable))
+		assert.True(t, quotav1.Equals(left.Allocated, right.Allocated))
+		assert.True(t, quotav1.Equals(left.ReserveResourceCapacity, right.ReserveResourceCapacity))
+		assert.True(t, quotav1.Equals(left.ReserveResourceAllocatable, right.ReserveResourceAllocatable))
+		assert.True(t, quotav1.Equals(left.ReserveResourceAllocated, right.ReserveResourceAllocated))
 	}
-
 	for i := 0; i < len(expectedSummary.Status.ResourceSpecStats); i++ {
 		left := expectedSummary.Status.ResourceSpecStats[i]
 		right := newSummary.Status.ResourceSpecStats[i]
@@ -1218,7 +1667,7 @@ func TestResourceSummaryReconciler_Reconcile(t *testing.T) {
 			assert.Equal(t, v.Count, right.Allocatable[k].Count)
 		}
 	}
-
+	expectedPodUsedStatistics := expectedSummary.Status.PodUsedStatistics[0]
 	assert.Equal(t, expectedPodUsedStatistics.Name, newPodUsedStatistics.Name)
 	for i := 0; i < len(expectedPodUsedStatistics.Allocated); i++ {
 		left := expectedPodUsedStatistics.Allocated[i]
