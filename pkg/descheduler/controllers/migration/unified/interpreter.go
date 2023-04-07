@@ -159,6 +159,7 @@ func (p *Interpreter) CreateReservation(ctx context.Context, job *koordsev1alpha
 			DeleteAfterOwnerUse: true,
 		},
 	}
+	reserveResource.Namespace = reservationOptions.Template.Spec.Template.Namespace
 
 	if reservationOptions.Template.Spec.TTL != nil {
 		reserveResource.Spec.TimeToLiveDuration = reservationOptions.Template.Spec.TTL.DeepCopy()
