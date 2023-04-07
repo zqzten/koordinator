@@ -21,11 +21,13 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/util"
 )
 
@@ -51,20 +53,28 @@ func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error)
 func (p *Plugin) Name() string { return Name }
 
 func (p *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
+	return p.preBindObject(ctx, cycleState, pod, nodeName)
+}
+
+func (p *Plugin) PreBindReservation(ctx context.Context, cycleState *framework.CycleState, reservation *schedulingv1alpha1.Reservation, nodeName string) *framework.Status {
+	return p.preBindObject(ctx, cycleState, reservation, nodeName)
+}
+
+func (p *Plugin) preBindObject(ctx context.Context, cycleState *framework.CycleState, obj metav1.Object, nodeName string) *framework.Status {
 	labels := map[string]string{extunified.K8sLabelScheduleNodeName: nodeName}
 	annotations := map[string]string{}
 	updateTime := time.Now().In(time.FixedZone("CST", 8*3600)).Format(time.RFC3339Nano)
 	annotations[extunified.AnnotationSchedulerUpdateTime] = updateTime
 	annotations[extunified.AnnotationSchedulerBindTime] = updateTime
-	// patch pod or reservation (if the pod is a reserve pod) with new annotations
+	// patch pod or reservation with new annotations and new labels
 	err := util.RetryOnConflictOrTooManyRequests(func() error {
-		_, err1 := util.NewPatch().WithHandle(p.handle).AddAnnotations(annotations).AddLabels(labels).PatchPodOrReservation(pod)
+		_, err1 := util.NewPatch().WithHandle(p.handle).AddAnnotations(annotations).AddLabels(labels).Patch(ctx, obj)
 		return err1
 	})
 	if err != nil {
-		klog.V(3).ErrorS(err, "Failed to preBind Pod", "pod", klog.KObj(pod))
+		klog.V(3).ErrorS(err, "Failed to preBind", "object", klog.KObj(obj))
 		return framework.NewStatus(framework.Error, err.Error())
 	}
-	klog.V(4).Infof("Successfully preBind Pod %s/%s with schedule result", pod.Namespace, pod.Name)
+	klog.V(4).Infof("Successfully preBind Object %v(%T) with schedule result", klog.KObj(obj), obj)
 	return nil
 }

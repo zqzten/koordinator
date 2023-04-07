@@ -164,7 +164,7 @@ func (p *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState, 
 		retry.DefaultRetry,
 		errors.IsTooManyRequests,
 		func() error {
-			_, err = util.PatchPod(p.handle.ClientSet(), podOriginal, pod)
+			_, err = util.PatchPod(ctx, p.handle.ClientSet(), podOriginal, pod)
 			return err
 		})
 	if err != nil {

@@ -28,7 +28,7 @@ require (
 	github.com/robfig/cron v1.2.0
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.8.1
+	github.com/stretchr/testify v1.8.2
 	gitlab.alibaba-inc.com/cos/recommender v0.4.4-122.0.20230215023005-ee4271f23a72
 	gitlab.alibaba-inc.com/cos/scheduling-api v0.0.0-20210630080232-14abe8ce6989
 	gitlab.alibaba-inc.com/cos/unified-resource-api v1.22.3-1.0.20221213101318-186061b012a8
@@ -54,6 +54,7 @@ require (
 	k8s.io/component-helpers v0.26.0
 	k8s.io/cri-api v0.22.6
 	k8s.io/csi-translation-lib v0.22.6
+	k8s.io/klog v1.0.0
 	k8s.io/klog/v2 v2.80.1
 	k8s.io/kube-scheduler v0.22.6
 	k8s.io/kubectl v0.22.6
@@ -220,7 +221,6 @@ require (
 	k8s.io/apiextensions-apiserver v0.22.6 // indirect
 	k8s.io/cloud-provider v0.22.6 // indirect
 	k8s.io/gengo v0.0.0-20220902162205-c0856e24416d // indirect
-	k8s.io/klog v1.0.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280 // indirect
 	k8s.io/kube-proxy v0.0.0 // indirect
 	k8s.io/legacy-cloud-providers v0.0.0 // indirect

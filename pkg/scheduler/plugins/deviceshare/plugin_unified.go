@@ -48,7 +48,7 @@ func (p *Plugin) appendInternalAnnotations(obj metav1.Object, allocResult apiext
 	ack.AppendAckAnnotations(pod, allocResult)
 	if isVirtualGPUCard(allocResult) {
 		allocMinor := allocResult[schedulingv1alpha1.GPU][0].Minor
-		gpuMemory := p.nodeDeviceCache.getNodeDevice(nodeName).deviceTotal[schedulingv1alpha1.GPU][int(allocMinor)][apiext.ResourceGPUMemory]
+		gpuMemory := p.nodeDeviceCache.getNodeDevice(nodeName, false).deviceTotal[schedulingv1alpha1.GPU][int(allocMinor)][apiext.ResourceGPUMemory]
 		pod.Annotations[ack.AnnotationAliyunEnvMemDev] = fmt.Sprintf("%v", gpuMemory.Value()/1024/1024/1024)
 		gpuMemoryPod := allocResult[schedulingv1alpha1.GPU][0].Resources[apiext.ResourceGPUMemory]
 		pod.Annotations[ack.AnnotationAliyunEnvMemPod] = fmt.Sprintf("%v", gpuMemoryPod.Value()/1024/1024/1024)

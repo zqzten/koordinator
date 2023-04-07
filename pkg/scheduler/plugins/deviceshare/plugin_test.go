@@ -1254,7 +1254,7 @@ func Test_Plugin_Filter(t *testing.T) {
 }
 
 func Test_Plugin_FilterReservation(t *testing.T) {
-	suit := newPluginTestSuit(t, nil)
+	suit := newPluginTestSuit(t, []*corev1.Node{{ObjectMeta: metav1.ObjectMeta{Name: "test-node-1"}}})
 	p, err := suit.proxyNew(&config.DeviceShareArgs{}, suit.Framework)
 	assert.NoError(t, err)
 	pl := p.(*Plugin)
@@ -1346,12 +1346,8 @@ func Test_Plugin_FilterReservation(t *testing.T) {
 	}
 	nd.updateCacheUsed(allocations, allocatedPod, true)
 
-	nodeInfo := framework.NewNodeInfo()
-	nodeInfo.SetNode(&corev1.Node{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "test-node-1",
-		},
-	})
+	nodeInfo, err := pl.handle.SnapshotSharedLister().NodeInfos().Get("test-node-1")
+	assert.NoError(t, err)
 
 	status = pl.RemoveReservation(context.TODO(), cycleState, pod, reservation, nodeInfo)
 	assert.True(t, status.IsSuccess())
@@ -2598,11 +2594,11 @@ func Test_Plugin_PreBind(t *testing.T) {
 	type args struct {
 		state *preFilterState
 		pod   *corev1.Pod
+		node  *corev1.Node
 	}
 	tests := []struct {
 		name       string
 		args       args
-		handle     frameworkext.ExtendedHandle
 		wantStatus *framework.Status
 	}{
 		{
@@ -2653,19 +2649,32 @@ func Test_Plugin_PreBind(t *testing.T) {
 						apiext.ResourceGPUMemory:      resource.MustParse("32Gi"),
 					},
 				},
+				node: &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "test-node"}},
 			},
-			handle: &fakeExtendedHandle{cs: kubefake.NewSimpleClientset(testPod), snapShotSharedLister: newTestSharedLister(nil, []*corev1.Node{{ObjectMeta: metav1.ObjectMeta{Name: "test-node"}}})},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var nodes []*corev1.Node
+			if tt.args.node != nil {
+				nodes = append(nodes, tt.args.node)
+			}
+			suit := newPluginTestSuit(t, nodes)
+			_, err := suit.ClientSet().CoreV1().Pods(testPod.Namespace).Create(context.TODO(), testPod, metav1.CreateOptions{})
+			assert.NoError(t, err)
+			pl, err := suit.proxyNew(&config.DeviceShareArgs{}, suit.Framework)
+			assert.NoError(t, err)
 
-			p := &Plugin{nodeDeviceCache: newNodeDeviceCache(), handle: tt.handle, allocator: &defaultAllocator{}}
+			suit.Framework.SharedInformerFactory().Start(nil)
+			suit.koordinatorSharedInformerFactory.Start(nil)
+			suit.Framework.SharedInformerFactory().WaitForCacheSync(nil)
+			suit.koordinatorSharedInformerFactory.WaitForCacheSync(nil)
+
 			cycleState := framework.NewCycleState()
 			if tt.args.state != nil {
 				cycleState.Write(stateKey, tt.args.state)
 			}
-			status := p.PreBind(context.TODO(), cycleState, tt.args.pod, "test-node")
+			status := pl.(*Plugin).PreBind(context.TODO(), cycleState, tt.args.pod, "test-node")
 			assert.Equal(t, tt.wantStatus, status)
 		})
 	}
@@ -2719,7 +2728,7 @@ func Test_Plugin_PreBindReservation(t *testing.T) {
 		},
 	}
 
-	suit := newPluginTestSuit(t, nil)
+	suit := newPluginTestSuit(t, []*corev1.Node{{ObjectMeta: metav1.ObjectMeta{Name: "test-node"}}})
 
 	_, err := suit.koordClientSet.SchedulingV1alpha1().Reservations().Create(context.TODO(), reservation, metav1.CreateOptions{})
 	assert.NoError(t, err)
