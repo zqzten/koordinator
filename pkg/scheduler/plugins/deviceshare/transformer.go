@@ -49,7 +49,7 @@ func (h *nodeInfoHook) hookNodeInfo(nodeInfo *framework.NodeInfo) {
 
 	node := nodeInfo.Node()
 
-	nodeDevice := deviceCache.getNodeDevice(node.Name)
+	nodeDevice := deviceCache.getNodeDevice(node.Name, false)
 	if nodeDevice == nil {
 		return
 	}
