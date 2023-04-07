@@ -839,13 +839,13 @@ func TestAutopilotAllocator(t *testing.T) {
 
 			deviceCache := newNodeDeviceCache()
 			registerDeviceEventHandler(deviceCache, koordShareInformerFactory)
-			registerPodEventHandler(deviceCache, sharedInformerFactory)
+			registerPodEventHandler(deviceCache, sharedInformerFactory, koordShareInformerFactory)
 
 			allocator := NewAutopilotAllocator(AllocatorOptions{
 				SharedInformerFactory:      sharedInformerFactory,
 				KoordSharedInformerFactory: koordShareInformerFactory,
 			})
-			nodeDevice := deviceCache.getNodeDevice("test-node-1")
+			nodeDevice := deviceCache.getNodeDevice("test-node-1", false)
 			assert.NotNil(t, nodeDevice)
 
 			podRequest := corev1.ResourceList{}
@@ -867,7 +867,7 @@ func TestAutopilotAllocator(t *testing.T) {
 				},
 			}
 
-			allocations, err := allocator.Allocate("test-node-1", pod, podRequest, nodeDevice)
+			allocations, err := allocator.Allocate("test-node-1", pod, podRequest, nodeDevice, nil)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Allocate() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -946,13 +946,13 @@ func TestMatchDriverVersions(t *testing.T) {
 
 			deviceCache := newNodeDeviceCache()
 			registerDeviceEventHandler(deviceCache, koordShareInformerFactory)
-			registerPodEventHandler(deviceCache, sharedInformerFactory)
+			registerPodEventHandler(deviceCache, sharedInformerFactory, koordShareInformerFactory)
 
 			allocator := NewAutopilotAllocator(AllocatorOptions{
 				SharedInformerFactory:      sharedInformerFactory,
 				KoordSharedInformerFactory: koordShareInformerFactory,
 			})
-			nodeDevice := deviceCache.getNodeDevice("test-node-1")
+			nodeDevice := deviceCache.getNodeDevice("test-node-1", false)
 			assert.NotNil(t, nodeDevice)
 
 			podRequest := corev1.ResourceList{
@@ -977,7 +977,7 @@ func TestMatchDriverVersions(t *testing.T) {
 				pod.Spec.RuntimeClassName = pointer.String("rund")
 			}
 
-			allocations, err := allocator.Allocate("test-node-1", pod, podRequest, nodeDevice)
+			allocations, err := allocator.Allocate("test-node-1", pod, podRequest, nodeDevice, nil)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Allocate() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -1015,13 +1015,13 @@ func TestAutopilotAllocatorReserveAndUnreserve(t *testing.T) {
 
 	deviceCache := newNodeDeviceCache()
 	registerDeviceEventHandler(deviceCache, koordShareInformerFactory)
-	registerPodEventHandler(deviceCache, sharedInformerFactory)
+	registerPodEventHandler(deviceCache, sharedInformerFactory, koordShareInformerFactory)
 
 	allocator := NewAutopilotAllocator(AllocatorOptions{
 		SharedInformerFactory:      sharedInformerFactory,
 		KoordSharedInformerFactory: koordShareInformerFactory,
 	})
-	nodeDevice := deviceCache.getNodeDevice("test-node-1")
+	nodeDevice := deviceCache.getNodeDevice("test-node-1", false)
 	assert.NotNil(t, nodeDevice)
 
 	allocations := apiext.DeviceAllocations{
@@ -1447,13 +1447,13 @@ func TestAutopilotAllocateNVSwitch(t *testing.T) {
 
 			deviceCache := newNodeDeviceCache()
 			registerDeviceEventHandler(deviceCache, koordShareInformerFactory)
-			registerPodEventHandler(deviceCache, sharedInformerFactory)
+			registerPodEventHandler(deviceCache, sharedInformerFactory, koordShareInformerFactory)
 
 			allocator := NewAutopilotAllocator(AllocatorOptions{
 				SharedInformerFactory:      sharedInformerFactory,
 				KoordSharedInformerFactory: koordShareInformerFactory,
 			})
-			nodeDevice := deviceCache.getNodeDevice("test-node-1")
+			nodeDevice := deviceCache.getNodeDevice("test-node-1", false)
 			assert.NotNil(t, nodeDevice)
 
 			podRequest := corev1.ResourceList{
@@ -1467,7 +1467,7 @@ func TestAutopilotAllocateNVSwitch(t *testing.T) {
 			nodeDevice.lock.Lock()
 			defer nodeDevice.lock.Unlock()
 
-			allocations, err := allocator.Allocate("test-node-1", &corev1.Pod{}, podRequest, nodeDevice)
+			allocations, err := allocator.Allocate("test-node-1", &corev1.Pod{}, podRequest, nodeDevice, nil)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Allocate() error = %v, wantErr %v", err, tt.wantErr)
 				return

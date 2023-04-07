@@ -21,6 +21,7 @@ import (
 
 	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
@@ -118,10 +119,16 @@ func GetResourceStatus(annotations map[string]string) (*extension.ResourceStatus
 	return resourceStatus, nil
 }
 
-func SetResourceStatus(pod *corev1.Pod, status *extension.ResourceStatus) error {
-	err := extension.SetResourceStatus(pod, status)
+func SetResourceStatus(obj metav1.Object, status *extension.ResourceStatus) error {
+	err := extension.SetResourceStatus(obj, status)
 	if err != nil {
 		return err
+	}
+
+	// just set unified/asi protocol into pod
+	pod, ok := obj.(*corev1.Pod)
+	if !ok {
+		return nil
 	}
 
 	cpuset, err := cpuset.Parse(status.CPUSet)
