@@ -1419,7 +1419,7 @@ func Test_Plugin_Filter(t *testing.T) {
 }
 
 func Test_Plugin_FilterReservation(t *testing.T) {
-	suit := newPluginTestSuit(t, nil)
+	suit := newPluginTestSuit(t, []*corev1.Node{{ObjectMeta: metav1.ObjectMeta{Name: "test-node-1"}}})
 	p, err := suit.proxyNew(&config.DeviceShareArgs{}, suit.Framework)
 	assert.NoError(t, err)
 	pl := p.(*Plugin)
@@ -2967,6 +2967,7 @@ func Test_Plugin_PreBind(t *testing.T) {
 	type args struct {
 		state *preFilterState
 		pod   *corev1.Pod
+		node  *corev1.Node
 	}
 	tests := []struct {
 		name       string
@@ -3024,6 +3025,7 @@ func Test_Plugin_PreBind(t *testing.T) {
 						apiext.ResourceGPUMemory:      resource.MustParse("32Gi"),
 					},
 				},
+				node: &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "test-node"}},
 			},
 			wantPod: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
@@ -3122,7 +3124,7 @@ func Test_Plugin_PreBindReservation(t *testing.T) {
 		},
 	}
 
-	suit := newPluginTestSuit(t, nil)
+	suit := newPluginTestSuit(t, []*corev1.Node{{ObjectMeta: metav1.ObjectMeta{Name: "test-node"}}})
 
 	_, err := suit.koordClientSet.SchedulingV1alpha1().Reservations().Create(context.TODO(), reservation, metav1.CreateOptions{})
 	assert.NoError(t, err)

@@ -123,7 +123,7 @@ func (a *AutopilotAllocator) Name() string {
 	return AutopilotAllocatorName
 }
 
-func (a *AutopilotAllocator) Allocate(nodeName string, pod *corev1.Pod, podRequest corev1.ResourceList, nodeDevice *nodeDevice) (apiext.DeviceAllocations, error) {
+func (a *AutopilotAllocator) Allocate(nodeName string, pod *corev1.Pod, podRequest corev1.ResourceList, nodeDevice *nodeDevice, preemptibleFreeDevices map[schedulingv1alpha1.DeviceType]deviceResources) (apiext.DeviceAllocations, error) {
 	device, err := a.deviceLister.Get(nodeName)
 	if err != nil {
 		return nil, err
@@ -157,7 +157,7 @@ func (a *AutopilotAllocator) Allocate(nodeName string, pod *corev1.Pod, podReque
 
 	podRequest = podRequest.DeepCopy()
 	if !hasDeviceResource(podRequest, schedulingv1alpha1.GPU) {
-		return a.allocateNonGPUDevices(nodeName, nodeDevice, podRequest, mustAllocateVF(pod), deviceTopology, rdmaTopology)
+		return a.allocateNonGPUDevices(nodeName, nodeDevice, podRequest, mustAllocateVF(pod), deviceTopology, rdmaTopology, preemptibleFreeDevices)
 	}
 
 	nodeDeviceTotal := nodeDevice.deviceTotal[schedulingv1alpha1.GPU]
@@ -171,7 +171,7 @@ func (a *AutopilotAllocator) Allocate(nodeName string, pod *corev1.Pod, podReque
 
 	gpuWanted := int64(1)
 	var gpuRequestPerCard corev1.ResourceList
-	if isMultipleGPUPod(gpuRequest) {
+	if isPodRequestsMultipleDevice(gpuRequest, schedulingv1alpha1.GPU) {
 		gpuCore, gpuMem, gpuMemRatio := gpuRequest[apiext.ResourceGPUCore], gpuRequest[apiext.ResourceGPUMemory], gpuRequest[apiext.ResourceGPUMemoryRatio]
 		gpuWanted = gpuCore.Value() / 100
 		gpuRequestPerCard = corev1.ResourceList{
@@ -183,11 +183,11 @@ func (a *AutopilotAllocator) Allocate(nodeName string, pod *corev1.Pod, podReque
 		gpuRequestPerCard = gpuRequest
 	}
 
-	deviceAllocations, _, err := a.allocateResourcesByPCIE(nodeName, nodeDevice, gpuRequestPerCard, rdmaRequest, mustAllocateVF(pod), int(gpuWanted), deviceTopology, rdmaTopology)
+	deviceAllocations, _, err := a.allocateResourcesByPCIE(nodeName, nodeDevice, gpuRequestPerCard, rdmaRequest, mustAllocateVF(pod), int(gpuWanted), deviceTopology, rdmaTopology, preemptibleFreeDevices)
 	if err != nil {
 		var zeroRDMARequest resource.Quantity
 		var allocatedPCIEs sets.Int
-		deviceAllocations, allocatedPCIEs, err = a.allocateResourcesByPCIE(nodeName, nodeDevice, gpuRequestPerCard, zeroRDMARequest, false, int(gpuWanted), deviceTopology, rdmaTopology)
+		deviceAllocations, allocatedPCIEs, err = a.allocateResourcesByPCIE(nodeName, nodeDevice, gpuRequestPerCard, zeroRDMARequest, false, int(gpuWanted), deviceTopology, rdmaTopology, preemptibleFreeDevices)
 		if err != nil {
 			return nil, err
 		}
@@ -225,6 +225,7 @@ func (a *AutopilotAllocator) allocateNonGPUDevices(
 	requireAllocateVF bool,
 	deviceTopology *unified.DeviceTopology,
 	rdmaTopology *unified.RDMATopology,
+	preemptibleFreeDevices map[schedulingv1alpha1.DeviceType]deviceResources,
 ) (apiext.DeviceAllocations, error) {
 	deviceAllocations := apiext.DeviceAllocations{}
 	rdmaRequest := podRequest[apiext.ResourceRDMA]
@@ -243,7 +244,7 @@ func (a *AutopilotAllocator) allocateNonGPUDevices(
 		delete(podRequest, apiext.ResourceRDMA)
 	}
 	if len(podRequest) > 0 {
-		otherDeviceAllocations, err := nodeDevice.tryAllocateDevice(podRequest)
+		otherDeviceAllocations, err := nodeDevice.tryAllocateDevice(podRequest, preemptibleFreeDevices)
 		if err != nil {
 			return nil, err
 		}
@@ -263,10 +264,11 @@ func (a *AutopilotAllocator) allocateResourcesByPCIE(
 	gpuWanted int,
 	deviceTopology *unified.DeviceTopology,
 	rdmaTopology *unified.RDMATopology,
+	preemptibleFreeDevices map[schedulingv1alpha1.DeviceType]deviceResources,
 ) (apiext.DeviceAllocations, sets.Int, error) {
 	acc := newDeviceAccumulator(deviceTopology, nodeDevice, gpuWanted)
 	pcieSwitchGroups := acc.freePCIESwitchesInNode()
-	allocations, allocatedPCIEs, err := a.allocateByPCIEGroup(pcieSwitchGroups, gpuRequestPerCard, rdmaRequest, acc.needCount())
+	allocations, allocatedPCIEs, err := a.allocateByPCIEGroup(pcieSwitchGroups, gpuRequestPerCard, rdmaRequest, acc.needCount(), preemptibleFreeDevices)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -278,7 +280,7 @@ func (a *AutopilotAllocator) allocateResourcesByPCIE(
 	}
 	if !acc.isSatisfied() && numaNodeCount > 1 {
 		pcieSwitchGroups = acc.freePCIESwitchesInSocket()
-		allocations, allocatedPCIEs, err = a.allocateByPCIEGroup(pcieSwitchGroups, gpuRequestPerCard, rdmaRequest, acc.needCount())
+		allocations, allocatedPCIEs, err = a.allocateByPCIEGroup(pcieSwitchGroups, gpuRequestPerCard, rdmaRequest, acc.needCount(), preemptibleFreeDevices)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -286,7 +288,7 @@ func (a *AutopilotAllocator) allocateResourcesByPCIE(
 	}
 
 	if !acc.isSatisfied() {
-		allocations, allocatedPCIEs, err = a.allocateByPCIE(acc.freePCIESwitches(), gpuRequestPerCard, rdmaRequest, acc.needCount())
+		allocations, allocatedPCIEs, err = a.allocateByPCIE(acc.freePCIESwitches(), gpuRequestPerCard, rdmaRequest, acc.needCount(), preemptibleFreeDevices)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -299,6 +301,7 @@ func (a *AutopilotAllocator) allocateResourcesByPCIE(
 
 	deviceAllocations := acc.result
 	if !rdmaRequest.IsZero() && requireAllocateVF {
+		// FIXME: VF should also support preempting
 		rdmaAllocations, err := a.allocateVFs(nodeName, rdmaRequest, acc.allocatedPCIEs.Len(), true, acc.allocatedPCIEs, deviceTopology, rdmaTopology)
 		if err != nil {
 			return nil, nil, err
@@ -313,13 +316,14 @@ func (a *AutopilotAllocator) allocateByPCIEGroup(
 	gpuRequestPerCard corev1.ResourceList,
 	rdmaRequest resource.Quantity,
 	gpuWanted int,
+	preemptibleFreeDevices map[schedulingv1alpha1.DeviceType]deviceResources,
 ) (apiext.DeviceAllocations, sets.Int, error) {
 	for _, group := range pcieSwitchGroups {
 		count := int(group.free[schedulingv1alpha1.GPU] / 100)
 		if count < gpuWanted {
 			continue
 		}
-		allocations, allocatedPCIEs, err := a.allocateByPCIE(group.pcieSwitches, gpuRequestPerCard, rdmaRequest, gpuWanted)
+		allocations, allocatedPCIEs, err := a.allocateByPCIE(group.pcieSwitches, gpuRequestPerCard, rdmaRequest, gpuWanted, preemptibleFreeDevices)
 		if err != nil {
 			continue
 		}
@@ -333,6 +337,7 @@ func (a *AutopilotAllocator) allocateByPCIE(
 	gpuRequestPerCard corev1.ResourceList,
 	rdmaRequest resource.Quantity,
 	gpuWanted int,
+	preemptibleFreeDevices map[schedulingv1alpha1.DeviceType]deviceResources,
 ) (apiext.DeviceAllocations, sets.Int, error) {
 	satisfiedDeviceCount := 0
 	totalDeviceAllocations := apiext.DeviceAllocations{}
@@ -364,7 +369,7 @@ allocateLoop:
 				if !rdmaRequest.IsZero() {
 					resourceRequest[apiext.ResourceRDMA] = rdmaRequest
 				}
-				deviceAllocations, err := pcie.nodeDevice.tryAllocateDevice(resourceRequest)
+				deviceAllocations, err := pcie.nodeDevice.tryAllocateDevice(resourceRequest, preemptibleFreeDevices)
 				if err != nil {
 					break
 				}

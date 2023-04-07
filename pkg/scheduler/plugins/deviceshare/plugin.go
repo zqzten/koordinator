@@ -324,6 +324,17 @@ func (p *Plugin) FilterReservation(ctx context.Context, cycleState *framework.Cy
 	if state.skip {
 		return nil
 	}
+	nodeInfo, err := p.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
+	if err != nil {
+		return framework.NewStatus(framework.Error, fmt.Sprintf("getting node %q from Snapshot: %v", nodeName, err))
+	}
+	node := nodeInfo.Node()
+	if node == nil {
+		return framework.NewStatus(framework.Error, "node not found")
+	}
+	if extunified.IsVirtualKubeletNode(node) {
+		return nil
+	}
 
 	reservationRestoreState := getReservationRestoreState(cycleState)
 	restoreState := reservationRestoreState.getNodeState(nodeName)
