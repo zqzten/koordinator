@@ -106,11 +106,11 @@ func (c *Cache) UpdatePod(nodeName string, oldPod, newPod *corev1.Pod) {
 	c.addPod(nodeName, newPod)
 }
 
-func (c *Cache) GetAllocCount(nodeName string, spreadInfo *extunified.PodSpreadInfo) int {
+func (c *Cache) GetAllocCount(nodeName string, spreadInfo *extunified.PodSpreadInfo, preemptivePods sets.String) int {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	if stat, ok := c.stats[nodeName]; ok {
-		return stat.GetAllocCount(spreadInfo)
+		return stat.GetAllocCount(spreadInfo, preemptivePods)
 	}
 	return 0
 }
