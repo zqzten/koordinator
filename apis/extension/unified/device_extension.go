@@ -77,6 +77,8 @@ type PCIESwitchInfo struct {
 }
 
 type RDMADeviceInfo struct {
+	// Type represents the PF type
+	Type RDMADeviceType `json:"type,omitempty"`
 	// Name represents the NIC Name, e.g. "mlx5_bond_0"
 	Name string `json:"name,omitempty"`
 	// Minor represents the device minor id, e.g. 1
@@ -87,7 +89,24 @@ type RDMADeviceInfo struct {
 	Bond uint32 `json:"bond,omitempty"`
 	// BondSlaves contains all physical NICs, e.g. ["eth1","eth2"]
 	BondSlaves []string `json:"bondSlaves,omitempty"`
+	// Bandwidth represents the network bandwidth, the unit is Gbps
+	Bandwidth int `json:"bw,omitempty"`
 }
+
+type RDMADeviceType string
+
+const (
+	RDMADeviceTypeSystem RDMADeviceType = "pf_system"
+	RDMADeviceTypeWorker RDMADeviceType = "pf_worker"
+)
+
+type VFDeviceType string
+
+const (
+	VFDeviceTypeGPU     VFDeviceType = "vf_gpu"
+	VFDeviceTypeCPU     VFDeviceType = "vf_cpu"
+	VFDeviceTypeStorage VFDeviceType = "vf_storage"
+)
 
 // RDMATopology describes VFs information per RDMA device
 type RDMATopology struct {
@@ -96,11 +115,12 @@ type RDMATopology struct {
 }
 
 type VF struct {
-	Name     string     `json:"name,omitempty"`
-	BondName string     `json:"bondName,omitempty"`
-	BusID    string     `json:"busID,omitempty"`
-	Minor    int32      `json:"minor"`
-	Priority VFPriority `json:"priority,omitempty"`
+	Name     string       `json:"name,omitempty"`
+	BondName string       `json:"bondName,omitempty"`
+	BusID    string       `json:"busID,omitempty"`
+	Minor    int32        `json:"minor"`
+	Priority VFPriority   `json:"priority,omitempty"`
+	Type     VFDeviceType `json:"type,omitempty"`
 }
 
 type VFPriority string
