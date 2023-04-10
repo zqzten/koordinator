@@ -21,6 +21,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
@@ -34,9 +35,10 @@ const (
 )
 
 var (
-	_ framework.PreFilterPlugin = &Plugin{}
-	_ framework.FilterPlugin    = &Plugin{}
-	_ framework.ReservePlugin   = &Plugin{}
+	_ framework.PreFilterPlugin     = &Plugin{}
+	_ framework.PreFilterExtensions = &Plugin{}
+	_ framework.FilterPlugin        = &Plugin{}
+	_ framework.ReservePlugin       = &Plugin{}
 )
 
 type Plugin struct {
@@ -60,6 +62,7 @@ func (p *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState
 	cycleState.Write(stateKey, &preFilterState{
 		podSpreadInfo:      podSpreadInfo,
 		maxInstancePerHost: maxInstancePerHost,
+		preemptivePods:     map[string]sets.String{},
 	})
 	return nil
 }
@@ -67,19 +70,73 @@ func (p *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState
 type preFilterState struct {
 	podSpreadInfo      *extunified.PodSpreadInfo
 	maxInstancePerHost int
+	preemptivePods     map[string]sets.String
 }
 
 func (s *preFilterState) Clone() framework.StateData {
+	preemptivePods := map[string]sets.String{}
+	for nodeName, podKeys := range preemptivePods {
+		preemptivePods[nodeName] = sets.NewString(podKeys.List()...)
+	}
 	return &preFilterState{
 		podSpreadInfo: &extunified.PodSpreadInfo{
 			AppName:     s.podSpreadInfo.AppName,
 			ServiceUnit: s.podSpreadInfo.ServiceUnit,
 		},
 		maxInstancePerHost: s.maxInstancePerHost,
+		preemptivePods:     preemptivePods,
 	}
 }
 
 func (p *Plugin) PreFilterExtensions() framework.PreFilterExtensions {
+	return p
+}
+
+func (p *Plugin) AddPod(ctx context.Context, cycleState *framework.CycleState, podToSchedule *corev1.Pod, podInfoToAdd *framework.PodInfo, nodeInfo *framework.NodeInfo) *framework.Status {
+	node := nodeInfo.Node()
+	if node == nil {
+		return framework.NewStatus(framework.Error, "node not found")
+	}
+	state, status := getPreFilterState(cycleState)
+	if status != nil {
+		return status
+	}
+	if state.podSpreadInfo == nil {
+		return nil
+	}
+	if state.preemptivePods[node.Name] == nil {
+		return nil
+	}
+	state.preemptivePods[node.Name].Delete(getNamespacedName(podInfoToAdd.Pod.Namespace, podInfoToAdd.Pod.Name))
+	if state.preemptivePods[node.Name].Len() == 0 {
+		delete(state.preemptivePods, node.Name)
+	}
+	return nil
+}
+
+func (p *Plugin) RemovePod(ctx context.Context, cycleState *framework.CycleState, podToSchedule *corev1.Pod, podInfoToRemove *framework.PodInfo, nodeInfo *framework.NodeInfo) *framework.Status {
+	node := nodeInfo.Node()
+	if node == nil {
+		return framework.NewStatus(framework.Error, "node not found")
+	}
+	state, status := getPreFilterState(cycleState)
+	if status != nil {
+		return status
+	}
+	if state.podSpreadInfo == nil {
+		return nil
+	}
+	_, podSpreadInfo := extunified.GetCustomPodAffinity(podInfoToRemove.Pod)
+	if podSpreadInfo == nil {
+		return nil
+	}
+	if (state.podSpreadInfo.ServiceUnit == "" && podSpreadInfo.AppName == state.podSpreadInfo.AppName) ||
+		(state.podSpreadInfo.ServiceUnit == podSpreadInfo.ServiceUnit && state.podSpreadInfo.AppName == podSpreadInfo.AppName) {
+		if state.preemptivePods[node.Name] == nil {
+			state.preemptivePods[node.Name] = sets.NewString()
+		}
+		state.preemptivePods[node.Name].Insert(getNamespacedName(podInfoToRemove.Pod.Namespace, podInfoToRemove.Pod.Name))
+	}
 	return nil
 }
 
@@ -99,8 +156,8 @@ func (p *Plugin) Filter(ctx context.Context, cycleState *framework.CycleState, p
 	if extunified.IsVirtualKubeletNode(node) {
 		return nil
 	}
-
-	if p.cache.GetAllocCount(node.Name, state.podSpreadInfo)+1 > state.maxInstancePerHost {
+	preemptivePods := state.preemptivePods[node.Name]
+	if p.cache.GetAllocCount(node.Name, state.podSpreadInfo, preemptivePods)+1 > state.maxInstancePerHost {
 		return framework.NewStatus(framework.Unschedulable, ErrReasonNotMatch)
 	}
 	return nil
