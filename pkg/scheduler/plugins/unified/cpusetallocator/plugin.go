@@ -29,6 +29,7 @@ import (
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	schedulingconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta2"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/nodenumaresource"
 )
 
@@ -70,6 +71,9 @@ var (
 	_ framework.ScorePlugin     = &Plugin{}
 	_ framework.ReservePlugin   = &Plugin{}
 	_ framework.PreBindPlugin   = &Plugin{}
+
+	_ frameworkext.ReservationPreFilterExtension = &Plugin{}
+	_ frameworkext.ReservationPreBindPlugin      = &Plugin{}
 )
 
 type Plugin struct {
