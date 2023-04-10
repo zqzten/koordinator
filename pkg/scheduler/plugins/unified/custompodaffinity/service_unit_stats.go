@@ -36,11 +36,15 @@ func newServiceUnitStats() *serviceUnitStats {
 	}
 }
 
-func (s *serviceUnitStats) GetAllocCount(spreadInfo *extunified.PodSpreadInfo) int {
-	if spreadInfo.ServiceUnit == "" {
-		return s.getAllocCountByAppName(spreadInfo.AppName)
+func (s *serviceUnitStats) GetAllocCount(spreadInfo *extunified.PodSpreadInfo, preemptivePods sets.String) int {
+	preemptiveCount := 0
+	if preemptivePods != nil {
+		preemptiveCount = preemptivePods.Intersection(s.AllocSet).Len()
 	}
-	return s.getAllocCountByServiceUnit(spreadInfo)
+	if spreadInfo.ServiceUnit == "" {
+		return s.getAllocCountByAppName(spreadInfo.AppName) - preemptiveCount
+	}
+	return s.getAllocCountByServiceUnit(spreadInfo) - preemptiveCount
 }
 
 func (s *serviceUnitStats) getAllocCountByAppName(appName string) int {
@@ -78,6 +82,7 @@ func (s *serviceUnitStats) copyFrom(stats *serviceUnitStats) {
 	for key, value := range stats.ServiceUnitCounter {
 		s.ServiceUnitCounter[key] = value
 	}
+	s.AllocSet = sets.NewString(stats.AllocSet.List()...)
 }
 
 func (s *serviceUnitStats) setMaxValue(appName, serviceUnit string) {

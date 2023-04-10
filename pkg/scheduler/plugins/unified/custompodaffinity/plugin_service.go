@@ -38,7 +38,7 @@ func (p *Plugin) RegisterEndpoints(group *gin.RouterGroup) {
 		podSpreadInfo := &extunified.PodSpreadInfo{
 			AppName: c.Param("appName"),
 		}
-		allocCount := p.cache.GetAllocCount(nodeName, podSpreadInfo)
+		allocCount := p.cache.GetAllocCount(nodeName, podSpreadInfo, nil)
 		serviceStatsResponse := &serviceUnitStatsResponse{
 			PodSpreadInfo: podSpreadInfo,
 			AllocCount:    allocCount,
@@ -51,7 +51,7 @@ func (p *Plugin) RegisterEndpoints(group *gin.RouterGroup) {
 			AppName:     c.Param("appName"),
 			ServiceUnit: c.Param("serviceUnitName"),
 		}
-		allocCount := p.cache.GetAllocCount(nodeName, podSpreadInfo)
+		allocCount := p.cache.GetAllocCount(nodeName, podSpreadInfo, nil)
 		serviceStatsResponse := &serviceUnitStatsResponse{
 			PodSpreadInfo: podSpreadInfo,
 			AllocCount:    allocCount,

@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/informers"
 	kubefake "k8s.io/client-go/kubernetes/fake"
 	scheduledconfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
@@ -486,4 +487,188 @@ func TestMaxInstancePerHostUniProtocol(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPlugin_PreFilterExtensions(t *testing.T) {
+	nodes := []*corev1.Node{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "test-node",
+				Labels: map[string]string{},
+			},
+			Status: corev1.NodeStatus{
+				Allocatable: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("96"),
+					corev1.ResourceMemory: resource.MustParse("512Gi"),
+				},
+			},
+		},
+	}
+
+	suit := newPluginTestSuit(t, nodes)
+	p, err := suit.proxyNew(suit.args, suit.Handle)
+	assert.NotNil(t, p)
+	assert.Nil(t, err)
+
+	plg := p.(*Plugin)
+	suit.start()
+
+	nodeInfo, err := suit.Handle.SnapshotSharedLister().NodeInfos().Get("test-node")
+	assert.NoError(t, err)
+	assert.NotNil(t, nodeInfo)
+
+	assignedPodSpreadPolicy := &uniext.PodSpreadPolicy{
+		MaxInstancePerHost: 3,
+		LabelSelector: &metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				extunified.SigmaLabelAppName:         "app_2",
+				extunified.SigmaLabelServiceUnitName: "role_1",
+			},
+		},
+	}
+	assignedData, err := json.Marshal(assignedPodSpreadPolicy)
+	assert.NoError(t, err)
+	assignedPods := []*corev1.Pod{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "default",
+				Name:      "assigned-pod-1",
+			},
+			Spec: corev1.PodSpec{
+				NodeName: nodes[0].Name,
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "default",
+				Name:      "assigned-pod-2",
+			},
+			Spec: corev1.PodSpec{
+				NodeName: nodes[0].Name,
+			},
+		},
+	}
+	for _, v := range assignedPods {
+		if v.Annotations == nil {
+			v.Annotations = make(map[string]string)
+		}
+		v.Annotations[uniext.AnnotationPodSpreadPolicy] = string(assignedData)
+		plg.cache.AddPod(v.Spec.NodeName, v)
+	}
+
+	testSpreadPolicy := &uniext.PodSpreadPolicy{
+		MaxInstancePerHost: 3,
+		LabelSelector: &metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				extunified.SigmaLabelAppName:         "app_2",
+				extunified.SigmaLabelServiceUnitName: "role_1",
+			},
+		},
+	}
+	data, err := json.Marshal(testSpreadPolicy)
+	assert.NoError(t, err)
+	testPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "default",
+			Name:      "test-pod-1",
+		},
+	}
+	if testPod.Annotations == nil {
+		testPod.Annotations = make(map[string]string)
+	}
+	testPod.Annotations[uniext.AnnotationPodSpreadPolicy] = string(data)
+
+	// check original preFilterState
+	cycleState := framework.NewCycleState()
+	status := plg.PreFilter(context.TODO(), cycleState, testPod)
+	assert.Nil(t, status)
+	state, status := getPreFilterState(cycleState)
+	assert.Nil(t, status)
+	expectedState := preFilterState{
+		podSpreadInfo: &extunified.PodSpreadInfo{
+			AppName:     "app_2",
+			ServiceUnit: "role_1",
+		},
+		maxInstancePerHost: 3,
+		preemptivePods:     map[string]sets.String{},
+	}
+	assert.Equal(t, expectedState.podSpreadInfo, state.podSpreadInfo)
+	assert.Equal(t, expectedState.maxInstancePerHost, state.maxInstancePerHost)
+	assert.Equal(t, expectedState.preemptivePods, state.preemptivePods)
+
+	// check RemovePod
+	status = plg.RemovePod(context.TODO(), cycleState, testPod, framework.NewPodInfo(assignedPods[0]), nodeInfo)
+	assert.Nil(t, status)
+	state, status = getPreFilterState(cycleState)
+	assert.Nil(t, status)
+	expectedState = preFilterState{
+		podSpreadInfo: &extunified.PodSpreadInfo{
+			AppName:     "app_2",
+			ServiceUnit: "role_1",
+		},
+		maxInstancePerHost: 3,
+		preemptivePods:     map[string]sets.String{"test-node": sets.NewString("default/assigned-pod-1")},
+	}
+	assert.Equal(t, expectedState.podSpreadInfo, state.podSpreadInfo)
+	assert.Equal(t, expectedState.maxInstancePerHost, state.maxInstancePerHost)
+	assert.Equal(t, expectedState.preemptivePods, state.preemptivePods)
+
+	// check AddPod
+	status = plg.AddPod(context.TODO(), cycleState, testPod, framework.NewPodInfo(assignedPods[0]), nodeInfo)
+	assert.Nil(t, status)
+	state, status = getPreFilterState(cycleState)
+	assert.Nil(t, status)
+	expectedState = preFilterState{
+		podSpreadInfo: &extunified.PodSpreadInfo{
+			AppName:     "app_2",
+			ServiceUnit: "role_1",
+		},
+		maxInstancePerHost: 3,
+		preemptivePods:     map[string]sets.String{},
+	}
+	assert.Equal(t, expectedState.podSpreadInfo, state.podSpreadInfo)
+	assert.Equal(t, expectedState.maxInstancePerHost, state.maxInstancePerHost)
+	assert.Equal(t, expectedState.preemptivePods, state.preemptivePods)
+
+	// check AddDuplicatePod
+	status = plg.AddPod(context.TODO(), cycleState, testPod, framework.NewPodInfo(assignedPods[0]), nodeInfo)
+	assert.Nil(t, status)
+	state, status = getPreFilterState(cycleState)
+	assert.Nil(t, status)
+	expectedState = preFilterState{
+		podSpreadInfo: &extunified.PodSpreadInfo{
+			AppName:     "app_2",
+			ServiceUnit: "role_1",
+		},
+		maxInstancePerHost: 3,
+		preemptivePods:     map[string]sets.String{},
+	}
+	assert.Equal(t, expectedState.podSpreadInfo, state.podSpreadInfo)
+	assert.Equal(t, expectedState.maxInstancePerHost, state.maxInstancePerHost)
+	assert.Equal(t, expectedState.preemptivePods, state.preemptivePods)
+
+	// check Delete-NoMatch Pod
+	status = plg.RemovePod(context.TODO(), cycleState, testPod, framework.NewPodInfo(
+		&corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+			Namespace: "default",
+			Name:      "assigned-pod-3",
+		},
+			Spec: corev1.PodSpec{
+				NodeName: nodes[0].Name,
+			},
+		}), nodeInfo)
+	assert.Nil(t, status)
+	state, status = getPreFilterState(cycleState)
+	assert.Nil(t, status)
+	expectedState = preFilterState{
+		podSpreadInfo: &extunified.PodSpreadInfo{
+			AppName:     "app_2",
+			ServiceUnit: "role_1",
+		},
+		maxInstancePerHost: 3,
+		preemptivePods:     map[string]sets.String{},
+	}
+	assert.Equal(t, expectedState.podSpreadInfo, state.podSpreadInfo)
+	assert.Equal(t, expectedState.maxInstancePerHost, state.maxInstancePerHost)
+	assert.Equal(t, expectedState.preemptivePods, state.preemptivePods)
 }
