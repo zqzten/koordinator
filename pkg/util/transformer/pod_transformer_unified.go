@@ -66,8 +66,12 @@ func InstallPodTransformer(podInformer cache.SharedIndexInformer) {
 }
 
 func TransformSigmaIgnoreResourceContainers(pod *corev1.Pod) {
-	for i := range pod.Spec.Containers {
-		container := &pod.Spec.Containers[i]
+	transformSigmaIgnoreResourceContainers(&pod.Spec)
+}
+
+func transformSigmaIgnoreResourceContainers(podSpec *corev1.PodSpec) {
+	for i := range podSpec.Containers {
+		container := &podSpec.Containers[i]
 		if unified.IsContainerIgnoreResource(container) {
 			for k, v := range container.Resources.Requests {
 				container.Resources.Requests[k] = *resource.NewQuantity(0, v.Format)
@@ -86,12 +90,16 @@ func TransformTenantPod(pod *corev1.Pod) {
 }
 
 func TransformNonProdPodResourceSpec(pod *corev1.Pod) {
-	priorityClass := unified.GetPriorityClass(pod)
+	transformNonProdPodResourceSpec(&pod.Spec)
+}
+
+func transformNonProdPodResourceSpec(podSpec *corev1.PodSpec) {
+	priorityClass := unified.GetPriorityClass(&corev1.Pod{Spec: *podSpec})
 	if priorityClass == extension.PriorityNone || priorityClass == extension.PriorityProd {
 		return
 	}
 
-	for _, containers := range [][]corev1.Container{pod.Spec.InitContainers, pod.Spec.Containers} {
+	for _, containers := range [][]corev1.Container{podSpec.InitContainers, podSpec.Containers} {
 		for i := range containers {
 			container := &containers[i]
 			replaceAndEraseResource(priorityClass, container.Resources.Requests, corev1.ResourceCPU)
@@ -102,9 +110,9 @@ func TransformNonProdPodResourceSpec(pod *corev1.Pod) {
 		}
 	}
 
-	if pod.Spec.Overhead != nil {
-		replaceAndEraseResource(priorityClass, pod.Spec.Overhead, corev1.ResourceCPU)
-		replaceAndEraseResource(priorityClass, pod.Spec.Overhead, corev1.ResourceMemory)
+	if podSpec.Overhead != nil {
+		replaceAndEraseResource(priorityClass, podSpec.Overhead, corev1.ResourceCPU)
+		replaceAndEraseResource(priorityClass, podSpec.Overhead, corev1.ResourceMemory)
 	}
 }
 
