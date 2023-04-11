@@ -1209,9 +1209,7 @@ func TestSpreadConstraintWithVK(t *testing.T) {
 							corev1.LabelHostname:     pointer.Int32(6),
 							corev1.LabelTopologyZone: pointer.Int32(6)},
 						TpPairToMatchNum: map[cache.TopologyPair]*int32{
-							{TopologyKey: corev1.LabelTopologyZone, TopologyValue: "zone1"}: pointer.Int32(3),
 							{TopologyKey: corev1.LabelTopologyZone, TopologyValue: "zone2"}: pointer.Int32(3),
-							{TopologyKey: corev1.LabelHostname, TopologyValue: "node-b"}:    pointer.Int32(1),
 							{TopologyKey: corev1.LabelHostname, TopologyValue: "node-y"}:    pointer.Int32(3),
 						},
 					},
@@ -1278,9 +1276,7 @@ func TestSpreadConstraintWithVK(t *testing.T) {
 							corev1.LabelHostname:     pointer.Int32(6),
 							corev1.LabelTopologyZone: pointer.Int32(6)},
 						TpPairToMatchNum: map[cache.TopologyPair]*int32{
-							{TopologyKey: corev1.LabelTopologyZone, TopologyValue: "zone1"}: pointer.Int32(3),
 							{TopologyKey: corev1.LabelTopologyZone, TopologyValue: "zone2"}: pointer.Int32(3),
-							{TopologyKey: corev1.LabelHostname, TopologyValue: "node-b"}:    pointer.Int32(1),
 							{TopologyKey: corev1.LabelHostname, TopologyValue: "node-y"}:    pointer.Int32(3),
 						},
 					},

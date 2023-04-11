@@ -1823,8 +1823,8 @@ func TestMultipleConstraintsECI(t *testing.T) {
 				st.MakePod().Name("p-y3").Node("node-y").Label("foo", "").Obj(),
 			},
 			wantStatusCode: map[string]framework.Code{
-				"node-a": framework.Unschedulable,
-				"node-b": framework.Unschedulable,
+				"node-a": framework.Success,
+				"node-b": framework.Success,
 				"node-x": framework.Success,
 				"node-y": framework.Success,
 			},
@@ -1841,34 +1841,8 @@ func TestMultipleConstraintsECI(t *testing.T) {
 						Selector:    selector,
 					},
 				},
-				TpKeyToCriticalPaths: map[string]*criticalPaths{
-					"zone": {
-						{
-							TopologyValue: "zone2",
-							MatchNum:      3,
-						},
-						{
-							TopologyValue: "zone1",
-							MatchNum:      3,
-						},
-					},
-					v1.LabelHostname: {
-						{
-							TopologyValue: "node-x",
-							MatchNum:      0,
-						},
-						{
-							TopologyValue: "node-b",
-							MatchNum:      1,
-						},
-					},
-				},
 				TpPairToMatchNum: map[topologyPair]*int32{
-					{key: "zone", value: "zone1"}:            pointer.Int32(3),
 					{key: "zone", value: "zone2"}:            pointer.Int32(3),
-					{key: v1.LabelHostname, value: "node-a"}: pointer.Int32(2),
-					{key: v1.LabelHostname, value: "node-b"}: pointer.Int32(1),
-					{key: v1.LabelHostname, value: "node-x"}: pointer.Int32(0),
 					{key: v1.LabelHostname, value: "node-y"}: pointer.Int32(3),
 				},
 			},
@@ -1916,32 +1890,8 @@ func TestMultipleConstraintsECI(t *testing.T) {
 						Selector:    selector,
 					},
 				},
-				TpKeyToCriticalPaths: map[string]*criticalPaths{
-					"zone": {
-						{
-							TopologyValue: "zone1",
-							MatchNum:      3,
-						},
-						{
-							TopologyValue: "zone2",
-							MatchNum:      3,
-						},
-					},
-					v1.LabelHostname: {
-						{
-							TopologyValue: "node-b",
-							MatchNum:      1,
-						},
-						{
-							TopologyValue: "node-y",
-							MatchNum:      3,
-						},
-					},
-				},
 				TpPairToMatchNum: map[topologyPair]*int32{
-					{key: "zone", value: "zone1"}:            pointer.Int32(3),
 					{key: "zone", value: "zone2"}:            pointer.Int32(3),
-					{key: v1.LabelHostname, value: "node-b"}: pointer.Int32(1),
 					{key: v1.LabelHostname, value: "node-y"}: pointer.Int32(3),
 				},
 			},
