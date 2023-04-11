@@ -28,6 +28,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/eci"
 	nodeaffinityhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/nodeaffinity"
 )
 
@@ -234,12 +235,7 @@ func (pl *PodTopologySpread) calPreFilterState(pod *v1.Pod) (*preFilterState, er
 		// In accordance to design, if NodeAffinity or NodeSelector is defined,
 		// spreading is applied to nodes that pass those filters.
 		// Ignore parsing errors for backwards compatibility.
-		match := requiredSchedulingTerm.Match(node)
-		if !match {
-			continue
-		}
-		// Ensure current node's labels contains all topologyKeys in 'Constraints'.
-		if !nodeLabelsMatchSpreadConstraints(node.Labels, constraints) {
+		if !requiredSchedulingTerm.Match(node) || !eci.FilterByECIAffinity(pod, node) || !nodeLabelsMatchSpreadConstraints(node.Labels, constraints) {
 			continue
 		}
 		for _, c := range constraints {
