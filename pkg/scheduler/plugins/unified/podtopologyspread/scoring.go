@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/eci"
 	nodeaffinityhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/nodeaffinity"
 )
 
@@ -151,8 +152,7 @@ func (pl *PodTopologySpread) PreScore(
 		}
 		// (1) `node` should satisfy incoming pod's NodeSelector/NodeAffinity
 		// (2) All topologyKeys need to be present in `node`
-		match := requiredNodeAffinity.Match(node)
-		if !match || (requireAllTopologies && !nodeLabelsMatchSpreadConstraints(node.Labels, state.Constraints)) {
+		if !requiredNodeAffinity.Match(node) || !eci.FilterByECIAffinity(pod, node) || (requireAllTopologies && !nodeLabelsMatchSpreadConstraints(node.Labels, state.Constraints)) {
 			return
 		}
 

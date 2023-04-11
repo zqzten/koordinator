@@ -24,6 +24,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/eci"
 	nodeaffinityhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/nodeaffinity"
 	tainttolerationhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/tainttoleration"
 )
@@ -63,7 +64,7 @@ func (tsc *TopologySpreadConstraint) MatchNodeInclusionPolicies(pod *corev1.Pod,
 			return false
 		}
 	}
-	return true
+	return eci.FilterByECIAffinity(pod, node)
 }
 
 func SpreadRulesToTopologySpreadConstraint(spreadRules []unischeduling.SpreadRuleItem) []*TopologySpreadConstraint {
