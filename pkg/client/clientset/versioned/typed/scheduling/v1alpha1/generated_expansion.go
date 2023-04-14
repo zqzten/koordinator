@@ -24,6 +24,8 @@ type DrainNodeExpansion interface{}
 
 type DrainNodeGroupExpansion interface{}
 
+type LogicalResourceNodeExpansion interface{}
+
 type PodMigrationJobExpansion interface{}
 
 type ReservationExpansion interface{}

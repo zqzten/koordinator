@@ -31,6 +31,7 @@ type SchedulingV1alpha1Interface interface {
 	DevicesGetter
 	DrainNodesGetter
 	DrainNodeGroupsGetter
+	LogicalResourceNodesGetter
 	PodMigrationJobsGetter
 	ReservationsGetter
 	ResourcePoliciesGetter
@@ -51,6 +52,10 @@ func (c *SchedulingV1alpha1Client) DrainNodes() DrainNodeInterface {
 
 func (c *SchedulingV1alpha1Client) DrainNodeGroups() DrainNodeGroupInterface {
 	return newDrainNodeGroups(c)
+}
+
+func (c *SchedulingV1alpha1Client) LogicalResourceNodes() LogicalResourceNodeInterface {
+	return newLogicalResourceNodes(c)
 }
 
 func (c *SchedulingV1alpha1Client) PodMigrationJobs() PodMigrationJobInterface {
