@@ -30,6 +30,8 @@ type Interface interface {
 	DrainNodes() DrainNodeInformer
 	// DrainNodeGroups returns a DrainNodeGroupInformer.
 	DrainNodeGroups() DrainNodeGroupInformer
+	// LogicalResourceNodes returns a LogicalResourceNodeInformer.
+	LogicalResourceNodes() LogicalResourceNodeInformer
 	// PodMigrationJobs returns a PodMigrationJobInformer.
 	PodMigrationJobs() PodMigrationJobInformer
 	// Reservations returns a ReservationInformer.
@@ -62,6 +64,11 @@ func (v *version) DrainNodes() DrainNodeInformer {
 // DrainNodeGroups returns a DrainNodeGroupInformer.
 func (v *version) DrainNodeGroups() DrainNodeGroupInformer {
 	return &drainNodeGroupInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// LogicalResourceNodes returns a LogicalResourceNodeInformer.
+func (v *version) LogicalResourceNodes() LogicalResourceNodeInformer {
+	return &logicalResourceNodeInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // PodMigrationJobs returns a PodMigrationJobInformer.
