@@ -30,6 +30,10 @@ type DrainNodeListerExpansion interface{}
 // DrainNodeGroupLister.
 type DrainNodeGroupListerExpansion interface{}
 
+// LogicalResourceNodeListerExpansion allows custom methods to be added to
+// LogicalResourceNodeLister.
+type LogicalResourceNodeListerExpansion interface{}
+
 // PodMigrationJobListerExpansion allows custom methods to be added to
 // PodMigrationJobLister.
 type PodMigrationJobListerExpansion interface{}
