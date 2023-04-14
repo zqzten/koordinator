@@ -75,6 +75,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Scheduling().V1alpha1().DrainNodes().Informer()}, nil
 	case schedulingv1alpha1.SchemeGroupVersion.WithResource("drainnodegroups"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Scheduling().V1alpha1().DrainNodeGroups().Informer()}, nil
+	case schedulingv1alpha1.SchemeGroupVersion.WithResource("logicalresourcenodes"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Scheduling().V1alpha1().LogicalResourceNodes().Informer()}, nil
 	case schedulingv1alpha1.SchemeGroupVersion.WithResource("podmigrationjobs"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Scheduling().V1alpha1().PodMigrationJobs().Informer()}, nil
 	case schedulingv1alpha1.SchemeGroupVersion.WithResource("reservations"):

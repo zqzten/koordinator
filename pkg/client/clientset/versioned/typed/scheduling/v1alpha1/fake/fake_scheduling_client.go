@@ -40,6 +40,10 @@ func (c *FakeSchedulingV1alpha1) DrainNodeGroups() v1alpha1.DrainNodeGroupInterf
 	return &FakeDrainNodeGroups{c}
 }
 
+func (c *FakeSchedulingV1alpha1) LogicalResourceNodes() v1alpha1.LogicalResourceNodeInterface {
+	return &FakeLogicalResourceNodes{c}
+}
+
 func (c *FakeSchedulingV1alpha1) PodMigrationJobs() v1alpha1.PodMigrationJobInterface {
 	return &FakePodMigrationJobs{c}
 }
