@@ -1,5 +1,5 @@
-//go:build github
-// +build github
+//go:build !github
+// +build !github
 
 /*
 Copyright 2022 The Koordinator Authors.
@@ -17,7 +17,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package impl
+package statesinformer
 
 import (
 	"context"
@@ -36,9 +36,8 @@ import (
 	slov1alpha1 "github.com/koordinator-sh/koordinator/apis/slo/v1alpha1"
 	fakekoordclientset "github.com/koordinator-sh/koordinator/pkg/client/clientset/versioned/fake"
 	fakeschedv1alpha1 "github.com/koordinator-sh/koordinator/pkg/client/clientset/versioned/typed/scheduling/v1alpha1/fake"
+	"github.com/koordinator-sh/koordinator/pkg/koordlet/metriccache"
 	mock_metriccache "github.com/koordinator-sh/koordinator/pkg/koordlet/metriccache/mockmetriccache"
-	"github.com/koordinator-sh/koordinator/pkg/koordlet/prediction"
-	"github.com/koordinator-sh/koordinator/pkg/koordlet/statesinformer"
 )
 
 func Test_statesInformer_GetNode(t *testing.T) {
@@ -74,8 +73,8 @@ func Test_statesInformer_GetNode(t *testing.T) {
 				node: tt.fields.node,
 			}
 			s := &statesInformer{
-				states: &PluginState{
-					informerPlugins: map[PluginName]informerPlugin{
+				states: &pluginState{
+					informerPlugins: map[pluginName]informerPlugin{
 						nodeInformerName: nodeInformer,
 					},
 				},
@@ -120,8 +119,8 @@ func Test_statesInformer_GetNodeSLO(t *testing.T) {
 				nodeSLO: tt.fields.nodeSLO,
 			}
 			s := &statesInformer{
-				states: &PluginState{
-					informerPlugins: map[PluginName]informerPlugin{
+				states: &pluginState{
+					informerPlugins: map[pluginName]informerPlugin{
 						nodeSLOInformerName: nodeSLOInformer,
 					},
 				},
@@ -166,8 +165,8 @@ func Test_statesInformer_GetNodeTopo(t *testing.T) {
 				nodeTopology: tt.fields.nodeTopo,
 			}
 			s := &statesInformer{
-				states: &PluginState{
-					informerPlugins: map[PluginName]informerPlugin{
+				states: &pluginState{
+					informerPlugins: map[pluginName]informerPlugin{
 						nodeTopoInformerName: nodeTopoInformer,
 					},
 				},
@@ -181,17 +180,17 @@ func Test_statesInformer_GetNodeTopo(t *testing.T) {
 
 func Test_statesInformer_GetAllPods(t *testing.T) {
 	type fields struct {
-		podMap map[string]*statesinformer.PodMeta
+		podMap map[string]*PodMeta
 	}
 	tests := []struct {
 		name   string
 		fields fields
-		want   []*statesinformer.PodMeta
+		want   []*PodMeta
 	}{
 		{
 			name: "get all pods",
 			fields: fields{
-				podMap: map[string]*statesinformer.PodMeta{
+				podMap: map[string]*PodMeta{
 					"test-pod": {
 						Pod: &corev1.Pod{
 							ObjectMeta: metav1.ObjectMeta{
@@ -203,7 +202,7 @@ func Test_statesInformer_GetAllPods(t *testing.T) {
 					},
 				},
 			},
-			want: []*statesinformer.PodMeta{
+			want: []*PodMeta{
 				{
 					Pod: &corev1.Pod{
 						ObjectMeta: metav1.ObjectMeta{
@@ -222,8 +221,8 @@ func Test_statesInformer_GetAllPods(t *testing.T) {
 				podMap: tt.fields.podMap,
 			}
 			s := &statesInformer{
-				states: &PluginState{
-					informerPlugins: map[PluginName]informerPlugin{
+				states: &pluginState{
+					informerPlugins: map[pluginName]informerPlugin{
 						podsInformerName: podsInformer,
 					},
 				},
@@ -237,9 +236,8 @@ func Test_statesInformer_GetAllPods(t *testing.T) {
 
 func Test_statesInformer_Run(t *testing.T) {
 	type fields struct {
-		config         *Config
-		node           corev1.Node
-		pluginRegistry map[PluginName]informerPlugin
+		config *Config
+		node   corev1.Node
 	}
 	tests := []struct {
 		name    string
@@ -263,10 +261,6 @@ func Test_statesInformer_Run(t *testing.T) {
 						},
 					},
 				},
-				pluginRegistry: map[PluginName]informerPlugin{
-					nodeSLOInformerName: NewNodeSLOInformer(),
-					nodeInformerName:    NewNodeInformer(),
-				},
 			},
 			wantErr: false,
 		},
@@ -279,17 +273,21 @@ func Test_statesInformer_Run(t *testing.T) {
 			topoClient := faketopologyclientset.NewSimpleClientset()
 			ctrl := gomock.NewController(t)
 			metricCache := mock_metriccache.NewMockMetricCache(ctrl)
-			//metricCache.EXPECT().GetNodeResourceMetric(gomock.Any()).Return(metriccache.NodeResourceQueryResult{
-			//	QueryResult: metriccache.QueryResult{},
-			//	Metric:      &metriccache.NodeResourceMetric{},
-			//}).AnyTimes()
+			metricCache.EXPECT().GetNodeResourceMetric(gomock.Any()).Return(metriccache.NodeResourceQueryResult{
+				QueryResult: metriccache.QueryResult{},
+				Metric:      &metriccache.NodeResourceMetric{},
+			}).AnyTimes()
 			nodeName := tt.fields.node.Name
 			schedClient := &fakeschedv1alpha1.FakeSchedulingV1alpha1{}
-			si := NewStatesInformer(tt.fields.config, kubeClient, koordClient, topoClient, metricCache, nodeName, schedClient, prediction.NewEmptyPredictorFactory())
+			si := NewStatesInformer(tt.fields.config, kubeClient, koordClient, topoClient, metricCache, nodeName, schedClient)
 			s := si.(*statesInformer)
-			s.states.informerPlugins = tt.fields.pluginRegistry
+			// pods informer needs a fake kubelet stub
+			// TODO: should setup specific informers instead of remove some of informers in upstream
+			delete(s.states.informerPlugins, podsInformerName)
+			delete(s.states.informerPlugins, nodeTopoInformerName)
+			delete(s.states.informerPlugins, nodeMetricInformerName)
+			delete(s.states.informerPlugins, lrnInformerName)
 			stopChannel := make(chan struct{}, 1)
-
 			go wait.Until(func() {
 				if s.started.Load() {
 					close(stopChannel)
