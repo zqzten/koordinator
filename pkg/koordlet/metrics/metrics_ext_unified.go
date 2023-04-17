@@ -1,6 +1,3 @@
-//go:build github
-// +build github
-
 /*
 Copyright 2022 The Koordinator Authors.
 
@@ -17,15 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package impl
+package metrics
 
-// NOTE: variables in this file can be overwritten for extension
+import (
+	"github.com/prometheus/client_golang/prometheus"
+)
 
-var DefaultPluginRegistry = map[PluginName]informerPlugin{
-	nodeSLOInformerName:    NewNodeSLOInformer(),
-	pvcInformerName:        NewPVCInformer(),
-	nodeTopoInformerName:   NewNodeTopoInformer(),
-	nodeInformerName:       NewNodeInformer(),
-	podsInformerName:       NewPodsInformer(),
-	nodeMetricInformerName: NewNodeMetricInformer(),
+func init() {
+	prometheus.MustRegister(LRNCollectors...)
 }
+
+const (
+	LRNKey = "lrn"
+
+	AcceleratorResource = "accelerator"
+	AcceleratorMinorKey = "accelerator_minor"
+	AcceleratorTypeKey  = "type"
+)
