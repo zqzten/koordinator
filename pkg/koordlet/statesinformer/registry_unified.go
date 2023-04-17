@@ -1,5 +1,5 @@
-//go:build github
-// +build github
+//go:build !github
+// +build !github
 
 /*
 Copyright 2022 The Koordinator Authors.
@@ -17,15 +17,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package impl
+package statesinformer
 
-// NOTE: variables in this file can be overwritten for extension
-
-var DefaultPluginRegistry = map[PluginName]informerPlugin{
+var DefaultPluginRegistry = map[pluginName]informerPlugin{
 	nodeSLOInformerName:    NewNodeSLOInformer(),
-	pvcInformerName:        NewPVCInformer(),
 	nodeTopoInformerName:   NewNodeTopoInformer(),
 	nodeInformerName:       NewNodeInformer(),
 	podsInformerName:       NewPodsInformer(),
 	nodeMetricInformerName: NewNodeMetricInformer(),
+	lrnInformerName:        newLRNInformer(),
 }

@@ -40,6 +40,14 @@ const (
 	EnableNodeInclusionPolicyInPodConstraint featuregate.Feature = "EnableNodeInclusionPolicyInPodConstraint"
 )
 
+const (
+	// LRNReport report prometheus metrics info about the LogicalNodeResource object.
+	// owner: @saintube
+	// alpha: v1.2
+	//
+	LRNReport featuregate.Feature = "LRNReport"
+)
+
 var defaultUnifiedFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	DefaultEnableACUForLSPod:    {Default: true, PreRelease: featuregate.Beta},
 	ResourceSummaryReport:       {Default: true, PreRelease: featuregate.Beta},
@@ -56,7 +64,12 @@ var defaultUnifiedSchedulerFeatureGates = map[featuregate.Feature]featuregate.Fe
 	EnableNodeInclusionPolicyInPodConstraint: {Default: true, PreRelease: featuregate.Beta},
 }
 
+var defaultUnifiedKoordletFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
+	LRNReport: {Default: false, PreRelease: featuregate.Alpha},
+}
+
 func init() {
 	runtime.Must(utilfeature.DefaultMutableFeatureGate.Add(defaultUnifiedFeatureGates))
 	runtime.Must(k8sfeature.DefaultMutableFeatureGate.Add(defaultUnifiedSchedulerFeatureGates))
+	runtime.Must(DefaultMutableKoordletFeatureGate.Add(defaultUnifiedKoordletFeatureGates))
 }
