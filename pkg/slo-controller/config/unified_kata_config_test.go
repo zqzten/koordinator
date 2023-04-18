@@ -28,11 +28,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
+	"github.com/koordinator-sh/koordinator/pkg/util/sloconfig"
 )
 
 func Test_syncColocationConfigWithKataResourceIfChanged(t *testing.T) {
-	RegisterDefaultColocationExtension(KataResExtKey, defaultKataResourceConfig)
-	oldCfg := *NewDefaultColocationCfg()
+	sloconfig.RegisterDefaultColocationExtension(KataResExtKey, defaultKataResourceConfig)
+	oldCfg := *sloconfig.NewDefaultColocationCfg()
 	oldCfg.MemoryReclaimThresholdPercent = pointer.Int64Ptr(40)
 
 	type fields struct {
@@ -62,8 +63,8 @@ func Test_syncColocationConfigWithKataResourceIfChanged(t *testing.T) {
 					APIVersion: "v1",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      SLOCtrlConfigMap,
-					Namespace: ConfigNameSpace,
+					Name:      sloconfig.SLOCtrlConfigMap,
+					Namespace: sloconfig.ConfigNameSpace,
 				},
 				Data: map[string]string{},
 			}},
@@ -83,8 +84,8 @@ func Test_syncColocationConfigWithKataResourceIfChanged(t *testing.T) {
 					APIVersion: "v1",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      SLOCtrlConfigMap,
-					Namespace: ConfigNameSpace,
+					Name:      sloconfig.SLOCtrlConfigMap,
+					Namespace: sloconfig.ConfigNameSpace,
 				},
 				Data: map[string]string{},
 			}},
@@ -97,15 +98,15 @@ func Test_syncColocationConfigWithKataResourceIfChanged(t *testing.T) {
 		},
 		{
 			name:   "no colocation config in configmap, cache has been set to default cfg",
-			fields: fields{config: &colocationCfgCache{colocationCfg: *NewDefaultColocationCfg()}},
+			fields: fields{config: &colocationCfgCache{colocationCfg: *sloconfig.NewDefaultColocationCfg()}},
 			args: args{configMap: &corev1.ConfigMap{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "ConfigMap",
 					APIVersion: "v1",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      SLOCtrlConfigMap,
-					Namespace: ConfigNameSpace,
+					Name:      sloconfig.SLOCtrlConfigMap,
+					Namespace: sloconfig.ConfigNameSpace,
 				},
 				Data: map[string]string{},
 			}},
@@ -128,8 +129,8 @@ func Test_syncColocationConfigWithKataResourceIfChanged(t *testing.T) {
 					APIVersion: "v1",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      SLOCtrlConfigMap,
-					Namespace: ConfigNameSpace,
+					Name:      sloconfig.SLOCtrlConfigMap,
+					Namespace: sloconfig.ConfigNameSpace,
 				},
 				Data: map[string]string{
 					extension.ColocationConfigKey: "{\"metricAggregateDurationSeconds\":60,\"cpuReclaimThresholdPercent\":70," +
@@ -149,7 +150,7 @@ func Test_syncColocationConfigWithKataResourceIfChanged(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fakeClient := fake.NewClientBuilder().WithScheme(scheme.Scheme).Build()
-			p := NewColocationHandlerForConfigMapEvent(fakeClient, *NewDefaultColocationCfg(), &record.FakeRecorder{})
+			p := NewColocationHandlerForConfigMapEvent(fakeClient, *sloconfig.NewDefaultColocationCfg(), &record.FakeRecorder{})
 			p.cfgCache = colocationCfgCache{
 				colocationCfg: tt.fields.config.colocationCfg,
 				available:     tt.fields.config.available,
@@ -164,5 +165,5 @@ func Test_syncColocationConfigWithKataResourceIfChanged(t *testing.T) {
 			assert.Equal(t, tt.wantField.kataCfg, gotKataExtCfg)
 		})
 	}
-	UnregisterDefaultColocationExtension(KataResExtKey)
+	sloconfig.UnregisterDefaultColocationExtension(KataResExtKey)
 }

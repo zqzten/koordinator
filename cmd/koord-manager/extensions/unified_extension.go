@@ -33,8 +33,8 @@ import (
 	recommender "gitlab.alibaba-inc.com/cos/recommender/pkg/controllers"
 
 	"github.com/koordinator-sh/koordinator/pkg/features"
-	sloconfig "github.com/koordinator-sh/koordinator/pkg/slo-controller/config"
 	utilfeature "github.com/koordinator-sh/koordinator/pkg/util/feature"
+	"github.com/koordinator-sh/koordinator/pkg/util/sloconfig"
 )
 
 var _ manager.Runnable = (*RecommenderRunner)(nil)
