@@ -45,6 +45,7 @@ type Plugin struct {
 }
 
 func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+	registersPodEventHandler(handle)
 	return &Plugin{
 		handle: handle,
 	}, nil
