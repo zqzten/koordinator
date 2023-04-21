@@ -37,8 +37,15 @@ func (r *Reconciler) getReservationForCandidateNodes(ctx context.Context, candid
 func GetReservationPriorityResource(reservation *schedulingv1alpha1.Reservation, node *corev1.Node, gpuCapacity corev1.ResourceList, resourceNames ...corev1.ResourceName) (used, capacity, free v1beta1.PodPriorityUsed) {
 	pod := reservationutil.NewReservePod(reservation)
 	unifiedPriority := extunified.GetUnifiedPriorityClass(pod)
+
 	allocatable := priorityPodRequestedToNormal(reservation.Status.Allocatable, unifiedPriority)
+	if allocatable == nil {
+		allocatable = corev1.ResourceList{}
+	}
 	allocated := priorityPodRequestedToNormal(reservation.Status.Allocated, unifiedPriority)
+	if allocated == nil {
+		allocated = corev1.ResourceList{}
+	}
 
 	scaleCPUAndACU(pod, node, allocatable)
 	scaleCPUAndACU(pod, node, allocated)

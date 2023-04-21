@@ -80,6 +80,9 @@ func GetPodPriorityUsed(pod *corev1.Pod, node *corev1.Node, gpuCapacity corev1.R
 }
 
 func priorityPodRequestedToNormal(resourceList corev1.ResourceList, unifiedPriority uniext.PriorityClass) corev1.ResourceList {
+	if resourceList == nil {
+		return nil
+	}
 	result := resourceList.DeepCopy()
 	switch unifiedPriority {
 	case uniext.PriorityBatch:
@@ -107,6 +110,9 @@ func priorityPodRequestedToNormal(resourceList corev1.ResourceList, unifiedPrior
 }
 
 func scaleCPUAndACU(pod *corev1.Pod, node *corev1.Node, resourceList corev1.ResourceList) {
+	if resourceList == nil {
+		return
+	}
 	podQoS := extension.GetPodQoSClass(pod)
 	if isNodeEnabledACU(node) {
 		acuRatio := getACURatio(node)
