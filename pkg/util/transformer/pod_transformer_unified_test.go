@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	unifiedresourceext "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/extension"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -242,6 +243,103 @@ func TestTransformNonProdPodResourceSpec(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			TransformNonProdPodResourceSpec(tt.pod)
+			assert.Equal(t, tt.expectedPod, tt.pod)
+		})
+	}
+}
+
+func TestTransformUnifiedGPUMemoryRatio(t *testing.T) {
+	tests := []struct {
+		name        string
+		pod         *corev1.Pod
+		expectedPod *corev1.Pod
+	}{
+		{
+			name: "pod without patch flag and gpu-mem-ratio",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name: "main",
+							Resources: corev1.ResourceRequirements{
+								Limits: corev1.ResourceList{
+									corev1.ResourceCPU: resource.MustParse("1"),
+								},
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU: resource.MustParse("1"),
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedPod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name: "main",
+							Resources: corev1.ResourceRequirements{
+								Limits: corev1.ResourceList{
+									corev1.ResourceCPU: resource.MustParse("1"),
+								},
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU: resource.MustParse("1"),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "pod with patch flag and gpu-mem-ratio",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name: "main",
+							Env: []corev1.EnvVar{
+								{Name: unified.EnvActivelyAddedUnifiedGPUMemoryRatio, Value: "true"},
+							},
+							Resources: corev1.ResourceRequirements{
+								Limits: corev1.ResourceList{
+									corev1.ResourceCPU:                     resource.MustParse("1"),
+									unifiedresourceext.GPUResourceMemRatio: resource.MustParse("100"),
+								},
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:                     resource.MustParse("1"),
+									unifiedresourceext.GPUResourceMemRatio: resource.MustParse("100"),
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedPod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name: "main",
+							Env: []corev1.EnvVar{
+								{Name: unified.EnvActivelyAddedUnifiedGPUMemoryRatio, Value: "true"},
+							},
+							Resources: corev1.ResourceRequirements{
+								Limits: corev1.ResourceList{
+									corev1.ResourceCPU: resource.MustParse("1"),
+								},
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU: resource.MustParse("1"),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			TransformUnifiedGPUMemoryRatio(tt.pod)
 			assert.Equal(t, tt.expectedPod, tt.pod)
 		})
 	}
