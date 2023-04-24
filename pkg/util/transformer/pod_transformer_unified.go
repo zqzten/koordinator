@@ -19,6 +19,7 @@ package transformer
 import (
 	"encoding/json"
 
+	unifiedresourceext "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/extension"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/tools/cache"
@@ -33,6 +34,7 @@ var podTransformers = []func(pod *corev1.Pod){
 	TransformSigmaIgnoreResourceContainers,
 	TransformTenantPod,
 	TransformNonProdPodResourceSpec,
+	TransformUnifiedGPUMemoryRatio,
 }
 
 func InstallPodTransformer(podInformer cache.SharedIndexInformer) {
@@ -128,5 +130,22 @@ func replaceAndEraseResource(priorityClass extension.PriorityClass, resourceList
 		}
 		resourceList[extendResourceName] = quantity
 		delete(resourceList, resourceName)
+	}
+}
+
+func TransformUnifiedGPUMemoryRatio(pod *corev1.Pod) {
+	for i := range pod.Spec.Containers {
+		container := &pod.Spec.Containers[i]
+		if unified.IsContainerActivelyAddedGPUMemRatio(container) {
+			delete(container.Resources.Requests, unifiedresourceext.GPUResourceMemRatio)
+			delete(container.Resources.Limits, unifiedresourceext.GPUResourceMemRatio)
+		}
+	}
+	for i := range pod.Spec.InitContainers {
+		container := &pod.Spec.InitContainers[i]
+		if unified.IsContainerActivelyAddedGPUMemRatio(container) {
+			delete(container.Resources.Requests, unifiedresourceext.GPUResourceMemRatio)
+			delete(container.Resources.Limits, unifiedresourceext.GPUResourceMemRatio)
+		}
 	}
 }
