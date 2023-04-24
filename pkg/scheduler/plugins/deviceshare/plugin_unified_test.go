@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	unifiedresourceext "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/extension"
 	cosclientset "gitlab.alibaba-inc.com/cos/unified-resource-api/client/clientset/versioned"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -247,6 +248,73 @@ func Test_appendRundResult(t *testing.T) {
 			}
 
 			assert.Equal(t, tt.want, tt.pod)
+		})
+	}
+}
+
+func Test_addContainerGPUResourceForPatch(t *testing.T) {
+	tests := []struct {
+		name        string
+		container   *corev1.Container
+		memoryRatio int64
+		expected    bool
+	}{
+		{
+			name:        "patch memory ratio",
+			container:   &corev1.Container{},
+			memoryRatio: 100,
+			expected:    true,
+		},
+		{
+			name: "patch memory ratio with exist ratio/1",
+			container: &corev1.Container{
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						unifiedresourceext.GPUResourceMemRatio: resource.MustParse("100"),
+					},
+					Requests: corev1.ResourceList{
+						unifiedresourceext.GPUResourceMemRatio: resource.MustParse("100"),
+					},
+				},
+			},
+			memoryRatio: 100,
+			expected:    false,
+		},
+		{
+			name: "patch memory ratio with exist ratio/2",
+			container: &corev1.Container{
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						unifiedresourceext.GPUResourceMemRatio: *resource.NewQuantity(100, resource.DecimalSI),
+					},
+					Requests: corev1.ResourceList{
+						unifiedresourceext.GPUResourceMemRatio: *resource.NewQuantity(100, resource.DecimalSI),
+					},
+				},
+			},
+			memoryRatio: 100,
+			expected:    false,
+		},
+		{
+			name: "patch memory ratio with diff ratio",
+			container: &corev1.Container{
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						unifiedresourceext.GPUResourceMemRatio: *resource.NewQuantity(50, resource.DecimalSI),
+					},
+					Requests: corev1.ResourceList{
+						unifiedresourceext.GPUResourceMemRatio: *resource.NewQuantity(50, resource.DecimalSI),
+					},
+				},
+			},
+			memoryRatio: 100,
+			expected:    true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			patched := addContainerGPUResourceForPatch(tt.container, unifiedresourceext.GPUResourceMemRatio, tt.memoryRatio)
+			assert.Equal(t, tt.expected, patched)
 		})
 	}
 }

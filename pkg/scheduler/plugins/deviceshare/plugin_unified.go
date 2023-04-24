@@ -163,7 +163,16 @@ func appendUnifiedDeviceAllocStatus(pod *corev1.Pod, deviceAllocations apiext.De
 				memoryRatio = gpuMemoryRatioQuantity.Value()
 			}
 			if needPatch {
-				addContainerGPUResourceForPatch(container, unifiedresourceext.GPUResourceMemRatio, memoryRatio)
+				if addContainerGPUResourceForPatch(container, unifiedresourceext.GPUResourceMemRatio, memoryRatio) {
+					// NOTE: Kube Scheduler Framework 通过Filter/Score 选择出一个合适的节点后会 Assume Pod 到 NodeInfo 中，
+					// 此时 Pod 的容器中并没有 alibabacloud.com/gpu-mem-ratio 声明这个资源，所以 NodeInfo.Requested 中也不会记录
+					// 该资源名称。但我们又会在 PreBind 阶段追加这个资源，导致后续 Pod 被删除时，NodeInfo.RemovePod() 会按照最新的 Pod
+					// 清理 NodeInfo.Requested，导致 NodeInfo.Requested.ScalarResources["alibabacloud.com/gpu-mem-ratio"] 变成负数。
+					// 后续如果有 Pod 又使用了 alibabacloud.com/gpu-mem-ratio 请求资源时，会导致像插件 NodeResourcesFit.Score 结果变成负数。
+					// 这里其实有两种 Fix 方法，一种是在 Reserve 阶段调用 SchedulerCache.Forget，再追加资源再Assume的方式。但这种方式改动量更大一些。
+					// 另一种方式就是这一次采用的，Container上追加一个标识，然后再在 Transformer 中处理掉。对齐账本。
+					setContainerEnv(container, &corev1.EnvVar{Name: extunified.EnvActivelyAddedUnifiedGPUMemoryRatio, Value: "true"})
+				}
 				setContainerEnv(container, &corev1.EnvVar{Name: "NVIDIA_VISIBLE_DEVICES", Value: visibleDevices})
 			}
 		}
@@ -184,7 +193,7 @@ func setContainerEnv(container *corev1.Container, envVar *corev1.EnvVar) {
 }
 
 // addContainerResourceForPatch adds container GPU resources to patch bytes to update pod resource specs
-func addContainerGPUResourceForPatch(container *corev1.Container, resourceName corev1.ResourceName, resourceQuantity int64) {
+func addContainerGPUResourceForPatch(container *corev1.Container, resourceName corev1.ResourceName, resourceQuantity int64) bool {
 	p := apiresource.Quantity{}
 	if resourceQuantity <= 0 {
 		resourceQuantity = 1
@@ -196,8 +205,10 @@ func addContainerGPUResourceForPatch(container *corev1.Container, resourceName c
 	if container.Resources.Requests == nil {
 		container.Resources.Requests = make(corev1.ResourceList)
 	}
+	q := container.Resources.Limits[resourceName]
 	container.Resources.Limits[resourceName] = p
 	container.Resources.Requests[resourceName] = p
+	return !q.Equal(p)
 }
 
 // res contains exclusive GPU if and only if:

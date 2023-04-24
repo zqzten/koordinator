@@ -25,6 +25,10 @@ import (
 
 const GPUCardRatio corev1.ResourceName = apiext.ResourceDomainPrefix + "gpu-card-ratio"
 
+const (
+	EnvActivelyAddedUnifiedGPUMemoryRatio = "ACTIVELY_ADDED_GPU_MEM_RATIO"
+)
+
 var (
 	koordGPUResourcesToUnified = map[corev1.ResourceName]corev1.ResourceName{
 		apiext.ResourceGPU:            unifiedresourceext.GPUResourceAlibaba,
@@ -68,4 +72,13 @@ func ConvertToKoordGPUResources(resourceList corev1.ResourceList) corev1.Resourc
 		resources[name] = quantity
 	}
 	return resources
+}
+
+func IsContainerActivelyAddedGPUMemRatio(c *corev1.Container) bool {
+	for _, entry := range c.Env {
+		if entry.Name == EnvActivelyAddedUnifiedGPUMemoryRatio && entry.Value == "true" {
+			return true
+		}
+	}
+	return false
 }
