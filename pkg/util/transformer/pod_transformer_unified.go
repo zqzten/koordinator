@@ -35,6 +35,7 @@ var podTransformers = []func(pod *corev1.Pod){
 	TransformTenantPod,
 	TransformNonProdPodResourceSpec,
 	TransformUnifiedGPUMemoryRatio,
+	TransformENIResource,
 }
 
 func InstallPodTransformer(podInformer cache.SharedIndexInformer) {
@@ -72,11 +73,13 @@ func TransformSigmaIgnoreResourceContainers(pod *corev1.Pod) {
 }
 
 func transformSigmaIgnoreResourceContainers(podSpec *corev1.PodSpec) {
-	for i := range podSpec.Containers {
-		container := &podSpec.Containers[i]
-		if unified.IsContainerIgnoreResource(container) {
-			for k, v := range container.Resources.Requests {
-				container.Resources.Requests[k] = *resource.NewQuantity(0, v.Format)
+	for _, containers := range [][]corev1.Container{podSpec.InitContainers, podSpec.Containers} {
+		for i := range containers {
+			container := &containers[i]
+			if unified.IsContainerIgnoreResource(container) {
+				for k, v := range container.Resources.Requests {
+					container.Resources.Requests[k] = *resource.NewQuantity(0, v.Format)
+				}
 			}
 		}
 	}
@@ -104,23 +107,22 @@ func transformNonProdPodResourceSpec(podSpec *corev1.PodSpec) {
 	for _, containers := range [][]corev1.Container{podSpec.InitContainers, podSpec.Containers} {
 		for i := range containers {
 			container := &containers[i]
-			replaceAndEraseResource(priorityClass, container.Resources.Requests, corev1.ResourceCPU)
-			replaceAndEraseResource(priorityClass, container.Resources.Requests, corev1.ResourceMemory)
+			replaceAndEraseResource(container.Resources.Requests, corev1.ResourceCPU, extension.ResourceNameMap[priorityClass][corev1.ResourceCPU])
+			replaceAndEraseResource(container.Resources.Requests, corev1.ResourceMemory, extension.ResourceNameMap[priorityClass][corev1.ResourceMemory])
 
-			replaceAndEraseResource(priorityClass, container.Resources.Limits, corev1.ResourceCPU)
-			replaceAndEraseResource(priorityClass, container.Resources.Limits, corev1.ResourceMemory)
+			replaceAndEraseResource(container.Resources.Limits, corev1.ResourceCPU, extension.ResourceNameMap[priorityClass][corev1.ResourceCPU])
+			replaceAndEraseResource(container.Resources.Limits, corev1.ResourceMemory, extension.ResourceNameMap[priorityClass][corev1.ResourceMemory])
 		}
 	}
 
 	if podSpec.Overhead != nil {
-		replaceAndEraseResource(priorityClass, podSpec.Overhead, corev1.ResourceCPU)
-		replaceAndEraseResource(priorityClass, podSpec.Overhead, corev1.ResourceMemory)
+		replaceAndEraseResource(podSpec.Overhead, corev1.ResourceCPU, extension.ResourceNameMap[priorityClass][corev1.ResourceCPU])
+		replaceAndEraseResource(podSpec.Overhead, corev1.ResourceMemory, extension.ResourceNameMap[priorityClass][corev1.ResourceMemory])
 	}
 }
 
-func replaceAndEraseResource(priorityClass extension.PriorityClass, resourceList corev1.ResourceList, resourceName corev1.ResourceName) {
-	extendResourceName := extension.ResourceNameMap[priorityClass][resourceName]
-	if extendResourceName == "" {
+func replaceAndEraseResource(resourceList corev1.ResourceList, resourceName, transformedResourceName corev1.ResourceName) {
+	if transformedResourceName == "" {
 		return
 	}
 	quantity, ok := resourceList[resourceName]
@@ -128,7 +130,7 @@ func replaceAndEraseResource(priorityClass extension.PriorityClass, resourceList
 		if resourceName == corev1.ResourceCPU {
 			quantity = *resource.NewQuantity(quantity.MilliValue(), resource.DecimalSI)
 		}
-		resourceList[extendResourceName] = quantity
+		resourceList[transformedResourceName] = quantity
 		delete(resourceList, resourceName)
 	}
 }
@@ -146,6 +148,23 @@ func TransformUnifiedGPUMemoryRatio(pod *corev1.Pod) {
 		if unified.IsContainerActivelyAddedGPUMemRatio(container) {
 			delete(container.Resources.Requests, unifiedresourceext.GPUResourceMemRatio)
 			delete(container.Resources.Limits, unifiedresourceext.GPUResourceMemRatio)
+		}
+	}
+}
+
+func TransformENIResource(pod *corev1.Pod) {
+	transformENIResource(&pod.Spec)
+}
+
+func transformENIResource(podSpec *corev1.PodSpec) {
+	if !enableENIResourceTransform {
+		return
+	}
+	for _, containers := range [][]corev1.Container{podSpec.InitContainers, podSpec.Containers} {
+		for i := range containers {
+			container := &containers[i]
+			replaceAndEraseResource(container.Resources.Requests, unified.ResourceSigmaENI, unified.ResourceAliyunMemberENI)
+			replaceAndEraseResource(container.Resources.Limits, unified.ResourceSigmaENI, unified.ResourceAliyunMemberENI)
 		}
 	}
 }
