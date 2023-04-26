@@ -18,6 +18,7 @@ import (
 )
 
 func TestInstallReservationTransformer(t *testing.T) {
+	enableENIResourceTransform = true
 	resources := corev1.ResourceList{
 		corev1.ResourceCPU:    resource.MustParse("4000m"),
 		corev1.ResourceMemory: resource.MustParse("4Gi"),
@@ -29,6 +30,12 @@ func TestInstallReservationTransformer(t *testing.T) {
 	batchResources := corev1.ResourceList{
 		extension.BatchCPU:    *resource.NewQuantity(4000, resource.DecimalSI),
 		extension.BatchMemory: resource.MustParse("4Gi"),
+	}
+	sigmaENIResources := corev1.ResourceList{
+		unified.ResourceSigmaENI: resource.MustParse("1"),
+	}
+	memberENIResources := corev1.ResourceList{
+		unified.ResourceAliyunMemberENI: resource.MustParse("1"),
 	}
 
 	tests := []struct {
@@ -190,6 +197,55 @@ func TestInstallReservationTransformer(t *testing.T) {
 									Resources: corev1.ResourceRequirements{
 										Limits:   batchResources.DeepCopy(),
 										Requests: batchResources.DeepCopy(),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "sigma eni reservation",
+			reservation: &schedulingv1alpha1.Reservation{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-reservation"},
+				Spec: schedulingv1alpha1.ReservationSpec{
+					Template: &corev1.PodTemplateSpec{
+						Spec: corev1.PodSpec{
+							Containers: []corev1.Container{
+								{
+									Resources: corev1.ResourceRequirements{
+										Limits:   sigmaENIResources,
+										Requests: sigmaENIResources,
+									},
+								},
+								{
+									Resources: corev1.ResourceRequirements{
+										Limits:   sigmaENIResources,
+										Requests: sigmaENIResources,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedReservation: &schedulingv1alpha1.Reservation{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-reservation"},
+				Spec: schedulingv1alpha1.ReservationSpec{
+					Template: &corev1.PodTemplateSpec{
+						Spec: corev1.PodSpec{
+							Containers: []corev1.Container{
+								{
+									Resources: corev1.ResourceRequirements{
+										Limits:   memberENIResources,
+										Requests: memberENIResources,
+									},
+								},
+								{
+									Resources: corev1.ResourceRequirements{
+										Limits:   memberENIResources,
+										Requests: memberENIResources,
 									},
 								},
 							},

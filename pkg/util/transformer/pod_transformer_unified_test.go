@@ -344,3 +344,111 @@ func TestTransformUnifiedGPUMemoryRatio(t *testing.T) {
 		})
 	}
 }
+
+func TestTransformENIResource(t *testing.T) {
+	enableENIResourceTransform = true
+	sigmaENIResources := corev1.ResourceList{
+		unified.ResourceSigmaENI: resource.MustParse("1"),
+	}
+	memberENIResources := corev1.ResourceList{
+		unified.ResourceAliyunMemberENI: resource.MustParse("1"),
+	}
+	bothExists := corev1.ResourceList{
+		unified.ResourceSigmaENI:        resource.MustParse("1"),
+		unified.ResourceAliyunMemberENI: resource.MustParse("1"),
+	}
+
+	tests := []struct {
+		name        string
+		pod         *corev1.Pod
+		expectedPod *corev1.Pod
+	}{
+		{
+			name: "only sigmaEni",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Resources: corev1.ResourceRequirements{
+								Limits:   sigmaENIResources.DeepCopy(),
+								Requests: sigmaENIResources.DeepCopy(),
+							},
+						},
+					},
+				},
+			},
+			expectedPod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Resources: corev1.ResourceRequirements{
+								Limits:   memberENIResources.DeepCopy(),
+								Requests: memberENIResources.DeepCopy(),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "only member eni",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Resources: corev1.ResourceRequirements{
+								Limits:   memberENIResources.DeepCopy(),
+								Requests: memberENIResources.DeepCopy(),
+							},
+						},
+					},
+				},
+			},
+			expectedPod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Resources: corev1.ResourceRequirements{
+								Limits:   memberENIResources.DeepCopy(),
+								Requests: memberENIResources.DeepCopy(),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "both exists",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Resources: corev1.ResourceRequirements{
+								Limits:   bothExists.DeepCopy(),
+								Requests: bothExists.DeepCopy(),
+							},
+						},
+					},
+				},
+			},
+			expectedPod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Resources: corev1.ResourceRequirements{
+								Limits:   memberENIResources.DeepCopy(),
+								Requests: memberENIResources.DeepCopy(),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			TransformENIResource(tt.pod)
+			assert.Equal(t, tt.expectedPod, tt.pod)
+		})
+	}
+}
