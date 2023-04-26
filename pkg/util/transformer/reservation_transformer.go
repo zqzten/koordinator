@@ -10,6 +10,7 @@ import (
 var reservationTransformers = []func(reservation *schedulingv1alpha1.Reservation){
 	TransformSigmaIgnoreResourceContainersForReservation,
 	TransformNonProdPodResourceSpecForReservation,
+	TransformENIResourceForReservation,
 }
 
 func InstallReservationTransformer(reservationInformer cache.SharedIndexInformer) {
@@ -48,4 +49,8 @@ func TransformSigmaIgnoreResourceContainersForReservation(reservation *schedulin
 
 func TransformNonProdPodResourceSpecForReservation(reservation *schedulingv1alpha1.Reservation) {
 	transformNonProdPodResourceSpec(&reservation.Spec.Template.Spec)
+}
+
+func TransformENIResourceForReservation(reservation *schedulingv1alpha1.Reservation) {
+	transformENIResource(&reservation.Spec.Template.Spec)
 }
