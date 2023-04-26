@@ -29,6 +29,11 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/util/cpuset"
 )
 
+const (
+	ResourceAliyunMemberENI corev1.ResourceName = "aliyun/member-eni"
+	ResourceSigmaENI        corev1.ResourceName = "sigma/eni"
+)
+
 // GetResourceSpec parses ResourceSpec from annotations; first koordinator protocols, second unified, third asi-sigma
 func GetResourceSpec(annotations map[string]string) (*extension.ResourceSpec, error) {
 	// koordinator protocols
