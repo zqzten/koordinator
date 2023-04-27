@@ -115,6 +115,11 @@ func Test_syncLRN(t *testing.T) {
 				corev1.ResourceMemory:    resource.MustParse("10Gi"),
 				apiext.ResourceNvidiaGPU: resource.MustParse("2"),
 			},
+			Capacity: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceCPU:       resource.MustParse("10"),
+				corev1.ResourceMemory:    resource.MustParse("12Gi"),
+				apiext.ResourceNvidiaGPU: resource.MustParse("2"),
+			},
 		},
 	}
 	testLRN := &schedulingv1alpha1.LogicalResourceNode{

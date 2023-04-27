@@ -104,11 +104,51 @@ func TestLRNCollectors(t *testing.T) {
 			RecordNodeResourceAllocatable(string(corev1.ResourceCPU), UnitCore, float64(testingNode.Status.Allocatable.Cpu().MilliValue())/1000)
 			RecordNodeResourceAllocatable(string(corev1.ResourceMemory), UnitByte, float64(testingNode.Status.Allocatable.Memory().Value()))
 			RecordNodeResourceAllocatable(AcceleratorResource, UnitInteger, float64(testingNode.Status.Allocatable.Name(apiext.ResourceNvidiaGPU, resource.DecimalSI).Value()))
-			RecordLRNResourceAllocatable(testingLRN.Name, string(corev1.ResourceCPU), UnitCore, float64(testingLRN.Status.Allocatable.Cpu().MilliValue())/1000)
-			RecordLRNResourceAllocatable(testingLRN.Name, string(corev1.ResourceMemory), UnitByte, float64(testingLRN.Status.Allocatable.Memory().Value()))
-			RecordLRNResourceAllocatable(testingLRN.Name, AcceleratorResource, UnitInteger, float64(testingLRN.Status.Allocatable.Name(apiext.ResourceNvidiaGPU, resource.DecimalSI).Value()))
+			RecordLRNAllocatableCPUCores(testingLRN.Name, float64(testingLRN.Status.Allocatable.Cpu().MilliValue())/1000)
+			RecordLRNAllocatableMemoryTotalBytes(testingLRN.Name, float64(testingLRN.Status.Allocatable.Memory().Value()))
+			RecordLRNAllocatableAcceleratorTotal(testingLRN.Name, float64(testingLRN.Status.Allocatable.Name(apiext.ResourceNvidiaGPU, resource.DecimalSI).Value()))
 			RecordLRNPods(testingLRN.Name, testingPod)
 			RecordLRNContainers(testingLRN.Name, &testingPod.Status.ContainerStatuses[0], testingPod)
+			RecordLRNAccelerators(testingLRN.Name, "gpu", "4")
+			RecordNodeLRNs(testingLRN)
+		})
+	})
+}
+
+func TestUnifiedCollectors(t *testing.T) {
+	testingNode := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "test-node",
+			Labels: map[string]string{},
+		},
+		Status: corev1.NodeStatus{
+			Allocatable: corev1.ResourceList{
+				corev1.ResourceCPU:       resource.MustParse("96"),
+				corev1.ResourceMemory:    resource.MustParse("180Gi"),
+				apiext.BatchCPU:          resource.MustParse("50000"),
+				apiext.BatchMemory:       resource.MustParse("80Gi"),
+				apiext.ResourceNvidiaGPU: resource.MustParse("4"),
+			},
+			Capacity: corev1.ResourceList{
+				corev1.ResourceCPU:       resource.MustParse("100"),
+				corev1.ResourceMemory:    resource.MustParse("200Gi"),
+				apiext.BatchCPU:          resource.MustParse("50000"),
+				apiext.BatchMemory:       resource.MustParse("80Gi"),
+				apiext.ResourceNvidiaGPU: resource.MustParse("4"),
+			},
+		},
+	}
+	t.Run("test", func(t *testing.T) {
+		Register(testingNode)
+		defer Register(nil)
+
+		assert.NotPanics(t, func() {
+			RecordNodeResourceAllocatableCPUCores(float64(testingNode.Status.Allocatable.Cpu().MilliValue()) / 1000)
+			RecordNodeResourceAllocatableMemoryTotalBytes(float64(testingNode.Status.Allocatable.Memory().Value()))
+			RecordNodeResourceAllocatableAcceleratorTotal(float64(testingNode.Status.Allocatable.Name(apiext.ResourceNvidiaGPU, resource.DecimalSI).Value()))
+			RecordNodeResourceCapacityCPUCores(float64(testingNode.Status.Capacity.Cpu().MilliValue()) / 1000)
+			RecordNodeResourceCapacityMemoryTotalBytes(float64(testingNode.Status.Capacity.Memory().Value()))
+			RecordNodeResourceCapacityAcceleratorTotal(float64(testingNode.Status.Capacity.Name(apiext.ResourceNvidiaGPU, resource.DecimalSI).Value()))
 		})
 	})
 }

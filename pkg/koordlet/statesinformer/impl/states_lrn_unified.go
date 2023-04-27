@@ -128,8 +128,8 @@ func (l *lrnInformer) GetLRN(name string) *schedulingv1alpha1.LogicalResourceNod
 
 func (l *lrnInformer) syncLRN() {
 	node := l.nodeInformer.GetNode()
-	if node == nil || node.Status.Allocatable == nil {
-		klog.V(4).Infof("abort to sync LRN since node is invalid, node %v", node)
+	if node == nil || node.Status.Allocatable == nil || node.Status.Capacity == nil {
+		klog.V(4).Infof("abort to sync LRN since node status is invalid, node %v", node)
 		return
 	}
 
@@ -232,14 +232,15 @@ func getDevicesOnLRN(lrn *schedulingv1alpha1.LogicalResourceNode) *schedulingv1a
 func recordLRNNodeMetrics(node *corev1.Node) {
 	// TODO: move into upstream node informer with an option
 	// record node allocatable resources especially for the node components which cannot access the ksm
-	metrics.RecordNodeResourceAllocatable(string(corev1.ResourceCPU), metrics.UnitCore, float64(node.Status.Allocatable.Cpu().MilliValue())/1000)
-	metrics.RecordNodeResourceAllocatable(string(corev1.ResourceMemory), metrics.UnitByte, float64(node.Status.Allocatable.Memory().Value()))
+	metrics.RecordNodeResourceAllocatableCPUCores(float64(node.Status.Allocatable.Cpu().MilliValue()) / 1000)
+	metrics.RecordNodeResourceAllocatableMemoryTotalBytes(float64(node.Status.Allocatable.Memory().Value()))
+	metrics.RecordNodeResourceCapacityCPUCores(float64(node.Status.Capacity.Cpu().MilliValue()) / 1000)
+	metrics.RecordNodeResourceCapacityMemoryTotalBytes(float64(node.Status.Capacity.Memory().Value()))
 	// NOTE: accelerators currently only includes `nvidia.com/gpu`
-	acceleratorValue := 0.0
-	gpuValue := float64(node.Status.Allocatable.Name(apiext.ResourceNvidiaGPU, resource.DecimalSI).Value())
-	metrics.RecordNodeResourceAllocatable(string(apiext.ResourceNvidiaGPU), metrics.UnitInteger, gpuValue)
-	acceleratorValue += gpuValue
-	metrics.RecordNodeResourceAllocatable(metrics.AcceleratorResource, metrics.UnitInteger, acceleratorValue)
+	acceleratorAllocatableValue := float64(node.Status.Allocatable.Name(apiext.ResourceNvidiaGPU, resource.DecimalSI).Value())
+	metrics.RecordNodeResourceAllocatableAcceleratorTotal(acceleratorAllocatableValue)
+	acceleratorCapacityValue := float64(node.Status.Capacity.Name(apiext.ResourceNvidiaGPU, resource.DecimalSI).Value())
+	metrics.RecordNodeResourceCapacityAcceleratorTotal(acceleratorCapacityValue)
 
 	klog.V(6).Infof("record lrn metrics for node %s", node.Name)
 }
@@ -251,19 +252,16 @@ func recordLRNMetrics(lrn *schedulingv1alpha1.LogicalResourceNode) {
 		return
 	}
 	name := lrn.Name
+	metrics.RecordNodeLRNs(lrn)
 
-	// cpu
-	cpuValue := float64(lrn.Status.Allocatable.Cpu().MilliValue()) / 1000
-	metrics.RecordLRNResourceAllocatable(name, string(corev1.ResourceCPU), metrics.UnitCore, cpuValue)
-	// memory
-	memoryValue := float64(lrn.Status.Allocatable.Memory().Value())
-	metrics.RecordLRNResourceAllocatable(name, string(corev1.ResourceMemory), metrics.UnitByte, memoryValue)
+	// cpu, memory
+	metrics.RecordLRNAllocatableCPUCores(name, float64(lrn.Status.Allocatable.Cpu().MilliValue())/1000)
+	metrics.RecordLRNAllocatableMemoryTotalBytes(name, float64(lrn.Status.Allocatable.Memory().Value()))
 
 	// accelerator
 	// NOTE: accelerators currently only includes `nvidia.com/gpu`
-	acceleratorValue := 0.0
-	acceleratorValue += float64(lrn.Status.Allocatable.Name(apiext.ResourceNvidiaGPU, resource.DecimalSI).Value())
-	metrics.RecordLRNResourceAllocatable(name, metrics.AcceleratorResource, metrics.UnitInteger, acceleratorValue)
+	acceleratorValue := float64(lrn.Status.Allocatable.Name(apiext.ResourceNvidiaGPU, resource.DecimalSI).Value())
+	metrics.RecordLRNAllocatableAcceleratorTotal(name, acceleratorValue)
 	lrnDevices := getDevicesOnLRN(lrn)
 	if lrnDevices != nil {
 		for deviceType, deviceInfos := range *lrnDevices {
