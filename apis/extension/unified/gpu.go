@@ -24,6 +24,13 @@ import (
 )
 
 const (
+	LabelGPUCardModel           = "alibabacloud.com/gpu-card-model"
+	LabelTenantDLC              = "tenant.dlc.alibaba-inc.com"
+	LabelTenantDLCMachineGroup  = "tenant.dlc.alibaba-inc.com/machinegroup"
+	LabelTenantDLCResourceGroup = "tenant.dlc.alibaba-inc.com/resourcegroup"
+)
+
+const (
 	GPUCardRatio                          = apiext.DomainPrefix + "gpu-card-ratio"
 	EnvActivelyAddedUnifiedGPUMemoryRatio = "ACTIVELY_ADDED_GPU_MEM_RATIO"
 )

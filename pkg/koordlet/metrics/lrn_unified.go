@@ -20,15 +20,28 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 
+	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/util/metrics"
 )
 
 var (
-	LRNResourceAllocatable = metrics.NewGCGaugeVec("lrn_resource_allocatable", prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	LRNAllocatableCPUCores = metrics.NewGCGaugeVec("lrn_allocatable_cpu_cores", prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Subsystem: KoordletSubsystem,
-		Name:      "lrn_resource_allocatable",
-		Help:      "the resource allocatable of the LRN",
-	}, []string{NodeKey, LRNKey, ResourceKey, UnitKey}))
+		Name:      "lrn_allocatable_cpu_cores",
+		Help:      "the cpu resource allocatable of the LRN",
+	}, []string{NodeKey, LRNKey}))
+
+	LRNAllocatableMemoryTotalBytes = metrics.NewGCGaugeVec("lrn_allocatable_memory_total_bytes", prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Subsystem: KoordletSubsystem,
+		Name:      "lrn_allocatable_memory_total_bytes",
+		Help:      "the memory resource allocatable of the LRN",
+	}, []string{NodeKey, LRNKey}))
+
+	LRNAllocatableAcceleratorTotal = metrics.NewGCGaugeVec("lrn_allocatable_accelerator_total", prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Subsystem: KoordletSubsystem,
+		Name:      "lrn_allocatable_accelerator_total",
+		Help:      "the accelerator resource allocatable of the LRN",
+	}, []string{NodeKey, LRNKey}))
 
 	LRNPods = metrics.NewGCGaugeVec("lrn_pods", prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Subsystem: KoordletSubsystem,
@@ -42,29 +55,55 @@ var (
 		Help:      "the containers belonging to the LRN",
 	}, []string{NodeKey, LRNKey, PodUID, PodName, PodNamespace, ContainerID, ContainerName}))
 
-	LRNAccelerators = metrics.NewGCGaugeVec("lrn_containers", prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	LRNAccelerators = metrics.NewGCGaugeVec("lrn_accelerators", prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Subsystem: KoordletSubsystem,
 		Name:      "lrn_accelerators",
 		Help:      "the accelerators belonging to the LRN",
 	}, []string{NodeKey, LRNKey, AcceleratorMinorKey, AcceleratorTypeKey}))
 
+	NodeLRNs = metrics.NewGCGaugeVec("node_lrns", prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Subsystem: KoordletSubsystem,
+		Name:      "node_lrns",
+		Help:      "the LRNs belonging to the node",
+	}, []string{NodeKey, LRNKey, GPUCardModelKey, NodeNameKey, SingleNodeAllocationKey, ASWIDKey, PointOfDeliveryKey,
+		TenantDLCKey, MachineGroupKey, ResourceGroupKey, QuotaIDKey, QuotaNameKey}))
+
 	LRNCollectors = []prometheus.Collector{
-		LRNResourceAllocatable.GetGaugeVec(),
+		LRNAllocatableCPUCores.GetGaugeVec(),
+		LRNAllocatableMemoryTotalBytes.GetGaugeVec(),
+		LRNAllocatableAcceleratorTotal.GetGaugeVec(),
 		LRNPods.GetGaugeVec(),
 		LRNContainers.GetGaugeVec(),
 		LRNAccelerators.GetGaugeVec(),
+		NodeLRNs.GetGaugeVec(),
 	}
 )
 
-func RecordLRNResourceAllocatable(lrnName string, resourceName string, unit string, value float64) {
+func RecordLRNAllocatableCPUCores(lrnName string, value float64) {
 	labels := genNodeLabels()
 	if labels == nil {
 		return
 	}
 	labels[LRNKey] = lrnName
-	labels[ResourceKey] = resourceName
-	labels[UnitKey] = unit
-	LRNResourceAllocatable.WithSet(labels, value)
+	LRNAllocatableCPUCores.WithSet(labels, value)
+}
+
+func RecordLRNAllocatableMemoryTotalBytes(lrnName string, value float64) {
+	labels := genNodeLabels()
+	if labels == nil {
+		return
+	}
+	labels[LRNKey] = lrnName
+	LRNAllocatableMemoryTotalBytes.WithSet(labels, value)
+}
+
+func RecordLRNAllocatableAcceleratorTotal(lrnName string, value float64) {
+	labels := genNodeLabels()
+	if labels == nil {
+		return
+	}
+	labels[LRNKey] = lrnName
+	LRNAllocatableAcceleratorTotal.WithSet(labels, value)
 }
 
 func RecordLRNPods(lrnName string, pod *corev1.Pod) {
@@ -102,4 +141,13 @@ func RecordLRNAccelerators(lrnName string, deviceType string, acceleratorMinor s
 	labels[AcceleratorMinorKey] = acceleratorMinor
 	labels[AcceleratorTypeKey] = deviceType
 	LRNAccelerators.WithSet(labels, 1.0)
+}
+
+func RecordNodeLRNs(lrn *schedulingv1alpha1.LogicalResourceNode) {
+	labels := genNodeLabels()
+	if labels == nil {
+		return
+	}
+	setLRNLabels(labels, lrn)
+	NodeLRNs.WithSet(labels, 1.0)
 }
