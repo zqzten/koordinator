@@ -21,6 +21,7 @@ package impl
 
 var DefaultPluginRegistry = map[PluginName]informerPlugin{
 	nodeSLOInformerName:    NewNodeSLOInformer(),
+	pvcInformerName:        NewPVCInformer(),
 	nodeTopoInformerName:   NewNodeTopoInformer(),
 	nodeInformerName:       NewNodeInformer(),
 	podsInformerName:       NewPodsInformer(),
