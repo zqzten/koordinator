@@ -48,6 +48,10 @@ func (c *FakeSchedulingV1alpha1) PodMigrationJobs() v1alpha1.PodMigrationJobInte
 	return &FakePodMigrationJobs{c}
 }
 
+func (c *FakeSchedulingV1alpha1) QuotaNodeBinders() v1alpha1.QuotaNodeBinderInterface {
+	return &FakeQuotaNodeBinders{c}
+}
+
 func (c *FakeSchedulingV1alpha1) Reservations() v1alpha1.ReservationInterface {
 	return &FakeReservations{c}
 }
