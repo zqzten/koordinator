@@ -28,6 +28,8 @@ type LogicalResourceNodeExpansion interface{}
 
 type PodMigrationJobExpansion interface{}
 
+type QuotaNodeBinderExpansion interface{}
+
 type ReservationExpansion interface{}
 
 type ResourcePolicyExpansion interface{}
