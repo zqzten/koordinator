@@ -19,10 +19,11 @@ package main
 import (
 	kruisev1alpha1 "github.com/openkruise/kruise-api/apps/v1alpha1"
 	kruisev1beta1 "github.com/openkruise/kruise-api/apps/v1beta1"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+
+	autoscaling "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/autoscaling/v1alpha1"
 	cosv1beta1 "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/scheduling/v1beta1"
 	univ1bata1 "gitlab.alibaba-inc.com/unischeduler/api/apis/scheduling/v1beta1"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/kubernetes/pkg/apis/autoscaling"
 
 	"github.com/koordinator-sh/koordinator/cmd/koord-manager/extensions"
 	"github.com/koordinator-sh/koordinator/pkg/controller/unified/resourcesummary"
@@ -40,6 +41,7 @@ func init() {
 
 	controllerAddFuncs["ResourceSummary"] = resourcesummary.Add
 
+	_ = clientgoscheme.AddToScheme(scheme)
 	_ = autoscaling.AddToScheme(scheme)
 	_ = kruisev1alpha1.AddToScheme(scheme)
 	_ = kruisev1beta1.AddToScheme(scheme)
