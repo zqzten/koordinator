@@ -23,7 +23,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
-	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
@@ -32,6 +31,7 @@ import (
 
 	recommender "gitlab.alibaba-inc.com/cos/recommender/pkg/controllers"
 
+	deschedulerinformers "github.com/koordinator-sh/koordinator/pkg/descheduler/informers"
 	"github.com/koordinator-sh/koordinator/pkg/features"
 	utilfeature "github.com/koordinator-sh/koordinator/pkg/util/feature"
 	"github.com/koordinator-sh/koordinator/pkg/util/sloconfig"
@@ -50,8 +50,10 @@ func newRecommenderRunner(mgr ctrl.Manager) *RecommenderRunner {
 
 	failureRateLimiter := workqueue.NewItemExponentialFailureRateLimiter(time.Duration(5)*time.Millisecond,
 		time.Duration(1000)*time.Second)
-	clientSet := clientset.NewForConfigOrDie(restConfig)
-	informerFactory := informers.NewSharedInformerFactory(clientSet, time.Hour*24)
+
+	// share the common informers with the controller manager to reduce overhead
+	// TODO: adopt NewSharedInformerFactory in a public pkg
+	informerFactory := deschedulerinformers.NewSharedInformerFactory(mgr, time.Hour*24)
 
 	recommenderOpt := recommender.Option{
 		Scheme:                             mgr.GetScheme(),
