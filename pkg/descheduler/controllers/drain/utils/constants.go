@@ -27,6 +27,7 @@ const (
 	PodNameKey      = "drain.descheduler.koordinator.sh/pod-name"
 	AbortKey        = "drain.descheduler.koordinator.sh/abort"
 	CleanKey        = "drain.descheduler.koordinator.sh/clean-taint"
+	MigrationPolicy = "drain.descheduler.koordinator.sh/migration-policy"
 )
 
 var DrainNodeGroupKind = v1alpha1.SchemeGroupVersion.WithKind("DrainNodeGroup")

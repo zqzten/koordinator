@@ -48,9 +48,13 @@ spec:
           spec:
             description: DrainNodeGroupSpec defines the desired state of DrainNodeGroup
             properties:
-              drainNodePolicy:
-                description: DrainNodePolicy decides how to identify drained nodes
+              cordonNodePolicy:
+                description: CordonNodePolicy decides how to identify drained nodes
                 properties:
+                  labels:
+                    additionalProperties:
+                      type: string
+                    type: object
                   mode:
                     type: string
                 type: object

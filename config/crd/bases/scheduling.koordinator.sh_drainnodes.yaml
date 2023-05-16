@@ -51,10 +51,22 @@ spec:
               confirmState:
                 description: ConfirmState indicates the confirmation state.
                 type: string
-              drainNodePolicy:
-                description: DrainNodePolicy decides how to identify drained nodes
+              cordonPolicy:
+                description: CordonPolicy decides how to cordon drained nodes
+                properties:
+                  labels:
+                    additionalProperties:
+                      type: string
+                    type: object
+                  mode:
+                    type: string
+                type: object
+              migrationPolicy:
+                description: MigrationPolicy decides how the migrations progress
                 properties:
                   mode:
+                    type: string
+                  waitDeadline:
                     type: string
                 type: object
               nodeName:
@@ -70,83 +82,68 @@ spec:
               conditions:
                 description: Conditions describes the errors, if any.
                 items:
-                  description: "Condition contains details for one aspect of the current
-                    state of this API Resource. --- This struct is intended for direct
-                    use as an array at the field path .status.conditions.  For example,
-                    type FooStatus struct{ // Represents the observations of a foo's
-                    current state. // Known .status.conditions.type are: \"Available\",
-                    \"Progressing\", and \"Degraded\" // +patchMergeKey=type // +patchStrategy=merge
-                    // +listType=map // +listMapKey=type Conditions []metav1.Condition
-                    `json:\"conditions,omitempty\" patchStrategy:\"merge\" patchMergeKey:\"type\"
-                    protobuf:\"bytes,1,rep,name=conditions\"` \n // other fields }"
                   properties:
-                    lastTransitionTime:
-                      description: lastTransitionTime is the last time the condition
-                        transitioned from one status to another. This should be when
-                        the underlying condition changed.  If that is not known, then
-                        using the time when the API field changed is acceptable.
+                    lastProbeTime:
+                      description: Last time we probed the condition.
                       format: date-time
+                      nullable: true
+                      type: string
+                    lastTransitionTime:
+                      description: Last time the condition transitioned from one status
+                        to another.
+                      format: date-time
+                      nullable: true
                       type: string
                     message:
-                      description: message is a human readable message indicating
-                        details about the transition. This may be an empty string.
-                      maxLength: 32768
+                      description: Human-readable message indicating details about
+                        last transition.
                       type: string
-                    observedGeneration:
-                      description: observedGeneration represents the .metadata.generation
-                        that the condition was set based upon. For instance, if .metadata.generation
-                        is currently 12, but the .status.conditions[x].observedGeneration
-                        is 9, the condition is out of date with respect to the current
-                        state of the instance.
-                      format: int64
-                      minimum: 0
-                      type: integer
                     reason:
-                      description: reason contains a programmatic identifier indicating
-                        the reason for the condition's last transition. Producers
-                        of specific condition types may define expected values and
-                        meanings for this field, and whether the values are considered
-                        a guaranteed API. The value should be a CamelCase string.
-                        This field may not be empty.
-                      maxLength: 1024
-                      minLength: 1
-                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      description: Unique, one-word, CamelCase reason for the condition's
+                        last transition.
                       type: string
                     status:
-                      description: status of the condition, one of True, False, Unknown.
-                      enum:
-                      - "True"
-                      - "False"
-                      - Unknown
+                      description: Status is the status of the condition. Can be True,
+                        False, Unknown.
                       type: string
                     type:
-                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
-                        --- Many .condition.type values are consistent across resources
-                        like Available, but because arbitrary conditions can be useful
-                        (see .node.status.conditions), the ability to deconflict is
-                        important. The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
-                      maxLength: 316
-                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      description: Type is the type of the condition.
                       type: string
                   required:
-                  - lastTransitionTime
-                  - message
-                  - reason
                   - status
                   - type
                   type: object
                 type: array
-              migrationJobStatus:
-                description: MigrationJobStatus indicates the migration status of
-                  pods on the node.
+              phase:
+                description: Phase indicates what stage the DrainNode is in, such
+                  as Waiting, Running, and Succeed.
+                type: string
+              pogMigrationSummary:
+                additionalProperties:
+                  format: int32
+                  type: integer
+                description: PodMigrationSummary provides summary information of migrations
+                type: object
+              pogMigrations:
+                description: PodMigrations indicates the migration status of pods
+                  on the node.
                 items:
                   properties:
+                    chartedAfterDrainNodeConfirmed:
+                      description: The startTime of the PodMigration
+                      type: boolean
                     namespace:
                       description: Namespace where the pod is in
+                      type: string
+                    phase:
+                      description: The phase of the PodMigration
                       type: string
                     podMigrationJobName:
                       description: The name of the PodMigrationJob.
                       type: string
+                    podMigrationJobPaused:
+                      description: If PodMigrationJob paused
+                      type: boolean
                     podMigrationJobPhase:
                       description: Status of the PodMigrationJob.
                       type: string
@@ -159,15 +156,18 @@ spec:
                     reservationPhase:
                       description: Status of the Reservation.
                       type: string
+                    startTimestamp:
+                      description: The startTime of the PodMigration
+                      format: date-time
+                      type: string
                     targetNode:
                       description: The target node for pod migration.
                       type: string
+                    uid:
+                      description: The UID of the Pod
+                      type: string
                   type: object
                 type: array
-              phase:
-                description: Phase indicates what stage the DrainNode is in, such
-                  as Waiting, Running, and Succeed.
-                type: string
             type: object
         type: object
     served: true
