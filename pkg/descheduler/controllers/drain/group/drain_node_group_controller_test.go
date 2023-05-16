@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+   http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -281,7 +281,7 @@ func TestDrainNodeGroupReconciler_Reconcile(t *testing.T) {
 							},
 						},
 						Status: v1alpha1.DrainNodeStatus{
-							Phase: v1alpha1.DrainNodePhaseAvailable,
+							Phase: DrainNodePhaseAvailable,
 						},
 					},
 					&v1alpha1.DrainNode{
@@ -292,7 +292,7 @@ func TestDrainNodeGroupReconciler_Reconcile(t *testing.T) {
 							},
 						},
 						Status: v1alpha1.DrainNodeStatus{
-							Phase: v1alpha1.DrainNodePhaseAvailable,
+							Phase: DrainNodePhaseAvailable,
 						},
 					},
 				},
@@ -362,16 +362,11 @@ func TestDrainNodeGroupReconciler_Reconcile(t *testing.T) {
 							utils.GroupKey: "dng-123",
 						},
 					},
+					Spec: v1alpha1.DrainNodeSpec{
+						ConfirmState: v1alpha1.ConfirmStateConfirmed,
+					},
 					Status: v1alpha1.DrainNodeStatus{
-						Phase: v1alpha1.DrainNodePhaseWaiting,
-						Conditions: []metav1.Condition{
-							{
-								Type:    string(v1alpha1.DrainNodePhaseWaiting),
-								Status:  metav1.ConditionTrue,
-								Reason:  string(v1alpha1.DrainNodePhaseWaiting),
-								Message: "Waiting",
-							},
-						},
+						Phase: DrainNodePhaseAvailable,
 					},
 				},
 				{
@@ -381,16 +376,9 @@ func TestDrainNodeGroupReconciler_Reconcile(t *testing.T) {
 							utils.GroupKey: "dng-123",
 						},
 					},
+					Spec: v1alpha1.DrainNodeSpec{ConfirmState: v1alpha1.ConfirmStateConfirmed},
 					Status: v1alpha1.DrainNodeStatus{
-						Phase: v1alpha1.DrainNodePhaseWaiting,
-						Conditions: []metav1.Condition{
-							{
-								Type:    string(v1alpha1.DrainNodePhaseWaiting),
-								Status:  metav1.ConditionTrue,
-								Reason:  string(v1alpha1.DrainNodePhaseWaiting),
-								Message: "Waiting",
-							},
-						},
+						Phase: DrainNodePhaseAvailable,
 					},
 				},
 			},
@@ -454,7 +442,7 @@ func TestDrainNodeGroupReconciler_Reconcile(t *testing.T) {
 							},
 						},
 						Status: v1alpha1.DrainNodeStatus{
-							Phase: v1alpha1.DrainNodePhaseAvailable,
+							Phase: DrainNodePhaseAvailable,
 						},
 					},
 				},
@@ -536,16 +524,9 @@ func TestDrainNodeGroupReconciler_Reconcile(t *testing.T) {
 							utils.GroupKey: "dng-123",
 						},
 					},
+					Spec: v1alpha1.DrainNodeSpec{ConfirmState: v1alpha1.ConfirmStateConfirmed},
 					Status: v1alpha1.DrainNodeStatus{
-						Phase: v1alpha1.DrainNodePhaseWaiting,
-						Conditions: []metav1.Condition{
-							{
-								Type:    string(v1alpha1.DrainNodePhaseWaiting),
-								Status:  metav1.ConditionTrue,
-								Reason:  string(v1alpha1.DrainNodePhaseWaiting),
-								Message: "Waiting",
-							},
-						},
+						Phase: DrainNodePhaseAvailable,
 					},
 				},
 			},
@@ -609,7 +590,7 @@ func TestDrainNodeGroupReconciler_Reconcile(t *testing.T) {
 							},
 						},
 						Status: v1alpha1.DrainNodeStatus{
-							Phase: v1alpha1.DrainNodePhaseAvailable,
+							Phase: DrainNodePhaseAvailable,
 						},
 					},
 				},
@@ -692,7 +673,7 @@ func TestDrainNodeGroupReconciler_Reconcile(t *testing.T) {
 						},
 					},
 					Status: v1alpha1.DrainNodeStatus{
-						Phase: v1alpha1.DrainNodePhaseAvailable,
+						Phase: DrainNodePhaseAvailable,
 					},
 				},
 			},
@@ -745,7 +726,7 @@ func TestDrainNodeGroupReconciler_Reconcile(t *testing.T) {
 							},
 						},
 						Status: v1alpha1.DrainNodeStatus{
-							Phase: v1alpha1.DrainNodePhaseSucceeded,
+							Phase: v1alpha1.DrainNodePhaseComplete,
 						},
 					},
 					&v1alpha1.DrainNode{
@@ -756,7 +737,7 @@ func TestDrainNodeGroupReconciler_Reconcile(t *testing.T) {
 							},
 						},
 						Status: v1alpha1.DrainNodeStatus{
-							Phase: v1alpha1.DrainNodePhaseAvailable,
+							Phase: DrainNodePhaseAvailable,
 						},
 					},
 				},
@@ -828,7 +809,7 @@ func TestDrainNodeGroupReconciler_Reconcile(t *testing.T) {
 						},
 					},
 					Status: v1alpha1.DrainNodeStatus{
-						Phase: v1alpha1.DrainNodePhaseSucceeded,
+						Phase: v1alpha1.DrainNodePhaseComplete,
 					},
 				},
 				{
@@ -839,7 +820,7 @@ func TestDrainNodeGroupReconciler_Reconcile(t *testing.T) {
 						},
 					},
 					Status: v1alpha1.DrainNodeStatus{
-						Phase: v1alpha1.DrainNodePhaseAvailable,
+						Phase: DrainNodePhaseAvailable,
 					},
 				},
 			},
@@ -892,7 +873,7 @@ func TestDrainNodeGroupReconciler_Reconcile(t *testing.T) {
 							},
 						},
 						Status: v1alpha1.DrainNodeStatus{
-							Phase: v1alpha1.DrainNodePhaseSucceeded,
+							Phase: v1alpha1.DrainNodePhaseComplete,
 						},
 					},
 					&v1alpha1.DrainNode{
@@ -903,7 +884,7 @@ func TestDrainNodeGroupReconciler_Reconcile(t *testing.T) {
 							},
 						},
 						Status: v1alpha1.DrainNodeStatus{
-							Phase: v1alpha1.DrainNodePhaseSucceeded,
+							Phase: v1alpha1.DrainNodePhaseComplete,
 						},
 					},
 				},
@@ -983,7 +964,7 @@ func TestDrainNodeGroupReconciler_Reconcile(t *testing.T) {
 							},
 						},
 						Status: v1alpha1.DrainNodeStatus{
-							Phase: v1alpha1.DrainNodePhaseAvailable,
+							Phase: DrainNodePhaseAvailable,
 						},
 					},
 				},
@@ -1021,10 +1002,9 @@ func TestDrainNodeGroupReconciler_Reconcile(t *testing.T) {
 						Name: "dng-123-node1",
 						Labels: map[string]string{
 							utils.GroupKey: "dng-123",
-							utils.AbortKey: "true",
-							utils.CleanKey: "",
 						},
 					},
+					Spec: v1alpha1.DrainNodeSpec{ConfirmState: v1alpha1.ConfirmStateAborted},
 					Status: v1alpha1.DrainNodeStatus{
 						Phase: v1alpha1.DrainNodePhaseRunning,
 					},
@@ -1034,12 +1014,11 @@ func TestDrainNodeGroupReconciler_Reconcile(t *testing.T) {
 						Name: "dng-123-node2",
 						Labels: map[string]string{
 							utils.GroupKey: "dng-123",
-							utils.AbortKey: "true",
-							utils.CleanKey: "",
 						},
 					},
+					Spec: v1alpha1.DrainNodeSpec{ConfirmState: v1alpha1.ConfirmStateAborted},
 					Status: v1alpha1.DrainNodeStatus{
-						Phase: v1alpha1.DrainNodePhaseAvailable,
+						Phase: DrainNodePhaseAvailable,
 					},
 				},
 			},
@@ -1072,7 +1051,7 @@ func TestDrainNodeGroupReconciler_Reconcile(t *testing.T) {
 							},
 						},
 						Status: v1alpha1.DrainNodeStatus{
-							Phase: v1alpha1.DrainNodePhaseSucceeded,
+							Phase: v1alpha1.DrainNodePhaseComplete,
 						},
 					},
 					&v1alpha1.DrainNode{
@@ -1129,12 +1108,11 @@ func TestDrainNodeGroupReconciler_Reconcile(t *testing.T) {
 						Name: "dng-123-node1",
 						Labels: map[string]string{
 							utils.GroupKey: "dng-123",
-							utils.AbortKey: "true",
-							utils.CleanKey: "",
 						},
 					},
+					Spec: v1alpha1.DrainNodeSpec{ConfirmState: v1alpha1.ConfirmStateAborted},
 					Status: v1alpha1.DrainNodeStatus{
-						Phase: v1alpha1.DrainNodePhaseSucceeded,
+						Phase: v1alpha1.DrainNodePhaseComplete,
 					},
 				},
 				{
@@ -1142,10 +1120,9 @@ func TestDrainNodeGroupReconciler_Reconcile(t *testing.T) {
 						Name: "dng-123-node2",
 						Labels: map[string]string{
 							utils.GroupKey: "dng-123",
-							utils.AbortKey: "true",
-							utils.CleanKey: "",
 						},
 					},
+					Spec: v1alpha1.DrainNodeSpec{ConfirmState: v1alpha1.ConfirmStateAborted},
 					Status: v1alpha1.DrainNodeStatus{
 						Phase: v1alpha1.DrainNodePhaseAborted,
 					},
@@ -1180,7 +1157,7 @@ func TestDrainNodeGroupReconciler_Reconcile(t *testing.T) {
 							},
 						},
 						Status: v1alpha1.DrainNodeStatus{
-							Phase: v1alpha1.DrainNodePhaseSucceeded,
+							Phase: v1alpha1.DrainNodePhaseComplete,
 						},
 					},
 					&v1alpha1.DrainNode{
@@ -1229,11 +1206,13 @@ func TestDrainNodeGroupReconciler_Reconcile(t *testing.T) {
 						Name: "dng-123-node1",
 						Labels: map[string]string{
 							utils.GroupKey: "dng-123",
-							utils.CleanKey: "true",
 						},
 					},
+					Spec: v1alpha1.DrainNodeSpec{
+						ConfirmState: v1alpha1.ConfirmStateAborted,
+					},
 					Status: v1alpha1.DrainNodeStatus{
-						Phase: v1alpha1.DrainNodePhaseSucceeded,
+						Phase: v1alpha1.DrainNodePhaseComplete,
 					},
 				},
 				{
@@ -1241,8 +1220,10 @@ func TestDrainNodeGroupReconciler_Reconcile(t *testing.T) {
 						Name: "dng-123-node2",
 						Labels: map[string]string{
 							utils.GroupKey: "dng-123",
-							utils.CleanKey: "true",
 						},
+					},
+					Spec: v1alpha1.DrainNodeSpec{
+						ConfirmState: v1alpha1.ConfirmStateAborted,
 					},
 					Status: v1alpha1.DrainNodeStatus{
 						Phase: v1alpha1.DrainNodePhaseAborted,

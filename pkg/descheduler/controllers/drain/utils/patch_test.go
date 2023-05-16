@@ -294,7 +294,7 @@ func TestToggleDrainNodeState(t *testing.T) {
 	type args struct {
 		dn     *v1alpha1.DrainNode
 		phase  v1alpha1.DrainNodePhase
-		status []v1alpha1.MigrationJobStatus
+		status []v1alpha1.PodMigration
 		msg    string
 	}
 	tests := []struct {
@@ -322,7 +322,7 @@ func TestToggleDrainNodeState(t *testing.T) {
 					},
 				},
 				phase: v1alpha1.DrainNodePhaseAborted,
-				status: []v1alpha1.MigrationJobStatus{
+				status: []v1alpha1.PodMigration{
 					{Namespace: "1", PodName: "b"}, {Namespace: "2", PodName: "a"}, {Namespace: "1", PodName: "a"},
 				},
 				msg: "test",
@@ -334,12 +334,12 @@ func TestToggleDrainNodeState(t *testing.T) {
 				},
 				Status: v1alpha1.DrainNodeStatus{
 					Phase: v1alpha1.DrainNodePhaseAborted,
-					MigrationJobStatus: []v1alpha1.MigrationJobStatus{
+					PodMigrations: []v1alpha1.PodMigration{
 						{Namespace: "1", PodName: "a"}, {Namespace: "1", PodName: "b"}, {Namespace: "2", PodName: "a"},
 					},
-					Conditions: []metav1.Condition{
+					Conditions: []v1alpha1.DrainNodeCondition{
 						{
-							Type:    string(v1alpha1.DrainNodePhaseAborted),
+							Type:    v1alpha1.DrainNodeConditionType(v1alpha1.DrainNodePhaseAborted),
 							Status:  metav1.ConditionTrue,
 							Reason:  string(v1alpha1.DrainNodePhaseAborted),
 							Message: "test",
@@ -355,7 +355,7 @@ func TestToggleDrainNodeState(t *testing.T) {
 			eventBroadcaster := record.NewBroadcaster()
 			recorder := eventBroadcaster.NewRecorder(scheme, v1.EventSource{Component: "patch_test"})
 			eventRecorder := record.NewEventRecorderAdapter(recorder)
-			err := ToggleDrainNodeState(c, eventRecorder, tt.args.dn, tt.args.phase, tt.args.status, tt.args.msg)
+			err := ToggleDrainNodeState(c, eventRecorder, tt.args.dn, tt.args.phase, tt.args.status, nil, tt.args.msg)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ToggleDrainNodeState() error = %v, wantErr %v", err, tt.wantErr)
 				return

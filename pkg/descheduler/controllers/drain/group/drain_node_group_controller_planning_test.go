@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+   http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -109,7 +109,7 @@ func TestDrainNodeGroupReconciler_Reconcile_Planning(t *testing.T) {
 							},
 						},
 						Status: v1alpha1.DrainNodeStatus{
-							Phase: v1alpha1.DrainNodePhaseAvailable,
+							Phase: DrainNodePhaseAvailable,
 						},
 					},
 					&v1alpha1.DrainNode{
@@ -120,7 +120,7 @@ func TestDrainNodeGroupReconciler_Reconcile_Planning(t *testing.T) {
 							},
 						},
 						Status: v1alpha1.DrainNodeStatus{
-							Phase: v1alpha1.DrainNodePhaseAvailable,
+							Phase: DrainNodePhaseAvailable,
 						},
 					},
 				},
@@ -194,7 +194,7 @@ func TestDrainNodeGroupReconciler_Reconcile_Planning(t *testing.T) {
 						},
 					},
 					Status: v1alpha1.DrainNodeStatus{
-						Phase: v1alpha1.DrainNodePhaseAvailable,
+						Phase: DrainNodePhaseAvailable,
 					},
 				},
 				{
@@ -205,7 +205,7 @@ func TestDrainNodeGroupReconciler_Reconcile_Planning(t *testing.T) {
 						},
 					},
 					Status: v1alpha1.DrainNodeStatus{
-						Phase: v1alpha1.DrainNodePhaseAvailable,
+						Phase: DrainNodePhaseAvailable,
 					},
 				},
 			},
@@ -261,7 +261,7 @@ func TestDrainNodeGroupReconciler_Reconcile_Planning(t *testing.T) {
 							},
 						},
 						Status: v1alpha1.DrainNodeStatus{
-							Phase: v1alpha1.DrainNodePhaseAvailable,
+							Phase: DrainNodePhaseAvailable,
 						},
 					},
 					&v1alpha1.DrainNode{
@@ -272,7 +272,7 @@ func TestDrainNodeGroupReconciler_Reconcile_Planning(t *testing.T) {
 							},
 						},
 						Status: v1alpha1.DrainNodeStatus{
-							Phase: v1alpha1.DrainNodePhaseAvailable,
+							Phase: DrainNodePhaseAvailable,
 						},
 					},
 				},
@@ -352,7 +352,7 @@ func TestDrainNodeGroupReconciler_Reconcile_Planning(t *testing.T) {
 						},
 					},
 					Status: v1alpha1.DrainNodeStatus{
-						Phase: v1alpha1.DrainNodePhaseAvailable,
+						Phase: DrainNodePhaseAvailable,
 					},
 				},
 				{
@@ -363,7 +363,7 @@ func TestDrainNodeGroupReconciler_Reconcile_Planning(t *testing.T) {
 						},
 					},
 					Status: v1alpha1.DrainNodeStatus{
-						Phase: v1alpha1.DrainNodePhaseAvailable,
+						Phase: DrainNodePhaseAvailable,
 					},
 				},
 			},
@@ -416,7 +416,7 @@ func TestDrainNodeGroupReconciler_Reconcile_Planning(t *testing.T) {
 							},
 						},
 						Status: v1alpha1.DrainNodeStatus{
-							Phase: v1alpha1.DrainNodePhaseAvailable,
+							Phase: DrainNodePhaseAvailable,
 						},
 					},
 				},
@@ -478,7 +478,10 @@ func TestDrainNodeGroupReconciler_Reconcile_Planning(t *testing.T) {
 						},
 					},
 					Spec: v1alpha1.DrainNodeSpec{
-						NodeName:     "node2",
+						NodeName: "node2",
+						MigrationPolicy: v1alpha1.MigrationPolicy{
+							Mode: v1alpha1.MigrationPodModeMigrateDirectly,
+						},
 						ConfirmState: v1alpha1.ConfirmStateWait,
 					},
 				},
