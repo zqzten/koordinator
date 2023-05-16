@@ -48,10 +48,13 @@ import (
 )
 
 const (
-	Name                                             = "DrainNodeGroupController"
-	defaultRequeueAfter                              = 5 * time.Minute
-	defaultMarginTime                                = 5 * time.Minute
-	DrainNodePhaseNotStarted v1alpha1.DrainNodePhase = "NotStarted"
+	Name                                              = "DrainNodeGroupController"
+	defaultRequeueAfter                               = 5 * time.Minute
+	defaultMarginTime                                 = 5 * time.Minute
+	DrainNodePhaseNotStarted  v1alpha1.DrainNodePhase = "NotStarted"
+	DrainNodePhaseAvailable   v1alpha1.DrainNodePhase = "Available"
+	DrainNodePhaseUnavailable v1alpha1.DrainNodePhase = "Unavailable"
+	DrainNodePhaseFailed      v1alpha1.DrainNodePhase = "Failed"
 )
 
 type DrainNodeGroupReconciler struct {
@@ -286,7 +289,7 @@ func (r *DrainNodeGroupReconciler) handlePlanningGroup(dng *v1alpha1.DrainNodeGr
 	// Determine whether the group has reached the termination condition
 	if dng.Spec.TerminationPolicy != nil && len(nodes[v1alpha1.DrainNodePhasePending]) == 0 {
 		if dng.Spec.TerminationPolicy.MaxNodeCount != nil &&
-			len(nodes[v1alpha1.DrainNodePhaseAvailable]) >= int(*dng.Spec.TerminationPolicy.MaxNodeCount) {
+			len(nodes[DrainNodePhaseAvailable]) >= int(*dng.Spec.TerminationPolicy.MaxNodeCount) {
 			klog.Infof("DrainNodeGroup %v meet MaxNodeCount TerminationPolicy", dng.Name)
 			return toggleDrainNodeGroupState(r.Client, r.eventRecorder, dng, v1alpha1.DrainNodeGroupPhaseWaiting, nodes, "meet MaxNodeCount TerminationPolicy")
 		}
@@ -297,7 +300,7 @@ func (r *DrainNodeGroupReconciler) handlePlanningGroup(dng *v1alpha1.DrainNodeGr
 			for key, list := range nodes {
 				for i, n := range list {
 					total = quotav1.Add(total, n.Allocatable)
-					if key == v1alpha1.DrainNodePhaseUnavailable ||
+					if key == DrainNodePhaseUnavailable ||
 						(key == DrainNodePhaseNotStarted && i > 0) {
 						free = quotav1.Add(free, n.Free)
 					}
@@ -308,7 +311,7 @@ func (r *DrainNodeGroupReconciler) handlePlanningGroup(dng *v1alpha1.DrainNodeGr
 			if len(quotav1.IsNegative(quotav1.Subtract(free, reserved))) > 0 {
 				klog.Infof("DrainNodeGroup %v meet PercentageOfResourceReserved TerminationPolicy", dng.Name)
 				var newPhase v1alpha1.DrainNodeGroupPhase
-				if len(nodes[v1alpha1.DrainNodePhaseAvailable]) > 0 {
+				if len(nodes[DrainNodePhaseAvailable]) > 0 {
 					newPhase = v1alpha1.DrainNodeGroupPhaseWaiting
 				} else {
 					newPhase = v1alpha1.DrainNodeGroupPhaseFailed
@@ -321,9 +324,9 @@ func (r *DrainNodeGroupReconciler) handlePlanningGroup(dng *v1alpha1.DrainNodeGr
 	switch {
 	case len(nodes[v1alpha1.DrainNodePhasePending]) > 0:
 		return toggleDrainNodeGroupState(r.Client, r.eventRecorder, dng, v1alpha1.DrainNodeGroupPhasePlanning, nodes, "Planning")
-	case len(nodes[DrainNodePhaseNotStarted]) == 0 && len(nodes[v1alpha1.DrainNodePhaseAvailable]) > 0:
+	case len(nodes[DrainNodePhaseNotStarted]) == 0 && len(nodes[DrainNodePhaseAvailable]) > 0:
 		return toggleDrainNodeGroupState(r.Client, r.eventRecorder, dng, v1alpha1.DrainNodeGroupPhaseWaiting, nodes, "Waiting for confirm")
-	case len(nodes[DrainNodePhaseNotStarted]) == 0 && len(nodes[v1alpha1.DrainNodePhaseAvailable]) == 0:
+	case len(nodes[DrainNodePhaseNotStarted]) == 0 && len(nodes[DrainNodePhaseAvailable]) == 0:
 		return toggleDrainNodeGroupState(r.Client, r.eventRecorder, dng, v1alpha1.DrainNodeGroupPhaseFailed, nodes, "Failed, all nodes are not migrated")
 	default:
 		ni := nodes[DrainNodePhaseNotStarted][0]
@@ -349,25 +352,24 @@ func (r *DrainNodeGroupReconciler) handleWaitingGroup(dng *v1alpha1.DrainNodeGro
 		partition = math.MaxInt32
 	}
 
-	waiting := len(nodes[v1alpha1.DrainNodePhaseWaiting])
 	running := len(nodes[v1alpha1.DrainNodePhaseRunning])
-	Succeeded := len(nodes[v1alpha1.DrainNodePhaseSucceeded])
-	failed := len(nodes[v1alpha1.DrainNodePhaseFailed])
+	Succeeded := len(nodes[v1alpha1.DrainNodePhaseComplete])
+	failed := len(nodes[DrainNodePhaseFailed])
 	aborted := len(nodes[v1alpha1.DrainNodePhaseAborted])
-	remaining := partition - int32(waiting+running+Succeeded+failed+aborted)
-	for i := 0; int32(i) < remaining && i < len(nodes[v1alpha1.DrainNodePhaseAvailable]); i++ {
-		ni := nodes[v1alpha1.DrainNodePhaseAvailable][i]
+	remaining := partition - int32(running+Succeeded+failed+aborted)
+	for i := 0; int32(i) < remaining && i < len(nodes[DrainNodePhaseAvailable]); i++ {
+		ni := nodes[DrainNodePhaseAvailable][i]
 		dn := &v1alpha1.DrainNode{}
 		if err := r.Client.Get(context.Background(), types.NamespacedName{Name: fmt.Sprintf("%v-%v", dng.Name, ni.Name)}, dn); err != nil {
 			return err
 		}
-		if dn.Status.Phase != v1alpha1.DrainNodePhaseAvailable {
-			return fmt.Errorf("drain node %v state error", dn.Name)
-		}
-		if err := utils.ToggleDrainNodeState(r.Client, r.eventRecorder, dn, v1alpha1.DrainNodePhaseWaiting, nil, "Waiting"); err != nil {
+		if _, err := utils.Patch(r.Client, dn, func(o client.Object) client.Object {
+			newDn := o.(*v1alpha1.DrainNode)
+			newDn.Spec.ConfirmState = v1alpha1.ConfirmStateConfirmed
+			return newDn
+		}); err != nil {
 			return err
 		}
-		klog.V(3).Infof("Toggle DrainNode %v state %v ", dn.Name, v1alpha1.DrainNodePhaseWaiting)
 	}
 
 	if len(nodes[v1alpha1.DrainNodePhaseRunning]) > 0 {
@@ -391,12 +393,12 @@ func (r *DrainNodeGroupReconciler) handleRunningGroup(dng *v1alpha1.DrainNodeGro
 	}
 
 	switch {
-	case len(nodes[v1alpha1.DrainNodePhaseAvailable]) > 0, len(nodes[v1alpha1.DrainNodePhaseWaiting]) > 0:
+	case len(nodes[DrainNodePhaseAvailable]) > 0:
 		return toggleDrainNodeGroupState(r.Client, r.eventRecorder, dng, v1alpha1.DrainNodeGroupPhaseWaiting, nodes, "Waiting")
-	case len(nodes[v1alpha1.DrainNodePhaseSucceeded]) > 0:
+	case len(nodes[v1alpha1.DrainNodePhaseComplete]) > 0:
 		return toggleDrainNodeGroupState(r.Client, r.eventRecorder, dng, v1alpha1.DrainNodeGroupPhaseSucceeded, nodes,
-			fmt.Sprintf("Succeeded, %d DrainNode Succeeded", len(nodes[v1alpha1.DrainNodePhaseSucceeded])))
-	case len(nodes[v1alpha1.DrainNodePhaseSucceeded]) == 0:
+			fmt.Sprintf("Succeeded, %d DrainNode Succeeded", len(nodes[v1alpha1.DrainNodePhaseComplete])))
+	case len(nodes[v1alpha1.DrainNodePhaseComplete]) == 0:
 		return toggleDrainNodeGroupState(r.Client, r.eventRecorder, dng, v1alpha1.DrainNodeGroupPhaseFailed, nodes, "Failed, no successful node")
 	}
 	return toggleDrainNodeGroupState(r.Client, r.eventRecorder, dng, v1alpha1.DrainNodeGroupPhaseRunning, nodes, "Running")
@@ -410,7 +412,7 @@ func (r *DrainNodeGroupReconciler) cleanTaint(dng *v1alpha1.DrainNodeGroup) erro
 	for _, dn := range drainNodes {
 		if _, err := utils.Patch(r.Client, dn, func(o client.Object) client.Object {
 			newDn := o.(*v1alpha1.DrainNode)
-			newDn.Labels[utils.CleanKey] = dng.Labels[utils.CleanKey]
+			newDn.Spec.ConfirmState = v1alpha1.ConfirmStateAborted
 			return newDn
 		}); err != nil {
 			return err
@@ -428,16 +430,13 @@ func (r *DrainNodeGroupReconciler) abort(dng *v1alpha1.DrainNodeGroup) error {
 	for _, dn := range drainNodes {
 		if _, err := utils.Patch(r.Client, dn, func(o client.Object) client.Object {
 			newDn := o.(*v1alpha1.DrainNode)
-			newDn.Labels[utils.AbortKey] = dng.Labels[utils.AbortKey]
-			newDn.Labels[utils.CleanKey] = dng.Labels[utils.CleanKey]
+			newDn.Spec.ConfirmState = v1alpha1.ConfirmStateAborted
 			return newDn
 		}); err != nil {
 			return err
 		}
-		if dn.Status.Phase != v1alpha1.DrainNodePhaseSucceeded &&
-			dn.Status.Phase != v1alpha1.DrainNodePhaseFailed &&
-			dn.Status.Phase != v1alpha1.DrainNodePhaseAborted &&
-			dn.Status.Phase != v1alpha1.DrainNodePhaseUnavailable {
+		if dn.Status.Phase != v1alpha1.DrainNodePhaseComplete &&
+			dn.Status.Phase != v1alpha1.DrainNodePhaseAborted {
 			finished = false
 		}
 	}
@@ -445,6 +444,14 @@ func (r *DrainNodeGroupReconciler) abort(dng *v1alpha1.DrainNodeGroup) error {
 		return fmt.Errorf("DrainNodeGroup wait for DrainNode aborted")
 	}
 	return toggleDrainNodeGroupState(r.Client, r.eventRecorder, dng, v1alpha1.DrainNodeGroupPhaseAborted, nil, "DrainNodeGroup Aborted")
+}
+
+func drainNodeSatisfyCondition(dn *v1alpha1.DrainNode, conditionType v1alpha1.DrainNodeConditionType) bool {
+	conditionIndex, condition := utils.GetCondition(&dn.Status, conditionType)
+	if conditionIndex != -1 && condition.Status == metav1.ConditionTrue {
+		return true
+	}
+	return false
 }
 
 func (r *DrainNodeGroupReconciler) createDrainNode(dng *v1alpha1.DrainNodeGroup, ni *cache.NodeInfo) error {
@@ -458,10 +465,13 @@ func (r *DrainNodeGroupReconciler) createDrainNode(dng *v1alpha1.DrainNodeGroup,
 			OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(dng, utils.DrainNodeGroupKind)},
 		},
 		Spec: v1alpha1.DrainNodeSpec{
-			NodeName:        ni.Name,
-			TTL:             dng.Spec.TTL,
-			DrainNodePolicy: dng.Spec.DrainNodePolicy,
-			ConfirmState:    v1alpha1.ConfirmStateWait,
+			NodeName:     ni.Name,
+			TTL:          dng.Spec.TTL,
+			CordonPolicy: dng.Spec.CordonNodePolicy,
+			MigrationPolicy: v1alpha1.MigrationPolicy{
+				Mode: v1alpha1.MigrationPodModeMigrateDirectly,
+			},
+			ConfirmState: v1alpha1.ConfirmStateWait,
 		},
 	}
 
@@ -503,7 +513,18 @@ func (r *DrainNodeGroupReconciler) getNodeInfos(dng *v1alpha1.DrainNodeGroup) (c
 			if dn.Status.Phase == "" {
 				ret[v1alpha1.DrainNodePhasePending] = append(ret[v1alpha1.DrainNodePhasePending], ni)
 			} else {
-				ret[dn.Status.Phase] = append(ret[dn.Status.Phase], ni)
+				if drainNodeSatisfyCondition(dn, v1alpha1.DrainNodeConditionUnavailableReservationExists) {
+					ret[DrainNodePhaseUnavailable] = append(ret[DrainNodePhaseUnavailable], ni)
+				} else if drainNodeSatisfyCondition(dn, v1alpha1.DrainNodeConditionUnmigratablePodExists) &&
+					drainNodeSatisfyCondition(dn, v1alpha1.DrainNodeConditionFailedMigrationJobExists) &&
+					drainNodeSatisfyCondition(dn, v1alpha1.DrainNodeConditionUnexpectedReservationExists) &&
+					drainNodeSatisfyCondition(dn, v1alpha1.DrainNodeConditionUnexpectedPodAfterCompleteExists) {
+					ret[DrainNodePhaseFailed] = append(ret[DrainNodePhaseFailed], ni)
+				} else if drainNodeSatisfyCondition(dn, v1alpha1.DrainNodeConditionOnceAvailable) {
+					ret[DrainNodePhaseAvailable] = append(ret[DrainNodePhaseAvailable], ni)
+				} else {
+					ret[dn.Status.Phase] = append(ret[dn.Status.Phase], ni)
+				}
 			}
 		} else {
 			ret[DrainNodePhaseNotStarted] = append(ret[DrainNodePhaseNotStarted], ni)
@@ -514,7 +535,7 @@ func (r *DrainNodeGroupReconciler) getNodeInfos(dng *v1alpha1.DrainNodeGroup) (c
 	sort.SliceStable(list, func(i, j int) bool {
 		return list[i].Score > list[j].Score
 	})
-	list = ret[v1alpha1.DrainNodePhaseAvailable]
+	list = ret[DrainNodePhaseAvailable]
 	sort.SliceStable(list, func(i, j int) bool {
 		return list[i].Name < list[j].Name
 	})
@@ -569,11 +590,11 @@ func toggleDrainNodeGroupState(c client.Client,
 				total += int32(len(list))
 			}
 			newDng.Status.TotalCount = total
-			newDng.Status.UnavailableCount = int32(len(nodes[v1alpha1.DrainNodePhaseUnavailable]))
+			newDng.Status.UnavailableCount = int32(len(nodes[DrainNodePhaseUnavailable]))
 			newDng.Status.AvailableCount = total - newDng.Status.UnavailableCount
 			newDng.Status.RunningCount = int32(len(nodes[v1alpha1.DrainNodePhaseRunning]))
-			newDng.Status.SucceededCount = int32(len(nodes[v1alpha1.DrainNodePhaseSucceeded]))
-			newDng.Status.FailedCount = int32(len(nodes[v1alpha1.DrainNodePhaseFailed]))
+			newDng.Status.SucceededCount = int32(len(nodes[v1alpha1.DrainNodePhaseComplete]))
+			newDng.Status.FailedCount = int32(len(nodes[DrainNodePhaseFailed]))
 		}
 		if newDng.Status.Conditions == nil {
 			newDng.Status.Conditions = []metav1.Condition{}

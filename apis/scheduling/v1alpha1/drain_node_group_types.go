@@ -38,9 +38,9 @@ type DrainNodeGroupSpec struct {
 	// +optional
 	TTL *metav1.Duration `json:"ttl,omitempty"`
 
-	// DrainNodePolicy decides how to identify drained nodes
+	// CordonNodePolicy decides how to identify drained nodes
 	// +optional
-	DrainNodePolicy *DrainNodePolicy `json:"drainNodePolicy,omitempty"`
+	CordonNodePolicy *CordonNodePolicy `json:"cordonNodePolicy,omitempty"`
 
 	// ExecutionPolicy indicates how to execute in batches
 	// +optional
@@ -51,15 +51,17 @@ type DrainNodeGroupSpec struct {
 	TerminationPolicy *TerminationPolicy `json:"terminationPolicy,omitempty"`
 }
 
-type DrainNodeMode string
+type CordonNodeMode string
 
 const (
-	// DrainNodeModeTaint means adding Taint to planned node.
-	DrainNodeModeTaint DrainNodeMode = "Taint"
+	// CordonNodeModeTaint means adding Taint to planned node.
+	CordonNodeModeTaint CordonNodeMode = "Taint"
+	CordonNodeModeLabel CordonNodeMode = "Label"
 )
 
-type DrainNodePolicy struct {
-	Mode DrainNodeMode `json:"mode,omitempty"`
+type CordonNodePolicy struct {
+	Mode   CordonNodeMode    `json:"mode,omitempty"`
+	Labels map[string]string `json:"labels,omitempty"`
 }
 
 type ExecutionPolicy struct {

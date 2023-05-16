@@ -19,7 +19,7 @@ package cache
 import (
 	"sync"
 
-	v1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
+	"github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -73,4 +73,5 @@ type PodInfo struct {
 	Request    corev1.ResourceList
 	Ignore     bool
 	Migratable bool
+	Pod        *corev1.Pod
 }

@@ -119,14 +119,14 @@ func (c *drainNodeCache) deleteNodeFromCache(n *v1.Node) {
 }
 
 func (c *drainNodeCache) addPodToCache(p *v1.Pod) {
-	klog.V(3).Infof("update pod %v/%v in cache", p.Namespace, p.Name)
+	klog.V(3).Infof("update Pod %v/%v in cache", p.Namespace, p.Name)
 	ni := c.getOrCreateNodeInfo(p.Spec.NodeName)
 	ni.addPodToCache(p)
 	ni.updateStatus(nil)
 }
 
 func (c *drainNodeCache) deletePodFromCache(p *v1.Pod) {
-	klog.V(3).Infof("delete pod %v/%v from cache", p.Namespace, p.Name)
+	klog.V(3).Infof("delete Pod %v/%v from cache", p.Namespace, p.Name)
 	n := c.GetNodeInfo(p.Spec.NodeName)
 	if n == nil {
 		return
@@ -166,7 +166,7 @@ func (ni *NodeInfo) updateStatus(n *v1.Node) {
 		free = quotav1.Subtract(free, request)
 		if !pi.Ignore && !pi.Migratable {
 			drainable = false
-			klog.V(5).Infof("node %v not migratable, because of pod %v", ni.Name, pi.NamespacedName)
+			klog.V(5).Infof("node %v not migratable, because of Pod %v", ni.Name, pi.NamespacedName)
 		}
 	}
 	if len(ni.Reservation) > 0 {
@@ -195,6 +195,7 @@ func (ni *NodeInfo) addPodToCache(p *v1.Pod) *PodInfo {
 	pi.Namespace = p.Namespace
 	pi.Name = p.Name
 	pi.UID = p.UID
+	pi.Pod = p
 	if pi.Request == nil {
 		podRequests, _ := resourceapi.PodRequestsAndLimits(p)
 		pi.Request = podRequests
