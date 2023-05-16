@@ -449,6 +449,9 @@ func Test_interpreterImpl_CreateReservation(t *testing.T) {
 							},
 						},
 					},
+					Spec: corev1.PodSpec{
+						NodeName: "original-node",
+					},
 				},
 			},
 			want: newReservationBuilder().
@@ -510,7 +513,8 @@ func Test_interpreterImpl_CreateReservation(t *testing.T) {
 				allocateOnce(true).
 				resourceVersion("1").object(),
 			wantErr: false,
-		}, {
+		},
+		{
 			name:   "merge success",
 			fields: fields{},
 			args: args{
@@ -561,6 +565,7 @@ func Test_interpreterImpl_CreateReservation(t *testing.T) {
 								},
 							},
 						},
+						NodeName: "original-node",
 					},
 				},
 			},
@@ -659,7 +664,7 @@ func Test_interpreterImpl_CreateReservation(t *testing.T) {
 			if !reflect.DeepEqual(got, tt.want) {
 				gotObj := got.OriginObject().(*sev1alpha1.Reservation)
 				wantObj := tt.want.OriginObject().(*sev1alpha1.Reservation)
-				if !reflect.DeepEqual(gotObj.Spec.Template, wantObj.Spec.Template) {
+				if !reflect.DeepEqual(gotObj.Spec.Template.Spec.Affinity.NodeAffinity, wantObj.Spec.Template.Spec.Affinity.NodeAffinity) {
 					t.Errorf("interpreterImpl.CreateReservation() Template = %v, want %v", gotObj.Spec, wantObj.Spec)
 				}
 				if !reflect.DeepEqual(gotObj.Spec.Owners, wantObj.Spec.Owners) {

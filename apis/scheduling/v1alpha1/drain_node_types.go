@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -36,14 +37,30 @@ type DrainNodeSpec struct {
 	// +optional
 	TTL *metav1.Duration `json:"ttl,omitempty"`
 
-	// DrainNodePolicy decides how to identify drained nodes
+	// CordonPolicy decides how to cordon drained nodes
 	// +optional
-	DrainNodePolicy *DrainNodePolicy `json:"drainNodePolicy,omitempty"`
+	CordonPolicy *CordonNodePolicy `json:"cordonPolicy,omitempty"`
+
+	// MigrationPolicy decides how the migrations progress
+	// +optional
+	MigrationPolicy MigrationPolicy `json:"migrationPolicy,omitempty"`
 
 	// ConfirmState indicates the confirmation state.
 	// +required
 	ConfirmState ConfirmState `json:"confirmState,omitempty"`
 }
+
+type MigrationPolicy struct {
+	Mode         MigrationPodMode `json:"mode,omitempty"`
+	WaitDuration *metav1.Duration `json:"waitDuration,omitempty"`
+}
+
+type MigrationPodMode string
+
+const (
+	MigrationPodModeWaitFirst       MigrationPodMode = "WaitFirst"
+	MigrationPodModeMigrateDirectly MigrationPodMode = "MigrateDirectly"
+)
 
 type ConfirmState string
 
@@ -54,6 +71,8 @@ const (
 	ConfirmStateConfirmed ConfirmState = "Confirmed"
 	// ConfirmStateRejected indicates refusal to drain the node.
 	ConfirmStateRejected ConfirmState = "Rejected"
+	// ConfirmStateAborted drainNode aborted
+	ConfirmStateAborted ConfirmState = "Aborted"
 )
 
 // DrainNodeStatus defines the observed state of DrainNode
@@ -64,11 +83,14 @@ type DrainNodeStatus struct {
 	// Phase indicates what stage the DrainNode is in, such as Waiting, Running, and Succeed.
 	Phase DrainNodePhase `json:"phase,omitempty"`
 
-	// MigrationJobStatus indicates the migration status of pods on the node.
-	MigrationJobStatus []MigrationJobStatus `json:"migrationJobStatus,omitempty"`
+	// PodMigrations indicates the migration status of pods on the node.
+	PodMigrations []PodMigration `json:"pogMigrations,omitempty"`
+
+	// PodMigrationSummary provides summary information of migrations
+	PodMigrationSummary map[PodMigrationPhase]int32 `json:"pogMigrationSummary,omitempty"`
 
 	// Conditions describes the errors, if any.
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	Conditions []DrainNodeCondition `json:"conditions,omitempty"`
 }
 
 type DrainNodePhase string
@@ -76,27 +98,57 @@ type DrainNodePhase string
 const (
 	// DrainNodePhasePending represents the initial status.
 	DrainNodePhasePending DrainNodePhase = "Pending"
-	// DrainNodePhaseUnavailable represents insufficient resources to drain the node.
-	DrainNodePhaseUnavailable DrainNodePhase = "Unavailable"
-	// DrainNodePhaseAvailable represents sufficient resources to drain the node.
-	DrainNodePhaseAvailable DrainNodePhase = "Available"
-	// DrainNodePhaseWaiting represents waiting for confirmation to drain node.
-	DrainNodePhaseWaiting DrainNodePhase = "Waiting"
 	// DrainNodePhaseRunning represents the node being drained.
 	DrainNodePhaseRunning DrainNodePhase = "Running"
-	// DrainNodePhaseSucceeded represents the successful execution of the drain node.
-	DrainNodePhaseSucceeded DrainNodePhase = "Succeeded"
-	// DrainNodePhaseFailed represents a drain node execution failure.
-	DrainNodePhaseFailed DrainNodePhase = "Failed"
+	// DrainNodePhaseComplete represents the successful execution of the drain node.
+	DrainNodePhaseComplete DrainNodePhase = "Complete"
 	// DrainNodePhaseAborted represents that the drain node has been cancelled.
 	DrainNodePhaseAborted DrainNodePhase = "Aborted"
 )
 
-type MigrationJobStatus struct {
+type DrainNodeCondition struct {
+	// Type is the type of the condition.
+	Type DrainNodeConditionType `json:"type"`
+	// Status is the status of the condition.
+	// Can be True, False, Unknown.
+	Status metav1.ConditionStatus `json:"status"`
+	// Last time we probed the condition.
+	// +nullable
+	LastProbeTime metav1.Time `json:"lastProbeTime,omitempty"`
+	// Last time the condition transitioned from one status to another.
+	// +nullable
+	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
+	// Unique, one-word, CamelCase reason for the condition's last transition.
+	Reason string `json:"reason,omitempty"`
+	// Human-readable message indicating details about last transition.
+	Message string `json:"message,omitempty"`
+}
+
+type DrainNodeConditionType string
+
+// These are valid conditions of DrainNode.
+const (
+	DrainNodeConditionOnceAvailable                    DrainNodeConditionType = "OnceAvailable"
+	DrainNodeConditionUnmigratablePodExists            DrainNodeConditionType = "UnmigratablePodExists"
+	DrainNodeConditionUnexpectedReservationExists      DrainNodeConditionType = "UnexpectedReservationExists"
+	DrainNodeConditionUnavailableReservationExists     DrainNodeConditionType = "UnavailableReservationExists"
+	DrainNodeConditionFailedMigrationJobExists         DrainNodeConditionType = "FailedMigrationJobExists"
+	DrainNodeConditionUnexpectedPodAfterCompleteExists DrainNodeConditionType = "UnexpectedPodAfterCompleteExists "
+)
+
+type PodMigration struct {
+	// The UID of the Pod
+	PodUID types.UID `json:"uid,omitempty"`
 	// Namespace where the pod is in
 	Namespace string `json:"namespace,omitempty"`
 	// The name of the Pod.
 	PodName string `json:"podName,omitempty"`
+	// The phase of the PodMigration
+	Phase PodMigrationPhase `json:"phase,omitempty"`
+	// The startTime of the PodMigration
+	StartTimestamp metav1.Time `json:"startTimestamp,omitempty"`
+	// If pod migration start after user confirms the DrainNode
+	ChartedAfterDrainNodeConfirmed bool `json:"chartedAfterDrainNodeConfirmed,omitempty"`
 	// The name of the Reservation.
 	ReservationName string `json:"reservationName,omitempty"`
 	// Status of the Reservation.
@@ -105,9 +157,32 @@ type MigrationJobStatus struct {
 	TargetNode string `json:"targetNode,omitempty"`
 	// The name of the PodMigrationJob.
 	PodMigrationJobName string `json:"podMigrationJobName,omitempty"`
+	// If PodMigrationJob paused
+	PodMigrationJobPaused *bool `json:"podMigrationJobPaused,omitempty"`
 	// Status of the PodMigrationJob.
 	PodMigrationJobPhase PodMigrationJobPhase `json:"podMigrationJobPhase,omitempty"`
 }
+
+type PodMigrationPhase string
+
+const (
+	// PodMigrationPhaseUnmigratable represents the pod is Unmigratable
+	PodMigrationPhaseUnmigratable PodMigrationPhase = "Unmigratable"
+	// PodMigrationPhaseWaiting wait for pod completion
+	PodMigrationPhaseWaiting PodMigrationPhase = "Waiting"
+	// PodMigrationPhaseReady pod completed or the maximum waiting time has been reached.
+	PodMigrationPhaseReady PodMigrationPhase = "Ready"
+	// PodMigrationPhaseAvailable represents sufficient resources to migrate the pod.
+	PodMigrationPhaseAvailable PodMigrationPhase = "Available"
+	// PodMigrationPhaseUnavailable represents pod migration unavailable.
+	PodMigrationPhaseUnavailable PodMigrationPhase = "Unavailable"
+	// PodMigrationPhaseMigrating represents pod is migrating.
+	PodMigrationPhaseMigrating PodMigrationPhase = "Migrating"
+	// PodMigrationPhaseSucceed represents pod migration has finished.
+	PodMigrationPhaseSucceed PodMigrationPhase = "Succeed"
+	// PodMigrationPhaseFailed represents pod migration failed.
+	PodMigrationPhaseFailed PodMigrationPhase = "Failed"
+)
 
 // DrainNode is the Schema for the DrainNode API
 // +k8s:openapi-gen=true

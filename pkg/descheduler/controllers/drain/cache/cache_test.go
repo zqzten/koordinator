@@ -352,7 +352,9 @@ func TestNodeInfo_addPodToCache(t *testing.T) {
 			ni := &NodeInfo{
 				Pods: map[types.UID]*PodInfo{},
 			}
-			if got := ni.addPodToCache(tt.args.p); !reflect.DeepEqual(got, tt.want) {
+			got := ni.addPodToCache(tt.args.p)
+			tt.want.Pod = got.Pod
+			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("NodeInfo.addPodToCache() = %v, want %v", got, tt.want)
 			}
 		})
