@@ -61,21 +61,34 @@ func (p *Plugin) PreBindReservation(ctx context.Context, cycleState *framework.C
 	return p.preBindObject(ctx, cycleState, reservation, nodeName)
 }
 
-func (p *Plugin) preBindObject(ctx context.Context, cycleState *framework.CycleState, obj metav1.Object, nodeName string) *framework.Status {
-	labels := map[string]string{extunified.K8sLabelScheduleNodeName: nodeName}
-	annotations := map[string]string{}
+func (p *Plugin) preBindObject(ctx context.Context, cycleState *framework.CycleState, originalObj metav1.Object, nodeName string) *framework.Status {
+	objCopy := originalObj.(runtime.Object).DeepCopyObject()
+	newObj := objCopy.(metav1.Object)
+	labels := newObj.GetLabels()
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	labels[extunified.K8sLabelScheduleNodeName] = nodeName
+	newObj.SetLabels(labels)
+
+	annotations := newObj.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
 	updateTime := time.Now().In(time.FixedZone("CST", 8*3600)).Format(time.RFC3339Nano)
 	annotations[extunified.AnnotationSchedulerUpdateTime] = updateTime
 	annotations[extunified.AnnotationSchedulerBindTime] = updateTime
+	newObj.SetAnnotations(annotations)
+
 	// patch pod or reservation with new annotations and new labels
 	err := util.RetryOnConflictOrTooManyRequests(func() error {
-		_, err1 := util.NewPatch().WithHandle(p.handle).AddAnnotations(annotations).AddLabels(labels).Patch(ctx, obj)
+		_, err1 := util.NewPatch().WithHandle(p.handle).Patch(ctx, originalObj, newObj)
 		return err1
 	})
 	if err != nil {
-		klog.V(3).ErrorS(err, "Failed to preBind", "object", klog.KObj(obj))
+		klog.V(3).ErrorS(err, "Failed to preBind", "object", klog.KObj(originalObj))
 		return framework.NewStatus(framework.Error, err.Error())
 	}
-	klog.V(4).Infof("Successfully preBind Object %v(%T) with schedule result", klog.KObj(obj), obj)
+	klog.V(4).Infof("Successfully preBind Object %v(%T) with schedule result", klog.KObj(originalObj), originalObj)
 	return nil
 }
