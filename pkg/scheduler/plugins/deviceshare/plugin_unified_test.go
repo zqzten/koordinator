@@ -25,40 +25,34 @@ import (
 	"github.com/stretchr/testify/assert"
 	unifiedresourceext "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/extension"
 	cosclientset "gitlab.alibaba-inc.com/cos/unified-resource-api/client/clientset/versioned"
+	cosfake "gitlab.alibaba-inc.com/cos/unified-resource-api/client/clientset/versioned/fake"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/informers"
-	clientset "k8s.io/client-go/kubernetes"
-	kubefake "k8s.io/client-go/kubernetes/fake"
+	k8sfeature "k8s.io/apiserver/pkg/util/feature"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/utils/pointer"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
+	koordfeatures "github.com/koordinator-sh/koordinator/pkg/features"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 )
 
 type fakeExtendedHandle struct {
 	frameworkext.ExtendedHandle
-	cs                    *kubefake.Clientset
-	sharedInformerFactory informers.SharedInformerFactory
-	snapShotSharedLister  framework.SharedLister
+	snapShotSharedLister framework.SharedLister
 	cosclientset.Interface
 }
 
-func (f *fakeExtendedHandle) ClientSet() clientset.Interface {
-	return f.cs
-}
-
-func (f *fakeExtendedHandle) SharedInformerFactory() informers.SharedInformerFactory {
-	return f.sharedInformerFactory
-}
-
 func (f *fakeExtendedHandle) SnapshotSharedLister() framework.SharedLister {
-	return f.snapShotSharedLister
+	if f.snapShotSharedLister != nil {
+		return f.snapShotSharedLister
+	}
+	return f.ExtendedHandle.SnapshotSharedLister()
 }
 
 func Test_appendNetworkingVFMetas(t *testing.T) {
@@ -317,4 +311,130 @@ func Test_addContainerGPUResourceForPatch(t *testing.T) {
 			assert.Equal(t, tt.expected, patched)
 		})
 	}
+}
+
+func TestPreBindUnifiedDevice(t *testing.T) {
+	enableUnifiedDevice = true
+	defer func() {
+		enableUnifiedDevice = false
+	}()
+	defer featuregatetesting.SetFeatureGateDuringTest(t, k8sfeature.DefaultFeatureGate, koordfeatures.UnifiedDeviceScheduling, true)()
+
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+		},
+	}
+	suit := newPluginTestSuit(t, []*corev1.Node{node})
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "default",
+			Name:      "test-pod",
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name: "main",
+					Resources: corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU:       resource.MustParse("4"),
+							corev1.ResourceMemory:    resource.MustParse("8Gi"),
+							apiext.ResourceNvidiaGPU: resource.MustParse("2"),
+						},
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:       resource.MustParse("4"),
+							corev1.ResourceMemory:    resource.MustParse("8Gi"),
+							apiext.ResourceNvidiaGPU: resource.MustParse("2"),
+						},
+					},
+				},
+			},
+		},
+	}
+	_, err := suit.ClientSet().CoreV1().Pods(pod.Namespace).Create(context.TODO(), pod, metav1.CreateOptions{})
+	assert.NoError(t, err)
+	extender := suit.ExtenderFactory.NewFrameworkExtender(suit.Framework)
+	fakeHandle := &fakeExtendedHandle{
+		ExtendedHandle: extender,
+		Interface:      cosfake.NewSimpleClientset(),
+	}
+	p, err := New(&config.DeviceShareArgs{}, fakeHandle)
+	assert.NoError(t, err)
+
+	suit.Framework.SharedInformerFactory().Start(nil)
+	suit.koordinatorSharedInformerFactory.Start(nil)
+	suit.Framework.SharedInformerFactory().WaitForCacheSync(nil)
+	suit.koordinatorSharedInformerFactory.WaitForCacheSync(nil)
+
+	cycleState := framework.NewCycleState()
+	pl := p.(*Plugin)
+	status := pl.PreFilter(context.TODO(), cycleState, pod)
+	assert.True(t, status.IsSuccess())
+	state, status := getPreFilterState(cycleState)
+	assert.True(t, status.IsSuccess())
+	resources := corev1.ResourceList{
+		apiext.ResourceGPUCore:        resource.MustParse("100"),
+		apiext.ResourceGPUMemoryRatio: resource.MustParse("100"),
+		apiext.ResourceGPUMemory:      resource.MustParse("8Gi"),
+	}
+	state.allocationResult = apiext.DeviceAllocations{
+		schedulingv1alpha1.GPU: []*apiext.DeviceAllocation{
+			{
+				Minor:     0,
+				Resources: resources,
+			},
+			{
+				Minor:     1,
+				Resources: resources,
+			},
+		},
+	}
+	assert.True(t, status.IsSuccess())
+	status = pl.PreBind(context.TODO(), cycleState, pod, "test-node")
+	assert.True(t, status.IsSuccess())
+	patchedPod, err := suit.ClientSet().CoreV1().Pods(pod.Namespace).Get(context.TODO(), pod.Name, metav1.GetOptions{})
+	assert.NoError(t, err)
+	expectedPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "default",
+			Name:      "test-pod",
+			Annotations: map[string]string{
+				unifiedresourceext.AnnotationMultiDeviceAllocStatus: `{"allocStatus":{"gpu-device":[{"deviceAllocStatus":{"allocs":[{"minor":0,"resources":{"alibabacloud.com/gpu-core":"100","alibabacloud.com/gpu-mem":"8Gi","alibabacloud.com/gpu-mem-ratio":"100"}},{"minor":1,"resources":{"alibabacloud.com/gpu-core":"100","alibabacloud.com/gpu-mem":"8Gi","alibabacloud.com/gpu-mem-ratio":"100"}}]}}]}}`,
+				unifiedresourceext.AnnotationNVIDIAVisibleDevices:   "0,1",
+				apiext.AnnotationDeviceAllocated:                    `{"gpu":[{"minor":0,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"8Gi","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":1,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"8Gi","koordinator.sh/gpu-memory-ratio":"100"}}]}`,
+			},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name: "main",
+					Resources: corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU:                     resource.MustParse("4"),
+							corev1.ResourceMemory:                  resource.MustParse("8Gi"),
+							apiext.ResourceNvidiaGPU:               resource.MustParse("2"),
+							unifiedresourceext.GPUResourceMemRatio: resource.MustParse("200"),
+						},
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:                     resource.MustParse("4"),
+							corev1.ResourceMemory:                  resource.MustParse("8Gi"),
+							apiext.ResourceNvidiaGPU:               resource.MustParse("2"),
+							unifiedresourceext.GPUResourceMemRatio: resource.MustParse("200"),
+						},
+					},
+					Env: []corev1.EnvVar{
+						{
+							Name:  unified.EnvActivelyAddedUnifiedGPUMemoryRatio,
+							Value: "true",
+						},
+						{
+							Name:  "NVIDIA_VISIBLE_DEVICES",
+							Value: "0,1",
+						},
+					},
+				},
+			},
+		},
+	}
+	assert.Equal(t, expectedPod, patchedPod)
 }
