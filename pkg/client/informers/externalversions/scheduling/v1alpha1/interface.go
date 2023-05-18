@@ -36,6 +36,8 @@ type Interface interface {
 	PodMigrationJobs() PodMigrationJobInformer
 	// Reservations returns a ReservationInformer.
 	Reservations() ReservationInformer
+	// ResourceFlavors returns a ResourceFlavorInformer.
+	ResourceFlavors() ResourceFlavorInformer
 	// ResourcePolicies returns a ResourcePolicyInformer.
 	ResourcePolicies() ResourcePolicyInformer
 }
@@ -79,6 +81,11 @@ func (v *version) PodMigrationJobs() PodMigrationJobInformer {
 // Reservations returns a ReservationInformer.
 func (v *version) Reservations() ReservationInformer {
 	return &reservationInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// ResourceFlavors returns a ResourceFlavorInformer.
+func (v *version) ResourceFlavors() ResourceFlavorInformer {
+	return &resourceFlavorInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // ResourcePolicies returns a ResourcePolicyInformer.

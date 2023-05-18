@@ -34,6 +34,7 @@ type SchedulingV1alpha1Interface interface {
 	LogicalResourceNodesGetter
 	PodMigrationJobsGetter
 	ReservationsGetter
+	ResourceFlavorsGetter
 	ResourcePoliciesGetter
 }
 
@@ -64,6 +65,10 @@ func (c *SchedulingV1alpha1Client) PodMigrationJobs() PodMigrationJobInterface {
 
 func (c *SchedulingV1alpha1Client) Reservations() ReservationInterface {
 	return newReservations(c)
+}
+
+func (c *SchedulingV1alpha1Client) ResourceFlavors() ResourceFlavorInterface {
+	return newResourceFlavors(c)
 }
 
 func (c *SchedulingV1alpha1Client) ResourcePolicies() ResourcePolicyInterface {
