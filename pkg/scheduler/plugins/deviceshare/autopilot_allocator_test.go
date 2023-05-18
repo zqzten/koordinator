@@ -867,7 +867,7 @@ func TestAutopilotAllocator(t *testing.T) {
 				},
 			}
 
-			allocations, err := allocator.Allocate("test-node-1", pod, podRequest, nodeDevice, nil)
+			allocations, err := allocator.Allocate("test-node-1", pod, podRequest, nodeDevice, nil, nil, nil)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Allocate() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -1002,7 +1002,7 @@ func TestAutopilotAllocatorVFByType(t *testing.T) {
 				},
 			}
 
-			allocations, err := allocator.Allocate("test-node-1", pod, podRequest, nodeDevice, nil)
+			allocations, err := allocator.Allocate("test-node-1", pod, podRequest, nodeDevice, nil, nil, nil)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Allocate() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -1112,7 +1112,7 @@ func TestMatchDriverVersions(t *testing.T) {
 				pod.Spec.RuntimeClassName = pointer.String("rund")
 			}
 
-			allocations, err := allocator.Allocate("test-node-1", pod, podRequest, nodeDevice, nil)
+			allocations, err := allocator.Allocate("test-node-1", pod, podRequest, nodeDevice, nil, nil, nil)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Allocate() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -1602,7 +1602,7 @@ func TestAutopilotAllocateNVSwitch(t *testing.T) {
 			nodeDevice.lock.Lock()
 			defer nodeDevice.lock.Unlock()
 
-			allocations, err := allocator.Allocate("test-node-1", &corev1.Pod{}, podRequest, nodeDevice, nil)
+			allocations, err := allocator.Allocate("test-node-1", &corev1.Pod{}, podRequest, nodeDevice, nil, nil, nil)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Allocate() error = %v, wantErr %v", err, tt.wantErr)
 				return

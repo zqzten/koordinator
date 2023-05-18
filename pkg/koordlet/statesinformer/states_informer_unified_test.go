@@ -73,8 +73,8 @@ func Test_statesInformer_GetNode(t *testing.T) {
 				node: tt.fields.node,
 			}
 			s := &statesInformer{
-				states: &pluginState{
-					informerPlugins: map[pluginName]informerPlugin{
+				states: &PluginState{
+					informerPlugins: map[PluginName]informerPlugin{
 						nodeInformerName: nodeInformer,
 					},
 				},
@@ -119,8 +119,8 @@ func Test_statesInformer_GetNodeSLO(t *testing.T) {
 				nodeSLO: tt.fields.nodeSLO,
 			}
 			s := &statesInformer{
-				states: &pluginState{
-					informerPlugins: map[pluginName]informerPlugin{
+				states: &PluginState{
+					informerPlugins: map[PluginName]informerPlugin{
 						nodeSLOInformerName: nodeSLOInformer,
 					},
 				},
@@ -165,8 +165,8 @@ func Test_statesInformer_GetNodeTopo(t *testing.T) {
 				nodeTopology: tt.fields.nodeTopo,
 			}
 			s := &statesInformer{
-				states: &pluginState{
-					informerPlugins: map[pluginName]informerPlugin{
+				states: &PluginState{
+					informerPlugins: map[PluginName]informerPlugin{
 						nodeTopoInformerName: nodeTopoInformer,
 					},
 				},
@@ -221,8 +221,8 @@ func Test_statesInformer_GetAllPods(t *testing.T) {
 				podMap: tt.fields.podMap,
 			}
 			s := &statesInformer{
-				states: &pluginState{
-					informerPlugins: map[pluginName]informerPlugin{
+				states: &PluginState{
+					informerPlugins: map[PluginName]informerPlugin{
 						podsInformerName: podsInformer,
 					},
 				},

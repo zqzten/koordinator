@@ -39,7 +39,7 @@ import (
 func Test_lrnInformer(t *testing.T) {
 	t.Run("test", func(t *testing.T) {
 		nodeName := "test-node"
-		opt := &pluginOption{
+		opt := &PluginOption{
 			config:      NewDefaultConfig(),
 			KubeClient:  fakeclientset.NewSimpleClientset(),
 			KoordClient: fakekoordclientset.NewSimpleClientset(),
@@ -50,8 +50,8 @@ func Test_lrnInformer(t *testing.T) {
 		ni := NewNodeInformer()
 		pi := NewPodsInformer()
 		informer := newLRNInformer()
-		state := &pluginState{
-			informerPlugins: map[pluginName]informerPlugin{
+		state := &PluginState{
+			informerPlugins: map[PluginName]informerPlugin{
 				nodeInformerName: ni,
 				podsInformerName: pi,
 				lrnInformerName:  informer,

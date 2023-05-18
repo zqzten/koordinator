@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package options
 
 import (
 	kruisev1alpha1 "github.com/openkruise/kruise-api/apps/v1alpha1"
@@ -36,14 +36,14 @@ import (
 func init() {
 	_ = univ1bata1.AddToScheme(clientgoscheme.Scheme)
 	clientgoscheme.Scheme.AddKnownTypes(cosv1beta1.GroupVersion, &cosv1beta1.Device{}, &cosv1beta1.DeviceList{})
-	_ = univ1bata1.AddToScheme(scheme)
-	scheme.AddKnownTypes(cosv1beta1.GroupVersion, &cosv1beta1.Device{}, &cosv1beta1.DeviceList{})
+	_ = univ1bata1.AddToScheme(Scheme)
+	Scheme.AddKnownTypes(cosv1beta1.GroupVersion, &cosv1beta1.Device{}, &cosv1beta1.DeviceList{})
 
 	controllerAddFuncs["ResourceSummary"] = resourcesummary.Add
 
-	_ = clientgoscheme.AddToScheme(scheme)
-	_ = autoscaling.AddToScheme(scheme)
-	_ = kruisev1alpha1.AddToScheme(scheme)
-	_ = kruisev1beta1.AddToScheme(scheme)
+	_ = clientgoscheme.AddToScheme(Scheme)
+	_ = autoscaling.AddToScheme(Scheme)
+	_ = kruisev1alpha1.AddToScheme(Scheme)
+	_ = kruisev1beta1.AddToScheme(Scheme)
 	controllerAddFuncs["Recommender"] = extensions.AddRecommender
 }

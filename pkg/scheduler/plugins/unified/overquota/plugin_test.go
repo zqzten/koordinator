@@ -507,8 +507,7 @@ func TestPlugin_Filter(t *testing.T) {
 
 			status := plg.PreFilter(context.TODO(), tt.cycleState, tt.pod)
 			assert.True(t, status.IsSuccess())
-			newNodeInfo := sharedlisterext.TransformOneNodeInfo(nodeInfo)
-			nodeInfo = newNodeInfo
+			assert.True(t, sharedlisterext.TransformOneNodeInfo(nodeInfo))
 			status = plg.Filter(context.TODO(), tt.cycleState, tt.pod, nodeInfo)
 			assert.True(t, status.IsSuccess())
 		})
