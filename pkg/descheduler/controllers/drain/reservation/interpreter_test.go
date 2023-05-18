@@ -100,7 +100,7 @@ func (m *mockReservationBuilder) templateAffinity(n *corev1.Affinity) *mockReser
 }
 
 func (m *mockReservationBuilder) allocateOnce(n bool) *mockReservationBuilder {
-	m.rr.Spec.AllocateOnce = n
+	m.rr.Spec.AllocateOnce = pointer.Bool(n)
 	return m
 }
 

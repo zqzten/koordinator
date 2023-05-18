@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 
+	"k8s.io/utils/pointer"
+
 	sev1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/descheduler/controllers/drain/utils"
 
@@ -235,7 +237,7 @@ func (p *interpreterImpl) CreateReservation(ctx context.Context, dn *sev1alpha1.
 					Namespace:      pod.Namespace,
 				}},
 			},
-			AllocateOnce: true,
+			AllocateOnce: pointer.Bool(true),
 		},
 	}
 

@@ -866,7 +866,7 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 								Namespace:      podsOnNode[0].Namespace,
 							}},
 						},
-						AllocateOnce: true,
+						AllocateOnce: pointer.Bool(true),
 					},
 				},
 			},
@@ -1117,7 +1117,7 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 								Namespace:      podsOnNode[0].Namespace,
 							}},
 						},
-						AllocateOnce: true,
+						AllocateOnce: pointer.Bool(true),
 					},
 				},
 			},
@@ -1239,7 +1239,7 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 									Namespace:      podsOnNode[0].Namespace,
 								}},
 							},
-							AllocateOnce: true,
+							AllocateOnce: pointer.Bool(true),
 						},
 						Status: v1alpha1.ReservationStatus{
 							Phase: v1alpha1.ReservationSucceeded,
@@ -1481,7 +1481,7 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 									Namespace:      podsOnNode[0].Namespace,
 								}},
 							},
-							AllocateOnce: true,
+							AllocateOnce: pointer.Bool(true),
 						},
 						Status: v1alpha1.ReservationStatus{
 							Phase:    v1alpha1.ReservationAvailable,
@@ -1725,7 +1725,7 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 									Namespace:      podsOnNode[0].Namespace,
 								}},
 							},
-							AllocateOnce: true,
+							AllocateOnce: pointer.Bool(true),
 						},
 						Status: v1alpha1.ReservationStatus{
 							Phase:    v1alpha1.ReservationAvailable,
@@ -2034,7 +2034,7 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 									Namespace:      podsOnNode[0].Namespace,
 								}},
 							},
-							AllocateOnce: true,
+							AllocateOnce: pointer.Bool(true),
 						},
 						Status: v1alpha1.ReservationStatus{
 							Phase:    v1alpha1.ReservationAvailable,
@@ -2365,7 +2365,7 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 									Namespace:      podsOnNode[0].Namespace,
 								}},
 							},
-							AllocateOnce: true,
+							AllocateOnce: pointer.Bool(true),
 						},
 						Status: v1alpha1.ReservationStatus{
 							Phase:    v1alpha1.ReservationAvailable,
@@ -2630,7 +2630,7 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 									Namespace:      podsOnNode[0].Namespace,
 								}},
 							},
-							AllocateOnce: true,
+							AllocateOnce: pointer.Bool(true),
 						},
 						Status: v1alpha1.ReservationStatus{
 							Phase:    v1alpha1.ReservationAvailable,
@@ -2923,7 +2923,7 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 									Namespace:      podsOnNode[0].Namespace,
 								}},
 							},
-							AllocateOnce: true,
+							AllocateOnce: pointer.Bool(true),
 						},
 						Status: v1alpha1.ReservationStatus{
 							Phase:    v1alpha1.ReservationAvailable,
@@ -3223,7 +3223,7 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 									Namespace:      podsOnNode[0].Namespace,
 								}},
 							},
-							AllocateOnce: true,
+							AllocateOnce: pointer.Bool(true),
 						},
 						Status: v1alpha1.ReservationStatus{
 							Phase:    v1alpha1.ReservationAvailable,
