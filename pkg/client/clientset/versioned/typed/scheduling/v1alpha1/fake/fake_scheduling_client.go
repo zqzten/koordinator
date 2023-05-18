@@ -52,6 +52,10 @@ func (c *FakeSchedulingV1alpha1) Reservations() v1alpha1.ReservationInterface {
 	return &FakeReservations{c}
 }
 
+func (c *FakeSchedulingV1alpha1) ResourceFlavors() v1alpha1.ResourceFlavorInterface {
+	return &FakeResourceFlavors{c}
+}
+
 func (c *FakeSchedulingV1alpha1) ResourcePolicies() v1alpha1.ResourcePolicyInterface {
 	return &FakeResourcePolicies{c}
 }
