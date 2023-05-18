@@ -34,8 +34,6 @@ type Interface interface {
 	LogicalResourceNodes() LogicalResourceNodeInformer
 	// PodMigrationJobs returns a PodMigrationJobInformer.
 	PodMigrationJobs() PodMigrationJobInformer
-	// QuotaNodeBinders returns a QuotaNodeBinderInformer.
-	QuotaNodeBinders() QuotaNodeBinderInformer
 	// Reservations returns a ReservationInformer.
 	Reservations() ReservationInformer
 	// ResourcePolicies returns a ResourcePolicyInformer.
@@ -76,11 +74,6 @@ func (v *version) LogicalResourceNodes() LogicalResourceNodeInformer {
 // PodMigrationJobs returns a PodMigrationJobInformer.
 func (v *version) PodMigrationJobs() PodMigrationJobInformer {
 	return &podMigrationJobInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
-}
-
-// QuotaNodeBinders returns a QuotaNodeBinderInformer.
-func (v *version) QuotaNodeBinders() QuotaNodeBinderInformer {
-	return &quotaNodeBinderInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // Reservations returns a ReservationInformer.
