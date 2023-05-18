@@ -72,8 +72,8 @@ var (
 	_ framework.ReservePlugin   = &Plugin{}
 	_ framework.PreBindPlugin   = &Plugin{}
 
-	_ frameworkext.ReservationPreFilterExtension = &Plugin{}
-	_ frameworkext.ReservationPreBindPlugin      = &Plugin{}
+	_ frameworkext.ReservationRestorePlugin = &Plugin{}
+	_ frameworkext.ReservationPreBindPlugin = &Plugin{}
 )
 
 type Plugin struct {
