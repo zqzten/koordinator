@@ -41,17 +41,17 @@ func init() {
 	sharedlisterext.RegisterNodeInfoTransformer(hook.hookNodeInfo)
 }
 
-func (h *nodeInfoHook) hookNodeInfo(nodeInfo *framework.NodeInfo) {
+func (h *nodeInfoHook) hookNodeInfo(nodeInfo *framework.NodeInfo) bool {
 	deviceCache, ok := h.value.Load().(*nodeDeviceCache)
 	if !ok {
-		return
+		return false
 	}
 
 	node := nodeInfo.Node()
 
 	nodeDevice := deviceCache.getNodeDevice(node.Name, false)
 	if nodeDevice == nil {
-		return
+		return false
 	}
 	gpuResources := getUnifiedGPUResourcesFromDeviceCache(nodeDevice)
 	if len(gpuResources) > 0 {
@@ -64,7 +64,9 @@ func (h *nodeInfoHook) hookNodeInfo(nodeInfo *framework.NodeInfo) {
 			}
 			nodeInfo.Allocatable.ScalarResources[resourceName] = quantity.Value()
 		}
+		return true
 	}
+	return false
 }
 
 func getUnifiedGPUResourcesFromDeviceCache(nodeDevice *nodeDevice) corev1.ResourceList {

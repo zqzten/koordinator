@@ -48,7 +48,7 @@ func init() {
 var reportLRNInterval = 20 * time.Second
 
 const (
-	lrnInformerName pluginName = "lrnInformer"
+	lrnInformerName PluginName = "lrnInformer"
 )
 
 var _ informerPlugin = (*lrnInformer)(nil)
@@ -65,7 +65,7 @@ func newLRNInformer() *lrnInformer {
 	return &lrnInformer{}
 }
 
-func (l *lrnInformer) Setup(ctx *pluginOption, state *pluginState) {
+func (l *lrnInformer) Setup(ctx *PluginOption, state *PluginState) {
 	l.nodeName = ctx.NodeName
 	nodeInformerIf := state.informerPlugins[nodeInformerName]
 	ni, ok := nodeInformerIf.(*nodeInformer)

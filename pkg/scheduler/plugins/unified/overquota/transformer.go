@@ -27,10 +27,10 @@ func init() {
 	sharedlisterext.RegisterNodeInfoTransformer(hookNodeInfoByOverQuota)
 }
 
-func hookNodeInfoByOverQuota(nodeInfo *framework.NodeInfo) {
+func hookNodeInfoByOverQuota(nodeInfo *framework.NodeInfo) bool {
 	node := nodeInfo.Node()
 	if node == nil {
-		return
+		return false
 	}
 	cpuOverQuotaRatioSpec, memoryOverQuotaRatioSpec, diskOverQuotaRatioSpec := extunified.GetResourceOverQuotaSpec(node)
 	milliCPU := node.Status.Allocatable.Cpu().MilliValue()
@@ -39,4 +39,5 @@ func hookNodeInfoByOverQuota(nodeInfo *framework.NodeInfo) {
 	nodeInfo.Allocatable.Memory = memoryBytes * memoryOverQuotaRatioSpec / 100
 	diskBytes := node.Status.Allocatable.StorageEphemeral().Value()
 	nodeInfo.Allocatable.EphemeralStorage = diskBytes * diskOverQuotaRatioSpec / 100
+	return true
 }

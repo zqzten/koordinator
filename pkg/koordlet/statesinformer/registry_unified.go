@@ -19,7 +19,7 @@ limitations under the License.
 
 package statesinformer
 
-var DefaultPluginRegistry = map[pluginName]informerPlugin{
+var DefaultPluginRegistry = map[PluginName]informerPlugin{
 	nodeSLOInformerName:    NewNodeSLOInformer(),
 	nodeTopoInformerName:   NewNodeTopoInformer(),
 	nodeInformerName:       NewNodeInformer(),
