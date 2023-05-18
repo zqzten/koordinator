@@ -38,10 +38,6 @@ type LogicalResourceNodeListerExpansion interface{}
 // PodMigrationJobLister.
 type PodMigrationJobListerExpansion interface{}
 
-// QuotaNodeBinderListerExpansion allows custom methods to be added to
-// QuotaNodeBinderLister.
-type QuotaNodeBinderListerExpansion interface{}
-
 // ReservationListerExpansion allows custom methods to be added to
 // ReservationLister.
 type ReservationListerExpansion interface{}
