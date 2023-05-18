@@ -30,4 +30,6 @@ type PodMigrationJobExpansion interface{}
 
 type ReservationExpansion interface{}
 
+type ResourceFlavorExpansion interface{}
+
 type ResourcePolicyExpansion interface{}

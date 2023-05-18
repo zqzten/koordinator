@@ -66,7 +66,7 @@ spec:
                 properties:
                   mode:
                     type: string
-                  waitDeadline:
+                  waitDuration:
                     type: string
                 type: object
               nodeName:
@@ -130,7 +130,8 @@ spec:
                 items:
                   properties:
                     chartedAfterDrainNodeConfirmed:
-                      description: The startTime of the PodMigration
+                      description: If pod migration start after user confirms the
+                        DrainNode
                       type: boolean
                     namespace:
                       description: Namespace where the pod is in
