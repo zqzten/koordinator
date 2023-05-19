@@ -18,6 +18,7 @@ package scheduleresult
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -78,10 +79,16 @@ func (p *Plugin) preBindObject(ctx context.Context, cycleState *framework.CycleS
 	updateTime := time.Now().In(time.FixedZone("CST", 8*3600)).Format(time.RFC3339Nano)
 	annotations[extunified.AnnotationSchedulerUpdateTime] = updateTime
 	annotations[extunified.AnnotationSchedulerBindTime] = updateTime
+	nodeInfo, err := p.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
+	if err != nil {
+		return framework.AsStatus(fmt.Errorf("getting node %q from Snapshot: %w", nodeName, err))
+	}
+	node := nodeInfo.Node()
+	annotations[corev1.LabelTopologyZone] = node.Labels[corev1.LabelTopologyZone]
 	newObj.SetAnnotations(annotations)
 
 	// patch pod or reservation with new annotations and new labels
-	err := util.RetryOnConflictOrTooManyRequests(func() error {
+	err = util.RetryOnConflictOrTooManyRequests(func() error {
 		_, err1 := util.NewPatch().WithHandle(p.handle).Patch(ctx, originalObj, newObj)
 		return err1
 	})
