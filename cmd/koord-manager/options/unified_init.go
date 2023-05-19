@@ -25,7 +25,6 @@ import (
 	cosv1beta1 "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/scheduling/v1beta1"
 	univ1bata1 "gitlab.alibaba-inc.com/unischeduler/api/apis/scheduling/v1beta1"
 
-	"github.com/koordinator-sh/koordinator/cmd/koord-manager/extensions"
 	"github.com/koordinator-sh/koordinator/pkg/controller/unified/resourcesummary"
 
 	_ "github.com/koordinator-sh/koordinator/apis/extension/ack"
@@ -39,11 +38,11 @@ func init() {
 	_ = univ1bata1.AddToScheme(Scheme)
 	Scheme.AddKnownTypes(cosv1beta1.GroupVersion, &cosv1beta1.Device{}, &cosv1beta1.DeviceList{})
 
-	controllerAddFuncs["ResourceSummary"] = resourcesummary.Add
+	controllerAddFuncs["resourcesummary"] = resourcesummary.Add
 
 	_ = clientgoscheme.AddToScheme(Scheme)
 	_ = autoscaling.AddToScheme(Scheme)
 	_ = kruisev1alpha1.AddToScheme(Scheme)
 	_ = kruisev1beta1.AddToScheme(Scheme)
-	controllerAddFuncs["Recommender"] = extensions.AddRecommender
+	controllerAddFuncs[RecommenderControllerName] = AddRecommender
 }
