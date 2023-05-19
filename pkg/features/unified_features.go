@@ -40,6 +40,7 @@ const (
 	EnableLocalVolumeIOLimit                 featuregate.Feature = "EnableLocalVolumeIOLimit"
 	EnableDefaultECIProfile                  featuregate.Feature = "EnableDefaultECIProfile"
 	EnableNodeInclusionPolicyInPodConstraint featuregate.Feature = "EnableNodeInclusionPolicyInPodConstraint"
+	EnableResourceFlavor                     featuregate.Feature = "EnableResourceFlavor"
 )
 
 const (
@@ -55,6 +56,7 @@ var defaultUnifiedFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec
 	ResourceSummaryReport:       {Default: true, PreRelease: featuregate.Beta},
 	ResourceSummaryReportDryRun: {Default: false, PreRelease: featuregate.Beta},
 	RecommenderControl:          {Default: false, PreRelease: featuregate.Deprecated},
+	EnableResourceFlavor:        {Default: false, PreRelease: featuregate.Beta},
 }
 
 var defaultUnifiedSchedulerFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
