@@ -28,7 +28,9 @@ const (
 	DefaultEnableACUForLSPod    featuregate.Feature = "DefaultEnableACUForLSPod"
 	ResourceSummaryReport       featuregate.Feature = "ResourceSummaryReport"
 	ResourceSummaryReportDryRun featuregate.Feature = "ResourceSummaryReportDryRun"
-	RecommenderControl          featuregate.Feature = "RecommenderControl"
+	// RecommenderControl determines whether the recommender is enabled.
+	// DEPRECATED: This feature-gate will be removed. Please use the command line argument `--controllers` instead.
+	RecommenderControl featuregate.Feature = "RecommenderControl"
 )
 
 const (
@@ -52,7 +54,7 @@ var defaultUnifiedFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec
 	DefaultEnableACUForLSPod:    {Default: true, PreRelease: featuregate.Beta},
 	ResourceSummaryReport:       {Default: true, PreRelease: featuregate.Beta},
 	ResourceSummaryReportDryRun: {Default: false, PreRelease: featuregate.Beta},
-	RecommenderControl:          {Default: false, PreRelease: featuregate.Beta},
+	RecommenderControl:          {Default: false, PreRelease: featuregate.Deprecated},
 }
 
 var defaultUnifiedSchedulerFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{

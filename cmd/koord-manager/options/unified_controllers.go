@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package extensions
+package options
 
 import (
 	"context"
@@ -37,10 +37,11 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/util/sloconfig"
 )
 
+const RecommenderControllerName = "recommender"
+
 var _ manager.Runnable = (*RecommenderRunner)(nil)
 
 type RecommenderRunner struct {
-	// TODO: share informers with the controllerManager to reduce memory overhead
 	informerFactory informers.SharedInformerFactory
 	recommender     recommender.ControllerManager
 }
