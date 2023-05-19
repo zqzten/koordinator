@@ -82,6 +82,18 @@ func RetryOnConflictOrTooManyRequests(fn func() error) error {
 	}, fn)
 }
 
+func GenerateNodePatch(oldNode, newNode *corev1.Node) ([]byte, error) {
+	oldData, err := json.Marshal(oldNode)
+	if err != nil {
+		return nil, err
+	}
+	newData, err := json.Marshal(newNode)
+	if err != nil {
+		return nil, err
+	}
+	return strategicpatch.CreateTwoWayMergePatch(oldData, newData, &corev1.Node{})
+}
+
 func GeneratePodPatch(oldPod, newPod *corev1.Pod) ([]byte, error) {
 	oldData, err := json.Marshal(oldPod)
 	if err != nil {

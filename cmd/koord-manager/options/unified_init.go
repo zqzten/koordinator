@@ -19,16 +19,16 @@ package options
 import (
 	kruisev1alpha1 "github.com/openkruise/kruise-api/apps/v1alpha1"
 	kruisev1beta1 "github.com/openkruise/kruise-api/apps/v1beta1"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-
+	cosvsche1beta1 "gitlab.alibaba-inc.com/cos/scheduling-api/pkg/apis/scheduling/v1beta1"
 	autoscaling "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/autoscaling/v1alpha1"
 	cosv1beta1 "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/scheduling/v1beta1"
 	univ1bata1 "gitlab.alibaba-inc.com/unischeduler/api/apis/scheduling/v1beta1"
-
-	"github.com/koordinator-sh/koordinator/pkg/controller/unified/resourcesummary"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
 	_ "github.com/koordinator-sh/koordinator/apis/extension/ack"
 	_ "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	"github.com/koordinator-sh/koordinator/pkg/controller/resourceflavor"
+	"github.com/koordinator-sh/koordinator/pkg/controller/unified/resourcesummary"
 	_ "github.com/koordinator-sh/koordinator/pkg/webhook/pod/validating/unified"
 )
 
@@ -38,7 +38,13 @@ func init() {
 	_ = univ1bata1.AddToScheme(Scheme)
 	Scheme.AddKnownTypes(cosv1beta1.GroupVersion, &cosv1beta1.Device{}, &cosv1beta1.DeviceList{})
 
+	_ = cosvsche1beta1.AddToScheme(clientgoscheme.Scheme)
+	clientgoscheme.Scheme.AddKnownTypes(cosvsche1beta1.SchemeGroupVersion, &cosvsche1beta1.ElasticQuotaTree{}, &cosvsche1beta1.ElasticQuotaTreeList{})
+	_ = cosvsche1beta1.AddToScheme(Scheme)
+	Scheme.AddKnownTypes(cosvsche1beta1.SchemeGroupVersion, &cosvsche1beta1.ElasticQuotaTree{}, &cosvsche1beta1.ElasticQuotaTreeList{})
+
 	controllerAddFuncs["resourcesummary"] = resourcesummary.Add
+	controllerAddFuncs[resourceflavor.ControllerName] = resourceflavor.Add
 
 	_ = clientgoscheme.AddToScheme(Scheme)
 	_ = autoscaling.AddToScheme(Scheme)
