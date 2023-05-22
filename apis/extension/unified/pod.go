@@ -28,6 +28,9 @@ const (
 	LabelPseudoKata   = "pseudo-kata"
 
 	ODPSPodNamespace = "asi-odps"
+
+	PodRuntimeTypeRunc = "runc"
+	PodRuntimeTypeRund = "rund"
 )
 
 func IsODPSPseudoKataPod(pod *corev1.Pod) bool {
@@ -41,4 +44,18 @@ func IsODPSPseudoKataPod(pod *corev1.Pod) bool {
 		return false
 	}
 	return true
+}
+
+func IsPodRuntimeRund(pod *corev1.Pod) bool {
+	podRuntime := GetPodRuntimeType(pod)
+	return podRuntime == PodRuntimeTypeRund
+}
+
+func GetPodRuntimeType(pod *corev1.Pod) string {
+	// NOTE: Pods older enough may set the runtime type on a annotation, i.e. "io.kubernetes.runtime". However, we do
+	//   not plan supporting them for the koordinator deployed scenarios.
+	if pod.Spec.RuntimeClassName != nil {
+		return *pod.Spec.RuntimeClassName
+	}
+	return PodRuntimeTypeRunc
 }
