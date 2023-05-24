@@ -34,13 +34,15 @@ const (
 )
 
 const (
-	UnifiedDeviceScheduling                  featuregate.Feature = "UnifiedDeviceScheduling"
-	LocalDeviceVolume                        featuregate.Feature = "LocalDeviceVolume"
-	EnableLocalVolumeCapacity                featuregate.Feature = "EnableLocalVolumeCapacity"
-	EnableLocalVolumeIOLimit                 featuregate.Feature = "EnableLocalVolumeIOLimit"
-	EnableDefaultECIProfile                  featuregate.Feature = "EnableDefaultECIProfile"
-	EnableNodeInclusionPolicyInPodConstraint featuregate.Feature = "EnableNodeInclusionPolicyInPodConstraint"
-	EnableResourceFlavor                     featuregate.Feature = "EnableResourceFlavor"
+	UnifiedDeviceScheduling                     featuregate.Feature = "UnifiedDeviceScheduling"
+	LocalDeviceVolume                           featuregate.Feature = "LocalDeviceVolume"
+	EnableLocalVolumeCapacity                   featuregate.Feature = "EnableLocalVolumeCapacity"
+	EnableLocalVolumeIOLimit                    featuregate.Feature = "EnableLocalVolumeIOLimit"
+	EnableDefaultECIProfile                     featuregate.Feature = "EnableDefaultECIProfile"
+	EnableNodeInclusionPolicyInPodConstraint    featuregate.Feature = "EnableNodeInclusionPolicyInPodConstraint"
+	DefaultHonorTaintTolerationInPodConstraint  featuregate.Feature = "DefaultHonorTaintTolerationInPodConstraint"
+	DefaultHonorTaintTolerationInTopologySpread featuregate.Feature = "DefaultHonorTaintTolerationInTopologySpread"
+	EnableResourceFlavor                        featuregate.Feature = "EnableResourceFlavor"
 )
 
 const (
@@ -60,12 +62,14 @@ var defaultUnifiedFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec
 }
 
 var defaultUnifiedSchedulerFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
-	UnifiedDeviceScheduling:                  {Default: false, PreRelease: featuregate.Beta},
-	LocalDeviceVolume:                        {Default: false, PreRelease: featuregate.Beta},
-	EnableLocalVolumeCapacity:                {Default: true, PreRelease: featuregate.Beta},
-	EnableLocalVolumeIOLimit:                 {Default: false, PreRelease: featuregate.Beta},
-	EnableDefaultECIProfile:                  {Default: false, PreRelease: featuregate.Beta},
-	EnableNodeInclusionPolicyInPodConstraint: {Default: true, PreRelease: featuregate.Beta},
+	UnifiedDeviceScheduling:                     {Default: false, PreRelease: featuregate.Beta},
+	LocalDeviceVolume:                           {Default: false, PreRelease: featuregate.Beta},
+	EnableLocalVolumeCapacity:                   {Default: true, PreRelease: featuregate.Beta},
+	EnableLocalVolumeIOLimit:                    {Default: false, PreRelease: featuregate.Beta},
+	EnableDefaultECIProfile:                     {Default: false, PreRelease: featuregate.Beta},
+	DefaultHonorTaintTolerationInPodConstraint:  {Default: false, PreRelease: featuregate.Beta},
+	DefaultHonorTaintTolerationInTopologySpread: {Default: false, PreRelease: featuregate.Beta},
+	EnableNodeInclusionPolicyInPodConstraint:    {Default: true, PreRelease: featuregate.Beta},
 }
 
 var defaultUnifiedKoordletFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{

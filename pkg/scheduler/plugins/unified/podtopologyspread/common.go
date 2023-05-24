@@ -20,8 +20,14 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	k8sfeature "k8s.io/apiserver/pkg/util/feature"
+	v1helper "k8s.io/component-helpers/scheduling/corev1"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/helper"
+
+	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	"github.com/koordinator-sh/koordinator/pkg/features"
+	tainttolerationhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/tainttoleration"
 )
 
 type topologyPair struct {
@@ -96,4 +102,26 @@ func countPodsMatchSelector(podInfos []*framework.PodInfo, selector labels.Selec
 		}
 	}
 	return count
+}
+
+func tolerationTolerateNodeFn(pod *v1.Pod) func(node *v1.Node) bool {
+	if !k8sfeature.DefaultFeatureGate.Enabled(features.DefaultHonorTaintTolerationInTopologySpread) {
+		return func(node *v1.Node) bool {
+			return true
+		}
+	}
+	tolerations := pod.Spec.Tolerations
+	tolerationsToleratesECI := tainttolerationhelper.TolerationsToleratesECI(pod)
+	podAffinityECI := extunified.AffinityECI(pod)
+	return func(node *v1.Node) bool {
+		tolerationsMakeEffect := tolerations
+		if podAffinityECI && extunified.IsVirtualKubeletNode(node) {
+			tolerationsMakeEffect = tolerationsToleratesECI
+		}
+		_, isUnTolerated := v1helper.FindMatchingUntoleratedTaint(node.Spec.Taints, tolerationsMakeEffect, func(t *v1.Taint) bool {
+			// PodToleratesNodeTaints is only interested in NoSchedule and NoExecute taints.
+			return t.Effect == v1.TaintEffectNoSchedule || t.Effect == v1.TaintEffectNoExecute
+		})
+		return !isUnTolerated
+	}
 }
