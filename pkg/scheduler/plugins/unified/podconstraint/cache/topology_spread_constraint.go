@@ -20,10 +20,12 @@ import (
 	unischeduling "gitlab.alibaba-inc.com/unischeduler/api/apis/scheduling/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	k8sfeature "k8s.io/apiserver/pkg/util/feature"
 	v1helper "k8s.io/component-helpers/scheduling/corev1"
 	"k8s.io/utils/pointer"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	"github.com/koordinator-sh/koordinator/pkg/features"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/eci"
 	nodeaffinityhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/nodeaffinity"
 	tainttolerationhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/tainttoleration"
@@ -113,6 +115,9 @@ func SpreadRulesToTopologySpreadConstraint(spreadRules []unischeduling.SpreadRul
 			constraint.NodeAffinityPolicy = *rule.NodeAffinityPolicy
 		}
 		constraint.NodeTaintsPolicy = unischeduling.NodeInclusionPolicyIgnore
+		if k8sfeature.DefaultFeatureGate.Enabled(features.DefaultHonorTaintTolerationInPodConstraint) {
+			constraint.NodeTaintsPolicy = unischeduling.NodeInclusionPolicyHonor
+		}
 		if rule.NodeTaintsPolicy != nil {
 			constraint.NodeTaintsPolicy = *rule.NodeTaintsPolicy
 		}
