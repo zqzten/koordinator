@@ -226,6 +226,7 @@ func (pl *PodTopologySpread) calPreFilterState(pod *v1.Pod) (*preFilterState, er
 		TpPairToMatchNum:     make(map[topologyPair]*int32, sizeHeuristic(len(allNodes), constraints)),
 	}
 	requiredSchedulingTerm := nodeaffinityhelper.GetRequiredNodeAffinity(pod)
+	tolerationsToleratesNode := tolerationTolerateNodeFn(pod)
 	for _, n := range allNodes {
 		node := n.Node()
 		if node == nil {
@@ -235,7 +236,7 @@ func (pl *PodTopologySpread) calPreFilterState(pod *v1.Pod) (*preFilterState, er
 		// In accordance to design, if NodeAffinity or NodeSelector is defined,
 		// spreading is applied to nodes that pass those filters.
 		// Ignore parsing errors for backwards compatibility.
-		if !requiredSchedulingTerm.Match(node) || !eci.FilterByECIAffinity(pod, node) || !nodeLabelsMatchSpreadConstraints(node.Labels, constraints) {
+		if !requiredSchedulingTerm.Match(node) || !tolerationsToleratesNode(node) || !eci.FilterByECIAffinity(pod, node) || !nodeLabelsMatchSpreadConstraints(node.Labels, constraints) {
 			continue
 		}
 		for _, c := range constraints {
