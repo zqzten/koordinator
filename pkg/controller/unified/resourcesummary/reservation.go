@@ -55,5 +55,5 @@ func GetReservationPriorityResource(reservation *schedulingv1alpha1.Reservation,
 		allocatable = quotav1.Mask(allocatable, resourceNames)
 		allocated = quotav1.Mask(allocated, resourceNames)
 	}
-	return v1beta1.PodPriorityUsed{PriorityClass: unifiedPriority, Allocated: allocated}, v1beta1.PodPriorityUsed{PriorityClass: unifiedPriority, Allocated: allocatable}, v1beta1.PodPriorityUsed{PriorityClass: unifiedPriority, Allocated: quotav1.Subtract(allocatable, allocated)}
+	return v1beta1.PodPriorityUsed{PriorityClass: unifiedPriority, Allocated: allocated}, v1beta1.PodPriorityUsed{PriorityClass: unifiedPriority, Allocated: allocatable}, v1beta1.PodPriorityUsed{PriorityClass: unifiedPriority, Allocated: quotav1.SubtractWithNonNegativeResult(allocatable, allocated)}
 }
