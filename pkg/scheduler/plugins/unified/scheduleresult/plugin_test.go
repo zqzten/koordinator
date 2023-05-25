@@ -182,13 +182,11 @@ func TestPlugin_PreBind(t *testing.T) {
 			status := plg.PreBind(context.TODO(), framework.NewCycleState(), tt.pod, tt.nodeName)
 			assert.Nil(t, status)
 
-			newPod, err := suit.Handle.ClientSet().CoreV1().Pods(tt.pod.Namespace).Get(context.TODO(), tt.pod.Name, metav1.GetOptions{})
-			assert.NoError(t, err)
-			assert.Equal(t, tt.nodeName, newPod.Labels[extunified.K8sLabelScheduleNodeName])
-			assert.Equal(t, tt.zone, newPod.Annotations[corev1.LabelTopologyZone])
-			assert.NotNil(t, newPod.Annotations[extunified.AnnotationSchedulerUpdateTime])
-			assert.NotNil(t, newPod.Annotations[extunified.AnnotationSchedulerBindTime])
-			assert.Equal(t, newPod.Annotations[extunified.AnnotationSchedulerUpdateTime], newPod.Annotations[extunified.AnnotationSchedulerBindTime])
+			assert.Equal(t, tt.nodeName, tt.pod.Labels[extunified.K8sLabelScheduleNodeName])
+			assert.Equal(t, tt.zone, tt.pod.Annotations[corev1.LabelTopologyZone])
+			assert.NotNil(t, tt.pod.Annotations[extunified.AnnotationSchedulerUpdateTime])
+			assert.NotNil(t, tt.pod.Annotations[extunified.AnnotationSchedulerBindTime])
+			assert.Equal(t, tt.pod.Annotations[extunified.AnnotationSchedulerUpdateTime], tt.pod.Annotations[extunified.AnnotationSchedulerBindTime])
 		})
 	}
 }
