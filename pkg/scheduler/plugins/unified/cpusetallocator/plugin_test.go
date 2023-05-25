@@ -530,13 +530,11 @@ func TestPlugin_CPUSetProtocols(t *testing.T) {
 			status = plg.PreBind(ctx, cycleState, pod, nodeInfo.Node().Name)
 			assert.Nil(t, status)
 
-			podModified, err := suit.Handle.ClientSet().CoreV1().Pods("default").Get(context.TODO(), "test-pod-1", metav1.GetOptions{})
 			assert.Nil(t, err)
-			assert.NotNil(t, podModified)
-			assert.Equal(t, `{"cpuset":"0-2,4,6"}`, podModified.Annotations[extension.AnnotationResourceStatus])
-			assert.Equal(t, `{"cpu":[0,1,2,4,6],"gpu":{}}`, podModified.Annotations[uniext.AnnotationAllocStatus])
+			assert.Equal(t, `{"cpuset":"0-2,4,6"}`, pod.Annotations[extension.AnnotationResourceStatus])
+			assert.Equal(t, `{"cpu":[0,1,2,4,6],"gpu":{}}`, pod.Annotations[uniext.AnnotationAllocStatus])
 			if tt.annotations[extunified.AnnotationAllocSpec] != "" {
-				assert.Equal(t, `{"containers":[{"name":"container-1","resource":{"cpu":{"cpuSet":{"spreadStrategy":"spread","cpuIDs":[0,1,2,4,6]}}}}]}`, podModified.Annotations[extunified.AnnotationAllocSpec])
+				assert.Equal(t, `{"containers":[{"name":"container-1","resource":{"cpu":{"cpuSet":{"spreadStrategy":"spread","cpuIDs":[0,1,2,4,6]}}}}]}`, pod.Annotations[extunified.AnnotationAllocSpec])
 			}
 		})
 	}
