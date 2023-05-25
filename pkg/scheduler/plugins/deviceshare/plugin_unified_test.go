@@ -40,6 +40,7 @@ import (
 	koordfeatures "github.com/koordinator-sh/koordinator/pkg/features"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/defaultprebind"
 )
 
 type fakeExtendedHandle struct {
@@ -390,8 +391,15 @@ func TestPreBindUnifiedDevice(t *testing.T) {
 		},
 	}
 	assert.True(t, status.IsSuccess())
+	originalPod := pod.DeepCopy()
 	status = pl.PreBind(context.TODO(), cycleState, pod, "test-node")
 	assert.True(t, status.IsSuccess())
+
+	prebindPlugin, err := defaultprebind.New(nil, fakeHandle)
+	assert.NoError(t, err)
+	status = prebindPlugin.(frameworkext.PreBindExtensions).ApplyPatch(context.TODO(), cycleState, originalPod, pod)
+	assert.True(t, status.IsSuccess())
+
 	patchedPod, err := suit.ClientSet().CoreV1().Pods(pod.Namespace).Get(context.TODO(), pod.Name, metav1.GetOptions{})
 	assert.NoError(t, err)
 	expectedPod := &corev1.Pod{
