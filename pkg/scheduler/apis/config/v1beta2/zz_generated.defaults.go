@@ -29,6 +29,7 @@ import (
 // Public to allow building arbitrary schemes.
 // All generated defaulters are covering - they call all nested defaulters.
 func RegisterDefaults(scheme *runtime.Scheme) error {
+	scheme.AddTypeDefaultingFunc(&CachedPodArgs{}, func(obj interface{}) { SetObjectDefaults_CachedPodArgs(obj.(*CachedPodArgs)) })
 	scheme.AddTypeDefaultingFunc(&CoschedulingArgs{}, func(obj interface{}) { SetObjectDefaults_CoschedulingArgs(obj.(*CoschedulingArgs)) })
 	scheme.AddTypeDefaultingFunc(&DeviceShareArgs{}, func(obj interface{}) { SetObjectDefaults_DeviceShareArgs(obj.(*DeviceShareArgs)) })
 	scheme.AddTypeDefaultingFunc(&ElasticQuotaArgs{}, func(obj interface{}) { SetObjectDefaults_ElasticQuotaArgs(obj.(*ElasticQuotaArgs)) })
@@ -37,6 +38,10 @@ func RegisterDefaults(scheme *runtime.Scheme) error {
 	scheme.AddTypeDefaultingFunc(&ReservationArgs{}, func(obj interface{}) { SetObjectDefaults_ReservationArgs(obj.(*ReservationArgs)) })
 	scheme.AddTypeDefaultingFunc(&UnifiedPodConstraintArgs{}, func(obj interface{}) { SetObjectDefaults_UnifiedPodConstraintArgs(obj.(*UnifiedPodConstraintArgs)) })
 	return nil
+}
+
+func SetObjectDefaults_CachedPodArgs(in *CachedPodArgs) {
+	SetDefaults_CachedPodArgs(in)
 }
 
 func SetObjectDefaults_CoschedulingArgs(in *CoschedulingArgs) {

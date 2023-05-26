@@ -29,3 +29,15 @@ type UnifiedPodConstraintArgs struct {
 	// EnableDefaultPodConstraint indicates whether to enable defaultPodConstraint for unifiedPodConstraint.
 	EnableDefaultPodConstraint *bool `json:"enableDefaultPodConstraint,omitempty"`
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// CachedPodArgs holds arguments used to configure the CachedPodArgs plugin.
+type CachedPodArgs struct {
+	metav1.TypeMeta
+
+	Network    string
+	Address    string
+	ServerCert []byte
+	ServerKey  []byte
+}
