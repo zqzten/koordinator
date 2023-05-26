@@ -24,8 +24,8 @@ import (
 	_ "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota/unified"
 	_ "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/volumebinding/metrics"
 
-	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cachepod"
 	unifiedasiquota "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/asiquotaadaptor"
+	unifiedcachedpod "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/cachedpod"
 	unifiedcpuset "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/cpusetallocator"
 	unifiedcustomaffinity "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/custompodaffinity"
 	unifiedeci "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/eci"
@@ -58,5 +58,5 @@ func init() {
 	koordinatorPlugins[unifiednodeaffinity.Name] = unifiednodeaffinity.New
 	koordinatorPlugins[unifiedinterpodaffinity.Name] = unifiedinterpodaffinity.New
 	koordinatorPlugins[unifiedpodtopologyspread.Name] = unifiedpodtopologyspread.New
-	koordinatorPlugins[cachepod.Name] = cachepod.New
+	koordinatorPlugins[unifiedcachedpod.Name] = unifiedcachedpod.New
 }
