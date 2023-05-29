@@ -48,25 +48,33 @@ func (h *nodeInfoHook) hookNodeInfo(nodeInfo *framework.NodeInfo) bool {
 	}
 
 	node := nodeInfo.Node()
-
 	nodeDevice := deviceCache.getNodeDevice(node.Name, false)
 	if nodeDevice == nil {
 		return false
 	}
+	return transformNodeInfoAllocatable(nodeInfo, nodeDevice)
+}
+
+func transformNodeInfoAllocatable(nodeInfo *framework.NodeInfo, nodeDevice *nodeDevice) bool {
+	// The device-plugin has reported unified GPUResourceMemRatio, but it is zero.
+	// In this case, the device-plugin itself may be abnormal. Skip this node first.
+	gpuMemoryRatio, ok := nodeInfo.Allocatable.ScalarResources[unifiedresourceext.GPUResourceMemRatio]
+	if ok && gpuMemoryRatio == 0 {
+		return false
+	}
 	gpuResources := getUnifiedGPUResourcesFromDeviceCache(nodeDevice)
-	if len(gpuResources) > 0 {
-		if nodeInfo.Allocatable.ScalarResources == nil {
-			nodeInfo.Allocatable.ScalarResources = make(map[corev1.ResourceName]int64)
-		}
-		for resourceName, quantity := range gpuResources {
-			if _, ok := nodeInfo.Allocatable.ScalarResources[resourceName]; ok {
-				continue
-			}
+	if len(gpuResources) == 0 {
+		return false
+	}
+	if nodeInfo.Allocatable.ScalarResources == nil {
+		nodeInfo.Allocatable.ScalarResources = make(map[corev1.ResourceName]int64)
+	}
+	for resourceName, quantity := range gpuResources {
+		if _, ok := nodeInfo.Allocatable.ScalarResources[resourceName]; !ok {
 			nodeInfo.Allocatable.ScalarResources[resourceName] = quantity.Value()
 		}
-		return true
 	}
-	return false
+	return true
 }
 
 func getUnifiedGPUResourcesFromDeviceCache(nodeDevice *nodeDevice) corev1.ResourceList {
