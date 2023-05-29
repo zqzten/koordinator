@@ -440,10 +440,7 @@ func TestPlugin_PreBind(t *testing.T) {
 
 			status := plg.PreBind(context.TODO(), framework.NewCycleState(), tt.pod, tt.nodeName)
 			assert.Nil(t, status)
-
-			newPod, err := suit.Handle.ClientSet().CoreV1().Pods(tt.pod.Namespace).Get(context.TODO(), tt.pod.Name, metav1.GetOptions{})
-			assert.NoError(t, err)
-			assert.Equal(t, tt.want, newPod.Annotations[core.PodDeletionCost])
+			assert.Equal(t, tt.want, tt.pod.Annotations[core.PodDeletionCost])
 		})
 	}
 }
