@@ -42,11 +42,10 @@ func init() {
 }
 
 func registerUnifiedDeviceEventHandler(deviceCache *nodeDeviceCache, handle framework.Handle) {
-	hook.value.Store(deviceCache)
-
 	if !enableUnifiedDevice {
 		return
 	}
+	hook.value.Store(deviceCache)
 
 	cosClientSet, ok := handle.(cosclientset.Interface)
 	if !ok {
