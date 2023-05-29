@@ -22,16 +22,11 @@ import (
 
 	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	apimachinerytypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
-	"github.com/koordinator-sh/koordinator/pkg/util"
 )
 
 var (
@@ -116,36 +111,10 @@ func (p *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState, 
 	if !extunified.IsVirtualKubeletNode(node) {
 		return nil
 	}
-
-	podOriginal := pod
-	pod = pod.DeepCopy()
 	if pod.Labels == nil {
 		pod.Labels = make(map[string]string)
 	}
 	pod.Labels[uniext.LabelCommonNodeType] = uniext.VKType
-
-	patchBytes, err := util.GeneratePodPatch(podOriginal, pod)
-	if err != nil {
-		return framework.NewStatus(framework.Error, err.Error())
-	}
-	if string(patchBytes) == "{}" {
-		return nil
-	}
-	err = retry.OnError(
-		retry.DefaultRetry,
-		errors.IsTooManyRequests,
-		func() error {
-			_, err := p.handle.ClientSet().CoreV1().Pods(pod.Namespace).
-				Patch(ctx, pod.Name, apimachinerytypes.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
-			if err != nil {
-				klog.Error("Failed to patch Pod %s/%s, patch: %v, err: %v", pod.Namespace, pod.Name, string(patchBytes), err)
-			}
-			return err
-		})
-	if err != nil {
-		return framework.NewStatus(framework.Error, err.Error())
-	}
-
 	klog.V(4).Infof("Successfully mark Pod %s/%s as vk", pod.Namespace, pod.Name)
 	return nil
 }
