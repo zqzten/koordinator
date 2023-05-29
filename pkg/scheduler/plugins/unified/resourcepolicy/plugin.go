@@ -26,7 +26,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
@@ -34,7 +33,6 @@ import (
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	listerschedulingv1alpha1 "github.com/koordinator-sh/koordinator/pkg/client/listers/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
-	"github.com/koordinator-sh/koordinator/pkg/util"
 )
 
 var (
@@ -144,27 +142,13 @@ func (p *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState, 
 	if err != nil {
 		return framework.AsStatus(err)
 	}
-
 	score, err := scoreNodeByResourcePolicy(resourcePolicy, node)
 	if err != nil {
 		return framework.AsStatus(err)
 	}
-
-	podOriginal := pod
-	pod = pod.DeepCopy()
 	if pod.Annotations == nil {
 		pod.Annotations = make(map[string]string)
 	}
 	pod.Annotations[core.PodDeletionCost] = strconv.FormatInt(score, 10)
-	err = retry.OnError(
-		retry.DefaultRetry,
-		errors.IsTooManyRequests,
-		func() error {
-			_, err = util.PatchPod(ctx, p.handle.ClientSet(), podOriginal, pod)
-			return err
-		})
-	if err != nil {
-		return framework.NewStatus(framework.Error, err.Error())
-	}
 	return nil
 }

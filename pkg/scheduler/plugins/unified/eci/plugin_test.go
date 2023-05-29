@@ -450,10 +450,7 @@ func TestPlugin_PreBind(t *testing.T) {
 			if got := plg.PreBind(context.TODO(), nil, tt.args.Pod, tt.args.Node.Name); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("PreBind() = %v, want %v", got, tt.want)
 			}
-
-			podModified, err := suit.Handle.ClientSet().CoreV1().Pods("default").Get(context.TODO(), tt.args.Pod.Name, metav1.GetOptions{})
-			assert.Nil(t, err)
-			assert.Equal(t, tt.wantVKLabel, podModified.Labels[uniext.LabelCommonNodeType])
+			assert.Equal(t, tt.wantVKLabel, tt.args.Pod.Labels[uniext.LabelCommonNodeType])
 		})
 	}
 }
