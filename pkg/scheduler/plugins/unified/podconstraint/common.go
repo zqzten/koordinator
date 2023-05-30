@@ -2,20 +2,40 @@ package podconstraint
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/podconstraint/cache"
 )
 
-func countPodsMatchConstraint(podInfos []*framework.PodInfo, constraintNameSpace, constraintName string) int {
+func fillSelectorByMatchLabels(pod *corev1.Pod, spreadConstraints []*cache.TopologySpreadConstraint) {
+	for i := range spreadConstraints {
+		spreadConstraint := spreadConstraints[i]
+		matchLabels := make(labels.Set)
+		for _, labelKey := range spreadConstraint.MatchLabelKeys {
+			if value, ok := pod.Labels[labelKey]; ok {
+				matchLabels[labelKey] = value
+			}
+		}
+		if len(matchLabels) > 0 {
+			spreadConstraint.Selector = labels.SelectorFromSet(matchLabels)
+		}
+	}
+}
+
+func countPodsMatchConstraint(podInfos []*framework.PodInfo, constraintNameSpace, constraintName string, selector labels.Selector) int {
 	count := 0
-	for _, p := range podInfos {
-		if podHasConstraint(p.Pod, constraintNameSpace, constraintName) {
+	for _, podInfo := range podInfos {
+		if podHasConstraint(podInfo.Pod, constraintNameSpace, constraintName) && podMatchLabels(podInfo.Pod, selector) {
 			count++
 		}
 	}
 	return count
+}
+
+func podMatchLabels(pod *corev1.Pod, selector labels.Selector) bool {
+	return selector == nil || selector.Matches(labels.Set(pod.Labels))
 }
 
 func podHasConstraint(pod *corev1.Pod, constraintNameSpace, constraintName string) bool {

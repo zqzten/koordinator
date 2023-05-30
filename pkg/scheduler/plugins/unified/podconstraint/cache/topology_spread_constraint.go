@@ -19,6 +19,7 @@ package cache
 import (
 	unischeduling "gitlab.alibaba-inc.com/unischeduler/api/apis/scheduling/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
 	k8sfeature "k8s.io/apiserver/pkg/util/feature"
 	v1helper "k8s.io/component-helpers/scheduling/corev1"
@@ -42,6 +43,8 @@ type TopologySpreadConstraint struct {
 	MaxSkew            int                               `json:"maxSkew,omitempty"`
 	TopologyRatios     map[string]int                    `json:"topologyRatios,omitempty"`
 	TopologySumRatio   int                               `json:"topologySumRatio,omitempty"`
+	MatchLabelKeys     []string                          `json:"matchLabelKeys,omitempty"`
+	Selector           labels.Selector                   `json:"selector,omitempty"`
 	NodeAffinityPolicy unischeduling.NodeInclusionPolicy `json:"nodeAffinityPolicy,omitempty"`
 	NodeTaintsPolicy   unischeduling.NodeInclusionPolicy `json:"nodeTaintsPolicy,omitempty"`
 }
@@ -121,6 +124,7 @@ func SpreadRulesToTopologySpreadConstraint(spreadRules []unischeduling.SpreadRul
 		if rule.NodeTaintsPolicy != nil {
 			constraint.NodeTaintsPolicy = *rule.NodeTaintsPolicy
 		}
+		constraint.MatchLabelKeys = rule.MatchLabelKeys
 		constraints = append(constraints, &constraint)
 	}
 	return constraints
