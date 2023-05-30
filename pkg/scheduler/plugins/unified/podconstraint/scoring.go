@@ -100,6 +100,7 @@ func (p *Plugin) PreScore(ctx context.Context, cycleState *framework.CycleState,
 			if len(preferredSpreadConstraints) == 0 {
 				continue
 			}
+			fillSelectorByMatchLabels(pod, preferredSpreadConstraints)
 			state.items = append(state.items, &preScoreStateItem{
 				PodConstraint:              constraint,
 				Weight:                     weightedPodConstraint.Weight,
@@ -123,6 +124,7 @@ func (p *Plugin) PreScore(ctx context.Context, cycleState *framework.CycleState,
 			if len(preferredSpreadConstraints) == 0 {
 				continue
 			}
+			fillSelectorByMatchLabels(pod, preferredSpreadConstraints)
 			state.items = append(state.items, &preScoreStateItem{
 				PodConstraint:              constraint,
 				PreferredSpreadConstraints: preferredSpreadConstraints,
@@ -175,7 +177,7 @@ func (p *Plugin) PreScore(ctx context.Context, cycleState *framework.CycleState,
 				if p.enableNodeInclusionPolicyInPodConstraint && !c.MatchNodeInclusionPolicies(pod, node, requiredNodeAffinity) {
 					return
 				}
-				count := countPodsMatchConstraint(nodeInfo.Pods, stateItem.PodConstraint.Namespace, stateItem.PodConstraint.Name)
+				count := countPodsMatchConstraint(nodeInfo.Pods, stateItem.PodConstraint.Namespace, stateItem.PodConstraint.Name, c.Selector)
 				atomic.AddInt32(tpCount, int32(count))
 			}
 		}
@@ -272,7 +274,7 @@ func (p *Plugin) scoreWithPodConstraint(item *preScoreStateItem, nodeInfo *frame
 		if tpVal, ok := nodeInfo.Node().Labels[constraint.TopologyKey]; ok {
 			var matchNum int
 			if constraint.TopologyKey == corev1.LabelHostname {
-				matchNum = countPodsMatchConstraint(nodeInfo.Pods, item.PodConstraint.Namespace, item.PodConstraint.Name)
+				matchNum = countPodsMatchConstraint(nodeInfo.Pods, item.PodConstraint.Namespace, item.PodConstraint.Name, constraint.Selector)
 			} else {
 				pair := cache.TopologyPair{TopologyKey: constraint.TopologyKey, TopologyValue: tpVal}
 				matchNum = int(*item.TpPairToMatchNum[pair])

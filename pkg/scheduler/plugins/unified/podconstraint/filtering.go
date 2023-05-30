@@ -149,6 +149,7 @@ func (p *Plugin) calPrefilterState(pod *corev1.Pod) (*preFilterState, *framework
 			if len(requiredPodConstraints) == 0 {
 				continue
 			}
+			fillSelectorByMatchLabels(pod, requiredPodConstraints)
 			state.items = append(state.items, &preFilterStateItem{
 				PodConstraint:             constraint,
 				RequiredSpreadConstraints: requiredPodConstraints,
@@ -168,9 +169,11 @@ func (p *Plugin) calPrefilterState(pod *corev1.Pod) (*preFilterState, *framework
 				continue
 			}
 			constraint := cache.BuildDefaultPodConstraint(pod.Namespace, defaultPodConstraintName, spreadRequiredType)
+			requiredPodConstraints := cache.SpreadRulesToTopologySpreadConstraint(constraint.Spec.SpreadRule.Requires)
+			fillSelectorByMatchLabels(pod, requiredPodConstraints)
 			state.items = append(state.items, &preFilterStateItem{
 				PodConstraint:             constraint,
-				RequiredSpreadConstraints: cache.SpreadRulesToTopologySpreadConstraint(constraint.Spec.SpreadRule.Requires),
+				RequiredSpreadConstraints: requiredPodConstraints,
 				TpPairToMatchNum:          make(map[cache.TopologyPair]*int32),
 				TpKeyToTotalMatchNum:      make(map[string]*int32),
 				TpKeyToCriticalPaths:      make(map[string]*cache.TopologyCriticalPaths),
@@ -237,7 +240,7 @@ func (p *Plugin) calPrefilterState(pod *corev1.Pod) (*preFilterState, *framework
 				if totalCount == nil {
 					continue
 				}
-				count := countPodsMatchConstraint(nodeInfo.Pods, stateItem.PodConstraint.Namespace, stateItem.PodConstraint.Name)
+				count := countPodsMatchConstraint(nodeInfo.Pods, stateItem.PodConstraint.Namespace, stateItem.PodConstraint.Name, c.Selector)
 				atomic.AddInt32(totalCount, int32(count))
 				pair := cache.TopologyPair{TopologyKey: tpKey, TopologyValue: tpVal}
 				tpCount := stateItem.TpPairToMatchNum[pair]

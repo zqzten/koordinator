@@ -67,9 +67,9 @@ var defaultUnifiedSchedulerFeatureGates = map[featuregate.Feature]featuregate.Fe
 	EnableLocalVolumeCapacity:                   {Default: true, PreRelease: featuregate.Beta},
 	EnableLocalVolumeIOLimit:                    {Default: false, PreRelease: featuregate.Beta},
 	EnableDefaultECIProfile:                     {Default: false, PreRelease: featuregate.Beta},
+	EnableNodeInclusionPolicyInPodConstraint:    {Default: true, PreRelease: featuregate.Beta},
 	DefaultHonorTaintTolerationInPodConstraint:  {Default: false, PreRelease: featuregate.Beta},
 	DefaultHonorTaintTolerationInTopologySpread: {Default: false, PreRelease: featuregate.Beta},
-	EnableNodeInclusionPolicyInPodConstraint:    {Default: true, PreRelease: featuregate.Beta},
 }
 
 var defaultUnifiedKoordletFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
