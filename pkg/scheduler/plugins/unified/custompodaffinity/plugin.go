@@ -157,6 +157,9 @@ func (p *Plugin) Filter(ctx context.Context, cycleState *framework.CycleState, p
 		return nil
 	}
 	preemptivePods := state.preemptivePods[node.Name]
+	reservationRestoreState := getReservationRestoreState(cycleState)
+	matchedReservePods := reservationRestoreState.getNodeMatchedReservedPods(node.Name)
+	preemptivePods = preemptivePods.Union(matchedReservePods)
 	if p.cache.GetAllocCount(node.Name, state.podSpreadInfo, preemptivePods)+1 > state.maxInstancePerHost {
 		return framework.NewStatus(framework.Unschedulable, ErrReasonNotMatch)
 	}
