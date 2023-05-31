@@ -6,6 +6,8 @@ ARG TARGETARCH
 ENV VERSION $VERSION
 ENV GOOS linux
 ENV GOARCH $TARGETARCH
+ENV GOPRIVATE "gitlab.alibaba-inc.com"
+ENV GOPROXY "https://goproxy.cn,direct"
 
 COPY apis/ apis/
 COPY cmd/ cmd/
