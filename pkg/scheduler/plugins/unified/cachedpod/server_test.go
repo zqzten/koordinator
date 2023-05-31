@@ -23,6 +23,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	cachepodapis "gitlab.alibaba-inc.com/cache/api/pb/generated"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
@@ -38,7 +40,7 @@ func TestAllocateCachedPods(t *testing.T) {
 	server := NewServer(pointer.Bool(true), func(pod *corev1.Pod) error {
 		queueReq <- pod
 		return nil
-	})
+	}, nil)
 
 	requestID := "123456"
 	results := map[string]scheduleResult{
@@ -83,4 +85,39 @@ func TestAllocateCachedPods(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, resp.Pods, 1)
 	assert.Equal(t, results[fakePodName(requestID, 0)].cachedPod, resp.Pods[0])
+}
+
+func TestAllocateCachedPodsWithClientCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.TODO())
+	cancel()
+
+	var queuedPods []*corev1.Pod
+	var canceledPods []*corev1.Pod
+	server := NewServer(pointer.Bool(true), func(pod *corev1.Pod) error {
+		queuedPods = append(queuedPods, pod)
+		return nil
+	}, func(pod *corev1.Pod) error {
+		canceledPods = append(canceledPods, pod)
+		return nil
+	})
+
+	requestID := "123456"
+	resp, err := server.AllocateCachedPods(ctx, &cachepodapis.AllocateCachedPodsRequest{
+		RequestId: requestID,
+		Template: &corev1.PodTemplateSpec{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					apiext.AnnotationReservationAffinity: "{}",
+				},
+			},
+		},
+		Replicas: 2,
+		Timeout:  nil,
+	})
+	assert.Error(t, err)
+	statusErr, ok := status.FromError(err)
+	assert.True(t, ok)
+	assert.Equal(t, codes.DeadlineExceeded, statusErr.Code())
+	assert.Nil(t, resp)
+	assert.Equal(t, len(queuedPods), len(canceledPods))
 }

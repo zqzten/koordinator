@@ -58,9 +58,13 @@ func (pl *Plugin) Name() string {
 func New(obj runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 	isLeader := false
 	extendHandle := handle.(frameworkext.ExtendedHandle)
-	allocatorServer := NewServer(&isLeader, func(pod *corev1.Pod) error {
+	addInQFn := func(pod *corev1.Pod) error {
 		return extendHandle.Scheduler().GetSchedulingQueue().Add(pod)
-	})
+	}
+	deleteFromQFn := func(pod *corev1.Pod) error {
+		return extendHandle.Scheduler().GetSchedulingQueue().Delete(pod)
+	}
+	allocatorServer := NewServer(&isLeader, addInQFn, deleteFromQFn)
 
 	args := obj.(*schedulingconfig.CachedPodArgs)
 	if err := startGRPCServer(args, allocatorServer); err != nil {
