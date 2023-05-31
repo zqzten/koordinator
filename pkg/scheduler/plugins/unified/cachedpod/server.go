@@ -45,6 +45,7 @@ const (
 )
 
 type addPodInQueueFn func(pod *corev1.Pod) error
+type deletePodFromQueueFn func(pod *corev1.Pod) error
 
 type allocatorServerExt interface {
 	cachepodapis.CacheSchedulerServer
@@ -53,18 +54,20 @@ type allocatorServerExt interface {
 
 type AllocatorServer struct {
 	cachepodapis.UnimplementedCacheSchedulerServer
-	isLeader      *bool
-	addPodInQueue addPodInQueueFn
+	isLeader           *bool
+	addPodInQueue      addPodInQueueFn
+	deletePodFromQueue deletePodFromQueueFn
 
 	lock     sync.RWMutex
 	waitChan map[string]chan scheduleResult
 }
 
-func NewServer(isLeader *bool, fn addPodInQueueFn) *AllocatorServer {
+func NewServer(isLeader *bool, addInQFn addPodInQueueFn, deleteFromQFn deletePodFromQueueFn) *AllocatorServer {
 	return &AllocatorServer{
-		isLeader:      isLeader,
-		addPodInQueue: fn,
-		waitChan:      map[string]chan scheduleResult{},
+		isLeader:           isLeader,
+		addPodInQueue:      addInQFn,
+		deletePodFromQueue: deleteFromQFn,
+		waitChan:           map[string]chan scheduleResult{},
 	}
 }
 
@@ -87,19 +90,27 @@ func (srv *AllocatorServer) AllocateCachedPods(ctx context.Context, req *cachepo
 	srv.addWaitChan(req.RequestId, waitChan)
 	defer srv.removeWaitChan(req.RequestId)
 
-	var numPendingPods int
 	var err error
+	pods := make([]*corev1.Pod, 0, int(req.Replicas))
 	for i := 0; i < int(req.Replicas); i++ {
 		fakePod := NewFakePod(req.RequestId, req.Template, i)
 		if err = srv.addPodInQueue(fakePod); err != nil {
 			break
 		}
-		numPendingPods++
+		pods = append(pods, fakePod)
 	}
-	if numPendingPods == 0 {
+	if len(pods) == 0 {
 		klog.ErrorS(err, "Failed to add request into scheduling queue", "request", req.RequestId)
 		return nil, status.Errorf(codes.Internal, "failed to add request into scheduling queue, err: %v", err.Error())
 	}
+	defer func() {
+		// maybe client already canceled the requests, we can abort all pending pods
+		if srv.deletePodFromQueue != nil {
+			for _, pod := range pods {
+				_ = srv.deletePodFromQueue(pod)
+			}
+		}
+	}()
 
 	var timeout time.Duration
 	if req.Timeout != nil {
@@ -242,6 +253,10 @@ func NewFakePod(requestID string, template *corev1.PodTemplateSpec, index int) *
 	}
 	if fakePod.Namespace == "" {
 		fakePod.Namespace = corev1.NamespaceDefault
+	}
+
+	if fakePod.Spec.SchedulerName == "" {
+		fakePod.Spec.SchedulerName = corev1.DefaultSchedulerName
 	}
 
 	if fakePod.Annotations == nil {
