@@ -21,6 +21,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/koordinator-sh/koordinator/apis/extension"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 )
 
@@ -40,6 +41,8 @@ const (
 
 	NVSwitchDeviceType = schedulingv1alpha1.DeviceType("nvswitch")
 	NVSwitchResource   = "koordinator.sh/nvswitch"
+
+	LabelGPUModelSeries string = extension.NodeDomainPrefix + "/gpu-model-series"
 )
 
 type NVIDIADriverVersions []string
