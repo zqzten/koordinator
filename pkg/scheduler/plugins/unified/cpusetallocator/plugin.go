@@ -22,15 +22,20 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	k8sfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/klog/v2"
+	"k8s.io/kubernetes/pkg/api/v1/resource"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	"github.com/koordinator-sh/koordinator/pkg/features"
 	schedulingconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta2"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/nodenumaresource"
+	"github.com/koordinator-sh/koordinator/pkg/util/cpuset"
 )
 
 func init() {
@@ -150,7 +155,53 @@ func (p *Plugin) Filter(ctx context.Context, cycleState *framework.CycleState, p
 	if extunified.IsVirtualKubeletNode(node) {
 		return nil
 	}
-	return p.Plugin.Filter(ctx, cycleState, pod, nodeInfo)
+	status := p.Plugin.Filter(ctx, cycleState, pod, nodeInfo)
+	if !status.IsSuccess() {
+		return status
+	}
+
+	if k8sfeature.DefaultFeatureGate.Enabled(features.DisableCPUSetOversold) {
+		return filterWithDisableCPUSetOversold(pod, nodeInfo, p.Plugin.GetCPUManager().GetAvailableCPUs)
+	}
+	return nil
+}
+
+type getAvailableCPUsFn func(nodeName string) (availableCPUs cpuset.CPUSet, allocated nodenumaresource.CPUDetails, err error)
+
+func filterWithDisableCPUSetOversold(pod *corev1.Pod, nodeInfo *framework.NodeInfo, getAvailableCPUs getAvailableCPUsFn) *framework.Status {
+	if extension.GetPriorityClass(pod) != extension.PriorityProd {
+		return nil
+	}
+
+	node := nodeInfo.Node()
+	if node == nil {
+		return framework.NewStatus(framework.UnschedulableAndUnresolvable, "missing node")
+	}
+
+	cpuOverQuota, _, _ := extunified.GetResourceOverQuotaSpec(node)
+	if cpuOverQuota <= 100 {
+		return nil
+	}
+
+	availableCPUs, allocatedCPUSets, err := getAvailableCPUs(node.Name)
+	if err != nil {
+		return framework.NewStatus(framework.UnschedulableAndUnresolvable, err.Error())
+	}
+	podRequests, _ := resource.PodRequestsAndLimits(pod)
+
+	freeCPUs := nodeInfo.Allocatable.MilliCPU - nodeInfo.Requested.MilliCPU
+	freeCPUs -= int64(allocatedCPUSets.CPUs().Size()*1000*(int(cpuOverQuota)-100)) / 100
+	if freeCPUs < podRequests.Cpu().MilliValue() {
+		return framework.NewStatus(framework.Unschedulable, "Insufficient CPUs")
+	}
+
+	cpuRequestMilli := podRequests.Cpu().MilliValue()
+	numCPUsNeeded := int(cpuRequestMilli+999) / 1000
+	if availableCPUs.Size() < numCPUsNeeded {
+		klog.V(5).Infof("Node: %v, Pod: %v, availableCPUs: %v, numCPUsNeeded: %v", node.Name, klog.KObj(pod), availableCPUs.Size(), numCPUsNeeded)
+		return framework.NewStatus(framework.Unschedulable, "Insufficient cpu cores")
+	}
+	return nil
 }
 
 func (p *Plugin) Score(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeName string) (int64, *framework.Status) {
