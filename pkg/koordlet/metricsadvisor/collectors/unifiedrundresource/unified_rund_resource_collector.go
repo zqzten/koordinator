@@ -24,7 +24,6 @@ import (
 	gocache "github.com/patrickmn/go-cache"
 	"go.uber.org/atomic"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
@@ -51,7 +50,7 @@ var CollectRundInterval = 10 * time.Second // use a different interval consideri
 type rundResourceCollector struct {
 	collectInterval      time.Duration
 	started              *atomic.Bool
-	metricDB             metriccache.MetricCache
+	appendableDB         metriccache.Appendable
 	statesInformer       statesinformer.StatesInformer
 	cgroupReader         resourceexecutor.CgroupReader
 	podFilter            framework.PodFilter
@@ -70,7 +69,7 @@ func New(opt *framework.Options) framework.Collector {
 	return &rundResourceCollector{
 		collectInterval:      collectInterval,
 		started:              atomic.NewBool(false),
-		metricDB:             opt.MetricCache,
+		appendableDB:         opt.MetricCache,
 		statesInformer:       opt.StatesInformer,
 		cgroupReader:         opt.CgroupReader,
 		podFilter:            podFilter,
@@ -129,6 +128,7 @@ func (p *rundResourceCollector) collectRundPod(meta *statesinformer.PodMeta) {
 	uid := string(pod.UID) // types.UID
 	collectTime := time.Now()
 	podCgroupDir := meta.CgroupDir
+	podKey := util.GetPodKey(pod)
 
 	// TODO: retrieve the cached sandbox ID from ContainersInformer
 	// https://github.com/koordinator-sh/koordinator/issues/1249
@@ -136,22 +136,20 @@ func (p *rundResourceCollector) collectRundPod(meta *statesinformer.PodMeta) {
 	if err != nil {
 		// higher verbosity for probably non-running pods
 		if pod.Status.Phase != corev1.PodRunning && pod.Status.Phase != corev1.PodPending {
-			klog.V(6).Infof("failed to collect non-running rund pod usage for %s/%s, get sandbox ID err: %s",
-				pod.Namespace, pod.Name, err)
+			klog.V(6).Infof("failed to collect non-running rund pod usage for %s, get sandbox ID err: %s",
+				podKey, err)
 		} else {
-			klog.V(4).Infof("failed to collect rund pod usage for %s/%s, get sandbox ID err: %s",
-				pod.Namespace, pod.Name, err)
+			klog.V(4).Infof("failed to collect rund pod usage for %s, get sandbox ID err: %s", podKey, err)
 		}
 		return
 	}
 	if len(sandboxIDRaw) <= 0 {
-		klog.V(6).Infof("failed to collect non-running rund pod usage for %s/%s, no container status",
-			pod.Namespace, pod.Name)
+		klog.V(6).Infof("failed to collect non-running rund pod usage for %s, no container status", podKey)
 		return
 	}
 	_, sandboxID, err := util.ParseContainerId(sandboxIDRaw)
 	if err != nil {
-		klog.V(4).Infof("failed to parse rund pod sandbox id for %s/%s, err: %s", pod.Namespace, pod.Name, err)
+		klog.V(4).Infof("failed to parse rund pod sandbox id for %s, err: %s", podKey, err)
 		return
 	}
 
@@ -162,8 +160,8 @@ func (p *rundResourceCollector) collectRundPod(meta *statesinformer.PodMeta) {
 	currentCPUUsage, err0 := p.cgroupReader.ReadCPUAcctUsage(podCgroupDir)
 	memStat, err1 := p.cgroupReader.ReadMemoryStat(rundMemoryCgroupDir)
 	if err0 != nil || err1 != nil {
-		klog.V(4).Infof("failed to collect rund pod usage for %s/%s, CPU err: %s, Memory err: %s",
-			pod.Namespace, pod.Name, err0, err1)
+		klog.V(4).Infof("failed to collect rund pod usage for %s, CPU err: %s, Memory err: %s",
+			podKey, err0, err1)
 		return
 	}
 
@@ -174,7 +172,7 @@ func (p *rundResourceCollector) collectRundPod(meta *statesinformer.PodMeta) {
 	}, gocache.DefaultExpiration)
 	klog.V(6).Infof("last rund pod cpu stat size in pod resource collector cache %v", p.lastPodCPUStat.ItemCount())
 	if !ok {
-		klog.V(4).Infof("ignore the first cpu stat collection for rund pod %s/%s", pod.Namespace, pod.Name)
+		klog.V(4).Infof("ignore the first cpu stat collection for rund pod %s", podKey)
 		return
 	}
 	lastCPUStat := lastCPUStatValue.(framework.CPUStat)
@@ -183,36 +181,48 @@ func (p *rundResourceCollector) collectRundPod(meta *statesinformer.PodMeta) {
 
 	memUsageValue := memStat.Usage()
 
-	podMetric := metriccache.PodResourceMetric{
-		PodUID: uid,
-		CPUUsed: metriccache.CPUMetric{
-			// 1.0 CPU = 1000 Milli-CPU
-			CPUUsed: *resource.NewMilliQuantity(int64(cpuUsageValue*1000), resource.DecimalSI),
-		},
-		MemoryUsed: metriccache.MemoryMetric{
-			// 1.0 kB Memory = 1024 B
-			MemoryWithoutCache: *resource.NewQuantity(memUsageValue, resource.BinarySI),
-		},
+	metrics := make([]metriccache.MetricSample, 0)
+
+	cpuUsageMetric, err := metriccache.PodCPUUsageMetric.GenerateSample(
+		metriccache.MetricPropertiesFunc.Pod(uid), collectTime, cpuUsageValue)
+	if err != nil {
+		klog.V(4).Infof("failed to generate pod cpu metrics for rund pod %s, err: %v", podKey, err)
+		return
 	}
+	memUsageMetric, err := metriccache.PodMemUsageMetric.GenerateSample(
+		metriccache.MetricPropertiesFunc.Pod(uid), collectTime, float64(memUsageValue))
+	if err != nil {
+		klog.V(4).Infof("failed to generate pod mem metrics for rund pod %s, err %v", podKey, err)
+		return
+	}
+
+	metrics = append(metrics, cpuUsageMetric, memUsageMetric)
 	for deviceName, deviceCollector := range p.deviceCollectors {
-		if err := deviceCollector.FillPodMetric(&podMetric, meta.CgroupDir, pod.Status.ContainerStatuses); err != nil {
-			klog.Warningf("fill rund pod %s/%s/%s device usage failed for %v, error: %v",
-				pod.Namespace, pod.Name, deviceName, err)
+		if deviceMetrics, err := deviceCollector.GetPodMetric(uid, meta.CgroupDir, pod.Status.ContainerStatuses); err != nil {
+			klog.V(4).Infof("get rund pod %s device usage failed for %v, err: %v", podKey, deviceName, err)
+		} else if len(metrics) > 0 {
+			metrics = append(metrics, deviceMetrics...)
 		}
 	}
 
-	klog.V(6).Infof("collect rund pod %s/%s, uid %s finished, metric %+v",
-		meta.Pod.Namespace, meta.Pod.Name, meta.Pod.UID, podMetric)
+	klog.V(6).Infof("collect rund pod %s, uid %s finished, metric %+v", podKey, meta.Pod.UID, metrics)
 
-	// TODO: migrate to TSDB storage
-	if err := p.metricDB.InsertPodResourceMetric(collectTime, &podMetric); err != nil {
-		klog.Errorf("insert rund pod %s/%s, uid %s resource metric failed, metric %v, err %v",
-			pod.Namespace, pod.Name, uid, podMetric, err)
+	containerMetrics := p.collectRundContainersResUsed(meta, sandboxID)
+	metrics = append(metrics, containerMetrics...)
+
+	appender := p.appendableDB.Appender()
+	if err = appender.Append(metrics); err != nil {
+		klog.Warningf("Append rund pod metrics error: %v", err)
+		return
 	}
-	p.collectRundContainersResUsed(meta, sandboxID)
+
+	if err = appender.Commit(); err != nil {
+		klog.Warningf("Commit rund pod metrics failed, error: %v", err)
+		return
+	}
 }
 
-func (p *rundResourceCollector) collectRundContainersResUsed(meta *statesinformer.PodMeta, sandboxID string) {
+func (p *rundResourceCollector) collectRundContainersResUsed(meta *statesinformer.PodMeta, sandboxID string) []metriccache.MetricSample {
 	klog.V(6).Infof("start collectRundContainersResUsed")
 	pod := meta.Pod
 
@@ -220,14 +230,15 @@ func (p *rundResourceCollector) collectRundContainersResUsed(meta *statesinforme
 	if err != nil {
 		klog.V(4).Infof("failed to collect rund container usage for %s/%s, get PodStats err: %s",
 			pod.Namespace, pod.Name, err)
-		return
+		return nil
 	}
 	if len(containerStatsMap) <= 0 {
 		klog.V(5).Infof("skip to collect rund container usage for %s/%s, got no valid ContainerStats",
 			pod.Namespace, pod.Name)
-		return
+		return nil
 	}
 
+	var containerMetrics []metriccache.MetricSample
 	for i := range pod.Status.ContainerStatuses {
 		containerStat := &pod.Status.ContainerStatuses[i]
 		containerKey := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, containerStat.Name)
@@ -282,33 +293,29 @@ func (p *rundResourceCollector) collectRundContainersResUsed(meta *statesinforme
 		}
 		memUsageValue := memoryStat.UsageForRund()
 
-		containerMetric := metriccache.ContainerResourceMetric{
-			ContainerID: containerStat.ContainerID,
-			CPUUsed: metriccache.CPUMetric{
-				// 1.0 CPU = 1000 Milli-CPU
-				CPUUsed: *resource.NewMilliQuantity(int64(cpuUsageValue*1000), resource.DecimalSI),
-			},
-			MemoryUsed: metriccache.MemoryMetric{
-				// 1.0 kB Memory = 1024 B
-				MemoryWithoutCache: *resource.NewQuantity(memUsageValue, resource.BinarySI),
-			},
+		cpuUsageMetric, cpuErr := metriccache.ContainerCPUUsageMetric.GenerateSample(
+			metriccache.MetricPropertiesFunc.Container(containerStat.ContainerID), collectTime, cpuUsageValue)
+		memUsageMetric, memErr := metriccache.ContainerMemUsageMetric.GenerateSample(
+			metriccache.MetricPropertiesFunc.Container(containerStat.ContainerID), collectTime, float64(memUsageValue))
+		if cpuErr != nil || memErr != nil {
+			klog.Warningf("generate rund container %s metrics failed, cpu: %v, mem: %v", containerKey, cpuErr, memErr)
+			continue
 		}
 
+		containerMetrics = append(containerMetrics, cpuUsageMetric, memUsageMetric)
+
 		for deviceName, deviceCollector := range p.deviceCollectors {
-			if err := deviceCollector.FillContainerMetric(&containerMetric, meta.CgroupDir, containerStat); err != nil {
-				klog.Warningf("fill rund container %s device usage failed for %v, err: %v",
-					containerKey, deviceName, err)
+			if metrics, err := deviceCollector.GetContainerMetric(containerStat.ContainerID, meta.CgroupDir, containerStat); err != nil {
+				klog.Warningf("get rund container %s device usage failed for %v, error: %v", containerKey, deviceName, err)
+			} else {
+				containerMetrics = append(containerMetrics, metrics...)
 			}
 		}
 
-		klog.V(6).Infof("collect rund container %s, id %s finished, metric %+v",
-			containerKey, meta.Pod.UID, containerMetric)
-
-		// TODO: migrate to TSDB storage
-		if err := p.metricDB.InsertContainerResourceMetric(collectTime, &containerMetric); err != nil {
-			klog.Errorf("insert rund container %s resource metric error: %v", containerKey, err)
-		}
+		klog.V(6).Infof("collect rund container %s, id %s finished, metric %+v", containerKey, pod.UID, containerMetrics)
 	}
 	klog.V(5).Infof("collectRundContainersResUsed for rund pod %s/%s finished, container num %d",
 		pod.Namespace, pod.Name, len(pod.Status.ContainerStatuses))
+
+	return containerMetrics
 }
