@@ -19,6 +19,7 @@ package cpusetallocator
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -46,6 +47,7 @@ import (
 	"github.com/koordinator-sh/koordinator/apis/extension"
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/nodenumaresource"
+	"github.com/koordinator-sh/koordinator/pkg/util/cpuset"
 )
 
 var _ framework.SharedLister = &testSharedLister{}
@@ -787,4 +789,91 @@ func Test_allowUseCPUSet(t *testing.T) {
 			assert.Equal(t, tt.want, allowUseCPUSet(pod))
 		})
 	}
+}
+
+func TestFilterWithDisableCPUSetOversold(t *testing.T) {
+	tests := []struct {
+		name          string
+		reqCPU        int
+		usedCPUSets   int
+		usedCPUShares int
+		totalCPUs     int
+		cpuOverQuota  string
+		wantStatus    *framework.Status
+	}{
+		{
+			name:         "allocated 2 CPUSet and request 6 CPUs",
+			reqCPU:       6,
+			usedCPUSets:  2,
+			totalCPUs:    8,
+			cpuOverQuota: "1.5",
+			wantStatus:   nil,
+		},
+		{
+			name:          "allocated 2 CPUSet, 6 CPUShare and request 4 CPUs",
+			reqCPU:        4,
+			usedCPUSets:   2,
+			usedCPUShares: 6,
+			totalCPUs:     8,
+			cpuOverQuota:  "1.5",
+			wantStatus:    framework.NewStatus(framework.Unschedulable, "Insufficient CPUs"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pod := &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Priority: pointer.Int32(extension.PriorityProdValueMax),
+					Containers: []corev1.Container{
+						{
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU: resource.MustParse(fmt.Sprintf("%d", tt.reqCPU)),
+								},
+							},
+						},
+					},
+				},
+			}
+			node := &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						extunified.LabelCPUOverQuota: tt.cpuOverQuota,
+					},
+				},
+				Status: corev1.NodeStatus{
+					Allocatable: corev1.ResourceList{
+						corev1.ResourceCPU: resource.MustParse(fmt.Sprintf("%d", tt.totalCPUs)),
+					},
+				},
+			}
+			nodeInfo := framework.NewNodeInfo()
+			nodeInfo.SetNode(node)
+			cpuOverQuotaRatioSpec, _, _ := extunified.GetResourceOverQuotaSpec(node)
+			milliCPU := node.Status.Allocatable.Cpu().MilliValue()
+			nodeInfo.Allocatable.MilliCPU = milliCPU * cpuOverQuotaRatioSpec / 100
+			nodeInfo.Requested.MilliCPU += int64(tt.usedCPUShares * 1000)
+			nodeInfo.Requested.MilliCPU += int64(tt.usedCPUSets * 1000)
+
+			getCPUSets := func(nodeName string) (availableCPUs cpuset.CPUSet, allocated nodenumaresource.CPUDetails, err error) {
+				if tt.usedCPUSets > 0 {
+					allocated = nodenumaresource.NewCPUDetails()
+					for i := 0; i < tt.usedCPUSets; i++ {
+						allocated[i] = nodenumaresource.CPUInfo{CPUID: i}
+					}
+				}
+				builder := cpuset.NewCPUSetBuilder()
+				for i := tt.usedCPUSets; i < tt.totalCPUs; i++ {
+					builder.Add(i)
+				}
+				availableCPUs = builder.Result()
+				return
+			}
+
+			got := filterWithDisableCPUSetOversold(pod, nodeInfo, getCPUSets)
+			assert.Equal(t, tt.wantStatus, got)
+		})
+	}
+
 }

@@ -19,11 +19,13 @@ package cpusetallocator
 import (
 	"context"
 
+	k8sfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	corev1 "k8s.io/api/core/v1"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	"github.com/koordinator-sh/koordinator/pkg/features"
 	frameworkexthelper "github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/helper"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/nodenumaresource"
 )
@@ -67,7 +69,13 @@ func (c *nodeEventHandler) OnUpdate(oldObj, newObj interface{}) {
 
 func (c *nodeEventHandler) updateNode(oldNode, node *corev1.Node) {
 	c.topologyManager.UpdateCPUTopologyOptions(node.Name, func(options *nodenumaresource.CPUTopologyOptions) {
-		options.MaxRefCount = CPUMaxRefCount(node)
+		var maxRefCount int
+		if k8sfeature.DefaultFeatureGate.Enabled(features.DisableCPUSetOversold) {
+			maxRefCount = 1
+		} else {
+			maxRefCount = CPUMaxRefCount(node)
+		}
+		options.MaxRefCount = maxRefCount
 	})
 }
 
