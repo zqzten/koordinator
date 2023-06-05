@@ -39,7 +39,6 @@ import (
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/metriccache"
-	mock_metriccache "github.com/koordinator-sh/koordinator/pkg/koordlet/metriccache/mockmetriccache"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/metricsadvisor/framework"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/resourceexecutor"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/statesinformer"
@@ -165,8 +164,8 @@ func Test_collectRundPodsResUsed(t *testing.T) {
 		NewRundExtendedStats  func(helper *system.FileTestUtil) *ttrpc.Server
 	}
 	type wantFields struct {
-		podResourceMetric       bool
-		containerResourceMetric bool
+		checkPodResourceMetric       func(t *testing.T, metricCache metriccache.MetricCache)
+		checkContainerResourceMetric func(t *testing.T, metricCache metriccache.MetricCache)
 	}
 	tests := []struct {
 		name   string
@@ -253,8 +252,12 @@ total_unevictable 0
 				},
 			},
 			want: wantFields{
-				podResourceMetric:       true,
-				containerResourceMetric: true,
+				checkPodResourceMetric: func(t *testing.T, metricCache metriccache.MetricCache) {
+					testGetPodMetric(t, metricCache, "xxxxxxxx", testNow.Add(-time.Minute), testNow.Add(time.Minute))
+				},
+				checkContainerResourceMetric: func(t *testing.T, metricCache metriccache.MetricCache) {
+					testGetContainerMetric(t, metricCache, testContainerID, testNow.Add(-time.Minute), testNow.Add(time.Minute))
+				},
 			},
 		},
 		// FIXME: currently rund pod collection does not support cgroups-v2
@@ -287,16 +290,13 @@ total_unevictable 0
 			defer ctrl.Finish()
 
 			statesInformer := mock_statesinformer.NewMockStatesInformer(ctrl)
-			metricCache := mock_metriccache.NewMockMetricCache(ctrl)
+			metricCacheCfg := metriccache.NewDefaultConfig()
+			metricCacheCfg.TSDBEnablePromMetrics = false
+			metricCacheCfg.TSDBPath = helper.TempDir
+			metricCache, err := metriccache.NewMetricCache(metricCacheCfg)
+			assert.NoError(t, err)
 			statesInformer.EXPECT().HasSynced().Return(true).AnyTimes()
 			statesInformer.EXPECT().GetAllPods().Return(tt.fields.getPodMetas).Times(1)
-
-			if tt.want.podResourceMetric {
-				metricCache.EXPECT().InsertPodResourceMetric(gomock.Any(), gomock.Not(nil)).Times(1)
-			}
-			if tt.want.containerResourceMetric {
-				metricCache.EXPECT().InsertContainerResourceMetric(gomock.Any(), gomock.Not(nil)).Times(1)
-			}
 
 			collector := New(&framework.Options{
 				Config: &framework.Config{
@@ -316,6 +316,72 @@ total_unevictable 0
 			assert.NotPanics(t, func() {
 				c.collectRundPodsResUsed()
 			})
+
+			if tt.want.checkPodResourceMetric != nil {
+				tt.want.checkPodResourceMetric(t, metricCache)
+			}
+			if tt.want.checkContainerResourceMetric != nil {
+				tt.want.checkContainerResourceMetric(t, metricCache)
+			}
 		})
 	}
+}
+
+func testGetPodMetric(t *testing.T, metricCache metriccache.MetricCache, podUID string, start, end time.Time) {
+	queryParam := metriccache.QueryParam{
+		Start:     &start,
+		End:       &end,
+		Aggregate: metriccache.AggregationTypeAVG,
+	}
+
+	querier, err := metricCache.Querier(*queryParam.Start, *queryParam.End)
+	assert.NoError(t, err)
+
+	cpuAggregateResult, err := doQuery(querier, metriccache.PodCPUUsageMetric, metriccache.MetricPropertiesFunc.Pod(podUID))
+	assert.NoError(t, err)
+	cpuV, err := cpuAggregateResult.Value(queryParam.Aggregate)
+	assert.NoError(t, err)
+	assert.NotNil(t, cpuV, cpuV)
+
+	memAggregateResult, err := doQuery(querier, metriccache.PodMemUsageMetric, metriccache.MetricPropertiesFunc.Pod(podUID))
+	assert.NoError(t, err)
+
+	memV, err := memAggregateResult.Value(queryParam.Aggregate)
+	assert.NoError(t, err)
+	assert.NotNil(t, memV, memV)
+}
+
+func testGetContainerMetric(t *testing.T, metricCache metriccache.MetricCache, containerID string, start, end time.Time) {
+	queryParam := metriccache.QueryParam{
+		Start:     &start,
+		End:       &end,
+		Aggregate: metriccache.AggregationTypeAVG,
+	}
+	querier, err := metricCache.Querier(*queryParam.Start, *queryParam.End)
+	assert.NoError(t, err)
+
+	cpuAggregateResult, err := doQuery(querier, metriccache.ContainerCPUUsageMetric, metriccache.MetricPropertiesFunc.Container(containerID))
+	assert.NoError(t, err)
+	_, err = cpuAggregateResult.Value(queryParam.Aggregate)
+	assert.NoError(t, err)
+
+	memAggregateResult, err := doQuery(querier, metriccache.ContainerMemUsageMetric, metriccache.MetricPropertiesFunc.Container(containerID))
+	assert.NoError(t, err)
+
+	_, err = memAggregateResult.Value(queryParam.Aggregate)
+	assert.NoError(t, err)
+}
+
+func doQuery(querier metriccache.Querier, resource metriccache.MetricResource, properties map[metriccache.MetricProperty]string) (metriccache.AggregateResult, error) {
+	queryMeta, err := resource.BuildQueryMeta(properties)
+	if err != nil {
+		return nil, err
+	}
+
+	aggregateResult := metriccache.DefaultAggregateResultFactory.New(queryMeta)
+	if err := querier.Query(queryMeta, nil, aggregateResult); err != nil {
+		return nil, err
+	}
+
+	return aggregateResult, nil
 }
