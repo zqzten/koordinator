@@ -43,6 +43,8 @@ const (
 	DefaultHonorTaintTolerationInPodConstraint  featuregate.Feature = "DefaultHonorTaintTolerationInPodConstraint"
 	DefaultHonorTaintTolerationInTopologySpread featuregate.Feature = "DefaultHonorTaintTolerationInTopologySpread"
 	EnableResourceFlavor                        featuregate.Feature = "EnableResourceFlavor"
+	RejectQuotaNotExist                         featuregate.Feature = "RejectQuotaNotExist"
+	QuotaRunTime                                featuregate.Feature = "QuotaRunTime"
 )
 
 const (
@@ -70,6 +72,8 @@ var defaultUnifiedSchedulerFeatureGates = map[featuregate.Feature]featuregate.Fe
 	EnableNodeInclusionPolicyInPodConstraint:    {Default: true, PreRelease: featuregate.Beta},
 	DefaultHonorTaintTolerationInPodConstraint:  {Default: false, PreRelease: featuregate.Beta},
 	DefaultHonorTaintTolerationInTopologySpread: {Default: false, PreRelease: featuregate.Beta},
+	RejectQuotaNotExist:                         {Default: false, PreRelease: featuregate.Beta},
+	QuotaRunTime:                                {Default: false, PreRelease: featuregate.Beta},
 }
 
 var defaultUnifiedKoordletFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
