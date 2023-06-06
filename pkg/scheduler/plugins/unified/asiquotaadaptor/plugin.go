@@ -18,52 +18,57 @@ package asiquotaadaptor
 
 import (
 	"context"
-	"flag"
+	"fmt"
 
+	"github.com/spf13/pflag"
+	asiquotav1 "gitlab.alibaba-inc.com/unischeduler/api/apis/quotas/v1"
 	uniclientset "gitlab.alibaba-inc.com/unischeduler/api/client/clientset/versioned"
 	uniexternalversions "gitlab.alibaba-inc.com/unischeduler/api/client/informers/externalversions"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/cache"
+	quotav1 "k8s.io/apiserver/pkg/quota/v1"
+	k8sfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
+	"k8s.io/kubernetes/pkg/api/v1/resource"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
-	"sigs.k8s.io/scheduler-plugins/pkg/generated/clientset/versioned"
-	"sigs.k8s.io/scheduler-plugins/pkg/generated/informers/externalversions"
-	"sigs.k8s.io/scheduler-plugins/pkg/generated/listers/scheduling/v1alpha1"
+	schedclientset "sigs.k8s.io/scheduler-plugins/pkg/generated/clientset/versioned"
+	schedinformer "sigs.k8s.io/scheduler-plugins/pkg/generated/informers/externalversions"
+	schedlister "sigs.k8s.io/scheduler-plugins/pkg/generated/listers/scheduling/v1alpha1"
 
+	apiext "github.com/koordinator-sh/koordinator/apis/extension"
+	"github.com/koordinator-sh/koordinator/pkg/features"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
-	"github.com/koordinator-sh/koordinator/pkg/util"
 )
 
 const (
 	Name = "ASIQuotaAdaptor"
 )
 
-var asiQuotaNamespace = "asi-quota"
-var enableCompatibleWithAsiQuota = false
+const (
+	LabelQuotaSkipCheck string = "alibabacloud.com/skip-quota-check"
+)
+
+var (
+	asiQuotaNamespace            = "asi-quota"
+	enableSyncASIQuota           = true
+	enableCompatibleWithASIQuota = false
+	isLeader                     = false
+)
 
 func init() {
-	flag.BoolVar(&enableCompatibleWithAsiQuota, "enable-compatible-with-asi-quota", false, "Enable "+
-		"Enable compatible with ASIQuota")
-	flag.StringVar(&asiQuotaNamespace, "asi-quota-namespace", "asi-quota",
-		"The namespace of the elasticQuota created by ASIQuota")
+	pflag.BoolVar(&enableCompatibleWithASIQuota, "enable-compatible-with-asi-quota", enableCompatibleWithASIQuota, "Enable compatible with ASIQuota")
+	pflag.BoolVar(&enableSyncASIQuota, "enable-sync-asi-quota", enableSyncASIQuota, "Enable sync from ASIQuota to ElasticQuota")
+	pflag.StringVar(&asiQuotaNamespace, "asi-quota-namespace", "asi-quota", "The namespace of the elasticQuota created by ASIQuota")
 }
 
 var _ framework.PreFilterPlugin = &Plugin{}
+var _ framework.ReservePlugin = &Plugin{}
 
 type Plugin struct {
-	quotaClient             versioned.Interface
-	quotaLister             v1alpha1.ElasticQuotaLister
+	cache                   *ASIQuotaCache
+	schedClient             schedclientset.Interface
+	elasticQuotaLister      schedlister.ElasticQuotaLister
 	asiQuotaInformerFactory uniexternalversions.SharedInformerFactory
-}
-
-func (p *Plugin) PreFilter(ctx context.Context, state *framework.CycleState, pod *corev1.Pod) *framework.Status {
-	return framework.NewStatus(framework.Success, "")
-}
-func (p *Plugin) PreFilterExtensions() framework.PreFilterExtensions {
-	return nil
 }
 
 func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error) {
@@ -76,72 +81,145 @@ func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error)
 	}
 	asiQuotaInformerFactory := uniexternalversions.NewSharedInformerFactory(client, 0)
 
-	quotaClient, ok := handle.(versioned.Interface)
+	schedClient, ok := handle.(schedclientset.Interface)
 	if !ok {
 		kubeConfig := *handle.KubeConfig()
 		kubeConfig.ContentType = runtime.ContentTypeJSON
 		kubeConfig.AcceptContentTypes = runtime.ContentTypeJSON
-		quotaClient = versioned.NewForConfigOrDie(&kubeConfig)
+		schedClient = schedclientset.NewForConfigOrDie(&kubeConfig)
 	}
-	quotaFactory := externalversions.NewSharedInformerFactory(quotaClient, 0)
-	quotaLister := quotaFactory.Scheduling().V1alpha1().ElasticQuotas().Lister()
+	schedInformFactory := schedinformer.NewSharedInformerFactory(schedClient, 0)
+	elasticQuotaLister := schedInformFactory.Scheduling().V1alpha1().ElasticQuotas().Lister()
 
-	adaptor := &Plugin{
-		quotaClient:             quotaClient,
-		quotaLister:             quotaLister,
+	cache := newASIQuotaCache()
+	pl := &Plugin{
+		cache:                   cache,
+		schedClient:             schedClient,
+		elasticQuotaLister:      elasticQuotaLister,
 		asiQuotaInformerFactory: asiQuotaInformerFactory,
 	}
 
-	asiQuotaInformerFactory.Quotas().V1().Quotas().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    adaptor.OnQuotaAdd,
-		UpdateFunc: adaptor.OnQuotaUpdate,
-		DeleteFunc: adaptor.OnQuotaDelete,
-	})
-
-	if ns, err := handle.ClientSet().CoreV1().Namespaces().Get(context.TODO(), asiQuotaNamespace, metav1.GetOptions{}); err == nil {
-		klog.Infof("get ASIQuota namespace success, namespace:%v", ns.Name)
-		return adaptor, nil
+	if enableCompatibleWithASIQuota {
+		registerASIQuotaEventHandler(cache, schedClient, elasticQuotaLister, asiQuotaInformerFactory)
+		registerPodEventHandler(cache, handle.SharedInformerFactory())
 	}
-	err := util.RetryOnConflictOrTooManyRequests(
-		func() error {
-			_, err := handle.ClientSet().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: asiQuotaNamespace,
-				},
-			}, metav1.CreateOptions{})
-			if err != nil {
-				klog.V(4).ErrorS(err, "create ASIQuota namespace fail, namespace:%v", asiQuotaNamespace)
-				return err
-			}
-			klog.Infof("create ASIQuota namespace success, namespace:%v", asiQuotaNamespace)
-			return nil
-		})
-	if err != nil {
-		if !errors.IsAlreadyExists(err) {
+
+	if enableSyncASIQuota {
+		if err := createASIQuotaNamespace(handle.ClientSet(), asiQuotaNamespace); err != nil {
+			klog.ErrorS(err, "Failed to create ASIQuotaNamespace")
 			return nil, err
 		}
-		klog.Errorf("create ASIQuota namespace fail, namespace:%v, err:%v", asiQuotaNamespace, err.Error())
+		ctx := context.TODO()
+		schedInformFactory.Start(ctx.Done())
+		schedInformFactory.WaitForCacheSync(ctx.Done())
 	}
-	ctx := context.TODO()
-	quotaFactory.Start(ctx.Done())
-	quotaFactory.WaitForCacheSync(ctx.Done())
 
-	return adaptor, nil
+	return pl, nil
 }
 
-func (p *Plugin) NewControllers() ([]frameworkext.Controller, error) {
-	return []frameworkext.Controller{p}, nil
-}
-
-func (p *Plugin) Name() string {
+func (pl *Plugin) Name() string {
 	return Name
 }
 
-func (p *Plugin) Start() {
-	if enableCompatibleWithAsiQuota {
-		ctx := context.TODO()
-		p.asiQuotaInformerFactory.Start(ctx.Done())
-		p.asiQuotaInformerFactory.WaitForCacheSync(ctx.Done())
-		klog.Infof("start ASIQuotaAdaptor")
+func (pl *Plugin) NewControllers() ([]frameworkext.Controller, error) {
+	return []frameworkext.Controller{pl}, nil
+}
+
+func (pl *Plugin) Start() {
+	isLeader = true
+}
+
+func (pl *Plugin) EventsToRegister() []framework.ClusterEvent {
+	// To register a custom event, follow the naming convention at:
+	// https://github.com/kubernetes/kubernetes/blob/e1ad9bee5bba8fbe85a6bf6201379ce8b1a611b1/pkg/scheduler/eventhandlers.go#L415-L422
+	gvk := fmt.Sprintf("quotas.%v.%v", asiquotav1.GroupVersion.Version, asiquotav1.GroupVersion.Group)
+	return []framework.ClusterEvent{
+		{Resource: framework.GVK(gvk), ActionType: framework.Add | framework.Update | framework.Delete},
 	}
+}
+
+type stateData struct {
+	skip      bool
+	quotaName string
+}
+
+func (s *stateData) Clone() framework.StateData {
+	return s
+}
+
+func getStateData(cycleState *framework.CycleState) *stateData {
+	s, _ := cycleState.Read(Name)
+	sd, _ := s.(*stateData)
+	if sd == nil {
+		sd = &stateData{
+			skip: true,
+		}
+	}
+	return sd
+}
+
+func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod) *framework.Status {
+	if pod.Labels[LabelQuotaSkipCheck] == "true" ||
+		!k8sfeature.DefaultFeatureGate.Enabled(features.QuotaRunTime) {
+		return nil
+	}
+
+	quotaName := pod.Labels[asiquotav1.LabelQuotaName]
+	quota := pl.cache.getQuota(quotaName)
+	if quota == nil {
+		if k8sfeature.DefaultFeatureGate.Enabled(features.RejectQuotaNotExist) {
+			return framework.NewStatus(framework.UnschedulableAndUnresolvable, "quota node exist")
+		}
+		return nil
+	}
+
+	podRequests, _ := resource.PodRequestsAndLimits(pod)
+	if quotav1.IsZero(podRequests) {
+		return nil
+	}
+
+	if apiext.GetPodQoSClass(pod) == apiext.QoSBE {
+		podRequests = convertToBatchRequests(podRequests)
+	}
+
+	used := quotav1.Add(podRequests, quota.used)
+	available := quota.getAvailable()
+
+	if isLessEqual, exceedDimensions := quotav1.LessThanOrEqual(used, available); !isLessEqual {
+		remained := quotav1.SubtractWithNonNegativeResult(available, quota.used)
+		return framework.NewStatus(framework.Unschedulable, fmt.Sprintf(
+			"Insufficient quotas, quotaName: %v, available: %v, remained: %v, used: %v, pod's request: %v, exceedDimensions: %v",
+			quotaName, marshalResourceList(available), marshalResourceList(remained),
+			marshalResourceList(quota.used), marshalResourceList(podRequests), exceedDimensions))
+	}
+
+	cycleState.Write(Name, &stateData{
+		skip:      false,
+		quotaName: quotaName,
+	})
+
+	return nil
+}
+
+func (pl *Plugin) PreFilterExtensions() framework.PreFilterExtensions {
+	return nil
+}
+
+func (pl *Plugin) Reserve(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
+	sd := getStateData(cycleState)
+	if sd.skip {
+		return nil
+	}
+	podRequests, _ := resource.PodRequestsAndLimits(pod)
+	pl.cache.addPodUsedUnsafe(sd.quotaName, pod, podRequests)
+	return nil
+}
+
+func (pl *Plugin) Unreserve(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeName string) {
+	sd := getStateData(cycleState)
+	if sd.skip {
+		return
+	}
+	podRequests, _ := resource.PodRequestsAndLimits(pod)
+	pl.cache.removePodUsedUnsafe(sd.quotaName, pod, podRequests)
 }
