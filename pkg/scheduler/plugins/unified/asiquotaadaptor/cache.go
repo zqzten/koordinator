@@ -1,0 +1,126 @@
+/*
+Copyright 2022 The Koordinator Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package asiquotaadaptor
+
+import (
+	"sync"
+
+	asiquotav1 "gitlab.alibaba-inc.com/unischeduler/api/apis/quotas/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/klog/v2"
+	"k8s.io/kubernetes/pkg/api/v1/resource"
+)
+
+type ASIQuotaCache struct {
+	quotas map[string]*ASIQuota
+	lock   sync.Mutex
+}
+
+func newASIQuotaCache() *ASIQuotaCache {
+	return &ASIQuotaCache{
+		quotas: map[string]*ASIQuota{},
+	}
+}
+
+func (c *ASIQuotaCache) getQuota(quotaName string) *ASIQuota {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	q := c.quotas[quotaName]
+	if q == nil {
+		return nil
+	}
+	return q.Clone()
+}
+
+func (c *ASIQuotaCache) updatePod(oldPod, newPod *corev1.Pod) {
+	if newPod.Spec.NodeName == "" {
+		return
+	}
+
+	var oldRequests corev1.ResourceList
+	var oldQuotaName string
+	if oldPod != nil {
+		oldRequests, _ = resource.PodRequestsAndLimits(oldPod)
+		oldQuotaName = oldPod.Labels[asiquotav1.LabelQuotaName]
+	}
+	newRequests, _ := resource.PodRequestsAndLimits(newPod)
+	quotaName := newPod.Labels[asiquotav1.LabelQuotaName]
+
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	c.removePodUsedUnsafe(oldQuotaName, oldPod, oldRequests)
+	c.addPodUsedUnsafe(quotaName, newPod, newRequests)
+}
+
+func (c *ASIQuotaCache) deletePod(pod *corev1.Pod) {
+	if pod.Spec.NodeName == "" {
+		return
+	}
+	quotaName := pod.Labels[asiquotav1.LabelQuotaName]
+	requests, _ := resource.PodRequestsAndLimits(pod)
+
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.removePodUsedUnsafe(quotaName, pod, requests)
+}
+
+func (c *ASIQuotaCache) removePodUsedUnsafe(quotaName string, pod *corev1.Pod, requests corev1.ResourceList) {
+	if quota := c.quotas[quotaName]; quota != nil {
+		quota.removePod(pod, requests)
+	}
+}
+
+func (c *ASIQuotaCache) addPodUsedUnsafe(quotaName string, pod *corev1.Pod, requests corev1.ResourceList) {
+	if quota := c.quotas[quotaName]; quota != nil {
+		quota.addPod(pod, requests)
+	}
+}
+
+func (c *ASIQuotaCache) updateQuota(oldQuota, newQuota *asiquotav1.Quota) {
+	if isParentQuota(newQuota) {
+		return
+	}
+
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	quota := c.quotas[newQuota.Name]
+	if quota == nil {
+		quota, err := newASIQuota(newQuota)
+		if err != nil {
+			klog.ErrorS(err, "Failed to newASIQuota", "quota", klog.KObj(newQuota))
+			return
+		}
+		c.quotas[newQuota.Name] = quota
+		return
+	}
+
+	quota.update(oldQuota, newQuota)
+}
+
+func (c *ASIQuotaCache) deleteQuota(quota *asiquotav1.Quota) {
+	if isParentQuota(quota) {
+		return
+	}
+
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	delete(c.quotas, quota.Name)
+}
