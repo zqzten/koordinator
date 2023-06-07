@@ -47,6 +47,26 @@ func (c *ASIQuotaCache) getQuota(quotaName string) *ASIQuota {
 	return q.Clone()
 }
 
+func (c *ASIQuotaCache) assumePod(pod *corev1.Pod) {
+	quotaName := pod.Labels[asiquotav1.LabelQuotaName]
+	requests, _ := resource.PodRequestsAndLimits(pod)
+
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	c.addPodUsedUnsafe(quotaName, pod, requests)
+}
+
+func (c *ASIQuotaCache) forgetPod(pod *corev1.Pod) {
+	quotaName := pod.Labels[asiquotav1.LabelQuotaName]
+	requests, _ := resource.PodRequestsAndLimits(pod)
+
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	c.removePodUsedUnsafe(quotaName, pod, requests)
+}
+
 func (c *ASIQuotaCache) updatePod(oldPod, newPod *corev1.Pod) {
 	if newPod.Spec.NodeName == "" {
 		return
