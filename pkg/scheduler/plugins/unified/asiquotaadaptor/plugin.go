@@ -210,8 +210,7 @@ func (pl *Plugin) Reserve(ctx context.Context, cycleState *framework.CycleState,
 	if sd.skip {
 		return nil
 	}
-	podRequests, _ := resource.PodRequestsAndLimits(pod)
-	pl.cache.addPodUsedUnsafe(sd.quotaName, pod, podRequests)
+	pl.cache.assumePod(pod)
 	return nil
 }
 
@@ -220,6 +219,5 @@ func (pl *Plugin) Unreserve(ctx context.Context, cycleState *framework.CycleStat
 	if sd.skip {
 		return
 	}
-	podRequests, _ := resource.PodRequestsAndLimits(pod)
-	pl.cache.removePodUsedUnsafe(sd.quotaName, pod, podRequests)
+	pl.cache.forgetPod(pod)
 }
