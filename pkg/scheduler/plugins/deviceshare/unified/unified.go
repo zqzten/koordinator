@@ -46,6 +46,7 @@ var deviceResourceNames = map[schedulingv1alpha1.DeviceType][]corev1.ResourceNam
 	schedulingv1alpha1.FPGA: {apiext.ResourceFPGA},
 	schedulingv1alpha1.GPU: {
 		apiext.ResourceNvidiaGPU,
+		apiext.ResourceHygonDCU,
 		apiext.ResourceGPU,
 		apiext.ResourceGPUCore,
 		apiext.ResourceGPUMemory,
@@ -78,6 +79,9 @@ func ValidateGPURequest(podRequest corev1.ResourceList) (uint, error) {
 
 	if _, exist := podRequest[apiext.ResourceNvidiaGPU]; exist {
 		gpuCombination |= deviceshare.NvidiaGPUExist
+	}
+	if _, exist := podRequest[apiext.ResourceHygonDCU]; exist {
+		gpuCombination |= deviceshare.HygonDCUExist
 	}
 	if ResourceGPU, exist := podRequest[apiext.ResourceGPU]; exist {
 		if ResourceGPU.Value() > 100 && ResourceGPU.Value()%100 != 0 {
@@ -130,6 +134,7 @@ func ValidateGPURequest(podRequest corev1.ResourceList) (uint, error) {
 	}
 
 	if gpuCombination == (deviceshare.NvidiaGPUExist) ||
+		gpuCombination == (deviceshare.HygonDCUExist) ||
 		gpuCombination == (deviceshare.KoordGPUExist) ||
 		gpuCombination == (deviceshare.GPUMemoryRatioExist) ||
 		gpuCombination == (deviceshare.GPUCoreExist|deviceshare.GPUMemoryExist) ||
@@ -176,6 +181,12 @@ func ConvertGPUResource(podRequest corev1.ResourceList, combination uint) corev1
 		return corev1.ResourceList{
 			apiext.ResourceGPUCore:        *resource.NewQuantity(nvidiaGpu.Value()*100, resource.DecimalSI),
 			apiext.ResourceGPUMemoryRatio: *resource.NewQuantity(nvidiaGpu.Value()*100, resource.DecimalSI),
+		}
+	case deviceshare.HygonDCUExist:
+		hygonDCU := podRequest[apiext.ResourceHygonDCU]
+		return corev1.ResourceList{
+			apiext.ResourceGPUCore:        *resource.NewQuantity(hygonDCU.Value()*100, resource.DecimalSI),
+			apiext.ResourceGPUMemoryRatio: *resource.NewQuantity(hygonDCU.Value()*100, resource.DecimalSI),
 		}
 	case aliyunGPUComputeExist:
 		return corev1.ResourceList{
