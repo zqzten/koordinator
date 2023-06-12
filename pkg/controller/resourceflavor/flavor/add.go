@@ -23,7 +23,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	v1helper "k8s.io/component-helpers/scheduling/corev1"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	sev1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/controller/resourceflavor/cache"

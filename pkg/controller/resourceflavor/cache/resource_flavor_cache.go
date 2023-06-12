@@ -20,7 +20,7 @@ import (
 	"sync"
 
 	"k8s.io/gengo/examples/set-gen/sets"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	sev1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 )
