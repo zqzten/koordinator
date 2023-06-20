@@ -133,16 +133,7 @@ func (srv *AllocatorServer) AllocateCachedPods(ctx context.Context, req *cachepo
 
 		case result := <-waitChan:
 			if result.err == nil && result.cachedPod != nil {
-				response.Pods = append(response.Pods, &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      result.cachedPod.Name,
-						Namespace: result.cachedPod.Namespace,
-						UID:       result.cachedPod.UID,
-					},
-					Spec: corev1.PodSpec{
-						NodeName: result.cachedPod.Spec.NodeName,
-					},
-				})
+				response.Pods = append(response.Pods, result.cachedPod)
 				klog.V(4).InfoS("Successfully allocate cached pod on node",
 					"request", req.RequestId, "requestPod", klog.KObj(result.requestPod),
 					"cachedPod", klog.KObj(result.cachedPod), "node", result.cachedPod.Spec.NodeName)
