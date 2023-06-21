@@ -26,7 +26,7 @@ RUN go build -a -o koordlet cmd/koordlet/main.go
 # For more details about how those images got built, you might wanna check the original Dockerfile in
 # https://gitlab.com/nvidia/container-images/cuda/-/tree/master/dist.
 
-FROM --platform=$TARGETPLATFORM nvidia/cuda:11.6.1-base-ubuntu20.04
+FROM --platform=$TARGETPLATFORM nvidia/cuda:11.6.2-base-ubuntu20.04
 WORKDIR /
 RUN apt-get update && apt-get upgrade -y && rm -rf /var/cache/apt/
 COPY --from=builder /go/src/github.com/koordinator-sh/koordinator/koordlet .
