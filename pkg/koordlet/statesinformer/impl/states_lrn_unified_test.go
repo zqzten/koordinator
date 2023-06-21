@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package statesinformer
+package impl
 
 import (
 	"fmt"
@@ -34,6 +34,7 @@ import (
 	fakekoordclientset "github.com/koordinator-sh/koordinator/pkg/client/clientset/versioned/fake"
 	listerschedulingv1alpha1 "github.com/koordinator-sh/koordinator/pkg/client/listers/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/metrics"
+	"github.com/koordinator-sh/koordinator/pkg/koordlet/statesinformer"
 )
 
 func Test_lrnInformer(t *testing.T) {
@@ -225,7 +226,7 @@ func Test_syncLRN(t *testing.T) {
 	}
 	type fields struct {
 		node      *corev1.Node
-		podMap    map[string]*PodMeta
+		podMap    map[string]*statesinformer.PodMeta
 		lrnLister listerschedulingv1alpha1.LogicalResourceNodeLister
 	}
 	tests := []struct {
@@ -236,7 +237,7 @@ func Test_syncLRN(t *testing.T) {
 			name: "no lrn to sync",
 			fields: fields{
 				node: testNode,
-				podMap: map[string]*PodMeta{
+				podMap: map[string]*statesinformer.PodMeta{
 					"test-ns/test-pod": {
 						Pod: testPod,
 					},
@@ -248,7 +249,7 @@ func Test_syncLRN(t *testing.T) {
 			name: "sync lrn successfully",
 			fields: fields{
 				node: testNode,
-				podMap: map[string]*PodMeta{
+				podMap: map[string]*statesinformer.PodMeta{
 					"test-ns/test-pod-on-lrn": {
 						Pod: testPodonLRN,
 					},
@@ -260,7 +261,7 @@ func Test_syncLRN(t *testing.T) {
 			name: "sync lrn successfully 1",
 			fields: fields{
 				node: testNode,
-				podMap: map[string]*PodMeta{
+				podMap: map[string]*statesinformer.PodMeta{
 					"test-ns/test-pod-on-lrn": {
 						Pod: testPodonLRN,
 					},
@@ -272,7 +273,7 @@ func Test_syncLRN(t *testing.T) {
 			name: "failed to list lrn ",
 			fields: fields{
 				node: testNode,
-				podMap: map[string]*PodMeta{
+				podMap: map[string]*statesinformer.PodMeta{
 					"test-ns/test-pod-on-lrn": {
 						Pod: testPodonLRN,
 					},
