@@ -53,18 +53,45 @@ func (p *Plugin) Calculate(strategy *extension.ColocationStrategy, node *corev1.
 		return nil, nil
 	}
 
-	// NOTE: currently, non-BE pods are considered as LS, and BE pods are considered using Batch
-	podNonBERequest := util.NewZeroResourceList()
+	var resourceItems []framework.ResourceItem
 
-	for _, pod := range podList.Items {
+	// 1. VK Batch resources (batch.allocatable := node.total - HP.request - node.reserved)
+	batchResources, err := p.calculateForBatchResource(strategy, node, podList)
+	if err != nil {
+		klog.V(4).InfoS("failed to calculate Batch resources for VK node", "node", node.Name,
+			"err", err)
+	} else {
+		resourceItems = append(resourceItems, batchResources...)
+	}
+
+	// 2. VK Mid resources (mid.allocatable = zero)
+	midResources, err := p.calculateForMidResources(strategy, node, podList)
+	if err != nil {
+		klog.V(4).InfoS("failed to calculate Mid resources for VK node", "node", node.Name,
+			"err", err)
+	} else {
+		resourceItems = append(resourceItems, midResources...)
+	}
+
+	return resourceItems, nil
+}
+
+func (p *Plugin) calculateForBatchResource(strategy *extension.ColocationStrategy, node *corev1.Node,
+	podList *corev1.PodList) ([]framework.ResourceItem, error) {
+	// HP means High-Priority (i.e. not Batch or Free) pods
+	podHPRequest := util.NewZeroResourceList()
+
+	for i := range podList.Items {
+		pod := &podList.Items[i]
 		if pod.Status.Phase != corev1.PodRunning && pod.Status.Phase != corev1.PodPending {
 			continue
 		}
 
-		qosClass := extension.GetPodQoSClassRaw(&pod)
-		podRequest := util.GetPodRequest(&pod, corev1.ResourceCPU, corev1.ResourceMemory)
-		if qosClass != extension.QoSBE {
-			podNonBERequest = quotav1.Add(podNonBERequest, podRequest)
+		priorityClass := extension.GetPodPriorityClassWithDefault(pod)
+		podRequest := util.GetPodRequest(pod, corev1.ResourceCPU, corev1.ResourceMemory)
+		isPodHighPriority := priorityClass != extension.PriorityBatch && priorityClass != extension.PriorityFree
+		if isPodHighPriority {
+			podHPRequest = quotav1.Add(podHPRequest, podRequest)
 		}
 	}
 
@@ -72,13 +99,13 @@ func (p *Plugin) Calculate(strategy *extension.ColocationStrategy, node *corev1.
 	nodeReservation := getNodeReservation(strategy, node)
 
 	batchAllocatable := quotav1.Max(quotav1.Subtract(quotav1.Subtract(nodeAllocatable, nodeReservation),
-		podNonBERequest), util.NewZeroResourceList())
-	cpuMsg := fmt.Sprintf("batchAllocatable[CPU(Milli-Core)]:%v = nodeAllocatable:%v - nodeReservation:%v - podRequest(Non-BE):%v",
+		podHPRequest), util.NewZeroResourceList())
+	cpuMsg := fmt.Sprintf("batchAllocatable[CPU(Milli-Core)]:%v = nodeAllocatable:%v - nodeReservation:%v - podHPRequest:%v",
 		batchAllocatable.Cpu().MilliValue(), nodeAllocatable.Cpu().MilliValue(), nodeReservation.Cpu().MilliValue(),
-		podNonBERequest.Cpu().MilliValue())
-	memMsg := fmt.Sprintf("batchAllocatable[Mem(GB)]:%v = nodeAllocatable:%v - nodeReservation:%v - podRequest(Non-BE):%v",
+		podHPRequest.Cpu().MilliValue())
+	memMsg := fmt.Sprintf("batchAllocatable[Mem(GB)]:%v = nodeAllocatable:%v - nodeReservation:%v - podHPRequest:%v",
 		batchAllocatable.Memory().ScaledValue(resource.Giga), nodeAllocatable.Memory().ScaledValue(resource.Giga),
-		nodeReservation.Memory().ScaledValue(resource.Giga), podNonBERequest.Memory().ScaledValue(resource.Giga))
+		nodeReservation.Memory().ScaledValue(resource.Giga), podHPRequest.Memory().ScaledValue(resource.Giga))
 
 	klog.V(6).InfoS("calculate batch resource for virtual-kubelet node", "node", node.Name,
 		"batch resource", batchAllocatable, "cpu", cpuMsg, "memory", memMsg)
@@ -97,6 +124,12 @@ func (p *Plugin) Calculate(strategy *extension.ColocationStrategy, node *corev1.
 			Message:  memMsg,
 		},
 	}, nil
+}
+
+func (p *Plugin) calculateForMidResources(strategy *extension.ColocationStrategy, node *corev1.Node,
+	podList *corev1.PodList) ([]framework.ResourceItem, error) {
+	// currently, vk node does not support Mid-tier overcommitment
+	return nil, nil
 }
 
 // getNodeAllocatable gets node allocatable and filters out non-CPU and non-Mem resources

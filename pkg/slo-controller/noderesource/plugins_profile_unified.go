@@ -22,6 +22,7 @@ package noderesource
 import (
 	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/framework"
 	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/plugins/batchresource"
+	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/plugins/dynamicprodresource"
 	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/plugins/midresource"
 	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/plugins/vk"
 )
@@ -30,10 +31,13 @@ func init() {
 	// set default plugins
 	NodeResourcePlugins = append(NodeResourcePlugins, midresource.PluginName)
 	NodeResourcePlugins = append(NodeResourcePlugins, batchresource.PluginName)
+	NodeResourcePlugins = append(NodeResourcePlugins, dynamicprodresource.PluginName)
+	NodeResourcePlugins = append(NodeResourcePlugins, vk.PluginName)
 }
 
-func addPlugins(filter func(string) bool) {
+func addPlugins(filter framework.FilterFn) {
 	// NOTE: plugins run in order of the registration.
+	framework.RegisterSetupExtender(filter, setupPlugins...)
 	framework.RegisterNodePrepareExtender(filter, nodePreparePlugins...)
 	framework.RegisterNodeSyncExtender(filter, nodeSyncPlugins...)
 	framework.RegisterNodeMetaSyncExtender(filter, nodeMetaSyncPlugins...)
@@ -41,10 +45,15 @@ func addPlugins(filter func(string) bool) {
 }
 
 var (
+	// SetupPlugin
+	setupPlugins = []framework.SetupPlugin{
+		&dynamicprodresource.Plugin{},
+	}
 	// NodePreparePlugin implements node resource preparing for the calculated results.
 	nodePreparePlugins = []framework.NodePreparePlugin{
 		&midresource.Plugin{},
 		&batchresource.Plugin{},
+		&dynamicprodresource.Plugin{},
 	}
 	// NodeSyncPlugin implements the check of resource updating.
 	nodeSyncPlugins = []framework.NodeSyncPlugin{
@@ -52,11 +61,14 @@ var (
 		&batchresource.Plugin{},
 	}
 	// NodeMetaSyncPlugin implements the check of node meta updating.
-	nodeMetaSyncPlugins = []framework.NodeMetaSyncPlugin{}
+	nodeMetaSyncPlugins = []framework.NodeMetaSyncPlugin{
+		&dynamicprodresource.Plugin{},
+	}
 	// ResourceCalculatePlugin implements resource counting and overcommitment algorithms.
 	resourceCalculatePlugins = []framework.ResourceCalculatePlugin{
 		&midresource.Plugin{},
 		&batchresource.Plugin{},
-		&vk.Plugin{},
+		&dynamicprodresource.Plugin{},
+		&vk.Plugin{}, // should be at the ending
 	}
 )

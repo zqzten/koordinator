@@ -258,12 +258,12 @@ func TestPluginCalculate(t *testing.T) {
 				{
 					Name:     extension.BatchCPU,
 					Quantity: resource.NewQuantity(30000, resource.DecimalSI),
-					Message:  "batchAllocatable[CPU(Milli-Core)]:30000 = nodeAllocatable:100000 - nodeReservation:30000 - podRequest(Non-BE):40000",
+					Message:  "batchAllocatable[CPU(Milli-Core)]:30000 = nodeAllocatable:100000 - nodeReservation:30000 - podHPRequest:40000",
 				},
 				{
 					Name:     extension.BatchMemory,
 					Quantity: resource.NewScaledQuantity(36, 9),
-					Message:  "batchAllocatable[Mem(GB)]:36 = nodeAllocatable:120 - nodeReservation:24 - podRequest(Non-BE):60",
+					Message:  "batchAllocatable[Mem(GB)]:36 = nodeAllocatable:120 - nodeReservation:24 - podHPRequest:60",
 				},
 			},
 			wantErr: false,
