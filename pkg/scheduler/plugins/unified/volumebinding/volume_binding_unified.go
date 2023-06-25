@@ -65,8 +65,8 @@ func forceSyncStorageInformers(informerFactory informers.SharedInformerFactory) 
 func (pl *VolumeBinding) filterWithoutPVC(state *stateData, pod *v1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
 	nodeStorageInfo := pl.nodeStorageCache.GetNodeStorageInfo(nodeInfo.Node().Name)
 	if nodeStorageInfo != nil {
-		nodeStorageInfo.lock.Lock()
-		defer nodeStorageInfo.lock.Unlock()
+		nodeStorageInfo.lock.RLock()
+		defer nodeStorageInfo.lock.RUnlock()
 		return HasEnoughStorageCapacity(nodeStorageInfo, pod, 0, nil, pl.classLister)
 	}
 	return nil
