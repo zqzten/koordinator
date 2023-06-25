@@ -39,8 +39,9 @@ const (
 	AnnotationRundNVSwitchOrder       = "io.katacontainers.prestart.gpu.nvswitch"
 	AnnotationRundNvidiaDriverVersion = "io.katacontainers.prestart.gpu.nvidia-driver-version"
 
-	NVSwitchDeviceType = schedulingv1alpha1.DeviceType("nvswitch")
-	NVSwitchResource   = "koordinator.sh/nvswitch"
+	NVSwitchDeviceType                     = schedulingv1alpha1.DeviceType("nvswitch")
+	NVSwitchResource                       = "koordinator.sh/nvswitch"
+	ResourcePPU        corev1.ResourceName = "aliyun.com/ppu"
 
 	LabelGPUModelSeries string = extension.NodeDomainPrefix + "/gpu-model-series"
 )
