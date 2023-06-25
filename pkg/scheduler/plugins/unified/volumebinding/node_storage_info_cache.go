@@ -29,7 +29,7 @@ import (
 )
 
 type NodeStorageInfoCache struct {
-	lock  sync.Mutex
+	lock  sync.RWMutex
 	items map[string]*NodeStorageInfo
 }
 
@@ -61,13 +61,13 @@ func (c *NodeStorageInfoCache) UpdateOnNode(nodeName string, fn func(info *NodeS
 }
 
 func (c *NodeStorageInfoCache) GetNodeStorageInfo(nodeName string) *NodeStorageInfo {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	c.lock.RLock()
+	defer c.lock.RUnlock()
 	return c.items[nodeName]
 }
 
 type NodeStorageInfo struct {
-	lock             sync.Mutex
+	lock             sync.RWMutex
 	GraphDiskPath    string
 	LocalVolumesInfo map[string]*LocalVolume
 	localPVCAllocs   map[string]*localPVCAlloc

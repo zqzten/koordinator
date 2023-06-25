@@ -109,8 +109,8 @@ func (b *volumeBinder) checkNodeDeviceStorageClass(claim *v1.PersistentVolumeCla
 		klog.Errorf("Failed to find nodeStorageInfo, node: %s", node.Name)
 		return false, false, nil
 	}
-	nodeStorageInfo.lock.Lock()
-	defer nodeStorageInfo.lock.Unlock()
+	nodeStorageInfo.lock.RLock()
+	defer nodeStorageInfo.lock.RUnlock()
 
 	freeLocalVolumes := make(map[string]int64)
 	localVolumeFree := nodeStorageInfo.GetFree()
@@ -287,8 +287,8 @@ func (b *volumeBinder) checkLocalVolumeStorageAndIOCapacity(nodeName string, pod
 	if nodeStorageInfo == nil {
 		return false, false, fmt.Errorf("nodeSotrageInfo not found")
 	}
-	nodeStorageInfo.lock.Lock()
-	defer nodeStorageInfo.lock.Unlock()
+	nodeStorageInfo.lock.RLock()
+	defer nodeStorageInfo.lock.RUnlock()
 
 	status := HasEnoughStorageCapacity(nodeStorageInfo, pod, requestSystemDiskInBytes, localVolumesInBytes, b.classLister)
 	if !status.IsSuccess() {
