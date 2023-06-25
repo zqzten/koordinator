@@ -49,7 +49,7 @@ func (pl *VolumeBinding) RegisterEndpoints(group *gin.RouterGroup) {
 			services.ResponseErrorMessage(c, http.StatusNotFound, "node not found")
 			return
 		}
-		nodeInfo.lock.Lock()
+		nodeInfo.lock.RLock()
 
 		resp := &NodeStorageInfoResponse{
 			GraphDiskPath:  nodeInfo.GraphDiskPath,
@@ -72,7 +72,7 @@ func (pl *VolumeBinding) RegisterEndpoints(group *gin.RouterGroup) {
 			resp.LocalPVAllocs[k] = v
 		}
 
-		nodeInfo.lock.Unlock()
+		nodeInfo.lock.RUnlock()
 		c.JSON(http.StatusOK, resp)
 	})
 }
