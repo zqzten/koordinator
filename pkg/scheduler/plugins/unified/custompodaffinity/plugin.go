@@ -57,14 +57,14 @@ func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error)
 
 func (p *Plugin) Name() string { return Name }
 
-func (p *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod) *framework.Status {
+func (p *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod) (*framework.PreFilterResult, *framework.Status) {
 	maxInstancePerHost, podSpreadInfo := extunified.GetCustomPodAffinity(pod)
 	cycleState.Write(stateKey, &preFilterState{
 		podSpreadInfo:      podSpreadInfo,
 		maxInstancePerHost: maxInstancePerHost,
 		preemptivePods:     map[string]sets.String{},
 	})
-	return nil
+	return nil, nil
 }
 
 type preFilterState struct {

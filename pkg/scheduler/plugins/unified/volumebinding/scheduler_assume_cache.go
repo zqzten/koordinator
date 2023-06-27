@@ -26,8 +26,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
+	storagehelpers "k8s.io/component-helpers/storage/volume"
 	"k8s.io/klog/v2"
-	pvutil "k8s.io/kubernetes/pkg/controller/volume/persistentvolume/util"
 
 	frameworkexthelper "github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/helper"
 )
@@ -80,9 +80,9 @@ func (e *errObjectName) Error() string {
 }
 
 // assumeCache stores two pointers to represent a single object:
-// * The pointer to the informer object.
-// * The pointer to the latest object, which could be the same as
-//   the informer object, or an in-memory object.
+//   - The pointer to the informer object.
+//   - The pointer to the latest object, which could be the same as
+//     the informer object, or an in-memory object.
 //
 // An informer update always overrides the latest object pointer.
 //
@@ -392,7 +392,7 @@ func (c *pvAssumeCache) ListPVs(nodeName string, storageClassName string, phase 
 	objs := c.ListByIndex(indexName, &v1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: map[string]string{
-				pvutil.AnnSelectedNode: nodeName,
+				storagehelpers.AnnSelectedNode: nodeName,
 			},
 		},
 		Spec: v1.PersistentVolumeSpec{

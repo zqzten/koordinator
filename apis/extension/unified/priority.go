@@ -24,10 +24,9 @@ import (
 )
 
 func init() {
+	extension.DefaultPriorityClass = extension.PriorityProd
 	extension.PriorityBatchValueMin = uniext.PriorityBatchValueMin
 	extension.PriorityBatchValueMax = uniext.PriorityBatchValueMax
-
-	extension.GetPriorityClass = GetPriorityClass
 }
 
 func GetPriorityClass(pod *corev1.Pod) extension.PriorityClass {

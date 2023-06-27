@@ -74,14 +74,14 @@ func (s *preFilterState) Clone() framework.StateData {
 	}
 }
 
-func (p *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod) *framework.Status {
+func (p *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod) (*framework.PreFilterResult, *framework.Status) {
 	podRequestedResource := util.GetPodRequest(pod, corev1.ResourceCPU, corev1.ResourceMemory, corev1.ResourceEphemeralStorage)
 	cycleState.Write(stateKey, &preFilterState{
 		checkOverQuota:            !IsPodDisableOverQuotaFilter(pod) && !p.isPodNotNeedResource(pod),
 		isPodRequireOverQuotaNode: IsPodRequireOverQuotaNode(pod),
 		podRequestedResource:      podRequestedResource,
 	})
-	return nil
+	return nil, nil
 }
 
 func (p *Plugin) isPodNotNeedResource(pod *corev1.Pod) bool {

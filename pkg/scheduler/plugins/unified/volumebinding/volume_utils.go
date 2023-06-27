@@ -28,7 +28,6 @@ import (
 	storagehelpers "k8s.io/component-helpers/storage/volume"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/api/v1/resource"
-	pvutil "k8s.io/kubernetes/pkg/controller/volume/persistentvolume/util"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"github.com/koordinator-sh/koordinator/apis/extension/unified"
@@ -161,7 +160,7 @@ func HasEnoughIOCapacity(
 }
 
 func GetPVSelectedNode(pv *corev1.PersistentVolume) string {
-	selectedNode := pv.Annotations[pvutil.AnnSelectedNode]
+	selectedNode := pv.Annotations[storagehelpers.AnnSelectedNode]
 	if selectedNode != "" {
 		return selectedNode
 	}

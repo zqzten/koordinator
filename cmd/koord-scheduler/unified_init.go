@@ -19,7 +19,6 @@ package main
 import (
 	_ "github.com/koordinator-sh/koordinator/apis/extension/ack"
 	_ "github.com/koordinator-sh/koordinator/apis/extension/unified"
-	_ "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/deviceshare/unified"
 	_ "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota/gpumodel"
 	_ "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota/unified"
 	_ "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/volumebinding/metrics"
@@ -28,6 +27,7 @@ import (
 	unifiedcachedpod "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/cachedpod"
 	unifiedcpuset "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/cpusetallocator"
 	unifiedcustomaffinity "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/custompodaffinity"
+	unifieddeviceshare "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/deviceshare"
 	unifiedeci "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/eci"
 	unifiedelasticquotatree "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/elasticquotatree"
 	unifiedhijack "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/hijack"
@@ -63,4 +63,5 @@ func init() {
 	koordinatorPlugins[unifiedcachedpod.Name] = unifiedcachedpod.New
 	koordinatorPlugins[unifiedhijack.Name] = unifiedhijack.New
 	koordinatorPlugins[unifiedpodtopologyaware.Name] = unifiedpodtopologyaware.New
+	koordinatorPlugins[unifieddeviceshare.Name] = unifieddeviceshare.New
 }

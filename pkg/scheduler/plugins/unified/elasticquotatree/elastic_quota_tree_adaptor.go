@@ -70,8 +70,8 @@ type Plugin struct {
 	quotaTreeInformerFactory cosexternalversions.SharedInformerFactory
 }
 
-func (p *Plugin) PreFilter(ctx context.Context, state *framework.CycleState, pod *v1.Pod) *framework.Status {
-	return framework.NewStatus(framework.Success, "")
+func (p *Plugin) PreFilter(ctx context.Context, state *framework.CycleState, pod *v1.Pod) (*framework.PreFilterResult, *framework.Status) {
+	return nil, framework.NewStatus(framework.Success, "")
 }
 
 func (p *Plugin) PreFilterExtensions() framework.PreFilterExtensions {

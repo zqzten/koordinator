@@ -1153,7 +1153,7 @@ func TestRequiredAffinitySingleNode(t *testing.T) {
 			}
 			p := plugintesting.SetupPluginWithInformers(ctx, t, n, &config.InterPodAffinityArgs{}, snapshot, namespaces)
 			state := framework.NewCycleState()
-			preFilterStatus := p.(framework.PreFilterPlugin).PreFilter(ctx, state, test.pod)
+			_, preFilterStatus := p.(framework.PreFilterPlugin).PreFilter(ctx, state, test.pod)
 			if !preFilterStatus.IsSuccess() {
 				if !strings.Contains(preFilterStatus.Message(), test.wantStatus.Message()) {
 					t.Errorf("prefilter failed with status: %v", preFilterStatus)
@@ -1278,7 +1278,7 @@ func TestRequiredAffinitySingleECINode(t *testing.T) {
 			}
 			p := plugintesting.SetupPluginWithInformers(ctx, t, n, &config.InterPodAffinityArgs{}, snapshot, namespaces)
 			state := framework.NewCycleState()
-			preFilterStatus := p.(framework.PreFilterPlugin).PreFilter(ctx, state, test.pod)
+			_, preFilterStatus := p.(framework.PreFilterPlugin).PreFilter(ctx, state, test.pod)
 			if !preFilterStatus.IsSuccess() {
 				if !strings.Contains(preFilterStatus.Message(), test.wantStatus.Message()) {
 					t.Errorf("prefilter failed with status: %v", preFilterStatus)
@@ -2149,7 +2149,7 @@ func TestRequiredAffinityMultipleNodes(t *testing.T) {
 				})
 			for indexNode, node := range test.nodes {
 				state := framework.NewCycleState()
-				preFilterStatus := p.(framework.PreFilterPlugin).PreFilter(ctx, state, test.pod)
+				_, preFilterStatus := p.(framework.PreFilterPlugin).PreFilter(ctx, state, test.pod)
 				if !preFilterStatus.IsSuccess() {
 					t.Errorf("prefilter failed with status: %v", preFilterStatus)
 				}
@@ -2160,23 +2160,6 @@ func TestRequiredAffinityMultipleNodes(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func TestPreFilterDisabled(t *testing.T) {
-	pod := &v1.Pod{}
-	nodeInfo := framework.NewNodeInfo()
-	node := v1.Node{}
-	nodeInfo.SetNode(&node)
-	n := func(plArgs runtime.Object, fh framework.Handle) (framework.Plugin, error) {
-		return NewWithFeature(plArgs, fh, feature.Features{})
-	}
-	p := plugintesting.SetupPlugin(t, n, &config.InterPodAffinityArgs{}, NewSnapshot(nil, nil))
-	cycleState := framework.NewCycleState()
-	gotStatus := p.(framework.FilterPlugin).Filter(context.Background(), cycleState, pod, nodeInfo)
-	wantStatus := framework.AsStatus(fmt.Errorf(`error reading "PreFilterUnifiedInterPodAffinity" from cycleState: %w`, framework.ErrNotFound))
-	if !reflect.DeepEqual(gotStatus, wantStatus) {
-		t.Errorf("status does not match: %v, want: %v", gotStatus, wantStatus)
 	}
 }
 
@@ -2439,12 +2422,11 @@ func TestPreFilterStateAddRemovePod(t *testing.T) {
 			// getMeta creates predicate meta data given the list of pods.
 			getState := func(pods []*v1.Pod) (*InterPodAffinity, *framework.CycleState, *preFilterState, framework.SharedLister) {
 				snapshot := NewSnapshot(pods, test.nodes)
-				n := func(plArgs runtime.Object, fh framework.Handle) (framework.Plugin, error) {
-					return NewWithFeature(plArgs, fh, feature.Features{})
-				}
-				p := plugintesting.SetupPlugin(t, n, &config.InterPodAffinityArgs{}, snapshot)
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				p := plugintesting.SetupPluginWithInformers(ctx, t, New, &config.InterPodAffinityArgs{}, snapshot, nil)
 				cycleState := framework.NewCycleState()
-				preFilterStatus := p.(framework.PreFilterPlugin).PreFilter(ctx, cycleState, test.pendingPod)
+				_, preFilterStatus := p.(framework.PreFilterPlugin).PreFilter(ctx, cycleState, test.pendingPod)
 				if !preFilterStatus.IsSuccess() {
 					t.Errorf("prefilter failed with status: %v", preFilterStatus)
 				}
@@ -2725,10 +2707,9 @@ func TestGetTPMapMatchingIncomingAffinityAntiAffinity(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			snapshot := NewSnapshot(tt.existingPods, tt.nodes)
 			l, _ := snapshot.NodeInfos().List()
-			n := func(plArgs runtime.Object, fh framework.Handle) (framework.Plugin, error) {
-				return NewWithFeature(plArgs, fh, feature.Features{})
-			}
-			p := plugintesting.SetupPlugin(t, n, &config.InterPodAffinityArgs{}, snapshot)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			p := plugintesting.SetupPluginWithInformers(ctx, t, New, &config.InterPodAffinityArgs{}, snapshot, nil)
 			gotAffinityPodsMap, gotAntiAffinityPodsMap := p.(*InterPodAffinity).getIncomingAffinityAntiAffinityCounts(framework.NewPodInfo(tt.pod), l, true)
 			if !reflect.DeepEqual(gotAffinityPodsMap, tt.wantAffinityPodsMap) {
 				t.Errorf("getTPMapMatchingIncomingAffinityAntiAffinity() gotAffinityPodsMap = %#v, want %#v", gotAffinityPodsMap, tt.wantAffinityPodsMap)

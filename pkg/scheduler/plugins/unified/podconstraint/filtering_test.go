@@ -124,7 +124,7 @@ func TestPlugin_PreFilter(t *testing.T) {
 				plg.podConstraintCache.SetPodConstraint(tt.podConstraint)
 			}
 
-			status := plg.PreFilter(context.TODO(), tt.args.cycleState, tt.args.pod)
+			_, status := plg.PreFilter(context.TODO(), tt.args.cycleState, tt.args.pod)
 			assert.Equal(t, tt.expectSuccess, status.IsSuccess())
 			if !tt.expectSuccess {
 				assert.Equal(t, tt.expectReason, status.Reasons())
@@ -179,7 +179,7 @@ func TestPodConstraintNotMatchNodeLabel(t *testing.T) {
 			},
 		},
 	}
-	status := plg.PreFilter(context.TODO(), cycleState, pod)
+	_, status := plg.PreFilter(context.TODO(), cycleState, pod)
 	assert.True(t, status.IsSuccess())
 	state, status := getPreFilterState(cycleState)
 	assert.True(t, status.IsSuccess())
@@ -977,7 +977,7 @@ func TestSpreadConstraintWithTopologyZone(t *testing.T) {
 
 			// normal prefilter
 			cycleState := framework.NewCycleState()
-			status := plg.PreFilter(context.TODO(), cycleState, tt.pod)
+			_, status := plg.PreFilter(context.TODO(), cycleState, tt.pod)
 			assert.True(t, status.IsSuccess())
 			state, status := getPreFilterState(cycleState)
 			assert.True(t, status.IsSuccess())
@@ -1304,7 +1304,7 @@ func TestSpreadConstraintWithVK(t *testing.T) {
 
 			// normal prefilter
 			cycleState := framework.NewCycleState()
-			status := plg.PreFilter(context.TODO(), cycleState, tt.pod)
+			_, status := plg.PreFilter(context.TODO(), cycleState, tt.pod)
 			assert.True(t, status.IsSuccess())
 			state, status := getPreFilterState(cycleState)
 			assert.True(t, status.IsSuccess())

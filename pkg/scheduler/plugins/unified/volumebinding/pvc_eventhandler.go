@@ -30,7 +30,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	storagehelpers "k8s.io/component-helpers/storage/volume"
 	"k8s.io/klog/v2"
-	pvutil "k8s.io/kubernetes/pkg/controller/volume/persistentvolume/util"
 
 	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 	frameworkexthelper "github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/helper"
@@ -84,7 +83,7 @@ func (e *pvcEventHandler) OnDelete(obj interface{}) {
 }
 
 func isPVCFullyBound(pvc *v1.PersistentVolumeClaim) bool {
-	return pvc.Spec.VolumeName != "" && metav1.HasAnnotation(pvc.ObjectMeta, pvutil.AnnBindCompleted)
+	return pvc.Spec.VolumeName != "" && metav1.HasAnnotation(pvc.ObjectMeta, storagehelpers.AnnBindCompleted)
 }
 
 func (e *pvcEventHandler) setPVC(pvc *v1.PersistentVolumeClaim) {
@@ -101,7 +100,7 @@ func (e *pvcEventHandler) setPVC(pvc *v1.PersistentVolumeClaim) {
 	if err != nil {
 		return
 	}
-	selectedNode := pvc.Annotations[pvutil.AnnSelectedNode]
+	selectedNode := pvc.Annotations[storagehelpers.AnnSelectedNode]
 	klog.V(4).Infof("update pvc %s/%s, storageClassName: %s, selectNode: %s, selectedDisk: %s",
 		pvc.Namespace, pvc.Name, storageClassName, selectedNode, selectedStorage)
 	if selectedNode != "" {
@@ -136,7 +135,7 @@ func (e *pvcEventHandler) deletePVC(pvc *v1.PersistentVolumeClaim) {
 	if err != nil {
 		return
 	}
-	selectedNode := pvc.Annotations[pvutil.AnnSelectedNode]
+	selectedNode := pvc.Annotations[storagehelpers.AnnSelectedNode]
 	quantity := pvc.Spec.Resources.Requests[v1.ResourceStorage]
 	klog.V(4).Infof("delete pvc %s/%s, storageClassName: %s, selectNode: %s, selectedDisk: %s, quantity: %v",
 		pvc.Namespace, pvc.Name, storageClassName, selectedNode, selectedStorage, quantity)

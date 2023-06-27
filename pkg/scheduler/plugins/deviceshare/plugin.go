@@ -30,7 +30,6 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
-	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/features"
 	schedulerconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
@@ -283,9 +282,7 @@ func (p *Plugin) Filter(ctx context.Context, cycleState *framework.CycleState, p
 	if node == nil {
 		return framework.NewStatus(framework.Error, "node not found")
 	}
-	if extunified.IsVirtualKubeletNode(nodeInfo.Node()) {
-		return nil
-	}
+
 	nodeDeviceInfo := p.nodeDeviceCache.getNodeDevice(node.Name, false)
 	if nodeDeviceInfo == nil {
 		return nil
@@ -330,17 +327,6 @@ func (p *Plugin) FilterReservation(ctx context.Context, cycleState *framework.Cy
 		return status
 	}
 	if state.skip {
-		return nil
-	}
-	nodeInfo, err := p.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
-	if err != nil {
-		return framework.NewStatus(framework.Error, fmt.Sprintf("getting node %q from Snapshot: %v", nodeName, err))
-	}
-	node := nodeInfo.Node()
-	if node == nil {
-		return framework.NewStatus(framework.Error, "node not found")
-	}
-	if extunified.IsVirtualKubeletNode(node) {
 		return nil
 	}
 
@@ -396,17 +382,6 @@ func (p *Plugin) Reserve(ctx context.Context, cycleState *framework.CycleState, 
 	if state.skip {
 		return nil
 	}
-	nodeInfo, err := p.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
-	if err != nil {
-		return framework.NewStatus(framework.Error, fmt.Sprintf("getting node %q from Snapshot: %v", nodeName, err))
-	}
-	node := nodeInfo.Node()
-	if node == nil {
-		return framework.NewStatus(framework.Error, "node not found")
-	}
-	if extunified.IsVirtualKubeletNode(node) {
-		return nil
-	}
 
 	nodeInfo, err := p.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
 	if err != nil {
@@ -442,6 +417,7 @@ func (p *Plugin) Reserve(ctx context.Context, cycleState *framework.CycleState, 
 	if !status.IsSuccess() {
 		return status
 	}
+	var err error
 	if len(result) == 0 {
 		preemptible = appendAllocated(preemptible, restoreState.mergedMatchedAllocatable)
 		result, status = allocator.Allocate(nil, nil, nil, preemptible)
@@ -460,17 +436,6 @@ func (p *Plugin) Unreserve(ctx context.Context, cycleState *framework.CycleState
 		return
 	}
 	if state.skip {
-		return
-	}
-	nodeInfo, err := p.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
-	if err != nil {
-		return
-	}
-	node := nodeInfo.Node()
-	if node == nil {
-		return
-	}
-	if extunified.IsVirtualKubeletNode(node) {
 		return
 	}
 
@@ -531,26 +496,10 @@ func (p *Plugin) preBindObject(ctx context.Context, cycleState *framework.CycleS
 	if state.skip {
 		return nil
 	}
-	nodeInfo, err := p.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
-	if err != nil {
-		return framework.NewStatus(framework.Error, fmt.Sprintf("getting node %q from Snapshot: %v", nodeName, err))
-	}
-	node := nodeInfo.Node()
-	if node == nil {
-		return framework.NewStatus(framework.Error, "node not found")
-	}
-	if extunified.IsVirtualKubeletNode(node) {
-		return nil
-	}
 
 	if err := apiext.SetDeviceAllocations(object, state.allocationResult); err != nil {
 		return framework.NewStatus(framework.Error, err.Error())
 	}
-
-	if err := p.appendInternalAnnotations(object, state.allocationResult, nodeName); err != nil {
-		return framework.NewStatus(framework.Error, err.Error())
-	}
-
 	return nil
 }
 
