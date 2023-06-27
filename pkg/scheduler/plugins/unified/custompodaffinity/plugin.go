@@ -74,9 +74,16 @@ type preFilterState struct {
 }
 
 func (s *preFilterState) Clone() framework.StateData {
-	preemptivePods := map[string]sets.String{}
-	for nodeName, podKeys := range preemptivePods {
-		preemptivePods[nodeName] = sets.NewString(podKeys.List()...)
+	if s == nil || s.podSpreadInfo == nil {
+		return s
+	}
+
+	var preemptivePods map[string]sets.String
+	if len(s.preemptivePods) > 0 {
+		preemptivePods = map[string]sets.String{}
+		for nodeName, podKeys := range s.preemptivePods {
+			preemptivePods[nodeName] = sets.NewString(podKeys.List()...)
+		}
 	}
 	return &preFilterState{
 		podSpreadInfo: &extunified.PodSpreadInfo{
