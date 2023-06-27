@@ -19,10 +19,9 @@ package cpusetallocator
 import (
 	"context"
 
+	corev1 "k8s.io/api/core/v1"
 	k8sfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
-
-	corev1 "k8s.io/api/core/v1"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	"github.com/koordinator-sh/koordinator/pkg/features"

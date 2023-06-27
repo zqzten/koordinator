@@ -35,17 +35,16 @@ import (
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 )
 
-var enableUnifiedDevice bool
+var EnableUnifiedDevice bool
 
 func init() {
-	pflag.BoolVar(&enableUnifiedDevice, "enable-unified-device", enableUnifiedDevice, "enable unified device, disable by default")
+	pflag.BoolVar(&EnableUnifiedDevice, "enable-unified-device", EnableUnifiedDevice, "enable unified device, disable by default")
 }
 
 func registerUnifiedDeviceEventHandler(deviceCache *nodeDeviceCache, handle framework.Handle) {
-	if !enableUnifiedDevice {
+	if !EnableUnifiedDevice {
 		return
 	}
-	hook.value.Store(deviceCache)
 
 	cosClientSet, ok := handle.(cosclientset.Interface)
 	if !ok {

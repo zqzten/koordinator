@@ -36,7 +36,7 @@ import (
 	schedulertesting "k8s.io/kubernetes/pkg/scheduler/testing"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
-	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/sharedlisterext"
+	"github.com/koordinator-sh/koordinator/pkg/util/transformer"
 )
 
 var _ framework.SharedLister = &testSharedLister{}
@@ -331,7 +331,7 @@ func TestPlugin_PreFilter(t *testing.T) {
 			GetLocalInlineVolumeSize = func(volumes []corev1.Volume, storageClassLister storagelisters.StorageClassLister) int64 {
 				return tt.localInlineVolumeSize
 			}
-			status := plg.PreFilter(context.TODO(), tt.cycleState, tt.pod)
+			_, status := plg.PreFilter(context.TODO(), tt.cycleState, tt.pod)
 			assert.True(t, status.IsSuccess())
 			state, status := getPreFilterState(tt.cycleState)
 			assert.True(t, status.IsSuccess())
@@ -492,7 +492,10 @@ func TestPlugin_Filter(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			suit := newPluginTestSuit(t, []*corev1.Node{tt.node})
+			obj, err := transformer.TransformNode(tt.node)
+			assert.NoError(t, err)
+			node := obj.(*corev1.Node)
+			suit := newPluginTestSuit(t, []*corev1.Node{node})
 			p, err := suit.proxyNew(suit.args, suit.Handle)
 			assert.NotNil(t, p)
 			assert.Nil(t, err)
@@ -500,14 +503,13 @@ func TestPlugin_Filter(t *testing.T) {
 			plg := p.(*Plugin)
 			suit.start()
 
-			nodeInfo, err := suit.Handle.SnapshotSharedLister().NodeInfos().Get(tt.node.Name)
+			nodeInfo, err := suit.Handle.SnapshotSharedLister().NodeInfos().Get(node.Name)
 			assert.NoError(t, err)
 			assert.NotNil(t, nodeInfo)
 			assert.NotNil(t, nodeInfo.Node())
 
-			status := plg.PreFilter(context.TODO(), tt.cycleState, tt.pod)
+			_, status := plg.PreFilter(context.TODO(), tt.cycleState, tt.pod)
 			assert.True(t, status.IsSuccess())
-			assert.True(t, sharedlisterext.TransformOneNodeInfo(nodeInfo))
 			status = plg.Filter(context.TODO(), tt.cycleState, tt.pod, nodeInfo)
 			assert.True(t, status.IsSuccess())
 		})

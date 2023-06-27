@@ -124,13 +124,13 @@ func getPreFilterState(cycleState *framework.CycleState) (*preFilterState, *fram
 	return state, nil
 }
 
-func (p *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod) *framework.Status {
+func (p *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod) (*framework.PreFilterResult, *framework.Status) {
 	state, status := p.calPrefilterState(pod)
 	if !status.IsSuccess() {
-		return status
+		return nil, status
 	}
 	cycleState.Write(preFilterStateKey, state)
-	return nil
+	return nil, nil
 }
 
 // calPrefilterState constructs the full-topology with all nodes to re-calc the min match number of criticalPath

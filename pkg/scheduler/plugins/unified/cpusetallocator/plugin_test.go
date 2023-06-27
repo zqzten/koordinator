@@ -48,6 +48,7 @@ import (
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/nodenumaresource"
 	"github.com/koordinator-sh/koordinator/pkg/util/cpuset"
+	"github.com/koordinator-sh/koordinator/pkg/util/transformer"
 )
 
 var _ framework.SharedLister = &testSharedLister{}
@@ -521,7 +522,11 @@ func TestPlugin_CPUSetProtocols(t *testing.T) {
 			_, err = suit.Handle.ClientSet().CoreV1().Pods("default").Create(context.TODO(), pod, metav1.CreateOptions{})
 			assert.Nil(t, err)
 
-			status := plg.PreFilter(ctx, cycleState, pod)
+			obj, err := transformer.TransformPod(pod)
+			assert.NoError(t, err)
+			pod = obj.(*corev1.Pod)
+
+			_, status := plg.PreFilter(ctx, cycleState, pod)
 			assert.Nil(t, status)
 			status = plg.Filter(ctx, cycleState, pod, nodeInfo)
 			assert.Nil(t, status)
@@ -786,7 +791,10 @@ func Test_allowUseCPUSet(t *testing.T) {
 				},
 				Spec: corev1.PodSpec{Priority: &extension.PriorityProdValueMin},
 			}
-			assert.Equal(t, tt.want, allowUseCPUSet(pod))
+			obj, err := transformer.TransformPod(pod)
+			assert.NoError(t, err)
+			pod = obj.(*corev1.Pod)
+			assert.Equal(t, tt.want, nodenumaresource.AllowUseCPUSet(pod))
 		})
 	}
 }

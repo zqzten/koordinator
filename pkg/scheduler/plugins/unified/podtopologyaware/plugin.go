@@ -85,28 +85,28 @@ func getStateData(cycleState *framework.CycleState) *stateData {
 	return s
 }
 
-func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod) *framework.Status {
+func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod) (*framework.PreFilterResult, *framework.Status) {
 	constraint, err := apiext.GetTopologyAwareConstraint(pod.Annotations)
 	if err != nil || constraint == nil {
 		klog.V(5).InfoS("pod skip topology-aware constraint", "pod", klog.KObj(pod))
 		cycleState.Write(Name, &stateData{skip: true})
-		return nil
+		return nil, nil
 	}
 
 	constraintInfo := pl.cacheManager.getConstraintInfo(pod.Namespace, constraint.Name)
 	if constraintInfo == nil {
-		return framework.NewStatus(framework.Unschedulable, ErrReasonMissingConstraintCache)
+		return nil, framework.NewStatus(framework.Unschedulable, ErrReasonMissingConstraintCache)
 	}
 	if constraintInfo.shouldRefreshTopologies() {
 		if err := constraintInfo.partitionNodeByTopologies(ctx, pl.handle); err != nil {
 			klog.ErrorS(err, "Failed refresh topologies by topology-aware constraint", "pod", klog.KObj(pod))
-			return framework.AsStatus(err)
+			return nil, framework.AsStatus(err)
 		}
 	}
 	currentTopology := constraintInfo.getCurrentTopology()
 	if currentTopology == nil {
 		klog.Errorf("unexpected things happened, missing current topology in topology-aware constraint", "pod", klog.KObj(pod))
-		return framework.NewStatus(framework.Error, "missing current topology")
+		return nil, framework.NewStatus(framework.Error, "missing current topology")
 	}
 	klog.V(4).InfoS("pod try to filter in topology",
 		"pod", klog.KObj(pod), "constraintName", constraintInfo.name, "topologyName", currentTopology.uniqueName)
@@ -117,7 +117,7 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 		currentTopology: currentTopology,
 	}
 	cycleState.Write(Name, sd)
-	return nil
+	return nil, nil
 }
 
 func (pl *Plugin) PreFilterExtensions() framework.PreFilterExtensions {

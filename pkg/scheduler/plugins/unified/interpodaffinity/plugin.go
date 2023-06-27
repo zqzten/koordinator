@@ -78,7 +78,7 @@ func NewWithFeature(plArgs runtime.Object, h framework.Handle, fts plfeature.Fea
 	if err := validation.ValidateInterPodAffinityArgs(nil, &args); err != nil {
 		return nil, err
 	}
-	internalPlugin, err := interpodaffinity.New(&args, h, fts)
+	internalPlugin, err := interpodaffinity.New(&args, h)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +86,7 @@ func NewWithFeature(plArgs runtime.Object, h framework.Handle, fts plfeature.Fea
 		InterPodAffinity:        internalPlugin.(*interpodaffinity.InterPodAffinity),
 		handle:                  h,
 		sharedLister:            h.SnapshotSharedLister(),
-		enableNamespaceSelector: fts.EnablePodAffinityNamespaceSelector,
+		enableNamespaceSelector: true,
 	}
 
 	if pl.enableNamespaceSelector {

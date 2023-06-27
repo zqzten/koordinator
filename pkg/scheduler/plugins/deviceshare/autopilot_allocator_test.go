@@ -851,9 +851,9 @@ func TestAutopilotAllocator(t *testing.T) {
 			podRequest := corev1.ResourceList{}
 			if tt.gpuWanted > 0 {
 				podRequest[apiext.ResourceNvidiaGPU] = *resource.NewQuantity(int64(tt.gpuWanted), resource.DecimalSI)
-				combination, err := ValidateGPURequest(podRequest)
+				combination, err := ValidateDeviceRequest(podRequest)
 				assert.NoError(t, err)
-				podRequest = ConvertGPUResource(podRequest, combination)
+				podRequest = ConvertDeviceRequest(podRequest, combination)
 			}
 
 			podRequest[apiext.ResourceRDMA] = *resource.NewQuantity(1, resource.DecimalSI)
@@ -986,9 +986,9 @@ func TestAutopilotAllocatorVFByType(t *testing.T) {
 			podRequest := corev1.ResourceList{}
 			if tt.gpuWanted > 0 {
 				podRequest[apiext.ResourceNvidiaGPU] = *resource.NewQuantity(int64(tt.gpuWanted), resource.DecimalSI)
-				combination, err := ValidateGPURequest(podRequest)
+				combination, err := ValidateDeviceRequest(podRequest)
 				assert.NoError(t, err)
-				podRequest = ConvertGPUResource(podRequest, combination)
+				podRequest = ConvertDeviceRequest(podRequest, combination)
 			}
 
 			podRequest[apiext.ResourceRDMA] = *resource.NewQuantity(1, resource.DecimalSI)
@@ -1093,9 +1093,9 @@ func TestMatchDriverVersions(t *testing.T) {
 			podRequest := corev1.ResourceList{
 				apiext.ResourceNvidiaGPU: *resource.NewQuantity(int64(1), resource.DecimalSI),
 			}
-			combination, err := ValidateGPURequest(podRequest)
+			combination, err := ValidateDeviceRequest(podRequest)
 			assert.NoError(t, err)
-			podRequest = ConvertGPUResource(podRequest, combination)
+			podRequest = ConvertDeviceRequest(podRequest, combination)
 
 			nodeDevice.lock.Lock()
 			defer nodeDevice.lock.Unlock()
@@ -1594,9 +1594,9 @@ func TestAutopilotAllocateNVSwitch(t *testing.T) {
 			podRequest := corev1.ResourceList{
 				apiext.ResourceNvidiaGPU: *resource.NewQuantity(int64(tt.gpuWanted), resource.DecimalSI),
 			}
-			combination, err := ValidateGPURequest(podRequest)
+			combination, err := ValidateDeviceRequest(podRequest)
 			assert.NoError(t, err)
-			podRequest = ConvertGPUResource(podRequest, combination)
+			podRequest = ConvertDeviceRequest(podRequest, combination)
 			podRequest[apiext.ResourceRDMA] = *resource.NewQuantity(1, resource.DecimalSI)
 
 			nodeDevice.lock.Lock()

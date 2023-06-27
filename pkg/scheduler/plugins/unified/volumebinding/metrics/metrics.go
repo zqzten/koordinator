@@ -19,31 +19,37 @@ package metrics
 import (
 	"k8s.io/component-base/metrics"
 	"k8s.io/component-base/metrics/legacyregistry"
-	schedulingmetrics "k8s.io/kubernetes/pkg/controller/volume/scheduling/metrics"
 )
 
 // VolumeSchedulerSubsystem - subsystem name used by scheduler
-const VolumeSchedulerSubsystem = "koord_scheduler_volume"
+const VolumeSchedulerSubsystem = "scheduler_volume"
 
 var (
-	// VolumeSchedulingStageLatency tracks the latency of volume scheduling operations.
-	VolumeSchedulingStageLatency = metrics.NewHistogramVec(
-		&metrics.HistogramOpts{
-			Subsystem:         VolumeSchedulerSubsystem,
-			Name:              "scheduling_duration_seconds",
-			Help:              "Volume scheduling stage latency (Deprecated since 1.19.0)",
-			Buckets:           metrics.ExponentialBuckets(0.001, 2, 15),
-			StabilityLevel:    metrics.ALPHA,
-			DeprecatedVersion: "1.19.0",
+	// VolumeBindingRequestSchedulerBinderCache tracks the number of volume binder cache operations.
+	VolumeBindingRequestSchedulerBinderCache = metrics.NewCounterVec(
+		&metrics.CounterOpts{
+			Subsystem:      VolumeSchedulerSubsystem,
+			Name:           "binder_cache_requests_total",
+			Help:           "Total number for request volume binding cache",
+			StabilityLevel: metrics.ALPHA,
 		},
 		[]string{"operation"},
 	)
 	// VolumeSchedulingStageFailed tracks the number of failed volume scheduling operations.
-	VolumeSchedulingStageFailed = schedulingmetrics.VolumeSchedulingStageFailed
+	VolumeSchedulingStageFailed = metrics.NewCounterVec(
+		&metrics.CounterOpts{
+			Subsystem:      VolumeSchedulerSubsystem,
+			Name:           "scheduling_stage_error_total",
+			Help:           "Volume scheduling stage error count",
+			StabilityLevel: metrics.ALPHA,
+		},
+		[]string{"operation"},
+	)
 )
 
 // RegisterVolumeSchedulingMetrics is used for scheduler, because the volume binding cache is a library
 // used by scheduler process.
-func init() {
-	legacyregistry.MustRegister(VolumeSchedulingStageLatency)
+func RegisterVolumeSchedulingMetrics() {
+	legacyregistry.MustRegister(VolumeBindingRequestSchedulerBinderCache)
+	legacyregistry.MustRegister(VolumeSchedulingStageFailed)
 }

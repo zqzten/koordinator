@@ -32,7 +32,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/component-base/featuregate"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
-	pvutil "k8s.io/kubernetes/pkg/controller/volume/persistentvolume/util"
+	storagehelpers "k8s.io/component-helpers/storage/volume"
 	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
@@ -146,7 +146,7 @@ func makePVForBindingTestC(name string, boundPVName string, storageClassName str
 	}
 	if boundPVName != "" {
 		pvc.Spec.VolumeName = boundPVName
-		metav1.SetMetaDataAnnotation(&pvc.ObjectMeta, pvutil.AnnBindCompleted, "true")
+		metav1.SetMetaDataAnnotation(&pvc.ObjectMeta, storagehelpers.AnnBindCompleted, "true")
 	}
 	return pvc
 }
@@ -696,7 +696,7 @@ func TestVolumeBinding(t *testing.T) {
 			state := framework.NewCycleState()
 
 			t.Logf("Verify: call PreFilter and check status")
-			gotPreFilterStatus := p.PreFilter(ctx, state, item.pod)
+			_, gotPreFilterStatus := p.PreFilter(ctx, state, item.pod)
 			if !reflect.DeepEqual(gotPreFilterStatus, item.wantPreFilterStatus) {
 				t.Errorf("filter prefilter status does not match: %v, want: %v", gotPreFilterStatus, item.wantPreFilterStatus)
 			}

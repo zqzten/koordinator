@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	quotav1 "k8s.io/apiserver/pkg/quota/v1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog/v2"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	"github.com/koordinator-sh/koordinator/apis/extension/unified"
@@ -129,8 +130,8 @@ func (a *AutopilotAllocator) Allocate(nodeName string, pod *corev1.Pod, podReque
 		return nil, err
 	}
 
-	if pod.Spec.RuntimeClassName != nil && *pod.Spec.RuntimeClassName == "rund" && hasDeviceResource(podRequest, schedulingv1alpha1.GPU) {
-		matchedVersion, err := matchDriverVersions(pod, device)
+	if pod.Spec.RuntimeClassName != nil && *pod.Spec.RuntimeClassName == "rund" && HasDeviceResource(podRequest, schedulingv1alpha1.GPU) {
+		matchedVersion, err := MatchDriverVersions(pod, device)
 		if err != nil {
 			return nil, err
 		}
@@ -155,7 +156,7 @@ func (a *AutopilotAllocator) Allocate(nodeName string, pod *corev1.Pod, podReque
 	}
 
 	podRequest = podRequest.DeepCopy()
-	if !hasDeviceResource(podRequest, schedulingv1alpha1.GPU) {
+	if !HasDeviceResource(podRequest, schedulingv1alpha1.GPU) {
 		return a.allocateNonGPUDevices(nodeName, nodeDevice, podRequest, mustAllocateVF(pod), deviceTopology, rdmaTopology, required, preferred, requiredDeviceResources, preemptibleFreeDevices)
 	}
 
@@ -882,7 +883,7 @@ func sumDeviceResource(resources deviceResources, resName corev1.ResourceName) i
 	return total
 }
 
-func matchDriverVersions(pod *corev1.Pod, device *schedulingv1alpha1.Device) (string, error) {
+func MatchDriverVersions(pod *corev1.Pod, device *schedulingv1alpha1.Device) (string, error) {
 	driverVersions, err := unified.GetDriverVersions(device.Annotations)
 	if err != nil {
 		return "", err
@@ -912,4 +913,18 @@ func matchDriverVersions(pod *corev1.Pod, device *schedulingv1alpha1.Device) (st
 
 func mustAllocateVF(pod *corev1.Pod) bool {
 	return !pod.Spec.HostNetwork || (pod.Spec.RuntimeClassName != nil && *pod.Spec.RuntimeClassName == "rund")
+}
+
+func HasDeviceResource(podRequest corev1.ResourceList, deviceType schedulingv1alpha1.DeviceType) bool {
+	if podRequest == nil || len(podRequest) == 0 {
+		klog.V(5).Infof("skip checking HasDeviceResource, because pod request is empty")
+		return false
+	}
+	for _, resourceName := range DeviceResourceNames[deviceType] {
+		if _, ok := podRequest[resourceName]; ok {
+			return true
+		}
+	}
+	klog.V(5).Infof("pod does not request %v resource", deviceType)
+	return false
 }
