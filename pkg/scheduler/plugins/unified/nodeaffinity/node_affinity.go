@@ -73,10 +73,10 @@ func (s *preFilterState) Clone() framework.StateData {
 }
 
 // PreFilter builds and writes cycle state used by Filter.
-func (pl *NodeAffinity) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod) *framework.Status {
+func (pl *NodeAffinity) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod) (*framework.PreFilterResult, *framework.Status) {
 	state := &preFilterState{requiredNodeSelectorAndAffinity: nodeaffinityhelper.GetRequiredNodeAffinity(pod)}
 	cycleState.Write(preFilterStateKey, state)
-	return nil
+	return nil, nil
 }
 
 // Filter checks if the Node matches the Pod .spec.affinity.nodeAffinity and

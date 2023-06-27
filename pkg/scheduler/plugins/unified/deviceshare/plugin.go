@@ -17,6 +17,7 @@ limitations under the License.
 package deviceshare
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -28,8 +29,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	quotav1 "k8s.io/apiserver/pkg/quota/v1"
 	k8sfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/kubernetes/pkg/scheduler/framework"
+	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	"github.com/koordinator-sh/koordinator/apis/extension/ack"
@@ -37,19 +41,213 @@ import (
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	schedulingv1alpha1listers "github.com/koordinator-sh/koordinator/pkg/client/listers/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/features"
+	schedulingconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta2"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/deviceshare"
 )
 
-func (p *Plugin) appendInternalAnnotations(obj metav1.Object, allocResult apiext.DeviceAllocations, nodeName string) error {
+const (
+	Name = "UnifiedDeviceShare"
+)
+
+var (
+	_ framework.EnqueueExtensions = &Plugin{}
+
+	_ framework.PreFilterPlugin = &Plugin{}
+	_ framework.FilterPlugin    = &Plugin{}
+	_ framework.ReservePlugin   = &Plugin{}
+	_ framework.PreBindPlugin   = &Plugin{}
+
+	_ frameworkext.ReservationRestorePlugin = &Plugin{}
+	_ frameworkext.ReservationFilterPlugin  = &Plugin{}
+	_ frameworkext.ReservationPreBindPlugin = &Plugin{}
+)
+
+type Plugin struct {
+	handle framework.Handle
+	*deviceshare.Plugin
+}
+
+func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+	if args == nil {
+		defaultDeviceShareArgs, err := getDefaultDeviceShareArgs()
+		if err != nil {
+			return nil, err
+		}
+		args = defaultDeviceShareArgs
+	} else {
+		unknownObj, ok := args.(*runtime.Unknown)
+		if !ok {
+			return nil, fmt.Errorf("got args of type %T, want *DeviceShareArgs", args)
+		}
+
+		deviceShareArgs, err := getDefaultDeviceShareArgs()
+		if err != nil {
+			return nil, err
+		}
+		if err := frameworkruntime.DecodeInto(unknownObj, deviceShareArgs); err != nil {
+			return nil, err
+		}
+		args = deviceShareArgs
+	}
+
+	internalPlugin, err := deviceshare.New(args, handle)
+	if err != nil {
+		return nil, err
+	}
+
+	p := &Plugin{
+		handle: handle,
+		Plugin: internalPlugin.(*deviceshare.Plugin),
+	}
+	return p, nil
+}
+
+func getDefaultDeviceShareArgs() (*schedulingconfig.DeviceShareArgs, error) {
+	var v1beta2args v1beta2.DeviceShareArgs
+	var defaultDeviceShareArgs schedulingconfig.DeviceShareArgs
+	err := v1beta2.Convert_v1beta2_DeviceShareArgs_To_config_DeviceShareArgs(&v1beta2args, &defaultDeviceShareArgs, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &defaultDeviceShareArgs, nil
+}
+
+func (pl *Plugin) Name() string {
+	return Name
+}
+
+func (pl *Plugin) Filter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
+	node := nodeInfo.Node()
+	if node == nil {
+		return framework.NewStatus(framework.Error, "node not found")
+	}
+	if extunified.IsVirtualKubeletNode(nodeInfo.Node()) {
+		return nil
+	}
+
+	return pl.Plugin.Filter(ctx, cycleState, pod, nodeInfo)
+}
+
+func (pl *Plugin) FilterReservation(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, reservationInfo *frameworkext.ReservationInfo, nodeName string) *framework.Status {
+	nodeInfo, err := pl.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
+	if err != nil {
+		return framework.NewStatus(framework.Error, fmt.Sprintf("getting node %q from Snapshot: %v", nodeName, err))
+	}
+	node := nodeInfo.Node()
+	if node == nil {
+		return framework.NewStatus(framework.Error, "node not found")
+	}
+	if extunified.IsVirtualKubeletNode(node) {
+		return nil
+	}
+	return pl.Plugin.FilterReservation(ctx, cycleState, pod, reservationInfo, nodeName)
+}
+
+func (pl *Plugin) Reserve(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
+	nodeInfo, err := pl.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
+	if err != nil {
+		return framework.NewStatus(framework.Error, fmt.Sprintf("getting node %q from Snapshot: %v", nodeName, err))
+	}
+	node := nodeInfo.Node()
+	if node == nil {
+		return framework.NewStatus(framework.Error, "node not found")
+	}
+	if extunified.IsVirtualKubeletNode(node) {
+		return nil
+	}
+
+	return pl.Plugin.Reserve(ctx, cycleState, pod, nodeName)
+}
+
+func (pl *Plugin) Unreserve(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeName string) {
+	nodeInfo, err := pl.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
+	if err != nil {
+		return
+	}
+	node := nodeInfo.Node()
+	if node == nil {
+		return
+	}
+	if extunified.IsVirtualKubeletNode(node) {
+		return
+	}
+	pl.Plugin.Unreserve(ctx, cycleState, pod, nodeName)
+}
+
+func (pl *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
+	nodeInfo, err := pl.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
+	if err != nil {
+		return framework.NewStatus(framework.Error, fmt.Sprintf("getting node %q from Snapshot: %v", nodeName, err))
+	}
+	node := nodeInfo.Node()
+	if node == nil {
+		return framework.NewStatus(framework.Error, "node not found")
+	}
+	if extunified.IsVirtualKubeletNode(node) {
+		return nil
+	}
+	status := pl.Plugin.PreBind(ctx, cycleState, pod, nodeName)
+	if !status.IsSuccess() {
+		return status
+	}
+
+	allocations, err := apiext.GetDeviceAllocations(pod.Annotations)
+	if err != nil {
+		return framework.AsStatus(err)
+	}
+	if len(allocations) == 0 {
+		return nil
+	}
+
+	if err := pl.appendInternalAnnotations(pod, allocations, nodeName); err != nil {
+		return framework.NewStatus(framework.Error, err.Error())
+	}
+
+	return nil
+}
+
+func (pl *Plugin) PreBindReservation(ctx context.Context, cycleState *framework.CycleState, reservation *schedulingv1alpha1.Reservation, nodeName string) *framework.Status {
+	nodeInfo, err := pl.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
+	if err != nil {
+		return framework.NewStatus(framework.Error, fmt.Sprintf("getting node %q from Snapshot: %v", nodeName, err))
+	}
+	node := nodeInfo.Node()
+	if node == nil {
+		return framework.NewStatus(framework.Error, "node not found")
+	}
+	if extunified.IsVirtualKubeletNode(node) {
+		return nil
+	}
+	return pl.Plugin.PreBindReservation(ctx, cycleState, reservation, nodeName)
+}
+
+func (pl *Plugin) appendInternalAnnotations(obj metav1.Object, allocResult apiext.DeviceAllocations, nodeName string) error {
 	pod, ok := obj.(*corev1.Pod)
 	if !ok {
 		return nil
 	}
 	ack.AppendAckAnnotations(pod, allocResult)
 	if isVirtualGPUCard(allocResult) {
+		extendedHandle, ok := pl.handle.(frameworkext.ExtendedHandle)
+		if !ok {
+			return fmt.Errorf("expect handle to be type frameworkext.ExtendedHandle, got %T", pl.handle)
+		}
+		deviceLister := extendedHandle.KoordinatorSharedInformerFactory().Scheduling().V1alpha1().Devices().Lister()
 		allocMinor := allocResult[schedulingv1alpha1.GPU][0].Minor
-		gpuMemory := p.nodeDeviceCache.getNodeDevice(nodeName, false).deviceTotal[schedulingv1alpha1.GPU][int(allocMinor)][apiext.ResourceGPUMemory]
-		pod.Annotations[ack.AnnotationAliyunEnvMemDev] = fmt.Sprintf("%v", gpuMemory.Value()/1024/1024/1024)
+		device, err := deviceLister.Get(nodeName)
+		if err != nil {
+			return err
+		}
+		var totalMemory apiresource.Quantity
+		for _, v := range device.Spec.Devices {
+			if v.Type == schedulingv1alpha1.GPU && v.Minor != nil && *v.Minor == allocMinor {
+				totalMemory = v.Resources[apiext.ResourceGPUMemory]
+				break
+			}
+		}
+		pod.Annotations[ack.AnnotationAliyunEnvMemDev] = fmt.Sprintf("%v", totalMemory.Value()/1024/1024/1024)
 		gpuMemoryPod := allocResult[schedulingv1alpha1.GPU][0].Resources[apiext.ResourceGPUMemory]
 		pod.Annotations[ack.AnnotationAliyunEnvMemPod] = fmt.Sprintf("%v", gpuMemoryPod.Value()/1024/1024/1024)
 	}
@@ -59,7 +257,7 @@ func (p *Plugin) appendInternalAnnotations(obj metav1.Object, allocResult apiext
 	if err := appendNetworkingVFMetas(pod, allocResult); err != nil {
 		return err
 	}
-	return appendRundResult(pod, allocResult, p)
+	return appendRundResult(pod, allocResult, pl)
 }
 
 func isVirtualGPUCard(alloc apiext.DeviceAllocations) bool {
@@ -77,7 +275,7 @@ func isVirtualGPUCard(alloc apiext.DeviceAllocations) bool {
 }
 
 func appendUnifiedDeviceAllocStatus(pod *corev1.Pod, deviceAllocations apiext.DeviceAllocations) error {
-	if !enableUnifiedDevice {
+	if !deviceshare.EnableUnifiedDevice {
 		return nil
 	}
 
@@ -140,14 +338,14 @@ func appendUnifiedDeviceAllocStatus(pod *corev1.Pod, deviceAllocations apiext.De
 		}
 		for i := range pod.Spec.Containers {
 			container := &pod.Spec.Containers[i]
-			if !hasDeviceResource(container.Resources.Requests, schedulingv1alpha1.GPU) {
+			if !deviceshare.HasDeviceResource(container.Resources.Requests, schedulingv1alpha1.GPU) {
 				continue
 			}
-			combination, err := ValidateGPURequest(container.Resources.Requests)
+			combination, err := deviceshare.ValidateDeviceRequest(container.Resources.Requests)
 			if err != nil {
 				return err
 			}
-			resources := ConvertGPUResource(container.Resources.Requests, combination)
+			resources := deviceshare.ConvertDeviceRequest(container.Resources.Requests, combination)
 			gpuMemoryQuantity := resources[apiext.ResourceGPUMemory]
 			gpuMemoryRatioQuantity := resources[apiext.ResourceGPUMemoryRatio]
 			if gpuMemoryQuantity.IsZero() && gpuMemoryRatioQuantity.IsZero() {
@@ -382,7 +580,7 @@ func appendRundResult(pod *corev1.Pod, allocResult apiext.DeviceAllocations, pl 
 		if err != nil {
 			return err
 		}
-		matchedVersion, err := matchDriverVersions(pod, device)
+		matchedVersion, err := deviceshare.MatchDriverVersions(pod, device)
 		if err != nil {
 			return nil
 		}

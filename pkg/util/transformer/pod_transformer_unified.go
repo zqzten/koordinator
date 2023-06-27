@@ -18,54 +18,36 @@ package transformer
 
 import (
 	"encoding/json"
+	"sort"
 
 	unifiedresourceext "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/extension"
+	unifiedschedulingv1beta1 "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/scheduling/v1beta1"
+	asiquotav1 "gitlab.alibaba-inc.com/unischeduler/api/apis/quotas/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/client-go/tools/cache"
+	quotav1 "k8s.io/apiserver/pkg/quota/v1"
 	"k8s.io/klog/v2"
 	syncerconsts "sigs.k8s.io/cluster-api-provider-nested/virtualcluster/pkg/syncer/constants"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
 	"github.com/koordinator-sh/koordinator/apis/extension/unified"
+	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/deviceshare"
 )
 
-var podTransformers = []func(pod *corev1.Pod){
-	TransformSigmaIgnoreResourceContainers,
-	TransformTenantPod,
-	TransformNonProdPodResourceSpec,
-	TransformUnifiedGPUMemoryRatio,
-	TransformENIResource,
-}
-
-func InstallPodTransformer(podInformer cache.SharedIndexInformer) {
-	transformerSetter, ok := podInformer.(cache.TransformerSetter)
-	if !ok {
-		klog.Fatalf("cache.TransformerSetter is not implemented")
-	}
-	transformerSetter.SetTransform(func(obj interface{}) (interface{}, error) {
-		var pod *corev1.Pod
-		switch t := obj.(type) {
-		case *corev1.Pod:
-			pod = t
-		case cache.DeletedFinalStateUnknown:
-			pod, _ = t.Obj.(*corev1.Pod)
-		}
-		if pod == nil {
-			return obj, nil
-		}
-
-		pod = pod.DeepCopy()
-		for _, fn := range podTransformers {
-			fn(pod)
-		}
-
-		if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok {
-			unknown.Obj = pod
-			return unknown, nil
-		}
-		return pod, nil
-	})
+func init() {
+	podTransformers = append(podTransformers,
+		TransformSigmaIgnoreResourceContainers,
+		TransformTenantPod,
+		TransformNonProdPodResourceSpec,
+		TransformUnifiedGPUMemoryRatio,
+		TransformENIResource,
+		TransformPodQoSClass,
+		TransformUnifiedDeviceAllocation,
+		TransformUnifiedQuotaName,
+		TransformResourceSpec,
+		TransformResourceStatus,
+	)
 }
 
 func TransformSigmaIgnoreResourceContainers(pod *corev1.Pod) {
@@ -121,20 +103,6 @@ func transformNonProdPodResourceSpec(podSpec *corev1.PodSpec) {
 	}
 }
 
-func replaceAndEraseResource(resourceList corev1.ResourceList, resourceName, transformedResourceName corev1.ResourceName) {
-	if transformedResourceName == "" {
-		return
-	}
-	quantity, ok := resourceList[resourceName]
-	if ok {
-		if resourceName == corev1.ResourceCPU {
-			quantity = *resource.NewQuantity(quantity.MilliValue(), resource.DecimalSI)
-		}
-		resourceList[transformedResourceName] = quantity
-		delete(resourceList, resourceName)
-	}
-}
-
 func TransformUnifiedGPUMemoryRatio(pod *corev1.Pod) {
 	for i := range pod.Spec.Containers {
 		container := &pod.Spec.Containers[i]
@@ -165,6 +133,153 @@ func transformENIResource(podSpec *corev1.PodSpec) {
 			container := &containers[i]
 			replaceAndEraseResource(container.Resources.Requests, unified.ResourceSigmaENI, unified.ResourceAliyunMemberENI)
 			replaceAndEraseResource(container.Resources.Limits, unified.ResourceSigmaENI, unified.ResourceAliyunMemberENI)
+		}
+	}
+}
+
+func TransformPodQoSClass(pod *corev1.Pod) {
+	if val := pod.Labels[extension.LabelPodQoS]; val != "" {
+		return
+	}
+	if val := pod.Labels[unified.LabelPodQoSClass]; val != "" {
+		pod.Labels[extension.LabelPodQoS] = val
+	}
+}
+
+func TransformUnifiedDeviceAllocation(pod *corev1.Pod) {
+	if val := pod.Annotations[extension.AnnotationDeviceAllocated]; val != "" {
+		return
+	}
+
+	val := pod.Annotations[unifiedresourceext.AnnotationMultiDeviceAllocStatus]
+	if val == "" {
+		return
+	}
+
+	deviceAllocStatus, err := unifiedresourceext.GetMultiDeviceAllocStatus(pod.Annotations)
+	if err != nil {
+		klog.ErrorS(err, "Failed to unifiedresourceext.GetMultiDeviceAllocStatus", "pod", klog.KObj(pod))
+		return
+	}
+
+	deviceAllocations := make(extension.DeviceAllocations)
+	for deviceType, allocs := range deviceAllocStatus.AllocStatus {
+		switch deviceType {
+		case unifiedschedulingv1beta1.GPU:
+			resourceGPUAllocations, err := convertUnifiedGPUAllocs(allocs)
+			if err != nil {
+				klog.ErrorS(err, "Failed to convertUnifiedGPUAllocs", "pod", klog.KObj(pod))
+				return
+			}
+			if len(resourceGPUAllocations) > 0 {
+				deviceAllocations[schedulingv1alpha1.GPU] = resourceGPUAllocations
+			}
+		}
+	}
+
+	if len(deviceAllocations) > 0 {
+		if err := extension.SetDeviceAllocations(pod, deviceAllocations); err != nil {
+			klog.ErrorS(err, "Failed to extension.SetDeviceAllocations", "pod", klog.KObj(pod))
+		}
+	}
+}
+
+func convertUnifiedGPUAllocs(allocs []unifiedresourceext.ContainerDeviceAllocStatus) ([]*extension.DeviceAllocation, error) {
+	ResourceGPUAllocs := make(map[int32]*extension.DeviceAllocation)
+	for _, v := range allocs {
+		for _, alloc := range v.DeviceAllocStatus.Allocs {
+			if len(alloc.Resources) == 0 {
+				continue
+			}
+			resourceList := make(corev1.ResourceList)
+			for name, quantity := range alloc.Resources {
+				if name == unifiedresourceext.GPUResourceMemRatio {
+					continue
+				}
+				resourceList[corev1.ResourceName(name)] = quantity
+			}
+			combination, err := deviceshare.ValidateDeviceRequest(resourceList)
+			if err != nil {
+				return nil, err
+			}
+			resourceList = deviceshare.ConvertDeviceRequest(resourceList, combination)
+			koordAllocation := ResourceGPUAllocs[alloc.Minor]
+			if koordAllocation == nil {
+				koordAllocation = &extension.DeviceAllocation{
+					Minor: alloc.Minor,
+				}
+				ResourceGPUAllocs[alloc.Minor] = koordAllocation
+			}
+			koordAllocation.Resources = quotav1.Add(koordAllocation.Resources, resourceList)
+		}
+	}
+	if len(ResourceGPUAllocs) == 0 {
+		return nil, nil
+	}
+	koordDeviceAllocation := make([]*extension.DeviceAllocation, 0, len(ResourceGPUAllocs))
+	for _, allocation := range ResourceGPUAllocs {
+		koordDeviceAllocation = append(koordDeviceAllocation, allocation)
+	}
+	if len(koordDeviceAllocation) > 1 {
+		sort.Slice(koordDeviceAllocation, func(i, j int) bool {
+			return koordDeviceAllocation[i].Minor < koordDeviceAllocation[j].Minor
+		})
+	}
+	return koordDeviceAllocation, nil
+}
+
+func TransformUnifiedQuotaName(pod *corev1.Pod) {
+	if extension.GetQuotaName(pod) != "" {
+		return
+	}
+	if quotaName := pod.Labels[asiquotav1.LabelQuotaName]; quotaName != "" {
+		pod.Labels[extension.LabelQuotaName] = quotaName
+	}
+}
+
+func TransformResourceSpec(pod *corev1.Pod) {
+	if val := pod.Annotations[extension.AnnotationResourceSpec]; val != "" {
+		return
+	}
+	resourceSpec, from, err := unified.GetResourceSpec(pod.Annotations)
+	if err != nil {
+		klog.ErrorS(err, "Failed to unified.GetResourceSpec", "pod", klog.KObj(pod))
+		return
+	}
+	if from == "" {
+		return
+	}
+	if resourceSpec.PreferredCPUBindPolicy == extension.CPUBindPolicyFullPCPUs ||
+		resourceSpec.PreferredCPUBindPolicy == extension.CPUBindPolicySpreadByPCPUs {
+		err = extension.SetResourceSpec(pod, resourceSpec)
+		if err != nil {
+			klog.ErrorS(err, "Failed to extension.SetResourceSpec", "pod", klog.KObj(pod))
+			return
+		}
+
+		if extension.GetPodQoSClass(pod) == extension.QoSNone {
+			if pod.Labels == nil {
+				pod.Labels = map[string]string{}
+			}
+			pod.Labels[extension.LabelPodQoS] = string(extension.QoSLSR)
+		}
+	}
+}
+
+func TransformResourceStatus(pod *corev1.Pod) {
+	if val := pod.Annotations[extension.AnnotationResourceStatus]; val != "" {
+		return
+	}
+	status, err := unified.GetResourceStatus(pod.Annotations)
+	if err != nil {
+		klog.ErrorS(err, "Failed to unified.GetResourceStatus", "pod", klog.KObj(pod))
+		return
+	}
+	if status != nil && status.CPUSet != "" {
+		err = extension.SetResourceStatus(pod, status)
+		if err != nil {
+			klog.ErrorS(err, "Failed to extension.SetResourceStatus", "pod", klog.KObj(pod))
+			return
 		}
 	}
 }

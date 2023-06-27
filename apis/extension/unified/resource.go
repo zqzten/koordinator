@@ -25,7 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
-	schedulingconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
 	"github.com/koordinator-sh/koordinator/pkg/util/cpuset"
 )
 
@@ -35,20 +34,28 @@ const (
 )
 
 // GetResourceSpec parses ResourceSpec from annotations; first koordinator protocols, second unified, third asi-sigma
-func GetResourceSpec(annotations map[string]string) (*extension.ResourceSpec, error) {
+func GetResourceSpec(annotations map[string]string) (*extension.ResourceSpec, string, error) {
 	// koordinator protocols
 	if _, ok := annotations[extension.AnnotationResourceSpec]; ok {
-		return extension.GetResourceSpec(annotations)
+		spec, err := extension.GetResourceSpec(annotations)
+		if err != nil {
+			return nil, extension.AnnotationResourceSpec, err
+		}
+		return spec, extension.AnnotationResourceSpec, nil
 	}
 	// unified protocols
 	if _, ok := annotations[uniext.AnnotationAllocSpec]; ok {
-		return getResourceSpecByUnified(annotations)
+		spec, err := getResourceSpecByUnified(annotations)
+		if err != nil {
+			return nil, uniext.AnnotationAllocSpec, err
+		}
+		return spec, uniext.AnnotationAllocSpec, nil
 	}
 	// asi protocols
 	if resourceSpec, err := getResourceSpecByASI(annotations); err == nil && resourceSpec != nil {
-		return resourceSpec, nil
+		return resourceSpec, AnnotationPodRequestAllocSpec, nil
 	}
-	return &extension.ResourceSpec{PreferredCPUBindPolicy: schedulingconfig.CPUBindPolicyDefault}, nil
+	return &extension.ResourceSpec{PreferredCPUBindPolicy: extension.CPUBindPolicyDefault}, "", nil
 }
 
 func getResourceSpecByUnified(annotations map[string]string) (*extension.ResourceSpec, error) {
@@ -57,13 +64,13 @@ func getResourceSpecByUnified(annotations map[string]string) (*extension.Resourc
 		return nil, err
 	}
 	resourceSpec := &extension.ResourceSpec{
-		PreferredCPUBindPolicy: schedulingconfig.CPUBindPolicyDefault,
+		PreferredCPUBindPolicy: extension.CPUBindPolicyDefault,
 	}
 	switch allocSpecOfUnified.CPU {
 	case uniext.CPUBindStrategySpread:
-		resourceSpec.PreferredCPUBindPolicy = schedulingconfig.CPUBindPolicySpreadByPCPUs
+		resourceSpec.PreferredCPUBindPolicy = extension.CPUBindPolicySpreadByPCPUs
 	case uniext.CPUBindStrategySameCoreFirst:
-		resourceSpec.PreferredCPUBindPolicy = schedulingconfig.CPUBindPolicyFullPCPUs
+		resourceSpec.PreferredCPUBindPolicy = extension.CPUBindPolicyFullPCPUs
 	}
 	return resourceSpec, nil
 }
@@ -74,14 +81,14 @@ func getResourceSpecByASI(annotations map[string]string) (*extension.ResourceSpe
 		return nil, err
 	}
 	resourceSpec := &extension.ResourceSpec{
-		PreferredCPUBindPolicy: schedulingconfig.CPUBindPolicyDefault,
+		PreferredCPUBindPolicy: extension.CPUBindPolicyDefault,
 	}
 	for _, container := range allocSpecOfASI.Containers {
 		// CPU Set
 		if container.Resource.CPU.CPUSet != nil {
-			resourceSpec.PreferredCPUBindPolicy = schedulingconfig.CPUBindPolicySpreadByPCPUs
+			resourceSpec.PreferredCPUBindPolicy = extension.CPUBindPolicySpreadByPCPUs
 			if container.Resource.CPU.CPUSet.SpreadStrategy == SpreadStrategySameCoreFirst {
-				resourceSpec.PreferredCPUBindPolicy = schedulingconfig.CPUBindPolicyFullPCPUs
+				resourceSpec.PreferredCPUBindPolicy = extension.CPUBindPolicyFullPCPUs
 			}
 			break
 		}
@@ -136,6 +143,10 @@ func SetResourceStatus(obj metav1.Object, status *extension.ResourceStatus) erro
 		return nil
 	}
 
+	return SetUnifiedResourceStatus(pod, status)
+}
+
+func SetUnifiedResourceStatus(pod *corev1.Pod, status *extension.ResourceStatus) error {
 	cpuset, err := cpuset.Parse(status.CPUSet)
 	if err != nil {
 		return err
@@ -160,7 +171,7 @@ func SetResourceStatus(obj metav1.Object, status *extension.ResourceStatus) erro
 	if asiAllocSpec == nil {
 		return nil
 	}
-	spec, err := GetResourceSpec(pod.Annotations)
+	spec, _, err := GetResourceSpec(pod.Annotations)
 	if err != nil {
 		return nil
 	}
@@ -197,11 +208,11 @@ func SetResourceStatus(obj metav1.Object, status *extension.ResourceStatus) erro
 	return nil
 }
 
-func koordCPUStrategyToASI(policy schedulingconfig.CPUBindPolicy) SpreadStrategy {
+func koordCPUStrategyToASI(policy extension.CPUBindPolicy) SpreadStrategy {
 	switch policy {
-	case schedulingconfig.CPUBindPolicySpreadByPCPUs:
+	case extension.CPUBindPolicySpreadByPCPUs:
 		return SpreadStrategySpread
-	case schedulingconfig.CPUBindPolicyFullPCPUs:
+	case extension.CPUBindPolicyFullPCPUs:
 		return SpreadStrategySameCoreFirst
 	default:
 		return SpreadStrategyMustSpread

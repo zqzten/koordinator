@@ -261,7 +261,7 @@ func TestMaxInstancePerHostUniProtocolReservation(t *testing.T) {
 			status = plg.FinalRestoreReservation(context.TODO(), cycleState, tt.testPod, nodeToStates)
 			assert.Nil(t, status)
 
-			status = plg.PreFilter(context.TODO(), cycleState, tt.testPod)
+			_, status = plg.PreFilter(context.TODO(), cycleState, tt.testPod)
 			assert.Nil(t, status)
 			status = plg.Filter(context.TODO(), cycleState, tt.testPod, nodeInfo)
 			if status.IsSuccess() != tt.expectResult {

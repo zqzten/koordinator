@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package deviceshare
+package transformer
 
 import (
 	"testing"
@@ -27,15 +27,12 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
-	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 )
 
 func Test_transformNodeInfoAllocatable(t *testing.T) {
 	tests := []struct {
 		name                string
 		nodeAllocatable     corev1.ResourceList
-		numGPU              int
-		wantResult          bool
 		wantScalarResources map[corev1.ResourceName]int64
 	}{
 		{
@@ -43,8 +40,6 @@ func Test_transformNodeInfoAllocatable(t *testing.T) {
 			nodeAllocatable: corev1.ResourceList{
 				unifiedresourceext.GPUResourceMemRatio: resource.MustParse("0"),
 			},
-			numGPU:     1,
-			wantResult: false,
 			wantScalarResources: map[corev1.ResourceName]int64{
 				unifiedresourceext.GPUResourceMemRatio: 0,
 			},
@@ -54,27 +49,9 @@ func Test_transformNodeInfoAllocatable(t *testing.T) {
 			nodeAllocatable: corev1.ResourceList{
 				unifiedresourceext.GPUResourceMemRatio: resource.MustParse("200"),
 			},
-			numGPU:     2,
-			wantResult: true,
 			wantScalarResources: map[corev1.ResourceName]int64{
 				unifiedresourceext.GPUResourceMemRatio: 200,
-				unifiedresourceext.GPUResourceCore:     200,
-				unifiedresourceext.GPUResourceMem:      2 * 4 * 1024 * 1024 * 1024,
 				apiext.ResourceNvidiaGPU:               2,
-			},
-		},
-		{
-			name: "kubelet reports gpu-mem-ratio 200 but device has 100",
-			nodeAllocatable: corev1.ResourceList{
-				unifiedresourceext.GPUResourceMemRatio: resource.MustParse("200"),
-			},
-			numGPU:     1,
-			wantResult: true,
-			wantScalarResources: map[corev1.ResourceName]int64{
-				unifiedresourceext.GPUResourceMemRatio: 200,
-				unifiedresourceext.GPUResourceCore:     100,
-				unifiedresourceext.GPUResourceMem:      4 * 1024 * 1024 * 1024,
-				apiext.ResourceNvidiaGPU:               1,
 			},
 		},
 	}
@@ -88,24 +65,13 @@ func Test_transformNodeInfoAllocatable(t *testing.T) {
 					Allocatable: tt.nodeAllocatable,
 				},
 			}
+			obj, err := TransformNode(node)
+			assert.NoError(t, err)
+			node = obj.(*corev1.Node)
+
 			nodeInfo := framework.NewNodeInfo()
 			nodeInfo.SetNode(node)
 
-			device := newNodeDevice()
-			if tt.numGPU > 0 {
-				resources := deviceResources{}
-				for i := 0; i < tt.numGPU; i++ {
-					resources[i] = corev1.ResourceList{
-						apiext.ResourceGPUCore:        resource.MustParse("100"),
-						apiext.ResourceGPUMemoryRatio: resource.MustParse("100"),
-						apiext.ResourceGPUMemory:      resource.MustParse("4Gi"),
-					}
-				}
-				device.resetDeviceTotal(map[schedulingv1alpha1.DeviceType]deviceResources{schedulingv1alpha1.GPU: resources})
-			}
-
-			got := transformNodeInfoAllocatable(nodeInfo, device)
-			assert.Equal(t, tt.wantResult, got)
 			assert.Equal(t, tt.wantScalarResources, nodeInfo.Allocatable.ScalarResources)
 		})
 	}

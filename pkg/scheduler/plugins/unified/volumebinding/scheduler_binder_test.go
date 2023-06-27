@@ -44,10 +44,10 @@ import (
 	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/events"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
+	storagehelpers "k8s.io/component-helpers/storage/volume"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/controller"
 	pvtesting "k8s.io/kubernetes/pkg/controller/volume/persistentvolume/testing"
-	pvutil "k8s.io/kubernetes/pkg/controller/volume/persistentvolume/util"
 	"k8s.io/kubernetes/pkg/features"
 
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/eci"
@@ -506,8 +506,8 @@ func (env *testEnv) validateAssume(t *testing.T, pod *v1.Pod, bindings []*Bindin
 			t.Errorf("GetPVC %q returned error: %v", pvcKey, err)
 			continue
 		}
-		if pvc.Annotations[pvutil.AnnSelectedNode] != nodeLabelValue {
-			t.Errorf("expected pvutil.AnnSelectedNode of pvc %q to be %q, but got %q", pvcKey, nodeLabelValue, pvc.Annotations[pvutil.AnnSelectedNode])
+		if pvc.Annotations[storagehelpers.AnnSelectedNode] != nodeLabelValue {
+			t.Errorf("expected storagehelpers.AnnSelectedNode of pvc %q to be %q, but got %q", pvcKey, nodeLabelValue, pvc.Annotations[storagehelpers.AnnSelectedNode])
 		}
 	}
 }
@@ -533,8 +533,8 @@ func (env *testEnv) validateCacheRestored(t *testing.T, pod *v1.Pod, bindings []
 			t.Errorf("GetPVC %q returned error: %v", pvcKey, err)
 			continue
 		}
-		if pvc.Annotations[pvutil.AnnSelectedNode] != "" {
-			t.Errorf("expected pvutil.AnnSelectedNode of pvc %q empty, but got %q", pvcKey, pvc.Annotations[pvutil.AnnSelectedNode])
+		if pvc.Annotations[storagehelpers.AnnSelectedNode] != "" {
+			t.Errorf("expected storagehelpers.AnnSelectedNode of pvc %q empty, but got %q", pvcKey, pvc.Annotations[storagehelpers.AnnSelectedNode])
 		}
 	}
 }
@@ -643,10 +643,10 @@ func makeTestPVC(name, size, node string, pvcBoundState int, pvName, resourceVer
 
 	switch pvcBoundState {
 	case pvcSelectedNode:
-		metav1.SetMetaDataAnnotation(&pvc.ObjectMeta, pvutil.AnnSelectedNode, node)
+		metav1.SetMetaDataAnnotation(&pvc.ObjectMeta, storagehelpers.AnnSelectedNode, node)
 		// don't fallthrough
 	case pvcBound:
-		metav1.SetMetaDataAnnotation(&pvc.ObjectMeta, pvutil.AnnBindCompleted, "yes")
+		metav1.SetMetaDataAnnotation(&pvc.ObjectMeta, storagehelpers.AnnBindCompleted, "yes")
 		fallthrough
 	case pvcPrebound:
 		pvc.Spec.VolumeName = pvName
@@ -673,7 +673,21 @@ func makeTestPV(name, node, capacity, version string, boundToPVC *v1.PersistentV
 		},
 	}
 	if node != "" {
-		pv.Spec.NodeAffinity = pvutil.GetVolumeNodeAffinity(nodeLabelKey, node)
+		pv.Spec.NodeAffinity = &v1.VolumeNodeAffinity{
+			Required: &v1.NodeSelector{
+				NodeSelectorTerms: []v1.NodeSelectorTerm{
+					{
+						MatchExpressions: []v1.NodeSelectorRequirement{
+							{
+								Key:      nodeLabelKey,
+								Operator: v1.NodeSelectorOpIn,
+								Values:   []string{node},
+							},
+						},
+					},
+				},
+			},
+		}
 	}
 
 	if boundToPVC != nil {
@@ -685,7 +699,7 @@ func makeTestPV(name, node, capacity, version string, boundToPVC *v1.PersistentV
 			Namespace:       boundToPVC.Namespace,
 			UID:             boundToPVC.UID,
 		}
-		metav1.SetMetaDataAnnotation(&pv.ObjectMeta, pvutil.AnnBoundByController, "yes")
+		metav1.SetMetaDataAnnotation(&pv.ObjectMeta, storagehelpers.AnnBoundByController, "yes")
 	}
 
 	return pv
@@ -708,7 +722,7 @@ func makeTestPVForCSIMigration(labels map[string]string, pvc *v1.PersistentVolum
 
 func pvcSetSelectedNode(pvc *v1.PersistentVolumeClaim, node string) *v1.PersistentVolumeClaim {
 	newPVC := pvc.DeepCopy()
-	metav1.SetMetaDataAnnotation(&newPVC.ObjectMeta, pvutil.AnnSelectedNode, node)
+	metav1.SetMetaDataAnnotation(&newPVC.ObjectMeta, storagehelpers.AnnSelectedNode, node)
 	return newPVC
 }
 
@@ -841,8 +855,8 @@ func makeBinding(pvc *v1.PersistentVolumeClaim, pv *v1.PersistentVolume) *Bindin
 func addProvisionAnn(pvc *v1.PersistentVolumeClaim) *v1.PersistentVolumeClaim {
 	res := pvc.DeepCopy()
 	// Add provision related annotations
-	metav1.SetMetaDataAnnotation(&res.ObjectMeta, pvutil.AnnSelectedNode, nodeLabelValue)
-	metav1.SetMetaDataLabel(&res.ObjectMeta, pvutil.AnnSelectedNode, nodeLabelValue)
+	metav1.SetMetaDataAnnotation(&res.ObjectMeta, storagehelpers.AnnSelectedNode, nodeLabelValue)
+	metav1.SetMetaDataLabel(&res.ObjectMeta, storagehelpers.AnnSelectedNode, nodeLabelValue)
 
 	return res
 }
@@ -1026,13 +1040,6 @@ func TestFindPodVolumesWithoutProvisioning(t *testing.T) {
 			ephemeral:  true,
 			shouldFail: true,
 		},
-		"generic-ephemeral,disabled": {
-			pod:        makePodWithGenericEphemeral("test-volume"),
-			cachePVCs:  []*v1.PersistentVolumeClaim{correctGenericPVC},
-			pvs:        []*v1.PersistentVolume{pvBoundGeneric},
-			ephemeral:  false,
-			shouldFail: true,
-		},
 		"lvmClass": {
 			pod:              makeAffinityECIPod([]*v1.PersistentVolumeClaim{lvmPVC}),
 			podPVCs:          []*v1.PersistentVolumeClaim{lvmPVC},
@@ -1058,8 +1065,6 @@ func TestFindPodVolumesWithoutProvisioning(t *testing.T) {
 	}()
 
 	run := func(t *testing.T, scenario scenarioType, csiStorageCapacity bool, csiDriver *storagev1.CSIDriver) {
-		defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.GenericEphemeralVolume, scenario.ephemeral)()
-
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -2002,7 +2007,7 @@ func TestBindPodVolumes(t *testing.T) {
 				// Update PVC to be fully bound to PV
 				newPVC := pvc.DeepCopy()
 				newPVC.Spec.VolumeName = pv.Name
-				metav1.SetMetaDataAnnotation(&newPVC.ObjectMeta, pvutil.AnnBindCompleted, "yes")
+				metav1.SetMetaDataAnnotation(&newPVC.ObjectMeta, storagehelpers.AnnBindCompleted, "yes")
 				if _, err := testEnv.client.CoreV1().PersistentVolumeClaims(newPVC.Namespace).Update(context.TODO(), newPVC, metav1.UpdateOptions{}); err != nil {
 					t.Errorf("failed to update PVC %q: %v", newPVC.Name, err)
 				}
@@ -2026,7 +2031,7 @@ func TestBindPodVolumes(t *testing.T) {
 					return
 				}
 				newPVC.Spec.VolumeName = dynamicPV.Name
-				metav1.SetMetaDataAnnotation(&newPVC.ObjectMeta, pvutil.AnnBindCompleted, "yes")
+				metav1.SetMetaDataAnnotation(&newPVC.ObjectMeta, storagehelpers.AnnBindCompleted, "yes")
 				if _, err := testEnv.client.CoreV1().PersistentVolumeClaims(newPVC.Namespace).Update(context.TODO(), newPVC, metav1.UpdateOptions{}); err != nil {
 					t.Errorf("failed to update PVC %q: %v", newPVC.Name, err)
 				}
@@ -2091,7 +2096,7 @@ func TestBindPodVolumes(t *testing.T) {
 				newPVC := pvcs[0].DeepCopy()
 				newPVC.ResourceVersion = "2"
 				newPVC.Spec.VolumeName = pvNode2.Name
-				metav1.SetMetaDataAnnotation(&newPVC.ObjectMeta, pvutil.AnnBindCompleted, "yes")
+				metav1.SetMetaDataAnnotation(&newPVC.ObjectMeta, storagehelpers.AnnBindCompleted, "yes")
 				if _, err := testEnv.client.CoreV1().PersistentVolumeClaims(newPVC.Namespace).Update(context.TODO(), newPVC, metav1.UpdateOptions{}); err != nil {
 					t.Errorf("failed to update PVC %q: %v", newPVC.Name, err)
 				}
@@ -2333,7 +2338,6 @@ func TestCapacity(t *testing.T) {
 	}
 
 	run := func(t *testing.T, scenario scenarioType, featureEnabled, optIn bool) {
-		defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.CSIStorageCapacity, featureEnabled)()
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 

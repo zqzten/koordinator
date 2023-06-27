@@ -34,7 +34,6 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	storagehelpers "k8s.io/component-helpers/storage/volume"
 	"k8s.io/kubernetes/pkg/controller"
-	pvutil "k8s.io/kubernetes/pkg/controller/volume/persistentvolume/util"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/runtime"
@@ -229,7 +228,7 @@ func makePVCWithStorageSize(name, version, boundPVName, storageClassName, storag
 	}
 	if boundPVName != "" {
 		pvc.Spec.VolumeName = boundPVName
-		metav1.SetMetaDataAnnotation(&pvc.ObjectMeta, pvutil.AnnBindCompleted, "true")
+		metav1.SetMetaDataAnnotation(&pvc.ObjectMeta, storagehelpers.AnnBindCompleted, "true")
 	}
 	if storageSize != "" {
 		pvc.Spec.Resources = v1.ResourceRequirements{
@@ -282,7 +281,7 @@ func makePVC(name string, boundPVName string, storageClassName string) *v1.Persi
 	}
 	if boundPVName != "" {
 		pvc.Spec.VolumeName = boundPVName
-		metav1.SetMetaDataAnnotation(&pvc.ObjectMeta, pvutil.AnnBindCompleted, "true")
+		metav1.SetMetaDataAnnotation(&pvc.ObjectMeta, storagehelpers.AnnBindCompleted, "true")
 	}
 	return pvc
 }
@@ -820,7 +819,7 @@ func TestVolumeBindingWithLocalPV(t *testing.T) {
 
 			t.Logf("Verify: call PreFilter and check status")
 			state := framework.NewCycleState()
-			gotPreFilterStatus := pl.(framework.PreFilterPlugin).PreFilter(ctx, state, item.pod)
+			_, gotPreFilterStatus := pl.(framework.PreFilterPlugin).PreFilter(ctx, state, item.pod)
 			if !reflect.DeepEqual(gotPreFilterStatus, item.wantPreFilterStatus) {
 				t.Errorf("filter prefilter status does not match: %v, want: %v", gotPreFilterStatus, item.wantPreFilterStatus)
 			}
@@ -1169,7 +1168,7 @@ func TestVolumePreAssignFilterForLocalPV(t *testing.T) {
 
 			state := framework.NewCycleState()
 			t.Logf("Verify: call PreFilter and check status")
-			gotPreFilterStatus := pl.(framework.PreFilterPlugin).PreFilter(ctx, state, item.pod)
+			_, gotPreFilterStatus := pl.(framework.PreFilterPlugin).PreFilter(ctx, state, item.pod)
 			if !gotPreFilterStatus.IsSuccess() {
 				// scheduler framework will skip Filter if PreFilter fails
 				return
@@ -1533,7 +1532,7 @@ func TestCloudStorageAdapterScheduling(t *testing.T) {
 
 			state := framework.NewCycleState()
 			t.Logf("Verify: call PreFilter and check status")
-			gotPreFilterStatus := pl.(framework.PreFilterPlugin).PreFilter(ctx, state, item.pod)
+			_, gotPreFilterStatus := pl.(framework.PreFilterPlugin).PreFilter(ctx, state, item.pod)
 			if !gotPreFilterStatus.IsSuccess() {
 				// scheduler framework will skip Filter if PreFilter fails
 				return
@@ -2142,7 +2141,7 @@ func TestVolumeAssignAndUnAssignLocalPVAndMultiVolumeLocalPV(t *testing.T) {
 
 			state := framework.NewCycleState()
 			t.Logf("Verify: call PreFilter and check status")
-			gotPreFilterStatus := pl.(framework.PreFilterPlugin).PreFilter(ctx, state, item.pod)
+			_, gotPreFilterStatus := pl.(framework.PreFilterPlugin).PreFilter(ctx, state, item.pod)
 			if !gotPreFilterStatus.IsSuccess() {
 				// scheduler framework will skip Filter if PreFilter fails
 				return
