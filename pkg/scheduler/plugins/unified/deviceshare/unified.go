@@ -23,6 +23,7 @@ import (
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	"github.com/koordinator-sh/koordinator/apis/extension/ack"
+	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/deviceshare"
 )
@@ -32,7 +33,8 @@ const (
 	unifiedGPUCore        = 1 << 51
 	unifiedGPUMemory      = 1 << 52
 	unifiedGPUMemoryRatio = 1 << 53
-	aliyunGPUCompute      = 1 << 63
+	aliyunGPUCompute      = 1 << 54
+	aliyunPPU             = 1 << 55
 )
 
 var DeviceResourceFlags = map[corev1.ResourceName]uint{
@@ -41,9 +43,11 @@ var DeviceResourceFlags = map[corev1.ResourceName]uint{
 	unifiedresourceext.GPUResourceMem:      unifiedGPUMemory,
 	unifiedresourceext.GPUResourceMemRatio: unifiedGPUMemoryRatio,
 	ack.AliyunGPUCompute:                   aliyunGPUCompute,
+	unified.ResourcePPU:                    aliyunPPU,
 }
 
 var ValidResourceCombinations = map[uint]bool{
+	aliyunPPU:                              true,
 	aliyunGPUCompute:                       true,
 	unifiedGPU:                             true,
 	unifiedGPUMemoryRatio:                  true,
@@ -87,6 +91,13 @@ var ResourceCombinationsMapper = map[uint]func(podRequest corev1.ResourceList) c
 		return corev1.ResourceList{
 			apiext.ResourceGPUCore:        podRequest[ack.AliyunGPUCompute],
 			apiext.ResourceGPUMemoryRatio: podRequest[ack.AliyunGPUCompute],
+		}
+	},
+	aliyunPPU: func(podRequest corev1.ResourceList) corev1.ResourceList {
+		ppu := podRequest[unified.ResourcePPU]
+		return corev1.ResourceList{
+			apiext.ResourceGPUCore:        *resource.NewQuantity(ppu.Value()*100, resource.DecimalSI),
+			apiext.ResourceGPUMemoryRatio: *resource.NewQuantity(ppu.Value()*100, resource.DecimalSI),
 		}
 	},
 }
