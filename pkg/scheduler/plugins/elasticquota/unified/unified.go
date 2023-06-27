@@ -17,13 +17,24 @@ limitations under the License.
 package unified
 
 import (
-	cosextension "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/extension"
-	"k8s.io/apimachinery/pkg/util/sets"
+	"strings"
 
+	cosextension "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/extension"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/klog/v2"
+	schedulinglisterv1alpha1 "sigs.k8s.io/scheduler-plugins/pkg/generated/listers/scheduling/v1alpha1"
+
+	"github.com/koordinator-sh/koordinator/apis/extension"
+	"github.com/koordinator-sh/koordinator/apis/extension/ack"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota/gpumodel"
 )
 
 func init() {
+	elasticquota.GetQuotaName = GetQuotaName
 	gpumodel.GPUResourceMemRatio = cosextension.GPUResourceMemRatio
 	gpumodel.GPUResourceMem = cosextension.GPUResourceMem
 	gpumodel.GPUResourceCardRatio = cosextension.GPUResourceCardRatio
@@ -63,3 +74,32 @@ var PercentageGPUNamesForPod = sets.NewString(
 	cosextension.GPUResourceMemRatio,
 	cosextension.GPUResourceCore,
 )
+
+func GetQuotaName(pod *v1.Pod, quotaLister schedulinglisterv1alpha1.ElasticQuotaLister) string {
+	quotaName := extension.GetQuotaName(pod)
+	if quotaName != "" {
+		return quotaName
+	}
+
+	eq, err := quotaLister.ElasticQuotas(pod.Namespace).Get(pod.Namespace)
+	if err == nil && eq != nil {
+		return eq.Name
+	} else if !errors.IsNotFound(err) {
+		klog.Errorf("Failed to Get ElasticQuota %s, err: %v", pod.Namespace, err)
+	}
+
+	eqList, err := quotaLister.List(labels.Everything())
+	if err != nil {
+		return extension.DefaultQuotaName
+	}
+	for _, eq := range eqList {
+		namespaces := strings.Split(eq.Annotations[ack.AnnotationQuotaNamespaces], ",")
+		for _, namespace := range namespaces {
+			if pod.Namespace == namespace {
+				return namespace
+			}
+		}
+	}
+
+	return extension.DefaultQuotaName
+}
