@@ -293,7 +293,7 @@ func TestMaxInstancePerHost(t *testing.T) {
 			}
 			tt.pod.Annotations[extunified.AnnotationPodRequestAllocSpec] = string(data)
 			cycleState := framework.NewCycleState()
-			status := plg.PreFilter(context.TODO(), cycleState, tt.pod)
+			_, status := plg.PreFilter(context.TODO(), cycleState, tt.pod)
 			assert.Nil(t, status)
 			status = plg.Filter(context.TODO(), cycleState, tt.pod, nodeInfo)
 			if status.IsSuccess() != tt.expectResult {
@@ -479,7 +479,7 @@ func TestMaxInstancePerHostUniProtocol(t *testing.T) {
 			tt.testPod.Annotations[uniext.AnnotationPodSpreadPolicy] = string(data)
 
 			cycleState := framework.NewCycleState()
-			status := plg.PreFilter(context.TODO(), cycleState, tt.testPod)
+			_, status := plg.PreFilter(context.TODO(), cycleState, tt.testPod)
 			assert.Nil(t, status)
 			status = plg.Filter(context.TODO(), cycleState, tt.testPod, nodeInfo)
 			if status.IsSuccess() != tt.expectResult {
@@ -580,7 +580,7 @@ func TestPlugin_PreFilterExtensions(t *testing.T) {
 
 	// check original preFilterState
 	cycleState := framework.NewCycleState()
-	status := plg.PreFilter(context.TODO(), cycleState, testPod)
+	_, status := plg.PreFilter(context.TODO(), cycleState, testPod)
 	assert.Nil(t, status)
 	state, status := getPreFilterState(cycleState)
 	assert.Nil(t, status)

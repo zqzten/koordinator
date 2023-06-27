@@ -29,7 +29,6 @@ import (
 	"k8s.io/component-helpers/scheduling/corev1"
 	storagehelpers "k8s.io/component-helpers/storage/volume"
 	"k8s.io/klog/v2"
-	pvutil "k8s.io/kubernetes/pkg/controller/volume/persistentvolume/util"
 
 	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 )
@@ -48,7 +47,7 @@ func (b *volumeBinder) recordExternalProvisioningEvent(pod *v1.Pod, claimsToProv
 		claimNames = append(claimNames, getPVCName(claim))
 	}
 	if len(claimNames) > 0 && len(claimsToProvision) > 0 {
-		nodeName := claimsToProvision[0].Annotations[pvutil.AnnSelectedNode]
+		nodeName := claimsToProvision[0].Annotations[storagehelpers.AnnSelectedNode]
 		b.recordEvent(pod, v1.EventTypeNormal, "ExternalProvisioning", "Binding",
 			"Waiting for volumes to be created with PVC(s) %s on node %s", strings.Join(claimNames, ","), nodeName)
 	}

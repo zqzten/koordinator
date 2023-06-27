@@ -27,9 +27,11 @@ import (
 	"k8s.io/kubernetes/pkg/api/v1/resource"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
+	"k8s.io/utils/pointer"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/features"
 	schedulingconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta2"
@@ -37,34 +39,6 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/nodenumaresource"
 	"github.com/koordinator-sh/koordinator/pkg/util/cpuset"
 )
-
-func init() {
-	nodenumaresource.GetResourceSpec = extunified.GetResourceSpec
-	nodenumaresource.GetResourceStatus = extunified.GetResourceStatus
-	nodenumaresource.SetResourceStatus = extunified.SetResourceStatus
-	nodenumaresource.GetPodQoSClass = extension.GetPodQoSClass
-	nodenumaresource.GetPriorityClass = extunified.GetPriorityClass
-	nodenumaresource.AllowUseCPUSet = allowUseCPUSet
-}
-
-func allowUseCPUSet(pod *corev1.Pod) bool {
-	if pod == nil {
-		return false
-	}
-	// 用新协议识别QoS，防止统一调度的QoS填了，但是allocSpec没填的情况
-	qosClass := extension.GetPodQoSClass(pod)
-	priorityClass := extunified.GetPriorityClass(pod)
-	if (qosClass == extension.QoSLSE || qosClass == extension.QoSLSR) && priorityClass == extension.PriorityProd {
-		return true
-	}
-	resourceSpec, err := extunified.GetResourceSpec(pod.Annotations)
-	if err != nil {
-		return false
-	}
-	return priorityClass == extension.PriorityProd &&
-		(resourceSpec.PreferredCPUBindPolicy == schedulingconfig.CPUBindPolicySpreadByPCPUs ||
-			resourceSpec.PreferredCPUBindPolicy == schedulingconfig.CPUBindPolicyFullPCPUs)
-}
 
 const (
 	Name = "UnifiedCPUSetAllocator"
@@ -136,6 +110,8 @@ func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error)
 
 func getDefaultNodeNUMAResourceArgs() (*schedulingconfig.NodeNUMAResourceArgs, error) {
 	var v1beta2args v1beta2.NodeNUMAResourceArgs
+	// Disable default CPUBindPolicy
+	v1beta2args.DefaultCPUBindPolicy = pointer.String("")
 	v1beta2.SetDefaults_NodeNUMAResourceArgs(&v1beta2args)
 	var defaultNodeNUMAResourceArgs schedulingconfig.NodeNUMAResourceArgs
 	err := v1beta2.Convert_v1beta2_NodeNUMAResourceArgs_To_config_NodeNUMAResourceArgs(&v1beta2args, &defaultNodeNUMAResourceArgs, nil)
@@ -232,4 +208,24 @@ func (p *Plugin) Reserve(ctx context.Context, cycleState *framework.CycleState, 
 		return nil
 	}
 	return p.Plugin.Reserve(ctx, cycleState, pod, nodeName)
+}
+
+func (p *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
+	status := p.Plugin.PreBind(ctx, cycleState, pod, nodeName)
+	if !status.IsSuccess() {
+		return status
+	}
+	resourceStatus, err := extunified.GetResourceStatus(pod.Annotations)
+	if err != nil {
+		return framework.AsStatus(err)
+	}
+	err = extunified.SetUnifiedResourceStatus(pod, resourceStatus)
+	if err != nil {
+		return framework.AsStatus(err)
+	}
+	return nil
+}
+
+func (p *Plugin) PreBindReservation(ctx context.Context, cycleState *framework.CycleState, reservation *schedulingv1alpha1.Reservation, nodeName string) *framework.Status {
+	return p.Plugin.PreBindReservation(ctx, cycleState, reservation, nodeName)
 }

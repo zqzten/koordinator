@@ -24,8 +24,6 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 )
 
 var registerOnce sync.Once
@@ -52,21 +50,6 @@ var indexDescriptors = []fieldIndexDescriptor{
 				return []string{}
 			}
 			return []string{pod.Spec.NodeName}
-		},
-	},
-	{
-		description: "index reservation by status.nodeName",
-		obj:         &schedulingv1alpha1.Reservation{},
-		field:       "status.nodeName",
-		indexerFunc: func(obj client.Object) []string {
-			reservation, ok := obj.(*schedulingv1alpha1.Reservation)
-			if !ok {
-				return []string{}
-			}
-			if len(reservation.Status.NodeName) == 0 {
-				return []string{}
-			}
-			return []string{reservation.Status.NodeName}
 		},
 	},
 }

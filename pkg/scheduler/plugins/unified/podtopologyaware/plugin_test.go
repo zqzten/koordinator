@@ -148,7 +148,7 @@ func TestPreFilter(t *testing.T) {
 			}
 
 			cycleState := framework.NewCycleState()
-			status := pl.PreFilter(context.TODO(), cycleState, tt.pod)
+			_, status := pl.PreFilter(context.TODO(), cycleState, tt.pod)
 			assert.Equal(t, tt.wantStatus, status)
 			assert.Equal(t, tt.wantStateData, getStateData(cycleState))
 		})

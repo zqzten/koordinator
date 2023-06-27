@@ -25,7 +25,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/reference"
-	pvutil "k8s.io/kubernetes/pkg/controller/volume/persistentvolume/util"
+	storagehelpers "k8s.io/component-helpers/storage/volume"
 )
 
 func makePV(name, version, storageClass string) *v1.PersistentVolume {
@@ -79,7 +79,7 @@ func makeLocalPV(name, version, selectedNode, storageClass, capacity string, cla
 		},
 	}
 	if selectedNode != "" {
-		metav1.SetMetaDataAnnotation(&pv.ObjectMeta, pvutil.AnnSelectedNode, selectedNode)
+		metav1.SetMetaDataAnnotation(&pv.ObjectMeta, storagehelpers.AnnSelectedNode, selectedNode)
 	}
 	if claim != nil {
 		ref, err := reference.GetReference(scheme.Scheme, claim)
@@ -517,7 +517,7 @@ func TestAssumeUpdatePVCCache(t *testing.T) {
 
 	// Assume PVC
 	newPVC := pvc.DeepCopy()
-	newPVC.Annotations[pvutil.AnnSelectedNode] = "test-node"
+	newPVC.Annotations[storagehelpers.AnnSelectedNode] = "test-node"
 	if err := cache.Assume(newPVC); err != nil {
 		t.Fatalf("failed to assume PVC: %v", err)
 	}

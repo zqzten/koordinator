@@ -133,7 +133,7 @@ func (m topologyToMatchedTermCount) updateWithAffinityTerms(
 func (m topologyToMatchedTermCount) updateWithAntiAffinityTerms(terms []framework.AffinityTerm, pod *v1.Pod, nsLabels labels.Set, node *v1.Node, value int64, enableNamespaceSelector bool) {
 	// Check anti-affinity terms.
 	for _, t := range terms {
-		if t.Matches(pod, nsLabels, enableNamespaceSelector) {
+		if t.Matches(pod, nsLabels) {
 			m.update(node, t.TopologyKey, value)
 		}
 	}
@@ -147,7 +147,7 @@ func podMatchesAllAffinityTerms(terms []framework.AffinityTerm, pod *v1.Pod, ena
 	for _, t := range terms {
 		// The incoming pod NamespaceSelector was merged into the Namespaces set, and so
 		// we are not explicitly passing in namespace labels.
-		if !t.Matches(pod, nil, enableNamespaceSelector) {
+		if !t.Matches(pod, nil) {
 			return false
 		}
 	}
@@ -232,15 +232,15 @@ func (pl *InterPodAffinity) getIncomingAffinityAntiAffinityCounts(podInfo *frame
 }
 
 // PreFilter invoked at the prefilter extension point.
-func (pl *InterPodAffinity) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *v1.Pod) *framework.Status {
+func (pl *InterPodAffinity) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *v1.Pod) (*framework.PreFilterResult, *framework.Status) {
 	var allNodes []*framework.NodeInfo
 	var nodesWithRequiredAntiAffinityPods []*framework.NodeInfo
 	var err error
 	if allNodes, err = pl.sharedLister.NodeInfos().List(); err != nil {
-		return framework.AsStatus(fmt.Errorf("failed to list NodeInfos: %w", err))
+		return nil, framework.AsStatus(fmt.Errorf("failed to list NodeInfos: %w", err))
 	}
 	if nodesWithRequiredAntiAffinityPods, err = pl.sharedLister.NodeInfos().HavePodsWithRequiredAntiAffinityList(); err != nil {
-		return framework.AsStatus(fmt.Errorf("failed to list NodeInfos with pods with affinity: %w", err))
+		return nil, framework.AsStatus(fmt.Errorf("failed to list NodeInfos with pods with affinity: %w", err))
 	}
 
 	s := &preFilterState{
@@ -249,18 +249,18 @@ func (pl *InterPodAffinity) PreFilter(ctx context.Context, cycleState *framework
 
 	s.podInfo = framework.NewPodInfo(pod)
 	if s.podInfo.ParseError != nil {
-		return framework.NewStatus(framework.UnschedulableAndUnresolvable, fmt.Sprintf("parsing pod: %+v", s.podInfo.ParseError))
+		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, fmt.Sprintf("parsing pod: %+v", s.podInfo.ParseError))
 	}
 
 	if pl.enableNamespaceSelector {
 		for i := range s.podInfo.RequiredAffinityTerms {
 			if err := pl.mergeAffinityTermNamespacesIfNotEmpty(&s.podInfo.RequiredAffinityTerms[i]); err != nil {
-				return framework.AsStatus(err)
+				return nil, framework.AsStatus(err)
 			}
 		}
 		for i := range s.podInfo.RequiredAntiAffinityTerms {
 			if err := pl.mergeAffinityTermNamespacesIfNotEmpty(&s.podInfo.RequiredAntiAffinityTerms[i]); err != nil {
-				return framework.AsStatus(err)
+				return nil, framework.AsStatus(err)
 			}
 		}
 		s.namespaceLabels = interpodaffinity.GetNamespaceLabelsSnapshot(pod.Namespace, pl.nsLister)
@@ -270,7 +270,7 @@ func (pl *InterPodAffinity) PreFilter(ctx context.Context, cycleState *framework
 	s.affinityCounts, s.antiAffinityCounts = pl.getIncomingAffinityAntiAffinityCounts(s.podInfo, allNodes, pl.enableNamespaceSelector)
 
 	cycleState.Write(preFilterStateKey, s)
-	return nil
+	return nil, nil
 }
 
 // PreFilterExtensions returns prefilter extensions, pod add and remove.
@@ -332,7 +332,7 @@ func satisfyExistingPodsAntiAffinity(state *preFilterState, nodeInfo *framework.
 	return true
 }
 
-//  Checks if the node satisfies the incoming pod's anti-affinity rules.
+// Checks if the node satisfies the incoming pod's anti-affinity rules.
 func satisfyPodAntiAffinity(state *preFilterState, nodeInfo *framework.NodeInfo) bool {
 	if len(state.antiAffinityCounts) > 0 {
 		for _, term := range state.podInfo.RequiredAntiAffinityTerms {

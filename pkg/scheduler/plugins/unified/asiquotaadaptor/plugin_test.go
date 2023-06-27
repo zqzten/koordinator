@@ -65,7 +65,7 @@ func TestPluginPreFilter(t *testing.T) {
 		},
 	}
 	cycleState := framework.NewCycleState()
-	status := pl.PreFilter(context.TODO(), cycleState, pod)
+	_, status := pl.PreFilter(context.TODO(), cycleState, pod)
 	assert.True(t, status.IsSuccess())
 	sd := getStateData(cycleState)
 	expectedSD := &stateData{
@@ -106,7 +106,7 @@ func TestPluginReserve(t *testing.T) {
 		},
 	}
 	cycleState := framework.NewCycleState()
-	status := pl.PreFilter(context.TODO(), cycleState, pod)
+	_, status := pl.PreFilter(context.TODO(), cycleState, pod)
 	assert.True(t, status.IsSuccess())
 
 	pod.Spec.NodeName = "test-node"

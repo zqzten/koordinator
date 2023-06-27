@@ -17,20 +17,24 @@ limitations under the License.
 package unified
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
+
+	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 )
 
 const (
-	LabelEnableOverQuota             = "sigma.ali/is-over-quota"
-	LabelCPUOverQuota                = "sigma.ali/cpu-over-quota"
-	LabelMemoryOverQuota             = "sigma.ali/memory-over-quota"
-	LabelDiskOverQuota               = "sigma.ali/disk-over-quota"
-	AnnotationDisableOverQuotaFilter = "sigma.ali/disable-over-quota-filter"
+	LabelEnableOverQuota              = "sigma.ali/is-over-quota"
+	LabelCPUOverQuota                 = "sigma.ali/cpu-over-quota"
+	LabelMemoryOverQuota              = "sigma.ali/memory-over-quota"
+	LabelDiskOverQuota                = "sigma.ali/disk-over-quota"
+	AnnotationDisableOverQuotaFilter  = "sigma.ali/disable-over-quota-filter"
+	AnnotationOriginalNodeAllocatable = apiext.NodeDomainPrefix + "/original-node-allocatable"
 )
 
 func IsNodeEnableOverQuota(node *corev1.Node) bool {
@@ -125,4 +129,30 @@ func parseOverQuotaRatio(overQuota string) int64 {
 		f = 1.0
 	}
 	return int64(f * 100)
+}
+
+func GetOriginalNodeAllocatable(annotations map[string]string) (corev1.ResourceList, error) {
+	val := annotations[AnnotationOriginalNodeAllocatable]
+	if val == "" {
+		return nil, nil
+	}
+	allocatable := corev1.ResourceList{}
+	if err := json.Unmarshal([]byte(val), &allocatable); err != nil {
+		return nil, err
+	}
+	return allocatable, nil
+}
+
+func SetOriginalNodeAllocatable(node *corev1.Node, originalResources corev1.ResourceList) error {
+	if len(originalResources) > 0 {
+		if node.Annotations == nil {
+			node.Annotations = map[string]string{}
+		}
+		data, err := json.Marshal(originalResources)
+		if err != nil {
+			return err
+		}
+		node.Annotations[AnnotationOriginalNodeAllocatable] = string(data)
+	}
+	return nil
 }

@@ -158,24 +158,24 @@ func getStateData(cycleState *framework.CycleState) *stateData {
 	return sd
 }
 
-func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod) *framework.Status {
+func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod) (*framework.PreFilterResult, *framework.Status) {
 	if pod.Labels[LabelQuotaSkipCheck] == "true" ||
 		!k8sfeature.DefaultFeatureGate.Enabled(features.QuotaRunTime) {
-		return nil
+		return nil, nil
 	}
 
 	quotaName := pod.Labels[asiquotav1.LabelQuotaName]
 	quota := pl.cache.getQuota(quotaName)
 	if quota == nil {
 		if k8sfeature.DefaultFeatureGate.Enabled(features.RejectQuotaNotExist) {
-			return framework.NewStatus(framework.UnschedulableAndUnresolvable, "quota node exist")
+			return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "quota node exist")
 		}
-		return nil
+		return nil, nil
 	}
 
 	podRequests, _ := resource.PodRequestsAndLimits(pod)
 	if quotav1.IsZero(podRequests) {
-		return nil
+		return nil, nil
 	}
 
 	if apiext.GetPodQoSClass(pod) == apiext.QoSBE {
@@ -187,7 +187,7 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 
 	if isLessEqual, exceedDimensions := quotav1.LessThanOrEqual(used, available); !isLessEqual {
 		remained := quotav1.SubtractWithNonNegativeResult(available, quota.used)
-		return framework.NewStatus(framework.Unschedulable, fmt.Sprintf(
+		return nil, framework.NewStatus(framework.Unschedulable, fmt.Sprintf(
 			"Insufficient quotas, quotaName: %v, available: %v, remained: %v, used: %v, pod's request: %v, exceedDimensions: %v",
 			quotaName, marshalResourceList(available), marshalResourceList(remained),
 			marshalResourceList(quota.used), marshalResourceList(podRequests), exceedDimensions))
@@ -198,7 +198,7 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 		quotaName: quotaName,
 	})
 
-	return nil
+	return nil, nil
 }
 
 func (pl *Plugin) PreFilterExtensions() framework.PreFilterExtensions {
