@@ -133,7 +133,7 @@ const (
 	DrainNodeConditionUnexpectedReservationExists      DrainNodeConditionType = "UnexpectedReservationExists"
 	DrainNodeConditionUnavailableReservationExists     DrainNodeConditionType = "UnavailableReservationExists"
 	DrainNodeConditionFailedMigrationJobExists         DrainNodeConditionType = "FailedMigrationJobExists"
-	DrainNodeConditionUnexpectedPodAfterCompleteExists DrainNodeConditionType = "UnexpectedPodAfterCompleteExists "
+	DrainNodeConditionUnexpectedPodAfterCompleteExists DrainNodeConditionType = "UnexpectedPodAfterCompleteExists"
 )
 
 type PodMigration struct {

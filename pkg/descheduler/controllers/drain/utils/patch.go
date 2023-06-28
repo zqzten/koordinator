@@ -22,13 +22,12 @@ import (
 	"reflect"
 	"sort"
 
-	"github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
-
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 )
 
 type PatchFunc func(client.Object) client.Object
@@ -69,32 +68,26 @@ func PatchStatus(c client.Client, obj client.Object, funcs ...PatchFunc) (bool, 
 	return true, nil
 }
 
-func ToggleDrainNodeState(c client.Client, eventRecorder events.EventRecorder, dn *v1alpha1.DrainNode, phase v1alpha1.DrainNodePhase, podMigrations []v1alpha1.PodMigration, podMigrationSummary map[v1alpha1.PodMigrationPhase]int32, msg string) error {
+func ToggleDrainNodeState(c client.Client, eventRecorder events.EventRecorder, dn *v1alpha1.DrainNode, status *v1alpha1.DrainNodeStatus, msg string) error {
 	ok, err := PatchStatus(c, dn, func(o client.Object) client.Object {
 		newDn := o.(*v1alpha1.DrainNode)
-		newDn.Status.Phase = phase
-		if len(podMigrations) > 0 {
-			sort.SliceStable(podMigrations, func(i, j int) bool {
-				if podMigrations[i].Namespace == podMigrations[j].Namespace {
-					return podMigrations[i].PodName < podMigrations[j].PodName
+		newDn.Status.Phase = status.Phase
+		if len(status.PodMigrations) > 0 {
+			sort.SliceStable(status.PodMigrations, func(i, j int) bool {
+				if status.PodMigrations[i].Namespace == status.PodMigrations[j].Namespace {
+					return status.PodMigrations[i].PodName < status.PodMigrations[j].PodName
 				}
-				return podMigrations[i].Namespace < podMigrations[j].Namespace
+				return status.PodMigrations[i].Namespace < status.PodMigrations[j].Namespace
 			})
-			newDn.Status.PodMigrations = podMigrations
+			newDn.Status.PodMigrations = status.PodMigrations
 		}
-		drainNodeCondition := v1alpha1.DrainNodeCondition{
-			Type:    v1alpha1.DrainNodeConditionType(phase),
-			Status:  metav1.ConditionTrue,
-			Reason:  string(phase),
-			Message: msg,
-		}
-		newDn.Status.PodMigrationSummary = podMigrationSummary
-		UpdateCondition(&newDn.Status, &drainNodeCondition)
+		newDn.Status.Conditions = status.Conditions
+		newDn.Status.PodMigrationSummary = status.PodMigrationSummary
 		return newDn
 	})
 	if ok {
-		klog.Infof("Update DrainNode %v podMigrations %v, msg %v", dn.Name, phase, msg)
-		eventRecorder.Eventf(dn, nil, v1.EventTypeNormal, string(phase), string(phase), msg)
+		klog.Infof("Update DrainNode %v podMigrations %v, msg %v", dn.Name, status.Phase, msg)
+		eventRecorder.Eventf(dn, nil, v1.EventTypeNormal, string(status.Phase), string(status.Phase), msg)
 		return nil
 	}
 	return err
