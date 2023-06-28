@@ -337,14 +337,7 @@ func TestToggleDrainNodeState(t *testing.T) {
 					PodMigrations: []v1alpha1.PodMigration{
 						{Namespace: "1", PodName: "a"}, {Namespace: "1", PodName: "b"}, {Namespace: "2", PodName: "a"},
 					},
-					Conditions: []v1alpha1.DrainNodeCondition{
-						{
-							Type:    v1alpha1.DrainNodeConditionType(v1alpha1.DrainNodePhaseAborted),
-							Status:  metav1.ConditionTrue,
-							Reason:  string(v1alpha1.DrainNodePhaseAborted),
-							Message: "test",
-						},
-					},
+					Conditions: nil,
 				},
 			},
 		},
@@ -355,7 +348,12 @@ func TestToggleDrainNodeState(t *testing.T) {
 			eventBroadcaster := record.NewBroadcaster()
 			recorder := eventBroadcaster.NewRecorder(scheme, v1.EventSource{Component: "patch_test"})
 			eventRecorder := record.NewEventRecorderAdapter(recorder)
-			err := ToggleDrainNodeState(c, eventRecorder, tt.args.dn, tt.args.phase, tt.args.status, nil, tt.args.msg)
+			err := ToggleDrainNodeState(c, eventRecorder, tt.args.dn, &v1alpha1.DrainNodeStatus{
+				Phase:               tt.args.phase,
+				PodMigrations:       tt.args.status,
+				PodMigrationSummary: nil,
+				Conditions:          tt.args.dn.Status.Conditions,
+			}, tt.args.msg)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ToggleDrainNodeState() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -368,8 +366,6 @@ func TestToggleDrainNodeState(t *testing.T) {
 				}
 				wantObj.GetObjectKind().SetGroupVersionKind(gotObj.GetObjectKind().GroupVersionKind())
 				gotObj.SetResourceVersion(tt.wantObj.GetResourceVersion())
-				wantObj.(*v1alpha1.DrainNode).Status.Conditions[0].LastTransitionTime =
-					gotObj.(*v1alpha1.DrainNode).Status.Conditions[0].LastTransitionTime
 				if !reflect.DeepEqual(gotObj, wantObj) {
 					t.Errorf("PatchStatus() = %v, want %v", gotObj, wantObj)
 				}

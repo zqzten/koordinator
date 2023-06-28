@@ -48,6 +48,7 @@ import (
 
 const (
 	Name                = "DrainNodeController"
+	defaultRequeueAfter = 3 * time.Second
 	defaultMarginTime   = 5 * time.Minute
 	defaultWaitDuration = time.Hour
 )
@@ -171,13 +172,18 @@ func (r *DrainNodeReconciler) Reconcile(ctx context.Context, request reconcile.R
 	}
 
 	err := r.dispatch(dn)
-	return reconcile.Result{}, err
+	return reconcile.Result{RequeueAfter: defaultRequeueAfter}, err
 }
 
 func (r *DrainNodeReconciler) dispatch(dn *v1alpha1.DrainNode) error {
 	switch dn.Status.Phase {
 	case "":
-		return utils.ToggleDrainNodeState(r.Client, r.eventRecorder, dn, v1alpha1.DrainNodePhasePending, nil, nil, "Initialized")
+		return utils.ToggleDrainNodeState(r.Client, r.eventRecorder, dn, &v1alpha1.DrainNodeStatus{
+			Phase:               v1alpha1.DrainNodePhasePending,
+			PodMigrations:       nil,
+			PodMigrationSummary: nil,
+			Conditions:          nil,
+		}, "Initialized")
 	case v1alpha1.DrainNodePhasePending:
 		klog.Infof("Deal pending DrainNode: %v, node: %v", dn.Name, dn.Spec.NodeName)
 		return r.handlePendingDrainNode(dn)
@@ -246,7 +252,12 @@ func (r *DrainNodeReconciler) handlePendingDrainNode(dn *v1alpha1.DrainNode) err
 	if err := r.cordonNode(dn); err != nil {
 		return err
 	}
-	return utils.ToggleDrainNodeState(r.Client, r.eventRecorder, dn, v1alpha1.DrainNodePhaseRunning, nil, nil, "Running")
+	return utils.ToggleDrainNodeState(r.Client, r.eventRecorder, dn, &v1alpha1.DrainNodeStatus{
+		Phase:               v1alpha1.DrainNodePhaseRunning,
+		PodMigrations:       nil,
+		PodMigrationSummary: nil,
+		Conditions:          nil,
+	}, "Running")
 }
 
 func (r *DrainNodeReconciler) handleAbortedDrainNode(dn *v1alpha1.DrainNode) error {
@@ -284,6 +295,12 @@ func (r *DrainNodeReconciler) handleRunningOrCompleteDrainNode(dn *v1alpha1.Drai
 	actualPodMigrations, _ := r.getActualPodMigrations(dn, pods)
 
 	// init information
+	conditions := make([]v1alpha1.DrainNodeCondition, len(dn.Status.Conditions))
+	copy(conditions, dn.Status.Conditions)
+	status := &v1alpha1.DrainNodeStatus{
+		Phase:      dn.Status.Phase,
+		Conditions: conditions,
+	}
 	podMigrationSummary := map[v1alpha1.PodMigrationPhase]int32{
 		v1alpha1.PodMigrationPhaseUnmigratable: 0,
 		v1alpha1.PodMigrationPhaseWaiting:      0,
@@ -322,6 +339,8 @@ func (r *DrainNodeReconciler) handleRunningOrCompleteDrainNode(dn *v1alpha1.Drai
 		podMigrations = append(podMigrations, *actualPodMigration)
 		podMigrationSummary[actualPodMigration.Phase]++
 	}
+	status.PodMigrations = podMigrations
+	status.PodMigrationSummary = podMigrationSummary
 
 	// expose unexpectedRR info by condition, doesn't affect normal flow
 	ni := r.cache.GetNodeInfo(dn.Spec.NodeName)
@@ -352,7 +371,7 @@ func (r *DrainNodeReconciler) handleRunningOrCompleteDrainNode(dn *v1alpha1.Drai
 	if unexpectedRRCount != 0 {
 		drainNodeCondition.Status = metav1.ConditionTrue
 	}
-	utils.UpdateCondition(&dn.Status, drainNodeCondition)
+	utils.UpdateCondition(status, drainNodeCondition)
 
 	// expose unmigratablePodExists by condition, doesn't affect normal flow
 	drainNodeCondition = &v1alpha1.DrainNodeCondition{
@@ -364,7 +383,7 @@ func (r *DrainNodeReconciler) handleRunningOrCompleteDrainNode(dn *v1alpha1.Drai
 	if podMigrationSummary[v1alpha1.PodMigrationPhaseUnmigratable] != 0 {
 		drainNodeCondition.Status = metav1.ConditionTrue
 	}
-	utils.UpdateCondition(&dn.Status, drainNodeCondition)
+	utils.UpdateCondition(status, drainNodeCondition)
 
 	// expose unavailableRR by condition, doesn't affect normal flow
 	drainNodeCondition = &v1alpha1.DrainNodeCondition{
@@ -376,7 +395,7 @@ func (r *DrainNodeReconciler) handleRunningOrCompleteDrainNode(dn *v1alpha1.Drai
 	if podMigrationSummary[v1alpha1.PodMigrationPhaseUnavailable] != 0 {
 		drainNodeCondition.Status = metav1.ConditionTrue
 	}
-	utils.UpdateCondition(&dn.Status, drainNodeCondition)
+	utils.UpdateCondition(status, drainNodeCondition)
 
 	// expose failedJob by condition, doesn't affect normal flow
 	drainNodeCondition = &v1alpha1.DrainNodeCondition{
@@ -388,7 +407,7 @@ func (r *DrainNodeReconciler) handleRunningOrCompleteDrainNode(dn *v1alpha1.Drai
 	if podMigrationSummary[v1alpha1.PodMigrationPhaseFailed] != 0 {
 		drainNodeCondition.Status = metav1.ConditionTrue
 	}
-	utils.UpdateCondition(&dn.Status, drainNodeCondition)
+	utils.UpdateCondition(status, drainNodeCondition)
 
 	// expose OnceAvailableRR by condition, doesn't affect normal flow
 	if podMigrationSummary[v1alpha1.PodMigrationPhaseReady]+
@@ -400,7 +419,7 @@ func (r *DrainNodeReconciler) handleRunningOrCompleteDrainNode(dn *v1alpha1.Drai
 			Reason:  string(v1alpha1.DrainNodeConditionOnceAvailable),
 			Message: "no unmigratable, waiting, ready and unavailable migration",
 		}
-		utils.UpdateCondition(&dn.Status, drainNodeCondition)
+		utils.UpdateCondition(status, drainNodeCondition)
 	}
 
 	// complete drainNode when no progress can be made by drainNode
@@ -414,8 +433,9 @@ func (r *DrainNodeReconciler) handleRunningOrCompleteDrainNode(dn *v1alpha1.Drai
 			Reason:  "",
 			Message: "",
 		}
-		utils.UpdateCondition(&dn.Status, drainNodeCondition)
-		return utils.ToggleDrainNodeState(r.Client, r.eventRecorder, dn, v1alpha1.DrainNodePhaseComplete, podMigrations, podMigrationSummary, "")
+		utils.UpdateCondition(status, drainNodeCondition)
+		status.Phase = v1alpha1.DrainNodePhaseComplete
+		return utils.ToggleDrainNodeState(r.Client, r.eventRecorder, dn, status, "")
 	} else if dn.Status.Phase == v1alpha1.DrainNodePhaseComplete {
 		drainNodeCondition = &v1alpha1.DrainNodeCondition{
 			Type:    v1alpha1.DrainNodeConditionUnexpectedPodAfterCompleteExists,
@@ -423,10 +443,10 @@ func (r *DrainNodeReconciler) handleRunningOrCompleteDrainNode(dn *v1alpha1.Drai
 			Reason:  string(v1alpha1.DrainNodeConditionUnexpectedPodAfterCompleteExists),
 			Message: "some unexpected pod scheduled to this node after drainNode has completed",
 		}
-		utils.UpdateCondition(&dn.Status, drainNodeCondition)
-		return utils.ToggleDrainNodeState(r.Client, r.eventRecorder, dn, v1alpha1.DrainNodePhaseComplete, podMigrations, podMigrationSummary, "")
+		utils.UpdateCondition(status, drainNodeCondition)
+		return utils.ToggleDrainNodeState(r.Client, r.eventRecorder, dn, status, "")
 	}
-	return utils.ToggleDrainNodeState(r.Client, r.eventRecorder, dn, v1alpha1.DrainNodePhaseRunning, podMigrations, podMigrationSummary, "")
+	return utils.ToggleDrainNodeState(r.Client, r.eventRecorder, dn, status, "")
 }
 
 func (r *DrainNodeReconciler) getActualPodMigrations(dn *v1alpha1.DrainNode, pods []*cache.PodInfo) (actualPodMigrations []v1alpha1.PodMigration, deltaPodMigrations []v1alpha1.PodMigration) {
@@ -451,7 +471,7 @@ func (r *DrainNodeReconciler) getActualPodMigrations(dn *v1alpha1.DrainNode, pod
 			Phase:          v1alpha1.PodMigrationPhaseWaiting,
 			StartTimestamp: metav1.Now(),
 		}
-		if !p.Migratable || !r.podFilter(p.Pod) {
+		if !r.podFilter(p.Pod) {
 			actualPodMigration.Phase = v1alpha1.PodMigrationPhaseUnmigratable
 		}
 		if dn.Spec.ConfirmState == v1alpha1.ConfirmStateConfirmed {
@@ -465,7 +485,7 @@ func (r *DrainNodeReconciler) getActualPodMigrations(dn *v1alpha1.DrainNode, pod
 
 func (r *DrainNodeReconciler) makeMigrationComplete(actualPodMigration *v1alpha1.PodMigration) (bool, error) {
 	leftForAuditing := false
-	if actualPodMigration.ReservationName != "" {
+	if actualPodMigration.ReservationName != "" && actualPodMigration.PodMigrationJobName == "" {
 		leftForAuditing = true
 		klog.V(3).Infof("Pod %s/%s finished, delete reservation %s", actualPodMigration.Namespace, actualPodMigration.PodName, actualPodMigration.ReservationName)
 		if err := r.reservationInterpreter.DeleteReservation(context.Background(), actualPodMigration.ReservationName); err != nil && !errors.IsNotFound(err) {
@@ -489,7 +509,7 @@ func (r *DrainNodeReconciler) makeMigrationComplete(actualPodMigration *v1alpha1
 }
 
 func readyForMigration(migrationPolicy *v1alpha1.MigrationPolicy, startTime time.Time) (readyByMode, readyByDuration, valid bool) {
-	valid = migrationPolicy == nil || (migrationPolicy.Mode != v1alpha1.MigrationPodModeMigrateDirectly && migrationPolicy.Mode != v1alpha1.MigrationPodModeWaitFirst)
+	valid = migrationPolicy != nil && (migrationPolicy.Mode == v1alpha1.MigrationPodModeMigrateDirectly || migrationPolicy.Mode == v1alpha1.MigrationPodModeWaitFirst)
 	now := metav1.Now()
 	waitDeadline := defaultWaitDuration
 	if migrationPolicy != nil && migrationPolicy.WaitDuration != nil {
@@ -511,15 +531,11 @@ func (r *DrainNodeReconciler) progressMigration(dn *v1alpha1.DrainNode, actualPo
 		if err != nil {
 			return err
 		}
-		readyByMode, readyByDuration, valid := readyForMigration(migrationPolicy, actualPodMigration.StartTimestamp.Time)
-		if !valid {
-			// pod not set, depends on dn
-			readyByMode, readyByDuration, _ = readyForMigration(&dn.Spec.MigrationPolicy, dn.CreationTimestamp.Time)
-		} else if !readyByMode {
-			// need wait, ready by min wait duration
-			_, readyByDuration, _ = readyForMigration(&dn.Spec.MigrationPolicy, dn.CreationTimestamp.Time)
-		}
-		if readyByMode || readyByDuration {
+		ready := false
+		readyByPodMode, readyByPodDuration, valid := readyForMigration(migrationPolicy, actualPodMigration.StartTimestamp.Time)
+		readyByDrainNodeMode, readyByDrainNodeDuration, _ := readyForMigration(&dn.Spec.MigrationPolicy, dn.CreationTimestamp.Time)
+		ready = (valid && (readyByPodMode || (readyByPodDuration || readyByDrainNodeDuration))) || (!valid && (readyByDrainNodeMode || readyByDrainNodeDuration))
+		if ready {
 			actualPodMigration.Phase = v1alpha1.PodMigrationPhaseReady
 			return r.progressMigration(dn, actualPodMigration, podInfo)
 		}
@@ -596,7 +612,7 @@ func (r *DrainNodeReconciler) uncordonNode(dn *v1alpha1.DrainNode) error {
 			if dn.Spec.CordonPolicy.Mode == v1alpha1.CordonNodeModeTaint {
 				var newTaints []v1.Taint
 				for _, t := range newN.Spec.Taints {
-					if t.Key == utils.GroupKey && t.Value == dn.Labels[utils.GroupKey] {
+					if t.Key == utils.DrainNodeKey && t.Value == dn.Name {
 						continue
 					}
 					newTaints = append(newTaints, t)
@@ -625,7 +641,12 @@ func (r *DrainNodeReconciler) abort(dn *v1alpha1.DrainNode) error {
 		return nil
 	}
 	klog.V(3).Infof("DrainNode %v Node %v abort", dn.Name, dn.Spec.NodeName)
-	return utils.ToggleDrainNodeState(r.Client, r.eventRecorder, dn, v1alpha1.DrainNodePhaseAborted, dn.Status.PodMigrations, dn.Status.PodMigrationSummary, "")
+	return utils.ToggleDrainNodeState(r.Client, r.eventRecorder, dn, &v1alpha1.DrainNodeStatus{
+		Phase:               v1alpha1.DrainNodePhaseAborted,
+		PodMigrations:       dn.Status.PodMigrations,
+		PodMigrationSummary: dn.Status.PodMigrationSummary,
+		Conditions:          dn.Status.Conditions,
+	}, "")
 }
 
 func (r *DrainNodeReconciler) createMigration(dn *v1alpha1.DrainNode, actualPodMigration *v1alpha1.PodMigration) (*v1alpha1.PodMigrationJob, error) {

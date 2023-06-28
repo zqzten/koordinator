@@ -93,15 +93,8 @@ func TestDrainNodeReconciler_Reconcile_Init(t *testing.T) {
 					Name: "123",
 				},
 				Status: v1alpha1.DrainNodeStatus{
-					Phase: v1alpha1.DrainNodePhasePending,
-					Conditions: []v1alpha1.DrainNodeCondition{
-						{
-							Type:    v1alpha1.DrainNodeConditionType(v1alpha1.DrainNodePhasePending),
-							Status:  metav1.ConditionTrue,
-							Reason:  string(v1alpha1.DrainNodePhasePending),
-							Message: "Initialized",
-						},
-					},
+					Phase:      v1alpha1.DrainNodePhasePending,
+					Conditions: nil,
 				},
 			},
 		},
@@ -147,8 +140,6 @@ func TestDrainNodeReconciler_Reconcile_Init(t *testing.T) {
 				}
 				tt.wantObj.TypeMeta = gotObj.TypeMeta
 				tt.wantObj.ResourceVersion = gotObj.ResourceVersion
-				gotObj.Status.Conditions[0].LastTransitionTime =
-					tt.wantObj.Status.Conditions[0].LastTransitionTime
 				if !reflect.DeepEqual(gotObj, tt.wantObj) {
 					t.Errorf("DrainNodeReconciler.Reconcile() = %v, want %v", gotObj, tt.wantObj)
 				}
@@ -210,6 +201,10 @@ func TestDrainNodeReconciler_Reconcile_Pending(t *testing.T) {
 			args: args{
 				request: reconcile.Request{NamespacedName: types.NamespacedName{Name: "123"}},
 			},
+			want: reconcile.Result{
+				Requeue:      false,
+				RequeueAfter: defaultRequeueAfter,
+			},
 			wantErr: false,
 			wantObj: &v1alpha1.DrainNode{
 				ObjectMeta: metav1.ObjectMeta{
@@ -226,16 +221,6 @@ func TestDrainNodeReconciler_Reconcile_Pending(t *testing.T) {
 				},
 				Status: v1alpha1.DrainNodeStatus{
 					Phase: v1alpha1.DrainNodePhaseRunning,
-					Conditions: []v1alpha1.DrainNodeCondition{
-						{
-							Type:               v1alpha1.DrainNodeConditionType(v1alpha1.DrainNodePhaseRunning),
-							Status:             metav1.ConditionTrue,
-							LastProbeTime:      metav1.Time{},
-							LastTransitionTime: metav1.Time{},
-							Reason:             "Running",
-							Message:            "Running",
-						},
-					},
 				},
 			},
 			wantNode: &corev1.Node{
@@ -280,6 +265,10 @@ func TestDrainNodeReconciler_Reconcile_Pending(t *testing.T) {
 				request: reconcile.Request{NamespacedName: types.NamespacedName{Name: "123"}},
 			},
 			wantErr: false,
+			want: reconcile.Result{
+				Requeue:      false,
+				RequeueAfter: defaultRequeueAfter,
+			},
 			wantObj: &v1alpha1.DrainNode{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "123",
@@ -292,16 +281,6 @@ func TestDrainNodeReconciler_Reconcile_Pending(t *testing.T) {
 				},
 				Status: v1alpha1.DrainNodeStatus{
 					Phase: v1alpha1.DrainNodePhaseRunning,
-					Conditions: []v1alpha1.DrainNodeCondition{
-						{
-							Type:               v1alpha1.DrainNodeConditionType(v1alpha1.DrainNodePhaseRunning),
-							Status:             metav1.ConditionTrue,
-							LastProbeTime:      metav1.Time{},
-							LastTransitionTime: metav1.Time{},
-							Reason:             "Running",
-							Message:            "Running",
-						},
-					},
 				},
 			},
 			wantNode: &corev1.Node{
@@ -550,7 +529,10 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 			args: args{
 				request: reconcile.Request{NamespacedName: types.NamespacedName{Name: "123"}},
 			},
-			want:    reconcile.Result{},
+			want: reconcile.Result{
+				Requeue:      false,
+				RequeueAfter: defaultRequeueAfter,
+			},
 			wantErr: false,
 			wantObj: &v1alpha1.DrainNode{
 				ObjectMeta: metav1.ObjectMeta{
@@ -606,12 +588,6 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 							Status:  metav1.ConditionTrue,
 							Reason:  string(v1alpha1.DrainNodeConditionOnceAvailable),
 							Message: "no unmigratable, waiting, ready and unavailable migration",
-						},
-						{
-							Type:    v1alpha1.DrainNodeConditionType(v1alpha1.DrainNodePhaseRunning),
-							Status:  metav1.ConditionTrue,
-							Reason:  string(v1alpha1.DrainNodePhaseRunning),
-							Message: "",
 						},
 					},
 					PodMigrationSummary: map[v1alpha1.PodMigrationPhase]int32{
@@ -699,7 +675,10 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 			args: args{
 				request: reconcile.Request{NamespacedName: types.NamespacedName{Name: "123"}},
 			},
-			want:    reconcile.Result{},
+			want: reconcile.Result{
+				Requeue:      false,
+				RequeueAfter: defaultRequeueAfter,
+			},
 			wantErr: false,
 			wantObj: &v1alpha1.DrainNode{
 				ObjectMeta: metav1.ObjectMeta{
@@ -753,12 +732,6 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 							Status:  metav1.ConditionFalse,
 							Reason:  fmt.Sprintf("failed job count: %d", 0),
 							Message: fmt.Sprintf("failed job count: %d", 0),
-						},
-						{
-							Type:    v1alpha1.DrainNodeConditionType(v1alpha1.DrainNodePhaseRunning),
-							Status:  metav1.ConditionTrue,
-							Reason:  string(v1alpha1.DrainNodePhaseRunning),
-							Message: "",
 						},
 					},
 					PodMigrationSummary: map[v1alpha1.PodMigrationPhase]int32{
@@ -938,7 +911,10 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 			args: args{
 				request: reconcile.Request{NamespacedName: types.NamespacedName{Name: "123"}},
 			},
-			want:    reconcile.Result{},
+			want: reconcile.Result{
+				Requeue:      false,
+				RequeueAfter: defaultRequeueAfter,
+			},
 			wantErr: false,
 			wantObj: &v1alpha1.DrainNode{
 				ObjectMeta: metav1.ObjectMeta{
@@ -1004,12 +980,6 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 							Status:  metav1.ConditionFalse,
 							Reason:  fmt.Sprintf("failed job count: %d", 0),
 							Message: fmt.Sprintf("failed job count: %d", 0),
-						},
-						{
-							Type:    v1alpha1.DrainNodeConditionType(v1alpha1.DrainNodePhaseRunning),
-							Status:  metav1.ConditionTrue,
-							Reason:  string(v1alpha1.DrainNodePhaseRunning),
-							Message: "",
 						},
 					},
 					PodMigrationSummary: map[v1alpha1.PodMigrationPhase]int32{
@@ -1268,7 +1238,10 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 			args: args{
 				request: reconcile.Request{NamespacedName: types.NamespacedName{Name: "123"}},
 			},
-			want:    reconcile.Result{},
+			want: reconcile.Result{
+				Requeue:      false,
+				RequeueAfter: defaultRequeueAfter,
+			},
 			wantErr: false,
 			wantObj: &v1alpha1.DrainNode{
 				ObjectMeta: metav1.ObjectMeta{
@@ -1327,12 +1300,6 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 							Type:    v1alpha1.DrainNodeConditionUnexpectedPodAfterCompleteExists,
 							Status:  metav1.ConditionFalse,
 							Reason:  "",
-							Message: "",
-						},
-						{
-							Type:    v1alpha1.DrainNodeConditionType(v1alpha1.DrainNodePhaseComplete),
-							Status:  metav1.ConditionTrue,
-							Reason:  string(v1alpha1.DrainNodePhaseComplete),
 							Message: "",
 						},
 					},
@@ -1511,7 +1478,10 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 			args: args{
 				request: reconcile.Request{NamespacedName: types.NamespacedName{Name: "123"}},
 			},
-			want:    reconcile.Result{},
+			want: reconcile.Result{
+				Requeue:      false,
+				RequeueAfter: defaultRequeueAfter,
+			},
 			wantErr: false,
 			wantObj: &v1alpha1.DrainNode{
 				ObjectMeta: metav1.ObjectMeta{
@@ -1571,12 +1541,6 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 							Status:  metav1.ConditionTrue,
 							Reason:  string(v1alpha1.DrainNodeConditionOnceAvailable),
 							Message: "no unmigratable, waiting, ready and unavailable migration",
-						},
-						{
-							Type:    v1alpha1.DrainNodeConditionType(v1alpha1.DrainNodePhaseRunning),
-							Status:  metav1.ConditionTrue,
-							Reason:  string(v1alpha1.DrainNodePhaseRunning),
-							Message: "",
 						},
 					},
 					PodMigrationSummary: map[v1alpha1.PodMigrationPhase]int32{
@@ -1755,7 +1719,10 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 			args: args{
 				request: reconcile.Request{NamespacedName: types.NamespacedName{Name: "123"}},
 			},
-			want:    reconcile.Result{},
+			want: reconcile.Result{
+				Requeue:      false,
+				RequeueAfter: defaultRequeueAfter,
+			},
 			wantErr: false,
 			wantObj: &v1alpha1.DrainNode{
 				ObjectMeta: metav1.ObjectMeta{
@@ -1818,12 +1785,6 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 							Status:  metav1.ConditionTrue,
 							Reason:  string(v1alpha1.DrainNodeConditionOnceAvailable),
 							Message: "no unmigratable, waiting, ready and unavailable migration",
-						},
-						{
-							Type:    v1alpha1.DrainNodeConditionType(v1alpha1.DrainNodePhaseRunning),
-							Status:  metav1.ConditionTrue,
-							Reason:  string(v1alpha1.DrainNodePhaseRunning),
-							Message: "",
 						},
 					},
 					PodMigrationSummary: map[v1alpha1.PodMigrationPhase]int32{
@@ -1917,12 +1878,6 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 									Status:  metav1.ConditionFalse,
 									Reason:  string(v1alpha1.DrainNodeConditionOnceAvailable),
 									Message: "no unmigratable, waiting, ready and unavailable migration",
-								},
-								{
-									Type:    v1alpha1.DrainNodeConditionType(v1alpha1.DrainNodePhaseRunning),
-									Status:  metav1.ConditionTrue,
-									Reason:  string(v1alpha1.DrainNodePhaseRunning),
-									Message: "",
 								},
 							},
 							PodMigrationSummary: map[v1alpha1.PodMigrationPhase]int32{
@@ -2074,7 +2029,10 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 			args: args{
 				request: reconcile.Request{NamespacedName: types.NamespacedName{Name: "123"}},
 			},
-			want:    reconcile.Result{},
+			want: reconcile.Result{
+				Requeue:      false,
+				RequeueAfter: defaultRequeueAfter,
+			},
 			wantErr: false,
 			wantObj: &v1alpha1.DrainNode{
 				ObjectMeta: metav1.ObjectMeta{
@@ -2149,12 +2107,6 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 							Status:  metav1.ConditionFalse,
 							Reason:  string(v1alpha1.DrainNodeConditionOnceAvailable),
 							Message: "no unmigratable, waiting, ready and unavailable migration",
-						},
-						{
-							Type:    v1alpha1.DrainNodeConditionType(v1alpha1.DrainNodePhaseRunning),
-							Status:  metav1.ConditionTrue,
-							Reason:  string(v1alpha1.DrainNodePhaseRunning),
-							Message: "",
 						},
 					},
 					PodMigrationSummary: map[v1alpha1.PodMigrationPhase]int32{
@@ -2248,12 +2200,6 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 									Status:  metav1.ConditionTrue,
 									Reason:  string(v1alpha1.DrainNodeConditionOnceAvailable),
 									Message: "no unmigratable, waiting, ready and unavailable migration",
-								},
-								{
-									Type:    v1alpha1.DrainNodeConditionType(v1alpha1.DrainNodePhaseRunning),
-									Status:  metav1.ConditionTrue,
-									Reason:  string(v1alpha1.DrainNodePhaseRunning),
-									Message: "",
 								},
 							},
 							PodMigrationSummary: map[v1alpha1.PodMigrationPhase]int32{
@@ -2395,7 +2341,10 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 			args: args{
 				request: reconcile.Request{NamespacedName: types.NamespacedName{Name: "123"}},
 			},
-			want:    reconcile.Result{},
+			want: reconcile.Result{
+				Requeue:      false,
+				RequeueAfter: defaultRequeueAfter,
+			},
 			wantErr: false,
 			wantObj: &v1alpha1.DrainNode{
 				ObjectMeta: metav1.ObjectMeta{
@@ -2457,18 +2406,6 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 							Reason:  string(v1alpha1.DrainNodeConditionOnceAvailable),
 							Message: "no unmigratable, waiting, ready and unavailable migration",
 						},
-						{
-							Type:    v1alpha1.DrainNodeConditionType(v1alpha1.DrainNodePhaseRunning),
-							Status:  metav1.ConditionTrue,
-							Reason:  string(v1alpha1.DrainNodePhaseRunning),
-							Message: "",
-						},
-						{
-							Type:    v1alpha1.DrainNodeConditionType(v1alpha1.DrainNodePhaseAborted),
-							Status:  metav1.ConditionTrue,
-							Reason:  string(v1alpha1.DrainNodePhaseAborted),
-							Message: "",
-						},
 					},
 					PodMigrationSummary: map[v1alpha1.PodMigrationPhase]int32{
 						v1alpha1.PodMigrationPhaseUnmigratable: 0,
@@ -2486,15 +2423,7 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "node123",
 				},
-				Spec: corev1.NodeSpec{
-					Taints: []corev1.Taint{
-						{
-							Key:    utils.DrainNodeKey,
-							Value:  "123",
-							Effect: corev1.TaintEffectNoSchedule,
-						},
-					},
-				},
+				Spec: corev1.NodeSpec{},
 			},
 			wantReservation: []*v1alpha1.Reservation{},
 		},
@@ -2660,7 +2589,10 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 			args: args{
 				request: reconcile.Request{NamespacedName: types.NamespacedName{Name: "123"}},
 			},
-			want:    reconcile.Result{},
+			want: reconcile.Result{
+				Requeue:      false,
+				RequeueAfter: defaultRequeueAfter,
+			},
 			wantErr: false,
 			wantObj: &v1alpha1.DrainNode{
 				ObjectMeta: metav1.ObjectMeta{
@@ -2722,12 +2654,6 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 							Status:  metav1.ConditionTrue,
 							Reason:  string(v1alpha1.DrainNodeConditionOnceAvailable),
 							Message: "no unmigratable, waiting, ready and unavailable migration",
-						},
-						{
-							Type:    v1alpha1.DrainNodeConditionType(v1alpha1.DrainNodePhaseRunning),
-							Status:  metav1.ConditionTrue,
-							Reason:  string(v1alpha1.DrainNodePhaseRunning),
-							Message: "",
 						},
 					},
 					PodMigrationSummary: map[v1alpha1.PodMigrationPhase]int32{
@@ -2987,7 +2913,10 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 			args: args{
 				request: reconcile.Request{NamespacedName: types.NamespacedName{Name: "123"}},
 			},
-			want:    reconcile.Result{},
+			want: reconcile.Result{
+				Requeue:      false,
+				RequeueAfter: defaultRequeueAfter,
+			},
 			wantErr: false,
 			wantObj: &v1alpha1.DrainNode{
 				ObjectMeta: metav1.ObjectMeta{
@@ -3054,12 +2983,6 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 							Type:    v1alpha1.DrainNodeConditionUnexpectedPodAfterCompleteExists,
 							Status:  metav1.ConditionFalse,
 							Reason:  "",
-							Message: "",
-						},
-						{
-							Type:    v1alpha1.DrainNodeConditionType(v1alpha1.DrainNodePhaseComplete),
-							Status:  metav1.ConditionTrue,
-							Reason:  string(v1alpha1.DrainNodePhaseComplete),
 							Message: "",
 						},
 					},
@@ -3287,7 +3210,10 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 			args: args{
 				request: reconcile.Request{NamespacedName: types.NamespacedName{Name: "123"}},
 			},
-			want:    reconcile.Result{},
+			want: reconcile.Result{
+				Requeue:      false,
+				RequeueAfter: defaultRequeueAfter,
+			},
 			wantErr: false,
 			wantObj: &v1alpha1.DrainNode{
 				ObjectMeta: metav1.ObjectMeta{
@@ -3353,12 +3279,6 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 						{
 							Type:   v1alpha1.DrainNodeConditionUnexpectedPodAfterCompleteExists,
 							Status: metav1.ConditionFalse,
-						},
-						{
-							Type:    v1alpha1.DrainNodeConditionType(v1alpha1.DrainNodePhaseComplete),
-							Status:  metav1.ConditionTrue,
-							Reason:  string(v1alpha1.DrainNodePhaseComplete),
-							Message: "",
 						},
 					},
 					PodMigrationSummary: map[v1alpha1.PodMigrationPhase]int32{
