@@ -261,10 +261,6 @@ func (r *DrainNodeReconciler) handlePendingDrainNode(dn *v1alpha1.DrainNode) err
 }
 
 func (r *DrainNodeReconciler) handleAbortedDrainNode(dn *v1alpha1.DrainNode) error {
-	if err := r.uncordonNode(dn); err != nil {
-		return err
-	}
-
 	klog.V(3).Infof("Abnormal DrainNode %v, status %v, delete reservations", dn.Name, dn.Status.Phase)
 	if err := r.reservationInterpreter.DeleteReservations(context.Background(), dn.Name); err != nil {
 		return err
@@ -667,7 +663,7 @@ func (r *DrainNodeReconciler) createMigration(dn *v1alpha1.DrainNode, actualPodM
 			OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(dn, utils.DrainNodeKind)},
 		},
 		Spec: v1alpha1.PodMigrationJobSpec{
-			Paused: actualPodMigration.ChartedAfterDrainNodeConfirmed,
+			Paused: utils.PausedForPodAfterConfirmed(dn) && actualPodMigration.ChartedAfterDrainNodeConfirmed,
 			PodRef: &v1.ObjectReference{
 				Namespace: rr.GetLabels()[utils.PodNamespaceKey],
 				Name:      rr.GetLabels()[utils.PodNameKey],
