@@ -98,3 +98,8 @@ func GetMigrationPolicy(pod *corev1.Pod) (*v1alpha1.MigrationPolicy, error) {
 	}
 	return migrationPolicy, nil
 }
+
+func PausedForPodAfterConfirmed(dn *v1alpha1.DrainNode) bool {
+	_, ok := dn.Annotations[PausedAfterConfirmed]
+	return ok
+}
