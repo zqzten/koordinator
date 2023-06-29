@@ -1578,6 +1578,9 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 					&v1alpha1.DrainNode{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "123",
+							Annotations: map[string]string{
+								utils.PausedAfterConfirmed: "true",
+							},
 						},
 						Spec: v1alpha1.DrainNodeSpec{
 							NodeName:     "node123",
@@ -1727,6 +1730,9 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 			wantObj: &v1alpha1.DrainNode{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "123",
+					Annotations: map[string]string{
+						utils.PausedAfterConfirmed: "true",
+					},
 				},
 				Spec: v1alpha1.DrainNodeSpec{
 					NodeName:     "node123",

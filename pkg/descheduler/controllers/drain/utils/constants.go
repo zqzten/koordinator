@@ -19,15 +19,16 @@ package utils
 import "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 
 const (
-	DrainNodeKey    = "drain.descheduler.koordinator.sh/drain-node"
-	NodeNameKey     = "drain.descheduler.koordinator.sh/node-name"
-	PlanningKey     = "drain.descheduler.koordinator.sh/node-planning"
-	GroupKey        = "drain.descheduler.koordinator.sh/node-group"
-	PodNamespaceKey = "drain.descheduler.koordinator.sh/pod-namespace"
-	PodNameKey      = "drain.descheduler.koordinator.sh/pod-name"
-	AbortKey        = "drain.descheduler.koordinator.sh/abort"
-	CleanKey        = "drain.descheduler.koordinator.sh/clean-taint"
-	MigrationPolicy = "drain.descheduler.koordinator.sh/migration-policy"
+	DrainNodeKey         = "drain.descheduler.koordinator.sh/drain-node"
+	NodeNameKey          = "drain.descheduler.koordinator.sh/node-name"
+	PlanningKey          = "drain.descheduler.koordinator.sh/node-planning"
+	GroupKey             = "drain.descheduler.koordinator.sh/node-group"
+	PodNamespaceKey      = "drain.descheduler.koordinator.sh/pod-namespace"
+	PodNameKey           = "drain.descheduler.koordinator.sh/pod-name"
+	AbortKey             = "drain.descheduler.koordinator.sh/abort"
+	CleanKey             = "drain.descheduler.koordinator.sh/clean-taint"
+	MigrationPolicy      = "drain.descheduler.koordinator.sh/migration-policy"
+	PausedAfterConfirmed = "drain.descheduler.koordinator.sh/paused-after-confirmed"
 )
 
 var DrainNodeGroupKind = v1alpha1.SchemeGroupVersion.WithKind("DrainNodeGroup")
