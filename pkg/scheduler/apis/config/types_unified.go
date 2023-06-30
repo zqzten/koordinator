@@ -27,7 +27,7 @@ type UnifiedPodConstraintArgs struct {
 	metav1.TypeMeta
 
 	// EnableDefaultPodConstraint indicates whether to enable defaultPodConstraint for unifiedPodConstraint.
-	EnableDefaultPodConstraint *bool `json:"enableDefaultPodConstraint,omitempty"`
+	EnableDefaultPodConstraint *bool
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
