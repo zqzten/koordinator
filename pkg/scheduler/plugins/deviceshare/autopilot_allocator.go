@@ -175,12 +175,12 @@ func (a *AutopilotAllocator) Allocate(nodeName string, pod *corev1.Pod, podReque
 	gpuWanted := int64(1)
 	var gpuRequestPerCard corev1.ResourceList
 	if isPodRequestsMultipleDevice(gpuRequest, schedulingv1alpha1.GPU) {
-		gpuCore, gpuMem, gpuMemRatio := gpuRequest[apiext.ResourceGPUCore], gpuRequest[apiext.ResourceGPUMemory], gpuRequest[apiext.ResourceGPUMemoryRatio]
-		gpuWanted = gpuCore.Value() / 100
+		gpuCore, gpuMem, gpuMemoryRatio := gpuRequest[apiext.ResourceGPUCore], gpuRequest[apiext.ResourceGPUMemory], gpuRequest[apiext.ResourceGPUMemoryRatio]
+		gpuWanted = gpuMemoryRatio.Value() / 100
 		gpuRequestPerCard = corev1.ResourceList{
 			apiext.ResourceGPUCore:        *resource.NewQuantity(gpuCore.Value()/gpuWanted, resource.DecimalSI),
 			apiext.ResourceGPUMemory:      *resource.NewQuantity(gpuMem.Value()/gpuWanted, resource.BinarySI),
-			apiext.ResourceGPUMemoryRatio: *resource.NewQuantity(gpuMemRatio.Value()/gpuWanted, resource.DecimalSI),
+			apiext.ResourceGPUMemoryRatio: *resource.NewQuantity(gpuMemoryRatio.Value()/gpuWanted, resource.DecimalSI),
 		}
 	} else {
 		gpuRequestPerCard = gpuRequest
@@ -359,9 +359,9 @@ allocateLoop:
 			pcieSwitches = skippedPCIEs
 		}
 		for _, pcie := range pcieSwitches {
-			totalFreeGPUCore := sumDeviceResource(pcie.nodeDevice.deviceFree[schedulingv1alpha1.GPU], apiext.ResourceGPUCore)
-			gpuCoreRequest := gpuRequestPerCard[apiext.ResourceGPUCore]
-			freeCount := int(totalFreeGPUCore / gpuCoreRequest.Value())
+			totalFreeGPUMemoryRatio := sumDeviceResource(pcie.nodeDevice.deviceFree[schedulingv1alpha1.GPU], apiext.ResourceGPUMemoryRatio)
+			gpuCoreRequest := gpuRequestPerCard[apiext.ResourceGPUMemoryRatio]
+			freeCount := int(totalFreeGPUMemoryRatio / gpuCoreRequest.Value())
 			if freeCount == 0 {
 				freeCount = 1
 			}
@@ -808,7 +808,7 @@ func (a *deviceAccumulator) freePCIESwitches() []*pcieSwitch {
 		}
 		iDeviceResources := iPCIE.nodeDevice.deviceFree[schedulingv1alpha1.GPU]
 		jDeviceResources := jPCIE.nodeDevice.deviceFree[schedulingv1alpha1.GPU]
-		return sumDeviceResource(iDeviceResources, apiext.ResourceGPUCore) < sumDeviceResource(jDeviceResources, apiext.ResourceGPUCore)
+		return sumDeviceResource(iDeviceResources, apiext.ResourceGPUMemoryRatio) < sumDeviceResource(jDeviceResources, apiext.ResourceGPUMemoryRatio)
 	})
 	return a.pcieSwitches
 }
@@ -838,7 +838,7 @@ func (a *deviceAccumulator) freePCIESwitchesInNode() []*pcieSwitchGroup {
 				group.total[k] += len(v)
 			}
 			resources := pcie.nodeDevice.deviceFree[schedulingv1alpha1.GPU]
-			group.free[schedulingv1alpha1.GPU] += sumDeviceResource(resources, apiext.ResourceGPUCore)
+			group.free[schedulingv1alpha1.GPU] += sumDeviceResource(resources, apiext.ResourceGPUMemoryRatio)
 			resources = pcie.nodeDevice.deviceFree[schedulingv1alpha1.RDMA]
 			group.free[schedulingv1alpha1.RDMA] += sumDeviceResource(resources, apiext.ResourceRDMA)
 		}
@@ -878,7 +878,7 @@ func (a *deviceAccumulator) freePCIESwitchesInSocket() []*pcieSwitchGroup {
 				group.total[k] += len(v)
 			}
 			resources := pcie.nodeDevice.deviceFree[schedulingv1alpha1.GPU]
-			group.free[schedulingv1alpha1.GPU] += sumDeviceResource(resources, apiext.ResourceGPUCore)
+			group.free[schedulingv1alpha1.GPU] += sumDeviceResource(resources, apiext.ResourceGPUMemoryRatio)
 			resources = pcie.nodeDevice.deviceFree[schedulingv1alpha1.RDMA]
 			group.free[schedulingv1alpha1.RDMA] += sumDeviceResource(resources, apiext.ResourceRDMA)
 		}

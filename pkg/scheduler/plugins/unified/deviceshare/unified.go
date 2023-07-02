@@ -51,6 +51,7 @@ var ValidResourceCombinations = map[uint]bool{
 	aliyunGPUCompute:                       true,
 	unifiedGPU:                             true,
 	unifiedGPUMemoryRatio:                  true,
+	unifiedGPUMemory:                       true,
 	unifiedGPUCore | unifiedGPUMemory:      true,
 	unifiedGPUCore | unifiedGPUMemoryRatio: true,
 }
@@ -75,9 +76,13 @@ var ResourceCombinationsMapper = map[uint]func(podRequest corev1.ResourceList) c
 			apiext.ResourceGPUMemoryRatio: podRequest[unifiedresourceext.GPUResourceMemRatio],
 		}
 	},
+	unifiedGPUMemory: func(podRequest corev1.ResourceList) corev1.ResourceList {
+		return corev1.ResourceList{
+			apiext.ResourceGPUMemory: podRequest[unifiedresourceext.GPUResourceMem],
+		}
+	},
 	unifiedGPUMemoryRatio: func(podRequest corev1.ResourceList) corev1.ResourceList {
 		return corev1.ResourceList{
-			apiext.ResourceGPUCore:        podRequest[unifiedresourceext.GPUResourceMemRatio],
 			apiext.ResourceGPUMemoryRatio: podRequest[unifiedresourceext.GPUResourceMemRatio],
 		}
 	},
