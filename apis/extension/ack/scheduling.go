@@ -44,9 +44,9 @@ func AppendAckAnnotations(pod *corev1.Pod, allocations extension.DeviceAllocatio
 		hasGPUCard = true
 		for _, deviceAlloc := range deviceAllocations {
 			deviceMinors = append(deviceMinors, fmt.Sprintf("%v", deviceAlloc.Minor))
-			if deviceAlloc.Resources.Name(extension.ResourceGPUCore, resource.DecimalSI).Value() < 100 {
+			if deviceAlloc.Resources.Name(extension.ResourceGPUMemoryRatio, resource.DecimalSI).Value() < 100 {
 				hasVirtualGPUCard = true
-				gpuComputePod = fmt.Sprintf("%v", deviceAlloc.Resources.Name(extension.ResourceGPUCore, resource.DecimalSI).Value())
+				gpuComputePod = fmt.Sprintf("%v", deviceAlloc.Resources.Name(extension.ResourceGPUMemoryRatio, resource.DecimalSI).Value())
 			}
 		}
 	}
