@@ -235,11 +235,11 @@ func (pl *Plugin) appendInternalAnnotations(obj metav1.Object, allocResult apiex
 			return fmt.Errorf("expect handle to be type frameworkext.ExtendedHandle, got %T", pl.handle)
 		}
 		deviceLister := extendedHandle.KoordinatorSharedInformerFactory().Scheduling().V1alpha1().Devices().Lister()
-		allocMinor := allocResult[schedulingv1alpha1.GPU][0].Minor
 		device, err := deviceLister.Get(nodeName)
 		if err != nil {
 			return err
 		}
+		allocMinor := allocResult[schedulingv1alpha1.GPU][0].Minor
 		var totalMemory apiresource.Quantity
 		for _, v := range device.Spec.Devices {
 			if v.Type == schedulingv1alpha1.GPU && v.Minor != nil && *v.Minor == allocMinor {
@@ -266,7 +266,7 @@ func isVirtualGPUCard(alloc apiext.DeviceAllocations) bool {
 			continue
 		}
 		for _, deviceAlloc := range deviceAllocations {
-			if deviceAlloc.Resources.Name(apiext.ResourceGPUCore, apiresource.DecimalSI).Value() < 100 {
+			if deviceAlloc.Resources.Name(apiext.ResourceGPUMemoryRatio, apiresource.DecimalSI).Value() < 100 {
 				return true
 			}
 		}
