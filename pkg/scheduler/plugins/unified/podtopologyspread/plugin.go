@@ -25,7 +25,7 @@ import (
 	appslisters "k8s.io/client-go/listers/apps/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	scheduledconfigv1beta2config "k8s.io/kube-scheduler/config/v1beta2"
-	"k8s.io/kubernetes/pkg/scheduler/apis/config"
+	schedconfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config/v1beta2"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config/validation"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
@@ -81,15 +81,15 @@ func (pl *PodTopologySpread) Name() string {
 }
 
 // New initializes a new plugin and returns it.
-func New(plArgs runtime.Object, h framework.Handle) (framework.Plugin, error) {
+func New(obj runtime.Object, h framework.Handle) (framework.Plugin, error) {
 	if h.SnapshotSharedLister() == nil {
 		return nil, fmt.Errorf("SnapshotSharedlister is nil")
 	}
-	args, err := getArgs(plArgs)
+	args, err := getArgs(obj)
 	if err != nil {
 		return nil, err
 	}
-	if err := validation.ValidatePodTopologySpreadArgs(nil, &args); err != nil {
+	if err := validation.ValidatePodTopologySpreadArgs(nil, args); err != nil {
 		return nil, err
 	}
 	pl := &PodTopologySpread{
@@ -97,7 +97,7 @@ func New(plArgs runtime.Object, h framework.Handle) (framework.Plugin, error) {
 		sharedLister:       h.SnapshotSharedLister(),
 		defaultConstraints: args.DefaultConstraints,
 	}
-	if args.DefaultingType == config.SystemDefaulting {
+	if args.DefaultingType == schedconfig.SystemDefaulting {
 		pl.defaultConstraints = systemDefaultConstraints
 		pl.systemDefaulted = true
 	}
@@ -110,32 +110,37 @@ func New(plArgs runtime.Object, h framework.Handle) (framework.Plugin, error) {
 	return pl, nil
 }
 
-func getArgs(obj runtime.Object) (config.PodTopologySpreadArgs, error) {
-	podTopologySpreadArgs, err := getDefaultPodTopologySpreadArgs()
-	if err != nil {
-		return config.PodTopologySpreadArgs{}, err
+func getArgs(obj runtime.Object) (*schedconfig.PodTopologySpreadArgs, error) {
+	if obj == nil {
+		return getDefaultPodTopologySpreadArgs()
 	}
 
-	if obj != nil {
-		switch t := obj.(type) {
-		case *config.PodTopologySpreadArgs:
-			podTopologySpreadArgs = t
-		case *runtime.Unknown:
-			unknownObj := t
-			if err := frameworkruntime.DecodeInto(unknownObj, podTopologySpreadArgs); err != nil {
-				return config.PodTopologySpreadArgs{}, err
-			}
-		default:
-			return config.PodTopologySpreadArgs{}, fmt.Errorf("want args to be of type PodTopologySpreadArgs, got %T", obj)
-		}
+	if args, ok := obj.(*schedconfig.PodTopologySpreadArgs); ok {
+		return args, nil
 	}
-	return *podTopologySpreadArgs, nil
-}
 
-func getDefaultPodTopologySpreadArgs() (*config.PodTopologySpreadArgs, error) {
+	unknownObj, ok := obj.(*runtime.Unknown)
+	if !ok {
+		return nil, fmt.Errorf("got args of type %T, want *PodTopologySpreadArgs", obj)
+	}
+
 	var v1beta2args scheduledconfigv1beta2config.PodTopologySpreadArgs
 	v1beta2.SetDefaults_PodTopologySpreadArgs(&v1beta2args)
-	var podTopologySpreadArgs config.PodTopologySpreadArgs
+	if err := frameworkruntime.DecodeInto(unknownObj, &v1beta2args); err != nil {
+		return nil, err
+	}
+	var podTopologySpreadArgs schedconfig.PodTopologySpreadArgs
+	err := v1beta2.Convert_v1beta2_PodTopologySpreadArgs_To_config_PodTopologySpreadArgs(&v1beta2args, &podTopologySpreadArgs, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &podTopologySpreadArgs, nil
+}
+
+func getDefaultPodTopologySpreadArgs() (*schedconfig.PodTopologySpreadArgs, error) {
+	var v1beta2args scheduledconfigv1beta2config.PodTopologySpreadArgs
+	v1beta2.SetDefaults_PodTopologySpreadArgs(&v1beta2args)
+	var podTopologySpreadArgs schedconfig.PodTopologySpreadArgs
 	err := v1beta2.Convert_v1beta2_PodTopologySpreadArgs_To_config_PodTopologySpreadArgs(&v1beta2args, &podTopologySpreadArgs, nil)
 	if err != nil {
 		return nil, err

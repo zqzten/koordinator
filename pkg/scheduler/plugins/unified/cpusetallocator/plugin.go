@@ -61,31 +61,12 @@ type Plugin struct {
 	cpuSharePoolUpdater *cpuSharePoolUpdater
 }
 
-func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error) {
-	var defaultNUMAAllocateStrategy schedulingconfig.NUMAAllocateStrategy
-	if args == nil {
-		defaultNodeNUMAResourceArgs, err := getDefaultNodeNUMAResourceArgs()
-		if err != nil {
-			return nil, err
-		}
-		defaultNUMAAllocateStrategy = nodenumaresource.GetDefaultNUMAAllocateStrategy(defaultNodeNUMAResourceArgs)
-		args = defaultNodeNUMAResourceArgs
-	} else {
-		unknownObj, ok := args.(*runtime.Unknown)
-		if !ok {
-			return nil, fmt.Errorf("got args of type %T, want *NodeNumaResourceArgs", args)
-		}
-
-		nodeNUMAResourceArgs, err := getDefaultNodeNUMAResourceArgs()
-		if err != nil {
-			return nil, err
-		}
-		if err := frameworkruntime.DecodeInto(unknownObj, nodeNUMAResourceArgs); err != nil {
-			return nil, err
-		}
-		defaultNUMAAllocateStrategy = nodenumaresource.GetDefaultNUMAAllocateStrategy(nodeNUMAResourceArgs)
-		args = nodeNUMAResourceArgs
+func New(obj runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+	args, err := getNodeNUMAResourceArgs(obj)
+	if err != nil {
+		return nil, err
 	}
+	defaultNUMAAllocateStrategy := nodenumaresource.GetDefaultNUMAAllocateStrategy(args)
 
 	topologyManager := nodenumaresource.NewCPUTopologyManager()
 	cpuManager := nodenumaresource.NewCPUManager(handle, defaultNUMAAllocateStrategy, topologyManager)
@@ -106,6 +87,30 @@ func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error)
 	}
 	registerNodeEventHandler(handle, p.GetCPUTopologyManager())
 	return p, nil
+}
+
+func getNodeNUMAResourceArgs(obj runtime.Object) (*schedulingconfig.NodeNUMAResourceArgs, error) {
+	if obj == nil {
+		return getDefaultNodeNUMAResourceArgs()
+	}
+
+	unknownObj, ok := obj.(*runtime.Unknown)
+	if !ok {
+		return nil, fmt.Errorf("got args of type %T, want *NodeNUMAResourceArgs", obj)
+	}
+	var v1beta2args v1beta2.NodeNUMAResourceArgs
+	// Disable default CPUBindPolicy
+	v1beta2args.DefaultCPUBindPolicy = pointer.String("")
+	v1beta2.SetDefaults_NodeNUMAResourceArgs(&v1beta2args)
+	if err := frameworkruntime.DecodeInto(unknownObj, &v1beta2args); err != nil {
+		return nil, err
+	}
+	var args schedulingconfig.NodeNUMAResourceArgs
+	err := v1beta2.Convert_v1beta2_NodeNUMAResourceArgs_To_config_NodeNUMAResourceArgs(&v1beta2args, &args, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &args, nil
 }
 
 func getDefaultNodeNUMAResourceArgs() (*schedulingconfig.NodeNUMAResourceArgs, error) {
