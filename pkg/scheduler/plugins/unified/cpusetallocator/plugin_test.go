@@ -32,20 +32,23 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/informers"
 	kubefake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
+	schedconfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/defaultbinder"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/queuesort"
-	"k8s.io/kubernetes/pkg/scheduler/framework/runtime"
+	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 	schedulertesting "k8s.io/kubernetes/pkg/scheduler/testing"
 	"k8s.io/utils/pointer"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	schedulingconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/nodenumaresource"
 	"github.com/koordinator-sh/koordinator/pkg/util/cpuset"
 	"github.com/koordinator-sh/koordinator/pkg/util/transformer"
@@ -112,7 +115,7 @@ type frameworkHandleExtender struct {
 	*nrtfake.Clientset
 }
 
-func proxyPluginFactory(fakeClientSet *nrtfake.Clientset, factory runtime.PluginFactory) runtime.PluginFactory {
+func proxyPluginFactory(fakeClientSet *nrtfake.Clientset, factory frameworkruntime.PluginFactory) frameworkruntime.PluginFactory {
 	return func(configuration apiruntime.Object, f framework.Handle) (framework.Plugin, error) {
 		p, err := factory(configuration, &frameworkHandleExtender{
 			Handle:    f,
@@ -129,16 +132,10 @@ type pluginTestSuit struct {
 	framework.Handle
 	nrtClientSet       *nrtfake.Clientset
 	nrtInformerFactory nrtinformers.SharedInformerFactory
-	proxyNew           runtime.PluginFactory
-	args               apiruntime.Object
+	proxyNew           frameworkruntime.PluginFactory
 }
 
 func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
-	pluginArgs := apiruntime.Unknown{
-		ContentType: apiruntime.ContentTypeJSON,
-		Raw:         []byte(`{"apiVersion":"kubescheduler.config.k8s.io/v1beta2","defaultCPUBindPolicy":"FullPCPUs","kind":"NodeNUMAResourceArgs","scoringStrategy":{"Resources":[{"Name":"cpu","Weight":1},{"Name":"memory","Weight":1}],"Type":"MostAllocated"}}`),
-	}
-
 	nrtClientSet := nrtfake.NewSimpleClientset()
 	proxyNew := proxyPluginFactory(nrtClientSet, New)
 	nrtInformerFactory := nrtinformers.NewSharedInformerFactoryWithOptions(nrtClientSet, 0)
@@ -154,9 +151,9 @@ func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
 	fh, err := schedulertesting.NewFramework(
 		registeredPlugins,
 		"koord-scheduler",
-		runtime.WithClientSet(cs),
-		runtime.WithInformerFactory(informerFactory),
-		runtime.WithSnapshotSharedLister(snapshot),
+		frameworkruntime.WithClientSet(cs),
+		frameworkruntime.WithInformerFactory(informerFactory),
+		frameworkruntime.WithSnapshotSharedLister(snapshot),
 	)
 	assert.Nil(t, err)
 
@@ -165,7 +162,6 @@ func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
 		nrtClientSet:       nrtClientSet,
 		nrtInformerFactory: nrtInformerFactory,
 		proxyNew:           proxyNew,
-		args:               &pluginArgs,
 	}
 }
 
@@ -179,7 +175,7 @@ func (p *pluginTestSuit) start() {
 
 func TestNew(t *testing.T) {
 	suit := newPluginTestSuit(t, nil)
-	p, err := suit.proxyNew(suit.args, suit.Handle)
+	p, err := suit.proxyNew(nil, suit.Handle)
 	assert.NotNil(t, p)
 	assert.Nil(t, err)
 	assert.Equal(t, Name, p.Name())
@@ -227,7 +223,7 @@ func TestPlugin_Filter(t *testing.T) {
 			}
 
 			suit := newPluginTestSuit(t, nodes)
-			p, err := suit.proxyNew(suit.args, suit.Handle)
+			p, err := suit.proxyNew(nil, suit.Handle)
 			assert.NotNil(t, p)
 			assert.Nil(t, err)
 
@@ -283,7 +279,7 @@ func TestPlugin_Score(t *testing.T) {
 			}
 
 			suit := newPluginTestSuit(t, nodes)
-			p, err := suit.proxyNew(suit.args, suit.Handle)
+			p, err := suit.proxyNew(nil, suit.Handle)
 			assert.NotNil(t, p)
 			assert.Nil(t, err)
 
@@ -344,7 +340,7 @@ func TestPlugin_Reserve(t *testing.T) {
 			}
 
 			suit := newPluginTestSuit(t, nodes)
-			p, err := suit.proxyNew(suit.args, suit.Handle)
+			p, err := suit.proxyNew(nil, suit.Handle)
 			assert.NotNil(t, p)
 			assert.Nil(t, err)
 
@@ -458,7 +454,7 @@ func TestPlugin_CPUSetProtocols(t *testing.T) {
 				},
 			}
 			suit := newPluginTestSuit(t, nodes)
-			p, err := suit.proxyNew(suit.args, suit.Handle)
+			p, err := suit.proxyNew(nil, suit.Handle)
 			assert.NotNil(t, p)
 			assert.Nil(t, err)
 			cpuTopology := extension.CPUTopology{
@@ -579,7 +575,7 @@ func TestPlugin_CPUSharePool(t *testing.T) {
 	})
 
 	// create plg, register pod eventHandler and topology eventHandler
-	p, err := suit.proxyNew(suit.args, suit.Handle)
+	p, err := suit.proxyNew(nil, suit.Handle)
 	assert.NotNil(t, p)
 	assert.Nil(t, err)
 
@@ -883,5 +879,67 @@ func TestFilterWithDisableCPUSetOversold(t *testing.T) {
 			assert.Equal(t, tt.wantStatus, got)
 		})
 	}
+}
 
+func Test_getNodeNUMAResourceArgs(t *testing.T) {
+	defaultArgs, err := getDefaultNodeNUMAResourceArgs()
+	assert.NoError(t, err)
+	tests := []struct {
+		name    string
+		obj     runtime.Object
+		want    *schedulingconfig.NodeNUMAResourceArgs
+		wantErr bool
+	}{
+		{
+			name:    "no args",
+			obj:     nil,
+			want:    defaultArgs,
+			wantErr: false,
+		},
+		{
+			name: "configured args",
+			obj: &runtime.Unknown{
+				Raw:         []byte(`{"defaultCPUBindPolicy": "FullPCPUs"}`),
+				ContentType: runtime.ContentTypeJSON,
+			},
+			want: &schedulingconfig.NodeNUMAResourceArgs{
+				DefaultCPUBindPolicy: "FullPCPUs",
+				ScoringStrategy: &schedulingconfig.ScoringStrategy{
+					Type: schedulingconfig.MostAllocated,
+					Resources: []schedconfig.ResourceSpec{
+						{
+							Name:   "cpu",
+							Weight: 1,
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid configured args",
+			obj: &runtime.Unknown{
+				Raw:         []byte(`{"xxxxx": {"Type": `),
+				ContentType: runtime.ContentTypeJSON,
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "invalid configured args type",
+			obj:     defaultArgs,
+			want:    nil,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args, err := getNodeNUMAResourceArgs(tt.obj)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("getNodeNUMAResourceArgs() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			assert.Equal(t, tt.want, args)
+		})
+	}
 }
