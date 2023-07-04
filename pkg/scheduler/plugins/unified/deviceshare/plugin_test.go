@@ -29,6 +29,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	k8sfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/informers"
@@ -37,7 +38,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/defaultbinder"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/queuesort"
-	"k8s.io/kubernetes/pkg/scheduler/framework/runtime"
+	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 	schedulertesting "k8s.io/kubernetes/pkg/scheduler/testing"
 	"k8s.io/utils/pointer"
 
@@ -48,6 +49,7 @@ import (
 	koordfake "github.com/koordinator-sh/koordinator/pkg/client/clientset/versioned/fake"
 	koordinatorinformers "github.com/koordinator-sh/koordinator/pkg/client/informers/externalversions"
 	koordfeatures "github.com/koordinator-sh/koordinator/pkg/features"
+	schedulingconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/defaultprebind"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/deviceshare"
@@ -229,7 +231,7 @@ type pluginTestSuit struct {
 	ExtendedHandle                   frameworkext.ExtendedHandle
 	ExtenderFactory                  *frameworkext.FrameworkExtenderFactory
 	koordinatorSharedInformerFactory koordinatorinformers.SharedInformerFactory
-	proxyNew                         runtime.PluginFactory
+	proxyNew                         frameworkruntime.PluginFactory
 }
 
 func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
@@ -253,9 +255,9 @@ func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
 	fh, err := schedulertesting.NewFramework(
 		registeredPlugins,
 		"koord-scheduler",
-		runtime.WithClientSet(cs),
-		runtime.WithInformerFactory(informerFactory),
-		runtime.WithSnapshotSharedLister(snapshot),
+		frameworkruntime.WithClientSet(cs),
+		frameworkruntime.WithInformerFactory(informerFactory),
+		frameworkruntime.WithSnapshotSharedLister(snapshot),
 	)
 	assert.Nil(t, err)
 	return &pluginTestSuit{
@@ -287,9 +289,9 @@ func Test_New(t *testing.T) {
 	fh, err := schedulertesting.NewFramework(
 		registeredPlugins,
 		"koord-scheduler",
-		runtime.WithClientSet(cs),
-		runtime.WithInformerFactory(informerFactory),
-		runtime.WithSnapshotSharedLister(snapshot),
+		frameworkruntime.WithClientSet(cs),
+		frameworkruntime.WithInformerFactory(informerFactory),
+		frameworkruntime.WithSnapshotSharedLister(snapshot),
 	)
 	assert.Nil(t, err)
 	args := &apiruntime.Unknown{
@@ -704,4 +706,58 @@ func TestPreBindUnifiedDevice(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expectedPod, patchedPod)
+}
+
+func Test_getDeviceShareArgs(t *testing.T) {
+	defaultArgs, err := getDefaultDeviceShareArgs()
+	assert.NoError(t, err)
+	tests := []struct {
+		name    string
+		obj     runtime.Object
+		want    *schedulingconfig.DeviceShareArgs
+		wantErr bool
+	}{
+		{
+			name:    "no args",
+			obj:     nil,
+			want:    defaultArgs,
+			wantErr: false,
+		},
+		{
+			name: "configured args",
+			obj: &runtime.Unknown{
+				Raw:         []byte(`{"allocator": "autopilotAllocator", "apiVersion": "kubescheduler.config.k8s.io/v1beta2"}`),
+				ContentType: runtime.ContentTypeJSON,
+			},
+			want: &schedulingconfig.DeviceShareArgs{
+				Allocator: "autopilotAllocator",
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid configured args",
+			obj: &runtime.Unknown{
+				Raw:         []byte(`{"allocator": `),
+				ContentType: runtime.ContentTypeJSON,
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "invalid configured args type",
+			obj:     defaultArgs,
+			want:    nil,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args, err := getDeviceShareArgs(tt.obj)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("getDeviceShareArgs() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			assert.Equal(t, tt.want, args)
+		})
+	}
 }

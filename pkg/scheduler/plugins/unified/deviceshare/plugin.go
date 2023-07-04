@@ -69,27 +69,10 @@ type Plugin struct {
 	*deviceshare.Plugin
 }
 
-func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error) {
-	if args == nil {
-		defaultDeviceShareArgs, err := getDefaultDeviceShareArgs()
-		if err != nil {
-			return nil, err
-		}
-		args = defaultDeviceShareArgs
-	} else {
-		unknownObj, ok := args.(*runtime.Unknown)
-		if !ok {
-			return nil, fmt.Errorf("got args of type %T, want *DeviceShareArgs", args)
-		}
-
-		deviceShareArgs, err := getDefaultDeviceShareArgs()
-		if err != nil {
-			return nil, err
-		}
-		if err := frameworkruntime.DecodeInto(unknownObj, deviceShareArgs); err != nil {
-			return nil, err
-		}
-		args = deviceShareArgs
+func New(obj runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+	args, err := getDeviceShareArgs(obj)
+	if err != nil {
+		return nil, err
 	}
 
 	internalPlugin, err := deviceshare.New(args, handle)
@@ -102,6 +85,27 @@ func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error)
 		Plugin: internalPlugin.(*deviceshare.Plugin),
 	}
 	return p, nil
+}
+
+func getDeviceShareArgs(obj runtime.Object) (*schedulingconfig.DeviceShareArgs, error) {
+	if obj == nil {
+		return getDefaultDeviceShareArgs()
+	}
+
+	unknownObj, ok := obj.(*runtime.Unknown)
+	if !ok {
+		return nil, fmt.Errorf("got args of type %T, want *DeviceShareArgs", obj)
+	}
+	var v1beta2args v1beta2.DeviceShareArgs
+	if err := frameworkruntime.DecodeInto(unknownObj, &v1beta2args); err != nil {
+		return nil, err
+	}
+	var args schedulingconfig.DeviceShareArgs
+	err := v1beta2.Convert_v1beta2_DeviceShareArgs_To_config_DeviceShareArgs(&v1beta2args, &args, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &args, nil
 }
 
 func getDefaultDeviceShareArgs() (*schedulingconfig.DeviceShareArgs, error) {

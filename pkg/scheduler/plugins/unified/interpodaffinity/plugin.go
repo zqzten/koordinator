@@ -25,7 +25,7 @@ import (
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	scheduledconfigv1beta2config "k8s.io/kube-scheduler/config/v1beta2"
 	"k8s.io/kubernetes/pkg/features"
-	"k8s.io/kubernetes/pkg/scheduler/apis/config"
+	schedconfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config/v1beta2"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config/validation"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
@@ -67,18 +67,18 @@ func New(plArgs runtime.Object, h framework.Handle) (framework.Plugin, error) {
 	return NewWithFeature(plArgs, h, fts)
 }
 
-func NewWithFeature(plArgs runtime.Object, h framework.Handle, fts plfeature.Features) (framework.Plugin, error) {
+func NewWithFeature(obj runtime.Object, h framework.Handle, fts plfeature.Features) (framework.Plugin, error) {
 	if h.SnapshotSharedLister() == nil {
 		return nil, fmt.Errorf("SnapshotSharedlister is nil")
 	}
-	args, err := getArgs(plArgs)
+	args, err := getArgs(obj)
 	if err != nil {
 		return nil, err
 	}
-	if err := validation.ValidateInterPodAffinityArgs(nil, &args); err != nil {
+	if err := validation.ValidateInterPodAffinityArgs(nil, args); err != nil {
 		return nil, err
 	}
-	internalPlugin, err := interpodaffinity.New(&args, h)
+	internalPlugin, err := interpodaffinity.New(args, h)
 	if err != nil {
 		return nil, err
 	}
@@ -95,32 +95,37 @@ func NewWithFeature(plArgs runtime.Object, h framework.Handle, fts plfeature.Fea
 	return pl, nil
 }
 
-func getArgs(obj runtime.Object) (config.InterPodAffinityArgs, error) {
-	defaultInterPodAffinityArgs, err := getDefaultInterPodAffinityArgs()
-	if err != nil {
-		return config.InterPodAffinityArgs{}, err
+func getArgs(obj runtime.Object) (*schedconfig.InterPodAffinityArgs, error) {
+	if obj == nil {
+		return getDefaultInterPodAffinityArgs()
 	}
 
-	if obj != nil {
-		switch t := obj.(type) {
-		case *config.InterPodAffinityArgs:
-			defaultInterPodAffinityArgs = t
-		case *runtime.Unknown:
-			unknownObj := t
-			if err := frameworkruntime.DecodeInto(unknownObj, defaultInterPodAffinityArgs); err != nil {
-				return config.InterPodAffinityArgs{}, err
-			}
-		default:
-			return config.InterPodAffinityArgs{}, fmt.Errorf("got args of type %T, want *InterPodAffinityArgs", obj)
-		}
+	if args, ok := obj.(*schedconfig.InterPodAffinityArgs); ok {
+		return args, nil
 	}
-	return *defaultInterPodAffinityArgs, nil
-}
 
-func getDefaultInterPodAffinityArgs() (*config.InterPodAffinityArgs, error) {
+	unknownObj, ok := obj.(*runtime.Unknown)
+	if !ok {
+		return nil, fmt.Errorf("got args of type %T, want *InterPodAffinityArgs", obj)
+	}
+
 	var v1beta2args scheduledconfigv1beta2config.InterPodAffinityArgs
 	v1beta2.SetDefaults_InterPodAffinityArgs(&v1beta2args)
-	var interPodAffinityArgs config.InterPodAffinityArgs
+	if err := frameworkruntime.DecodeInto(unknownObj, &v1beta2args); err != nil {
+		return nil, err
+	}
+	var interPodAffinityArgs schedconfig.InterPodAffinityArgs
+	err := v1beta2.Convert_v1beta2_InterPodAffinityArgs_To_config_InterPodAffinityArgs(&v1beta2args, &interPodAffinityArgs, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &interPodAffinityArgs, nil
+}
+
+func getDefaultInterPodAffinityArgs() (*schedconfig.InterPodAffinityArgs, error) {
+	var v1beta2args scheduledconfigv1beta2config.InterPodAffinityArgs
+	v1beta2.SetDefaults_InterPodAffinityArgs(&v1beta2args)
+	var interPodAffinityArgs schedconfig.InterPodAffinityArgs
 	err := v1beta2.Convert_v1beta2_InterPodAffinityArgs_To_config_InterPodAffinityArgs(&v1beta2args, &interPodAffinityArgs, nil)
 	if err != nil {
 		return nil, err

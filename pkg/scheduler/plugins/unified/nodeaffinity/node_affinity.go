@@ -23,8 +23,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
-	"k8s.io/kubernetes/pkg/scheduler/apis/config"
-	"k8s.io/kubernetes/pkg/scheduler/apis/config/validation"
+	scheduledconfigv1beta2config "k8s.io/kube-scheduler/config/v1beta2"
+	schedconfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
+	"k8s.io/kubernetes/pkg/scheduler/apis/config/v1beta2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	kubenodeaffinity "k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeaffinity"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
@@ -106,8 +107,8 @@ func (pl *NodeAffinity) Filter(ctx context.Context, state *framework.CycleState,
 }
 
 // New initializes a new plugin and returns it.
-func New(plArgs runtime.Object, h framework.Handle) (framework.Plugin, error) {
-	nodeAffinityArgs, err := getArgs(plArgs)
+func New(obj runtime.Object, h framework.Handle) (framework.Plugin, error) {
+	nodeAffinityArgs, err := getArgs(obj)
 	if err != nil {
 		return nil, err
 	}
@@ -129,30 +130,34 @@ func New(plArgs runtime.Object, h framework.Handle) (framework.Plugin, error) {
 	return pl, nil
 }
 
-func getArgs(obj runtime.Object) (*config.NodeAffinityArgs, error) {
-	nodeAffinityArgs, err := getDefaultNodeAffinityArgs()
+func getArgs(obj runtime.Object) (*schedconfig.NodeAffinityArgs, error) {
+	if obj == nil {
+		return getDefaultNodeAffinityArgs()
+	}
+
+	if args, ok := obj.(*schedconfig.NodeAffinityArgs); ok {
+		return args, nil
+	}
+
+	unknownObj, ok := obj.(*runtime.Unknown)
+	if !ok {
+		return nil, fmt.Errorf("got args of type %T, want *NodeAffinityArgs", obj)
+	}
+
+	var v1beta2args scheduledconfigv1beta2config.NodeAffinityArgs
+	if err := frameworkruntime.DecodeInto(unknownObj, &v1beta2args); err != nil {
+		return nil, err
+	}
+	var nodeAffinityArgs schedconfig.NodeAffinityArgs
+	err := v1beta2.Convert_v1beta2_NodeAffinityArgs_To_config_NodeAffinityArgs(&v1beta2args, &nodeAffinityArgs, nil)
 	if err != nil {
 		return nil, err
 	}
-
-	if obj != nil {
-		switch t := obj.(type) {
-		case *config.NodeAffinityArgs:
-			nodeAffinityArgs = t
-		case *runtime.Unknown:
-			unknownObj := t
-			if err := frameworkruntime.DecodeInto(unknownObj, nodeAffinityArgs); err != nil {
-				return nil, err
-			}
-		default:
-			return nil, fmt.Errorf("got args of type %T, want *NodeAffinityArgs", obj)
-		}
-	}
-	return nodeAffinityArgs, validation.ValidateNodeAffinityArgs(nil, nodeAffinityArgs)
+	return &nodeAffinityArgs, nil
 }
 
-func getDefaultNodeAffinityArgs() (*config.NodeAffinityArgs, error) {
-	return &config.NodeAffinityArgs{
+func getDefaultNodeAffinityArgs() (*schedconfig.NodeAffinityArgs, error) {
+	return &schedconfig.NodeAffinityArgs{
 		AddedAffinity: nil,
 	}, nil
 }
