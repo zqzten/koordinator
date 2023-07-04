@@ -27,6 +27,10 @@ import (
 	koordinatorinformers "github.com/koordinator-sh/koordinator/pkg/client/informers/externalversions"
 )
 
+const (
+	LabelNodeGPUModel = extension.DomainPrefix + "gpu-model"
+)
+
 var GPUResourceMem = extension.ResourceGPUMemory
 
 var GlobalGPUModelCache *GPUModelCache
@@ -39,7 +43,11 @@ type GPUModelCache struct {
 }
 
 func GetNodeGPUModel(nodeLabels map[string]string) string {
-	return nodeLabels[extension.LabelGPUModel]
+	model := nodeLabels[extension.LabelGPUModel]
+	if model != "" {
+		return model
+	}
+	return nodeLabels[LabelNodeGPUModel]
 }
 
 func (gm *GPUModelCache) UpdateByNode(node *v1.Node) {
