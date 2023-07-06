@@ -30,6 +30,7 @@ import (
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/hijack"
 )
 
 type fakeServer struct {
@@ -101,15 +102,18 @@ func TestReserve(t *testing.T) {
 	status = pl.Reserve(context.TODO(), cycleState, requestPod, "")
 	assert.False(t, status.IsSuccess())
 
-	frameworkext.SetNominatedReservation(cycleState, frameworkext.NewReservationInfoFromPod(&corev1.Pod{
+	targetPod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-pod",
 			Labels: map[string]string{
 				apiext.LabelPodOperatingMode: string(apiext.ReservationPodOperatingMode),
 			},
 		},
-	}))
+	}
+	frameworkext.SetNominatedReservation(cycleState, frameworkext.NewReservationInfoFromPod(targetPod))
 	status = pl.Reserve(context.TODO(), cycleState, requestPod, "")
+	targetPodInState := hijack.GetTargetPod(cycleState)
+	assert.Equal(t, targetPod, targetPodInState)
 	assert.True(t, status.IsSuccess())
 }
 

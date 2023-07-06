@@ -18,7 +18,6 @@ package hijack
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -32,97 +31,8 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
-	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 )
-
-func TestReserve(t *testing.T) {
-	tests := []struct {
-		name            string
-		pod             *corev1.Pod
-		reservationInfo *frameworkext.ReservationInfo
-		wantState       *stateData
-		wantStatus      *framework.Status
-	}{
-		{
-			name: "normal pod",
-			pod:  &corev1.Pod{},
-		},
-		{
-			name: "hijackable pod but no nominated reservation",
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						AnnotationPodHijackable: "true",
-					},
-				},
-			},
-			wantStatus: framework.AsStatus(fmt.Errorf("no nominated reservation")),
-		},
-		{
-			name: "hijackable pod with normal reservation",
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						AnnotationPodHijackable: "true",
-					},
-				},
-			},
-			reservationInfo: frameworkext.NewReservationInfo(&schedulingv1alpha1.Reservation{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-r",
-				},
-				Spec: schedulingv1alpha1.ReservationSpec{
-					Template: &corev1.PodTemplateSpec{},
-				},
-			}),
-			wantStatus: nil,
-		},
-		{
-			name: "hijackable pod with operating reservation mode pod",
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Annotations: map[string]string{
-						AnnotationPodHijackable: "true",
-					},
-				},
-			},
-			reservationInfo: frameworkext.NewReservationInfoFromPod(&corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-p",
-					Labels: map[string]string{
-						apiext.LabelPodOperatingMode: string(apiext.ReservationPodOperatingMode),
-					},
-				},
-			}),
-			wantState: &stateData{
-				targetPod: &corev1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "test-p",
-						Labels: map[string]string{
-							apiext.LabelPodOperatingMode: string(apiext.ReservationPodOperatingMode),
-						},
-					},
-				},
-			},
-			wantStatus: nil,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			pl := &Plugin{}
-			cycleState := framework.NewCycleState()
-			if tt.reservationInfo != nil {
-				frameworkext.SetNominatedReservation(cycleState, tt.reservationInfo)
-			}
-			gotStatus := pl.Reserve(context.TODO(), cycleState, tt.pod, "test-node")
-			assert.Equal(t, tt.wantStatus, gotStatus)
-			s, _ := cycleState.Read(Name)
-			state, _ := s.(*stateData)
-			assert.Equal(t, tt.wantState, state)
-		})
-	}
-}
 
 type fakeExtendedHandle struct {
 	frameworkext.ExtendedHandle
@@ -344,6 +254,7 @@ func TestApplyPatch(t *testing.T) {
 			cycleState.Write(Name, &stateData{
 				targetPod: tt.targetPod,
 			})
+			SetTargetPod(cycleState, tt.targetPod)
 
 			status := pl.ApplyPatch(context.TODO(), cycleState, tt.hijackedPod, tt.modifiedHijackedPod)
 			assert.Equal(t, tt.wantStatus, status)
@@ -364,6 +275,7 @@ func TestBind(t *testing.T) {
 
 	cycleState := framework.NewCycleState()
 	cycleState.Write(Name, &stateData{})
+	SetTargetPod(cycleState, &corev1.Pod{})
 	status = pl.Bind(context.TODO(), cycleState, &corev1.Pod{}, "yy")
 	assert.Equal(t, framework.NewStatus(framework.Success), status)
 }

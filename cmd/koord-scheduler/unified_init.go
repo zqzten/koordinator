@@ -31,6 +31,7 @@ import (
 	unifiedeci "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/eci"
 	unifiedelasticquotatree "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/elasticquotatree"
 	unifiedhijack "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/hijack"
+	unifiedinplaceupdate "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/inplaceupdate"
 	unifiedinterpodaffinity "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/interpodaffinity"
 	unifiednodeaffinity "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/nodeaffinity"
 	unifiednodeports "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/nodeports"
@@ -64,4 +65,5 @@ func init() {
 	koordinatorPlugins[unifiedhijack.Name] = unifiedhijack.New
 	koordinatorPlugins[unifiedpodtopologyaware.Name] = unifiedpodtopologyaware.New
 	koordinatorPlugins[unifieddeviceshare.Name] = unifieddeviceshare.New
+	koordinatorPlugins[unifiedinplaceupdate.Name] = unifiedinplaceupdate.New
 }

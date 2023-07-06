@@ -48,16 +48,16 @@ const (
 )
 
 const (
-	AnnotationPodHijackable        = apiext.SchedulingDomainPrefix + "/hijackable"
 	AnnotationHijackedPod          = apiext.SchedulingDomainPrefix + "/hijacked-pod"
 	AnnotationContainerNameMapping = apiext.SchedulingDomainPrefix + "/container-name-mapping"
 )
 
-var _ framework.ReservePlugin = &Plugin{}
-var _ framework.PreBindPlugin = &Plugin{}
-var _ framework.BindPlugin = &Plugin{}
+var (
+	_ framework.PreBindPlugin = &Plugin{}
+	_ framework.BindPlugin    = &Plugin{}
 
-var _ frameworkext.PreBindExtensions = &Plugin{}
+	_ frameworkext.PreBindExtensions = &Plugin{}
+)
 
 // Plugin hijacks the assumed Pod to reserve pod or inplace update pod.
 type Plugin struct {
@@ -117,31 +117,6 @@ func (s *stateData) Clone() framework.StateData {
 	return s
 }
 
-func (pl *Plugin) Reserve(ctx context.Context, cycleState *framework.CycleState, assumedPod *corev1.Pod, nodeName string) *framework.Status {
-	if assumedPod.Annotations[AnnotationPodHijackable] != "true" {
-		return nil
-	}
-	klog.V(4).InfoS("Pod is hijackable, we will hijack it!", "pod", klog.KObj(assumedPod))
-
-	nominatedReservation := frameworkext.GetNominatedReservation(cycleState)
-	if nominatedReservation == nil {
-		klog.V(4).InfoS("There is no nominated reservation to cooperate with hijacking, skip it", "pod", klog.KObj(assumedPod))
-		return framework.AsStatus(fmt.Errorf("no nominated reservation"))
-	}
-
-	reservePod := nominatedReservation.GetReservePod()
-	if !apiext.IsReservationOperatingMode(reservePod) {
-		klog.V(4).InfoS("Target Pod is not operating pod, stop hijacking", "pod", klog.KObj(assumedPod), "target", klog.KObj(nominatedReservation))
-		return nil
-	}
-
-	reservePod = reservePod.DeepCopy()
-	cycleState.Write(Name, &stateData{
-		targetPod: reservePod,
-	})
-	return nil
-}
-
 func (pl *Plugin) Unreserve(ctx context.Context, cycleState *framework.CycleState, assumedPod *corev1.Pod, nodeName string) {
 
 }
@@ -151,34 +126,33 @@ func (pl *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState,
 }
 
 func (pl *Plugin) ApplyPatch(ctx context.Context, cycleState *framework.CycleState, originalObj, modifiedObj metav1.Object) *framework.Status {
-	s, err := cycleState.Read(Name)
-	if err != nil {
+	originalTargetPod := GetTargetPod(cycleState)
+	if originalTargetPod == nil {
 		return framework.NewStatus(framework.Skip)
 	}
-	state := s.(*stateData)
 
 	originalHijackedPod, ok := originalObj.(*corev1.Pod)
 	if !ok {
 		return framework.NewStatus(framework.Skip)
 	}
 	hijackedPod := modifiedObj.(*corev1.Pod)
-	targetPod := state.targetPod.DeepCopy()
+	targetPod := originalTargetPod.DeepCopy()
 	if err := applyHijackedPodPatch(originalHijackedPod, hijackedPod, targetPod); err != nil {
 		klog.ErrorS(err, "Failed to apply hijacked pod patch", "targetPod", klog.KObj(targetPod), "hijacked", klog.KObj(hijackedPod))
 		return framework.AsStatus(err)
 	}
 
-	if err = pl.updatePodContainers(targetPod, hijackedPod); err != nil {
+	if err := pl.updatePodContainers(targetPod, hijackedPod); err != nil {
 		klog.ErrorS(err, "Failed to update containers from hijacked to target", "targetPod", klog.KObj(targetPod), "hijacked", klog.KObj(hijackedPod))
 		return framework.AsStatus(err)
 	}
 
-	if err = pl.updateOperatingPod(targetPod, hijackedPod); err != nil {
+	if err := pl.updateOperatingPod(targetPod, hijackedPod); err != nil {
 		klog.ErrorS(err, "Failed to update operating Pod", "targetPod", klog.KObj(targetPod), "hijacked", klog.KObj(hijackedPod))
 		return framework.AsStatus(err)
 	}
 
-	patchBytes, err := util.GeneratePodPatch(state.targetPod, targetPod)
+	patchBytes, err := util.GeneratePodPatch(originalTargetPod, targetPod)
 	if err != nil {
 		klog.ErrorS(err, "Failed to generate pod patch", "targetPod", klog.KObj(targetPod))
 		return framework.AsStatus(err)
@@ -193,12 +167,12 @@ func (pl *Plugin) ApplyPatch(ctx context.Context, cycleState *framework.CycleSta
 
 	updated := false
 	err = util.RetryOnConflictOrTooManyRequests(func() error {
-		patchedPod, err := util.PatchPod(ctx, pl.extendedHandle.ClientSet(), state.targetPod, targetPod)
+		patchedPod, err := util.PatchPod(ctx, pl.extendedHandle.ClientSet(), originalTargetPod, targetPod)
 		if err != nil {
-			klog.ErrorS(err, "Failed to patch pod", "targetPod", klog.KObj(state.targetPod))
+			klog.ErrorS(err, "Failed to patch pod", "targetPod", klog.KObj(originalTargetPod))
 			return err
 		}
-		updated = patchedPod != state.targetPod
+		updated = patchedPod != originalTargetPod
 		return nil
 	})
 	if err != nil {
@@ -334,11 +308,10 @@ func (pl *Plugin) forgetHijackedPodFromSchedulerCache(targetPod *corev1.Pod) {
 }
 
 func (pl *Plugin) Bind(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
-	s, err := cycleState.Read(Name)
-	if err != nil {
+	targetPod := GetTargetPod(cycleState)
+	if targetPod == nil {
 		return framework.NewStatus(framework.Skip)
 	}
-	_ = s.(*stateData)
 	return framework.NewStatus(framework.Success)
 }
 
