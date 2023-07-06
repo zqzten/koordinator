@@ -31,6 +31,8 @@ import (
 const (
 	ResourceAliyunMemberENI corev1.ResourceName = "aliyun/member-eni"
 	ResourceSigmaENI        corev1.ResourceName = "sigma/eni"
+
+	DisableCPUSetOversold corev1.ResourceName = "DisableCPUSetOversold"
 )
 
 // GetResourceSpec parses ResourceSpec from annotations; first koordinator protocols, second unified, third asi-sigma

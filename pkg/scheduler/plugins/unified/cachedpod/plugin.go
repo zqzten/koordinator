@@ -33,6 +33,7 @@ import (
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	schedulingconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/hijack"
 )
 
 const (
@@ -138,6 +139,7 @@ func (pl *Plugin) Reserve(ctx context.Context, cycleState *framework.CycleState,
 	if nominatedReservation == nil || !apiext.IsReservationOperatingMode(nominatedReservation.GetReservePod()) {
 		return framework.NewStatus(framework.Error, "no satisfied cached pod")
 	}
+	hijack.SetTargetPod(cycleState, nominatedReservation.GetReservePod())
 	return nil
 }
 
