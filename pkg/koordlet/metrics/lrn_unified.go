@@ -19,28 +19,30 @@ package metrics
 import (
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/koordinator-sh/koordinator/pkg/util/metrics"
 )
 
 var (
-	LRNResourceAllocatable = NewGCGaugeVec("lrn_resource_allocatable", prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	LRNResourceAllocatable = metrics.NewGCGaugeVec("lrn_resource_allocatable", prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Subsystem: KoordletSubsystem,
 		Name:      "lrn_resource_allocatable",
 		Help:      "the resource allocatable of the LRN",
 	}, []string{NodeKey, LRNKey, ResourceKey, UnitKey}))
 
-	LRNPods = NewGCGaugeVec("lrn_pods", prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	LRNPods = metrics.NewGCGaugeVec("lrn_pods", prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Subsystem: KoordletSubsystem,
 		Name:      "lrn_pods",
 		Help:      "the pods belonging to the LRN",
 	}, []string{NodeKey, LRNKey, PodUID, PodName, PodNamespace}))
 
-	LRNContainers = NewGCGaugeVec("lrn_containers", prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	LRNContainers = metrics.NewGCGaugeVec("lrn_containers", prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Subsystem: KoordletSubsystem,
 		Name:      "lrn_containers",
 		Help:      "the containers belonging to the LRN",
 	}, []string{NodeKey, LRNKey, PodUID, PodName, PodNamespace, ContainerID, ContainerName}))
 
-	LRNAccelerators = NewGCGaugeVec("lrn_containers", prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	LRNAccelerators = metrics.NewGCGaugeVec("lrn_containers", prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Subsystem: KoordletSubsystem,
 		Name:      "lrn_accelerators",
 		Help:      "the accelerators belonging to the LRN",
