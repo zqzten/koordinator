@@ -48,6 +48,7 @@ const (
 	QuotaRunTime                                featuregate.Feature = "QuotaRunTime"
 	SyncTaskQuota                               featuregate.Feature = "SyncTaskQuota"
 	DisableCPUSetOversold                       featuregate.Feature = "DisableCPUSetOversold"
+	EnableACKGPUMemoryScheduling                featuregate.Feature = "EnableACKGPUMemoryScheduling"
 )
 
 const (
@@ -80,6 +81,7 @@ var defaultUnifiedSchedulerFeatureGates = map[featuregate.Feature]featuregate.Fe
 	QuotaRunTime:                                {Default: false, PreRelease: featuregate.Beta},
 	SyncTaskQuota:                               {Default: false, PreRelease: featuregate.Beta},
 	DisableCPUSetOversold:                       {Default: false, PreRelease: featuregate.Beta},
+	EnableACKGPUMemoryScheduling:                {Default: false, PreRelease: featuregate.Beta},
 }
 
 var defaultUnifiedKoordletFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
