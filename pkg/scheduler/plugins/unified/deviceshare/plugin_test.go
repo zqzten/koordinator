@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	unifiedresourceext "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/extension"
@@ -43,6 +44,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
+	"github.com/koordinator-sh/koordinator/apis/extension/ack"
 	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	koordclientset "github.com/koordinator-sh/koordinator/pkg/client/clientset/versioned"
@@ -824,4 +826,118 @@ func TestMatchDriverVersions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPreBindWithACKGPUMemory(t *testing.T) {
+	now := time.Now()
+	originalNowFn := ack.NowFn
+	ack.NowFn = func() time.Time {
+		return now
+	}
+	defer func() {
+		ack.NowFn = originalNowFn
+	}()
+
+	defer featuregatetesting.SetFeatureGateDuringTest(t, k8sfeature.DefaultFeatureGate, koordfeatures.EnableACKGPUMemoryScheduling, true)()
+
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+		},
+	}
+	suit := newPluginTestSuit(t, []*corev1.Node{node})
+
+	fakeDevice := fakeDeviceCR.DeepCopy()
+	fakeDevice.Name = node.Name
+	_, err := suit.ExtenderFactory.KoordinatorClientSet().SchedulingV1alpha1().Devices().Create(context.TODO(), fakeDevice, metav1.CreateOptions{})
+	assert.NoError(t, err)
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "default",
+			Name:      "test-pod",
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name: "main",
+					Resources: corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{
+							ack.ResourceAliyunGPUMemory: resource.MustParse("8"),
+						},
+						Requests: corev1.ResourceList{
+							ack.ResourceAliyunGPUMemory: resource.MustParse("8"),
+						},
+					},
+				},
+			},
+		},
+	}
+	_, err = suit.ClientSet().CoreV1().Pods(pod.Namespace).Create(context.TODO(), pod, metav1.CreateOptions{})
+	assert.NoError(t, err)
+	extender := suit.ExtenderFactory.NewFrameworkExtender(suit.Framework)
+	fakeHandle := &fakeExtendedHandle{
+		ExtendedHandle: extender,
+		Interface:      cosfake.NewSimpleClientset(),
+	}
+	args := &apiruntime.Unknown{
+		ContentType: apiruntime.ContentTypeJSON,
+		Raw:         []byte(`{"apiVersion":"kubescheduler.config.k8s.io/v1beta2", "allocator": "default"}`),
+	}
+	p, err := New(args, fakeHandle)
+	assert.NoError(t, err)
+
+	suit.Framework.SharedInformerFactory().Start(nil)
+	suit.koordinatorSharedInformerFactory.Start(nil)
+	suit.Framework.SharedInformerFactory().WaitForCacheSync(nil)
+	suit.koordinatorSharedInformerFactory.WaitForCacheSync(nil)
+
+	cycleState := framework.NewCycleState()
+	pl := p.(*Plugin)
+	_, status := pl.PreFilter(context.TODO(), cycleState, pod)
+	assert.True(t, status.IsSuccess())
+
+	pod.Spec.NodeName = "test-node"
+	status = pl.Reserve(context.TODO(), cycleState, pod, "test-node")
+	assert.True(t, status.IsSuccess())
+
+	originalPod := pod.DeepCopy()
+	status = pl.PreBind(context.TODO(), cycleState, pod, "test-node")
+	assert.True(t, status.IsSuccess())
+
+	prebindPlugin, err := defaultprebind.New(nil, fakeHandle)
+	assert.NoError(t, err)
+	status = prebindPlugin.(frameworkext.PreBindExtensions).ApplyPatch(context.TODO(), cycleState, originalPod, pod)
+	assert.True(t, status.IsSuccess())
+
+	patchedPod, err := suit.ClientSet().CoreV1().Pods(pod.Namespace).Get(context.TODO(), pod.Name, metav1.GetOptions{})
+	assert.NoError(t, err)
+	expectedPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "default",
+			Name:      "test-pod",
+			Annotations: map[string]string{
+				ack.AnnotationACKGPUShareAllocation: `{"0":{"0":8}}`,
+				ack.AnnotationACKGPUShareAssigned:   "true",
+				ack.AnnotationACKGPUShareAssumeTime: fmt.Sprintf("%d", now.UnixNano()),
+				apiext.AnnotationDeviceAllocated:    `{"gpu":[{"minor":0,"resources":{"koordinator.sh/gpu-memory":"8Gi","koordinator.sh/gpu-memory-ratio":"10"}}]}`,
+			},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name: "main",
+					Resources: corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{
+							ack.ResourceAliyunGPUMemory: resource.MustParse("8"),
+						},
+						Requests: corev1.ResourceList{
+							ack.ResourceAliyunGPUMemory: resource.MustParse("8"),
+						},
+					},
+				},
+			},
+		},
+	}
+	assert.Equal(t, expectedPod, patchedPod)
 }
