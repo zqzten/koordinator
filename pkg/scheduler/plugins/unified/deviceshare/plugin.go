@@ -33,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	quotav1 "k8s.io/apiserver/pkg/quota/v1"
 	k8sfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 
@@ -311,42 +312,24 @@ func (pl *Plugin) appendInternalAnnotations(obj metav1.Object, allocResult apiex
 	if !ok {
 		return nil
 	}
-	ack.AppendAckAnnotations(pod, allocResult)
-	if isVirtualGPUCard(allocResult) {
-		device, err := pl.deviceLister.Get(nodeName)
-		if err != nil {
+
+	device, err := pl.deviceLister.Get(nodeName)
+	if err != nil {
+		klog.ErrorS(err, "Failed to get Device", "pod", klog.KObj(pod), "node", nodeName)
+		return err
+	}
+
+	ack.AppendAckAnnotationsIfHasGPUCompute(pod, device, allocResult)
+	if k8sfeature.DefaultFeatureGate.Enabled(features.EnableACKGPUMemoryScheduling) {
+		if err := ack.AppendAckAnnotationsIfHasGPUMemory(pod, allocResult); err != nil {
+			klog.ErrorS(err, "Failed to append ACK Annotation with GPU Memory", "pod", klog.KObj(pod))
 			return err
 		}
-		allocMinor := allocResult[schedulingv1alpha1.GPU][0].Minor
-		var totalMemory apiresource.Quantity
-		for _, v := range device.Spec.Devices {
-			if v.Type == schedulingv1alpha1.GPU && v.Minor != nil && *v.Minor == allocMinor {
-				totalMemory = v.Resources[apiext.ResourceGPUMemory]
-				break
-			}
-		}
-		pod.Annotations[ack.AnnotationAliyunEnvMemDev] = fmt.Sprintf("%v", totalMemory.Value()/1024/1024/1024)
-		gpuMemoryPod := allocResult[schedulingv1alpha1.GPU][0].Resources[apiext.ResourceGPUMemory]
-		pod.Annotations[ack.AnnotationAliyunEnvMemPod] = fmt.Sprintf("%v", gpuMemoryPod.Value()/1024/1024/1024)
 	}
 	if err := appendUnifiedDeviceAllocStatus(pod, allocResult); err != nil {
 		return err
 	}
 	return appendRundResult(pod, allocResult, pl)
-}
-
-func isVirtualGPUCard(alloc apiext.DeviceAllocations) bool {
-	for deviceType, deviceAllocations := range alloc {
-		if deviceType != schedulingv1alpha1.GPU {
-			continue
-		}
-		for _, deviceAlloc := range deviceAllocations {
-			if deviceAlloc.Resources.Name(apiext.ResourceGPUMemoryRatio, apiresource.DecimalSI).Value() < 100 {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func appendUnifiedDeviceAllocStatus(pod *corev1.Pod, deviceAllocations apiext.DeviceAllocations) error {
