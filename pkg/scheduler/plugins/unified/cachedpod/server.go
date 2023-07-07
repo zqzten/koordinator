@@ -33,6 +33,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/firstfit"
 )
 
 const (
@@ -260,6 +261,10 @@ func NewFakePod(requestID string, template *corev1.PodTemplateSpec, index int) *
 	}
 	fakePod.Annotations[AnnotationAllocateCachedPodRequestID] = requestID
 	fakePod.Annotations[AnnotationPodHijackable] = "true"
+	if fakePod.Labels == nil {
+		fakePod.Labels = map[string]string{}
+	}
+	fakePod.Labels[firstfit.LabelFirstFitScheduling] = "true"
 	return fakePod
 }
 
