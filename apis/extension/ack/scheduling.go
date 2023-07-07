@@ -17,21 +17,26 @@ limitations under the License.
 package ack
 
 import (
+	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/klog/v2"
 	k8sresource "k8s.io/kubernetes/pkg/api/v1/resource"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 )
 
-func AppendAckAnnotations(pod *corev1.Pod, allocations extension.DeviceAllocations) {
+var NowFn = time.Now
+
+func AppendAckAnnotationsIfHasGPUCompute(pod *corev1.Pod, device *schedulingv1alpha1.Device, allocations extension.DeviceAllocations) {
 	requests, _ := k8sresource.PodRequestsAndLimits(pod)
-	if quantity := requests[AliyunGPUCompute]; quantity.IsZero() {
+	if quantity := requests[ResourceAliyunGPUCompute]; quantity.IsZero() {
 		return
 	}
 	hasVirtualGPUCard, hasGPUCard := false, false
@@ -62,7 +67,92 @@ func AppendAckAnnotations(pod *corev1.Pod, allocations extension.DeviceAllocatio
 		pod.Annotations[AnnotationAliyunEnvMemAssignedFlag] = "false"
 		pod.Annotations[AnnotationAliyunEnvComputeDev] = "100"
 		pod.Annotations[AnnotationAliyunEnvComputePod] = gpuComputePod
+
+		allocMinor := allocations[schedulingv1alpha1.GPU][0].Minor
+		var totalMemory resource.Quantity
+		for _, v := range device.Spec.Devices {
+			if v.Type == schedulingv1alpha1.GPU && v.Minor != nil && *v.Minor == allocMinor {
+				totalMemory = v.Resources[extension.ResourceGPUMemory]
+				break
+			}
+		}
+		pod.Annotations[AnnotationAliyunEnvMemDev] = fmt.Sprintf("%v", totalMemory.Value()/1024/1024/1024)
+		gpuMemoryPod := allocations[schedulingv1alpha1.GPU][0].Resources[extension.ResourceGPUMemory]
+		pod.Annotations[AnnotationAliyunEnvMemPod] = fmt.Sprintf("%v", gpuMemoryPod.Value()/1024/1024/1024)
 	} else {
 		pod.Annotations[AnnotationAliyunEnvAssignedFlag] = "false"
 	}
+}
+
+func AppendAckAnnotationsIfHasGPUMemory(pod *corev1.Pod, allocations extension.DeviceAllocations) error {
+	requests, _ := k8sresource.PodRequestsAndLimits(pod)
+	if quantity := requests[ResourceAliyunGPUMemory]; quantity.IsZero() {
+		return nil
+	}
+	m := map[string]int64{}
+	for deviceType, deviceAllocations := range allocations {
+		if deviceType != schedulingv1alpha1.GPU {
+			continue
+		}
+		for _, deviceAlloc := range deviceAllocations {
+			minor := strconv.Itoa(int(deviceAlloc.Minor))
+			quantity := deviceAlloc.Resources[extension.ResourceGPUMemory]
+			m[minor] += quantity.Value()
+		}
+	}
+	if len(m) == 0 {
+		return nil
+	}
+	for minor, quantity := range m {
+		m[minor] = quantity / 1024 / 1024 / 1024
+	}
+	ackResult := map[string]map[string]int64{
+		"0": m,
+	}
+	data, err := json.Marshal(ackResult)
+	if err != nil {
+		return err
+	}
+	if pod.Annotations == nil {
+		pod.Annotations = map[string]string{}
+	}
+	pod.Annotations[AnnotationACKGPUShareAllocation] = string(data)
+	pod.Annotations[AnnotationACKGPUShareAssigned] = "true"
+	pod.Annotations[AnnotationACKGPUShareAssumeTime] = fmt.Sprintf("%d", NowFn().UnixNano())
+	return nil
+}
+
+func GetPodResourceFromV1(pod *corev1.Pod) map[int]map[string]int {
+	value, ok := pod.Annotations[AnnotationAliyunEnvMemPod]
+	if !ok || value == "" {
+		return nil
+	}
+	allocatedGPUMemory, err := strconv.Atoi(value)
+	if err != nil {
+		klog.Infof("failed to parse allocated gpu memory from pod annotation %v,reason: %v", AnnotationAliyunEnvMemPod, err)
+		return nil
+	}
+	deviceIndex, ok := pod.Annotations[AnnotationAliyunEnvResourceIndex]
+	if !ok || deviceIndex == "" {
+		return nil
+	}
+	return map[int]map[string]int{
+		0: {
+			deviceIndex: allocatedGPUMemory,
+		},
+	}
+}
+
+func GetPodResourceFromV2(pod *corev1.Pod) map[int]map[string]int {
+	value := pod.Annotations[AnnotationACKGPUShareAllocation]
+	if value != "" {
+		data := map[int]map[string]int{}
+		err := json.Unmarshal([]byte(value), &data)
+		if err != nil {
+			klog.Errorf("failed to parse allocation from annotation: %v", err)
+		} else {
+			return data
+		}
+	}
+	return nil
 }
