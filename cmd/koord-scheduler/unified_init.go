@@ -27,6 +27,7 @@ import (
 	unifieddeviceshare "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/deviceshare"
 	unifiedeci "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/eci"
 	unifiedelasticquotatree "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/elasticquotatree"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/firstfit"
 	unifiedhijack "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/hijack"
 	unifiedinplaceupdate "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/inplaceupdate"
 	unifiedinterpodaffinity "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/interpodaffinity"
@@ -69,4 +70,5 @@ func init() {
 	koordinatorPlugins[unifiedlimitaware.Name] = unifiedlimitaware.New
 	koordinatorPlugins[unifiedquotaaware.Name] = unifiedquotaaware.New
 	koordinatorPlugins[unifiednodevolumelimits.CSIName] = unifiednodevolumelimits.NewCSI
+	koordinatorPlugins[firstfit.Name] = firstfit.New
 }
