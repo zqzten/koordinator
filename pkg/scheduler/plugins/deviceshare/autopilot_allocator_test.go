@@ -805,7 +805,11 @@ func TestAutopilotAllocator(t *testing.T) {
 			assert.NoError(t, err)
 			koordShareInformerFactory := koordinatorinformers.NewSharedInformerFactory(koordFakeClient, 0)
 
-			kubeFakeClient := kubefake.NewSimpleClientset()
+			kubeFakeClient := kubefake.NewSimpleClientset(&corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-node-1",
+				},
+			})
 			sharedInformerFactory := informers.NewSharedInformerFactory(kubeFakeClient, 0)
 
 			if tt.assignedDevices != nil {
@@ -845,6 +849,10 @@ func TestAutopilotAllocator(t *testing.T) {
 				SharedInformerFactory:      sharedInformerFactory,
 				KoordSharedInformerFactory: koordShareInformerFactory,
 			})
+
+			sharedInformerFactory.Start(nil)
+			sharedInformerFactory.WaitForCacheSync(nil)
+
 			nodeDevice := deviceCache.getNodeDevice("test-node-1", false)
 			assert.NotNil(t, nodeDevice)
 
@@ -940,7 +948,11 @@ func TestAutopilotAllocatorVFByType(t *testing.T) {
 			assert.NoError(t, err)
 			koordShareInformerFactory := koordinatorinformers.NewSharedInformerFactory(koordFakeClient, 0)
 
-			kubeFakeClient := kubefake.NewSimpleClientset()
+			kubeFakeClient := kubefake.NewSimpleClientset(&corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-node-1",
+				},
+			})
 			sharedInformerFactory := informers.NewSharedInformerFactory(kubeFakeClient, 0)
 
 			if tt.assignedDevices != nil {
@@ -980,6 +992,10 @@ func TestAutopilotAllocatorVFByType(t *testing.T) {
 				SharedInformerFactory:      sharedInformerFactory,
 				KoordSharedInformerFactory: koordShareInformerFactory,
 			})
+
+			sharedInformerFactory.Start(nil)
+			sharedInformerFactory.WaitForCacheSync(nil)
+
 			nodeDevice := deviceCache.getNodeDevice("test-node-1", false)
 			assert.NotNil(t, nodeDevice)
 
@@ -1076,7 +1092,11 @@ func TestMatchDriverVersions(t *testing.T) {
 			assert.NoError(t, err)
 			koordShareInformerFactory := koordinatorinformers.NewSharedInformerFactory(koordFakeClient, 0)
 
-			kubeFakeClient := kubefake.NewSimpleClientset()
+			kubeFakeClient := kubefake.NewSimpleClientset(&corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-node-1",
+				},
+			})
 			sharedInformerFactory := informers.NewSharedInformerFactory(kubeFakeClient, 0)
 
 			deviceCache := newNodeDeviceCache()
@@ -1087,6 +1107,10 @@ func TestMatchDriverVersions(t *testing.T) {
 				SharedInformerFactory:      sharedInformerFactory,
 				KoordSharedInformerFactory: koordShareInformerFactory,
 			})
+
+			sharedInformerFactory.Start(nil)
+			sharedInformerFactory.WaitForCacheSync(nil)
+
 			nodeDevice := deviceCache.getNodeDevice("test-node-1", false)
 			assert.NotNil(t, nodeDevice)
 
@@ -1548,7 +1572,11 @@ func TestAutopilotAllocateNVSwitch(t *testing.T) {
 			assert.NoError(t, err)
 			koordShareInformerFactory := koordinatorinformers.NewSharedInformerFactory(koordFakeClient, 0)
 
-			kubeFakeClient := kubefake.NewSimpleClientset()
+			kubeFakeClient := kubefake.NewSimpleClientset(&corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-node-1",
+				},
+			})
 			sharedInformerFactory := informers.NewSharedInformerFactory(kubeFakeClient, 0)
 
 			if tt.assignedDevices != nil {
@@ -1588,6 +1616,10 @@ func TestAutopilotAllocateNVSwitch(t *testing.T) {
 				SharedInformerFactory:      sharedInformerFactory,
 				KoordSharedInformerFactory: koordShareInformerFactory,
 			})
+
+			sharedInformerFactory.Start(nil)
+			sharedInformerFactory.WaitForCacheSync(nil)
+
 			nodeDevice := deviceCache.getNodeDevice("test-node-1", false)
 			assert.NotNil(t, nodeDevice)
 
@@ -1603,6 +1635,575 @@ func TestAutopilotAllocateNVSwitch(t *testing.T) {
 			defer nodeDevice.lock.Unlock()
 
 			allocations, err := allocator.Allocate("test-node-1", &corev1.Pod{}, podRequest, nodeDevice, nil, nil, nil, nil)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Allocate() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			sortDeviceAllocations(allocations)
+			sortDeviceAllocations(tt.want)
+			assert.Equal(t, tt.want, allocations)
+		})
+	}
+}
+
+var fakeH800DeviceCR = &schedulingv1alpha1.Device{
+	ObjectMeta: metav1.ObjectMeta{
+		Name: "test-node-1",
+		Annotations: map[string]string{
+			unified.AnnotationDevicePCIInfos:       `[{"type":"gpu","busID":"0000:08:00.0"},{"type":"gpu","minor":1,"busID":"0000:7e:00.0"},{"type":"gpu","minor":2,"busID":"0000:a2:00.0"},{"type":"gpu","minor":3,"busID":"0000:c6:00.0"},{"type":"gpu","minor":4,"busID":"0001:09:00.0"},{"type":"gpu","minor":5,"busID":"0001:7f:00.0"},{"type":"gpu","minor":6,"busID":"0001:a3:00.0"},{"type":"gpu","minor":7,"busID":"0001:c7:00.0"}]`,
+			unified.AnnotationDeviceTopology:       `{"numaSockets":[{"index":0,"numaNodes":[{"index":0,"pcieSwitches":[{"index":0,"gpus":[0],"rdmas":[{"type":"pf_worker","minor":1,"uVerbs":"/dev/infiniband/uverbs1","bond":1,"bondSlaves":["eth0","eth1"],"bw":400}]},{"index":1,"rdmas":[{"type":"pf_system","minor":0,"uVerbs":"/dev/infiniband/uverbs2","bondSlaves":["eth2","eth3"],"bw":400}]},{"index":2,"gpus":[1],"rdmas":[{"type":"pf_worker","minor":2,"uVerbs":"/dev/infiniband/uverbs0","bond":2,"bondSlaves":["eth4","eth5"],"bw":400}]},{"index":3,"gpus":[2],"rdmas":[{"type":"pf_worker","minor":3,"uVerbs":"/dev/infiniband/uverbs4","bond":3,"bondSlaves":["eth6","eth7"],"bw":400}]},{"index":4,"gpus":[3],"rdmas":[{"type":"pf_worker","minor":4,"uVerbs":"/dev/infiniband/uverbs5","bond":4,"bondSlaves":["eth8","eth9"],"bw":400}]}]}]},{"index":1,"numaNodes":[{"index":1,"pcieSwitches":[{"index":5,"gpus":[4],"rdmas":[{"type":"pf_worker","minor":5,"uVerbs":"/dev/infiniband/uverbs6","bond":5,"bondSlaves":["eth10","eth11"],"bw":400}]},{"index":6,"gpus":[5],"rdmas":[{"type":"pf_worker","minor":6,"uVerbs":"/dev/infiniband/uverbs3","bond":6,"bondSlaves":["eth12","eth13"],"bw":400}]},{"index":7,"gpus":[6],"rdmas":[{"type":"pf_worker","minor":7,"uVerbs":"/dev/infiniband/uverbs7","bond":7,"bondSlaves":["eth14","eth15"],"bw":400}]},{"index":8,"gpus":[7],"rdmas":[{"type":"pf_worker","minor":8,"uVerbs":"/dev/infiniband/uverbs8","bond":8,"bondSlaves":["eth16","eth17"],"bw":400}]}]}]}]}`,
+			unified.AnnotationRDMATopology:         `{"vfs":{"1":[{"name":"vf_eth0_0","busID":"0000:09:00.2","minor":0,"priority":"VFPriorityLow","type":"vf_storage"},{"busID":"0000:09:00.3","minor":1,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0000:09:00.4","minor":2,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0000:09:00.5","minor":3,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0000:09:00.6","minor":4,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0000:09:02.2","minor":16,"priority":"VFPriorityLow","type":"vf_cpu"},{"busID":"0000:09:02.3","minor":17,"priority":"VFPriorityLow","type":"vf_cpu"},{"busID":"0000:09:02.4","minor":18,"priority":"VFPriorityLow","type":"vf_cpu"},{"busID":"0000:09:02.5","minor":19,"priority":"VFPriorityLow","type":"vf_cpu"}],"2":[{"name":"vf_eth4_0","busID":"0000:7f:00.2","minor":0,"priority":"VFPriorityLow","type":"vf_storage"},{"busID":"0000:7f:00.3","minor":1,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0000:7f:00.4","minor":2,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0000:7f:00.5","minor":3,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0000:7f:00.6","minor":4,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0000:7f:02.2","minor":16,"priority":"VFPriorityLow","type":"vf_cpu"},{"busID":"0000:7f:02.3","minor":17,"priority":"VFPriorityLow","type":"vf_cpu"},{"busID":"0000:7f:02.4","minor":18,"priority":"VFPriorityLow","type":"vf_cpu"},{"busID":"0000:7f:02.5","minor":19,"priority":"VFPriorityLow","type":"vf_cpu"}],"3":[{"name":"vf_eth6_0","busID":"0000:a3:00.2","minor":0,"priority":"VFPriorityLow","type":"vf_storage"},{"busID":"0000:a3:00.3","minor":1,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0000:a3:00.4","minor":2,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0000:a3:00.5","minor":3,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0000:a3:00.6","minor":4,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0000:a3:02.2","minor":16,"priority":"VFPriorityLow","type":"vf_cpu"},{"busID":"0000:a3:02.3","minor":17,"priority":"VFPriorityLow","type":"vf_cpu"},{"busID":"0000:a3:02.4","minor":18,"priority":"VFPriorityLow","type":"vf_cpu"},{"busID":"0000:a3:02.5","minor":19,"priority":"VFPriorityLow","type":"vf_cpu"}],"4":[{"name":"vf_eth8_0","busID":"0000:c7:00.2","minor":0,"priority":"VFPriorityLow","type":"vf_storage"},{"busID":"0000:c7:00.3","minor":1,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0000:c7:00.4","minor":2,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0000:c7:00.5","minor":3,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0000:c7:00.6","minor":4,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0000:c7:02.2","minor":16,"priority":"VFPriorityLow","type":"vf_cpu"},{"busID":"0000:c7:02.3","minor":17,"priority":"VFPriorityLow","type":"vf_cpu"},{"busID":"0000:c7:02.4","minor":18,"priority":"VFPriorityLow","type":"vf_cpu"},{"busID":"0000:c7:02.5","minor":19,"priority":"VFPriorityLow","type":"vf_cpu"}],"5":[{"name":"vf_eth10_0","busID":"0001:08:00.2","minor":0,"priority":"VFPriorityLow","type":"vf_storage"},{"busID":"0001:08:00.3","minor":1,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0001:08:00.4","minor":2,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0001:08:00.5","minor":3,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0001:08:00.6","minor":4,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0001:08:02.2","minor":16,"priority":"VFPriorityLow","type":"vf_cpu"},{"busID":"0001:08:02.3","minor":17,"priority":"VFPriorityLow","type":"vf_cpu"},{"busID":"0001:08:02.4","minor":18,"priority":"VFPriorityLow","type":"vf_cpu"},{"busID":"0001:08:02.5","minor":19,"priority":"VFPriorityLow","type":"vf_cpu"}],"6":[{"name":"vf_eth12_0","busID":"0001:7e:00.2","minor":0,"priority":"VFPriorityLow","type":"vf_storage"},{"busID":"0001:7e:00.3","minor":1,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0001:7e:00.4","minor":2,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0001:7e:00.5","minor":3,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0001:7e:00.6","minor":4,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0001:7e:02.2","minor":16,"priority":"VFPriorityLow","type":"vf_cpu"},{"busID":"0001:7e:02.3","minor":17,"priority":"VFPriorityLow","type":"vf_cpu"},{"busID":"0001:7e:02.4","minor":18,"priority":"VFPriorityLow","type":"vf_cpu"},{"busID":"0001:7e:02.5","minor":19,"priority":"VFPriorityLow","type":"vf_cpu"}],"7":[{"name":"vf_eth14_0","busID":"0001:a2:00.2","minor":0,"priority":"VFPriorityLow","type":"vf_storage"},{"busID":"0001:a2:00.3","minor":1,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0001:a2:00.4","minor":2,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0001:a2:00.5","minor":3,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0001:a2:00.6","minor":4,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0001:a2:02.2","minor":16,"priority":"VFPriorityLow","type":"vf_cpu"},{"busID":"0001:a2:02.3","minor":17,"priority":"VFPriorityLow","type":"vf_cpu"},{"busID":"0001:a2:02.4","minor":18,"priority":"VFPriorityLow","type":"vf_cpu"},{"busID":"0001:a2:02.5","minor":19,"priority":"VFPriorityLow","type":"vf_cpu"}],"8":[{"name":"vf_eth16_0","busID":"0001:c6:00.2","minor":0,"priority":"VFPriorityLow","type":"vf_storage"},{"busID":"0001:c6:00.3","minor":1,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0001:c6:00.4","minor":2,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0001:c6:00.5","minor":3,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0001:c6:00.6","minor":4,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0001:c6:02.1","minor":15,"priority":"VFPriorityLow","type":"vf_gpu"},{"busID":"0001:c6:02.2","minor":16,"priority":"VFPriorityLow","type":"vf_cpu"},{"busID":"0001:c6:02.3","minor":17,"priority":"VFPriorityLow","type":"vf_cpu"},{"busID":"0001:c6:02.4","minor":18,"priority":"VFPriorityLow","type":"vf_cpu"},{"busID":"0001:c6:02.5","minor":19,"priority":"VFPriorityLow","type":"vf_cpu"}]}}`,
+			unified.AnnotationNVIDIADriverVersions: `["470.141.10"]`,
+		},
+	},
+	Spec: schedulingv1alpha1.DeviceSpec{
+		Devices: []schedulingv1alpha1.DeviceInfo{
+			{
+				Type:   schedulingv1alpha1.RDMA,
+				UUID:   "0000:09:00.0",
+				Minor:  pointer.Int32(1),
+				Health: true,
+				Resources: corev1.ResourceList{
+					apiext.ResourceRDMA: *resource.NewQuantity(100, resource.DecimalSI),
+				},
+			},
+			{
+				Type:   schedulingv1alpha1.RDMA,
+				UUID:   "0000:7f:00.0",
+				Minor:  pointer.Int32(2),
+				Health: true,
+				Resources: corev1.ResourceList{
+					apiext.ResourceRDMA: *resource.NewQuantity(100, resource.DecimalSI),
+				},
+			},
+			{
+				Type:   schedulingv1alpha1.RDMA,
+				UUID:   "0000:a3:00.0",
+				Minor:  pointer.Int32(3),
+				Health: true,
+				Resources: corev1.ResourceList{
+					apiext.ResourceRDMA: *resource.NewQuantity(100, resource.DecimalSI),
+				},
+			},
+			{
+				Type:   schedulingv1alpha1.RDMA,
+				UUID:   "0000:c7:00.0",
+				Minor:  pointer.Int32(4),
+				Health: true,
+				Resources: corev1.ResourceList{
+					apiext.ResourceRDMA: *resource.NewQuantity(100, resource.DecimalSI),
+				},
+			},
+			{
+				Type:   schedulingv1alpha1.RDMA,
+				UUID:   "0001:08:00.0",
+				Minor:  pointer.Int32(1),
+				Health: true,
+				Resources: corev1.ResourceList{
+					apiext.ResourceRDMA: *resource.NewQuantity(100, resource.DecimalSI),
+				},
+			},
+			{
+				Type:   schedulingv1alpha1.RDMA,
+				UUID:   "0001:7e:00.0",
+				Minor:  pointer.Int32(2),
+				Health: true,
+				Resources: corev1.ResourceList{
+					apiext.ResourceRDMA: *resource.NewQuantity(100, resource.DecimalSI),
+				},
+			},
+			{
+				Type:   schedulingv1alpha1.RDMA,
+				UUID:   "0001:a2:00.0",
+				Minor:  pointer.Int32(3),
+				Health: true,
+				Resources: corev1.ResourceList{
+					apiext.ResourceRDMA: *resource.NewQuantity(100, resource.DecimalSI),
+				},
+			},
+			{
+				Type:   schedulingv1alpha1.RDMA,
+				UUID:   "0001:c6:00.0",
+				Minor:  pointer.Int32(4),
+				Health: true,
+				Resources: corev1.ResourceList{
+					apiext.ResourceRDMA: *resource.NewQuantity(100, resource.DecimalSI),
+				},
+			},
+
+			{
+				Type:      schedulingv1alpha1.GPU,
+				UUID:      "GPU-6b1ff724-4fe2-17b8-adfe-1f4c8a4148d1",
+				Minor:     pointer.Int32(0),
+				ModuleID:  pointer.Int32(6),
+				Health:    true,
+				Resources: gpuResourceList,
+			},
+			{
+				Type:      schedulingv1alpha1.GPU,
+				UUID:      "GPU-702ee422-96de-2dde-438f-b6eda3ef7efc",
+				Minor:     pointer.Int32(1),
+				ModuleID:  pointer.Int32(8),
+				Health:    true,
+				Resources: gpuResourceList,
+			},
+			{
+				Type:      schedulingv1alpha1.GPU,
+				UUID:      "GPU-e5a60856-a994-ec0b-1b04-eaa18205b00b",
+				Minor:     pointer.Int32(2),
+				ModuleID:  pointer.Int32(7),
+				Health:    true,
+				Resources: gpuResourceList,
+			},
+			{
+				Type:      schedulingv1alpha1.GPU,
+				UUID:      "GPU-e1f2597e-0996-be81-19c4-8dd19bca3761",
+				Minor:     pointer.Int32(3),
+				ModuleID:  pointer.Int32(5),
+				Health:    true,
+				Resources: gpuResourceList,
+			},
+			{
+				Type:      schedulingv1alpha1.GPU,
+				UUID:      "GPU-02d911ef-e297-3063-1734-b8d3c3b3f5fc",
+				Minor:     pointer.Int32(4),
+				ModuleID:  pointer.Int32(1),
+				Health:    true,
+				Resources: gpuResourceList,
+			},
+			{
+				Type:      schedulingv1alpha1.GPU,
+				UUID:      "GPU-8b1e54b7-84a6-960f-2723-ecee87de9d46",
+				Minor:     pointer.Int32(5),
+				ModuleID:  pointer.Int32(3),
+				Health:    true,
+				Resources: gpuResourceList,
+			},
+			{
+				Type:      schedulingv1alpha1.GPU,
+				UUID:      "GPU-5a1654e4-2a92-19a4-e97e-6b4ca19509cd",
+				Minor:     pointer.Int32(6),
+				ModuleID:  pointer.Int32(4),
+				Health:    true,
+				Resources: gpuResourceList,
+			},
+			{
+				Type:      schedulingv1alpha1.GPU,
+				UUID:      "GPU-f1646769-f47c-47b5-fe73-f7635d845bdf",
+				Minor:     pointer.Int32(7),
+				ModuleID:  pointer.Int32(2),
+				Health:    true,
+				Resources: gpuResourceList,
+			},
+		},
+	},
+}
+
+func TestAllocateByPartition(t *testing.T) {
+	tests := []struct {
+		name            string
+		deviceCR        *schedulingv1alpha1.Device
+		deviceTopology  *unified.DeviceTopology
+		rdmaTopology    *unified.RDMATopology
+		gpuWanted       int
+		hostNetwork     bool
+		assignedDevices apiext.DeviceAllocations
+		want            apiext.DeviceAllocations
+		wantErr         bool
+	}{
+		{
+			name:      "allocate 0 GPU and 1 VF",
+			deviceCR:  fakeH800DeviceCR,
+			gpuWanted: 0,
+			want: apiext.DeviceAllocations{
+				schedulingv1alpha1.RDMA: []*apiext.DeviceAllocation{
+					{
+						Minor: 1,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:09:02.5","minor":19,"priority":"VFPriorityLow"}],"bondSlaves":["eth0","eth1"]}`),
+					},
+				},
+			},
+		},
+		{
+			name:      "allocate 1 GPU and 1 VF",
+			deviceCR:  fakeH800DeviceCR,
+			gpuWanted: 1,
+			want: apiext.DeviceAllocations{
+				schedulingv1alpha1.GPU: []*apiext.DeviceAllocation{
+					{
+						Minor:     4,
+						Resources: gpuResourceList,
+					},
+				},
+				schedulingv1alpha1.RDMA: []*apiext.DeviceAllocation{
+					{
+						Minor: 5,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond5","busID":"0001:08:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth10","eth11"]}`),
+					},
+				},
+			},
+		},
+		{
+			name:      "allocate 2 GPU and 2 VF",
+			deviceCR:  fakeH800DeviceCR,
+			gpuWanted: 2,
+			want: apiext.DeviceAllocations{
+				schedulingv1alpha1.GPU: []*apiext.DeviceAllocation{
+					{
+						Minor:     4,
+						Resources: gpuResourceList,
+					},
+					{
+						Minor:     5,
+						Resources: gpuResourceList,
+					},
+				},
+				schedulingv1alpha1.RDMA: []*apiext.DeviceAllocation{
+					{
+						Minor: 5,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond5","busID":"0001:08:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth10","eth11"]}`),
+					},
+					{
+						Minor: 6,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond6","busID":"0001:7e:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth12","eth13"]}`),
+					},
+				},
+			},
+		},
+		{
+			name:      "allocate 3 GPU",
+			deviceCR:  fakeH800DeviceCR,
+			gpuWanted: 3,
+			wantErr:   true,
+		},
+		{
+			name:      "allocate 4 GPU and 4 VF",
+			deviceCR:  fakeH800DeviceCR,
+			gpuWanted: 4,
+			want: apiext.DeviceAllocations{
+				schedulingv1alpha1.GPU: []*apiext.DeviceAllocation{
+					{
+						Minor:     4,
+						Resources: gpuResourceList,
+					},
+					{
+						Minor:     5,
+						Resources: gpuResourceList,
+					},
+					{
+						Minor:     6,
+						Resources: gpuResourceList,
+					},
+					{
+						Minor:     7,
+						Resources: gpuResourceList,
+					},
+				},
+				schedulingv1alpha1.RDMA: []*apiext.DeviceAllocation{
+					{
+						Minor: 5,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond5","busID":"0001:08:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth10","eth11"]}`),
+					},
+					{
+						Minor: 6,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond6","busID":"0001:7e:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth12","eth13"]}`),
+					},
+					{
+						Minor: 7,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond7","busID":"0001:a2:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth14","eth15"]}`),
+					},
+					{
+						Minor: 8,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond8","busID":"0001:c6:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth16","eth17"]}`),
+					},
+				},
+			},
+		},
+		{
+			name:      "allocate 6 GPU and 3 VF",
+			deviceCR:  fakeH800DeviceCR,
+			gpuWanted: 6,
+			wantErr:   true,
+		},
+		{
+			name:      "allocate 8 GPU and 8 VF",
+			deviceCR:  fakeH800DeviceCR,
+			gpuWanted: 8,
+			want: apiext.DeviceAllocations{
+				schedulingv1alpha1.GPU: []*apiext.DeviceAllocation{
+					{
+						Minor:     0,
+						Resources: gpuResourceList,
+					},
+					{
+						Minor:     1,
+						Resources: gpuResourceList,
+					},
+					{
+						Minor:     2,
+						Resources: gpuResourceList,
+					},
+					{
+						Minor:     3,
+						Resources: gpuResourceList,
+					},
+					{
+						Minor:     4,
+						Resources: gpuResourceList,
+					},
+					{
+						Minor:     5,
+						Resources: gpuResourceList,
+					},
+					{
+						Minor:     6,
+						Resources: gpuResourceList,
+					},
+					{
+						Minor:     7,
+						Resources: gpuResourceList,
+					},
+				},
+				schedulingv1alpha1.RDMA: []*apiext.DeviceAllocation{
+					{
+						Minor: 1,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:09:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth0","eth1"]}`),
+					},
+					{
+						Minor: 2,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond2","busID":"0000:7f:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth4","eth5"]}`),
+					},
+					{
+						Minor: 3,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond3","busID":"0000:a3:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth6","eth7"]}`),
+					},
+					{
+						Minor: 4,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond4","busID":"0000:c7:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth8","eth9"]}`),
+					},
+					{
+						Minor: 5,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond5","busID":"0001:08:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth10","eth11"]}`),
+					},
+					{
+						Minor: 6,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond6","busID":"0001:7e:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth12","eth13"]}`),
+					},
+					{
+						Minor: 7,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond7","busID":"0001:a2:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth14","eth15"]}`),
+					},
+					{
+						Minor: 8,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond8","busID":"0001:c6:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth16","eth17"]}`),
+					},
+				},
+			},
+		},
+		{
+			name:      "allocate 2 GPU and 2 VF with assigned devices",
+			deviceCR:  fakeH800DeviceCR,
+			gpuWanted: 2,
+			assignedDevices: apiext.DeviceAllocations{
+				schedulingv1alpha1.GPU: []*apiext.DeviceAllocation{
+					{
+						Minor:     4,
+						Resources: gpuResourceList,
+					},
+					{
+						Minor:     5,
+						Resources: gpuResourceList,
+					},
+				},
+
+				schedulingv1alpha1.RDMA: []*apiext.DeviceAllocation{
+					{
+						Minor: 5,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond5","busID":"0001:08:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth10","eth11"]}`),
+					},
+					{
+						Minor: 6,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond6","busID":"0001:7e:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth12","eth13"]}`),
+					},
+				},
+			},
+			want: apiext.DeviceAllocations{
+				schedulingv1alpha1.GPU: []*apiext.DeviceAllocation{
+					{
+						Minor:     6,
+						Resources: gpuResourceList,
+					},
+					{
+						Minor:     7,
+						Resources: gpuResourceList,
+					},
+				},
+				schedulingv1alpha1.RDMA: []*apiext.DeviceAllocation{
+					{
+						Minor: 7,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond7","busID":"0001:a2:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth14","eth15"]}`),
+					},
+					{
+						Minor: 8,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond8","busID":"0001:c6:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth16","eth17"]}`),
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			koordFakeClient := koordfake.NewSimpleClientset()
+			deviceCR := tt.deviceCR.DeepCopy()
+			if tt.deviceTopology != nil {
+				data, err := json.Marshal(tt.deviceTopology)
+				assert.NoError(t, err)
+				deviceCR.Annotations[unified.AnnotationDeviceTopology] = string(data)
+			}
+			if tt.rdmaTopology != nil {
+				data, err := json.Marshal(tt.rdmaTopology)
+				assert.NoError(t, err)
+				deviceCR.Annotations[unified.AnnotationRDMATopology] = string(data)
+			}
+			_, err := koordFakeClient.SchedulingV1alpha1().Devices().Create(context.TODO(), deviceCR, metav1.CreateOptions{})
+			assert.NoError(t, err)
+			koordShareInformerFactory := koordinatorinformers.NewSharedInformerFactory(koordFakeClient, 0)
+
+			kubeFakeClient := kubefake.NewSimpleClientset(&corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-node-1",
+					Labels: map[string]string{
+						apiext.LabelGPUModel: "H800",
+					},
+				},
+			})
+			sharedInformerFactory := informers.NewSharedInformerFactory(kubeFakeClient, 0)
+
+			if tt.assignedDevices != nil {
+				data, err := json.Marshal(tt.assignedDevices)
+				assert.NoError(t, err)
+				pod := &corev1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Name:      "assigned-pod",
+						UID:       uuid.NewUUID(),
+						Annotations: map[string]string{
+							apiext.AnnotationDeviceAllocated: string(data),
+						},
+					},
+					Spec: corev1.PodSpec{
+						NodeName: "test-node-1",
+						Containers: []corev1.Container{
+							{
+								Resources: corev1.ResourceRequirements{
+									Requests: corev1.ResourceList{
+										apiext.ResourceNvidiaGPU: *resource.NewQuantity(1, resource.DecimalSI),
+									},
+								},
+							},
+						},
+					},
+				}
+				_, err = kubeFakeClient.CoreV1().Pods(pod.Namespace).Create(context.TODO(), pod, metav1.CreateOptions{})
+				assert.NoError(t, err)
+			}
+
+			deviceCache := newNodeDeviceCache()
+			registerDeviceEventHandler(deviceCache, koordShareInformerFactory)
+			registerPodEventHandler(deviceCache, sharedInformerFactory, koordShareInformerFactory)
+
+			allocator := NewAutopilotAllocator(AllocatorOptions{
+				SharedInformerFactory:      sharedInformerFactory,
+				KoordSharedInformerFactory: koordShareInformerFactory,
+			})
+
+			sharedInformerFactory.Start(nil)
+			sharedInformerFactory.WaitForCacheSync(nil)
+
+			nodeDevice := deviceCache.getNodeDevice("test-node-1", false)
+			assert.NotNil(t, nodeDevice)
+
+			podRequest := corev1.ResourceList{}
+			if tt.gpuWanted > 0 {
+				podRequest[apiext.ResourceNvidiaGPU] = *resource.NewQuantity(int64(tt.gpuWanted), resource.DecimalSI)
+				combination, err := ValidateDeviceRequest(podRequest)
+				assert.NoError(t, err)
+				podRequest = ConvertDeviceRequest(podRequest, combination)
+			}
+
+			podRequest[apiext.ResourceRDMA] = *resource.NewQuantity(1, resource.DecimalSI)
+
+			nodeDevice.lock.Lock()
+			defer nodeDevice.lock.Unlock()
+
+			pod := &corev1.Pod{
+				Spec: corev1.PodSpec{
+					HostNetwork: tt.hostNetwork,
+				},
+			}
+
+			allocations, err := allocator.Allocate("test-node-1", pod, podRequest, nodeDevice, nil, nil, nil, nil)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Allocate() error = %v, wantErr %v", err, tt.wantErr)
 				return
