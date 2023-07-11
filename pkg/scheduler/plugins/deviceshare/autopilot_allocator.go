@@ -19,6 +19,7 @@ package deviceshare
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 
@@ -26,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/sets"
 	quotav1 "k8s.io/apiserver/pkg/quota/v1"
+	corev1lister "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 
@@ -99,6 +101,7 @@ const (
 
 type AutopilotAllocator struct {
 	vfCache      *VFCache
+	nodeLister   corev1lister.NodeLister
 	deviceLister schedulingv1alpha1listers.DeviceLister
 }
 
@@ -115,8 +118,10 @@ func NewAutopilotAllocator(
 	// make sure Pods are loaded before scheduler starts working
 	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), options.SharedInformerFactory, podInformer, eventHandler)
 	deviceLister := options.KoordSharedInformerFactory.Scheduling().V1alpha1().Devices().Lister()
+	nodeLister := options.SharedInformerFactory.Core().V1().Nodes().Lister()
 	return &AutopilotAllocator{
 		vfCache:      vfCache,
+		nodeLister:   nodeLister,
 		deviceLister: deviceLister,
 	}
 }
@@ -126,13 +131,13 @@ func (a *AutopilotAllocator) Name() string {
 }
 
 func (a *AutopilotAllocator) Allocate(nodeName string, pod *corev1.Pod, podRequest corev1.ResourceList, nodeDevice *nodeDevice, required, preferred map[schedulingv1alpha1.DeviceType]sets.Int, requiredDeviceResources, preemptibleFreeDevices map[schedulingv1alpha1.DeviceType]deviceResources) (apiext.DeviceAllocations, error) {
-	device, err := a.deviceLister.Get(nodeName)
+	deviceObj, err := a.deviceLister.Get(nodeName)
 	if err != nil {
 		return nil, err
 	}
 
 	if pod.Spec.RuntimeClassName != nil && *pod.Spec.RuntimeClassName == "rund" && HasDeviceResource(podRequest, schedulingv1alpha1.GPU) {
-		matchedVersion, err := MatchDriverVersions(pod, device)
+		matchedVersion, err := MatchDriverVersions(pod, deviceObj)
 		if err != nil {
 			return nil, err
 		}
@@ -141,7 +146,7 @@ func (a *AutopilotAllocator) Allocate(nodeName string, pod *corev1.Pod, podReque
 		}
 	}
 
-	rdmaTopology, err := unified.GetRDMATopology(device.Annotations)
+	rdmaTopology, err := unified.GetRDMATopology(deviceObj.Annotations)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +156,7 @@ func (a *AutopilotAllocator) Allocate(nodeName string, pod *corev1.Pod, podReque
 			return nil, fmt.Errorf("invalid RDMA Topology")
 		}
 	}
-	deviceTopology, err := unified.GetDeviceTopology(device.Annotations)
+	deviceTopology, err := unified.GetDeviceTopology(deviceObj.Annotations)
 	if err != nil {
 		return nil, err
 	}
@@ -186,22 +191,36 @@ func (a *AutopilotAllocator) Allocate(nodeName string, pod *corev1.Pod, podReque
 		gpuRequestPerCard = gpuRequest
 	}
 
-	deviceAllocations, _, err := a.allocateResourcesByPCIE(nodeName, nodeDevice, gpuRequestPerCard, rdmaRequest, mustAllocateVF(pod), int(gpuWanted), deviceTopology, rdmaTopology, required, preferred, requiredDeviceResources, preemptibleFreeDevices, unified.VFDeviceTypeGPU)
+	var deviceAllocations apiext.DeviceAllocations
+	node, err := a.nodeLister.Get(nodeName)
 	if err != nil {
-		var zeroRDMARequest resource.Quantity
-		var allocatedPCIEs sets.Int
-		deviceAllocations, allocatedPCIEs, err = a.allocateResourcesByPCIE(nodeName, nodeDevice, gpuRequestPerCard, zeroRDMARequest, false, int(gpuWanted), deviceTopology, rdmaTopology, required, preferred, requiredDeviceResources, preemptibleFreeDevices, unified.VFDeviceTypeGPU)
+		return nil, fmt.Errorf("missing node")
+	}
+	if mustAllocateGPUByPartition(node) {
+		partitionTable := getGPUPartitionTable(node)
+		deviceAllocations, err = a.allocateResourcesByPartition(nodeName, nodeDevice, deviceObj, gpuRequestPerCard, int(gpuWanted), rdmaRequest, mustAllocateVF(pod), unified.VFDeviceTypeGPU, partitionTable, deviceTopology, rdmaTopology, required, preferred, requiredDeviceResources, preemptibleFreeDevices)
 		if err != nil {
 			return nil, err
 		}
-		if !rdmaRequest.IsZero() && mustAllocateVF(pod) {
-			rdmaAllocations, err := a.allocateVFs(nodeName, rdmaRequest, len(allocatedPCIEs), false, allocatedPCIEs, deviceTopology, rdmaTopology, unified.VFDeviceTypeGPU)
+	} else {
+		deviceAllocations, _, err = a.allocateResourcesByPCIE(nodeName, nodeDevice, gpuRequestPerCard, int(gpuWanted), rdmaRequest, mustAllocateVF(pod), unified.VFDeviceTypeGPU, deviceTopology, rdmaTopology, required, preferred, requiredDeviceResources, preemptibleFreeDevices)
+		if err != nil {
+			var zeroRDMARequest resource.Quantity
+			var allocatedPCIEs sets.Int
+			deviceAllocations, allocatedPCIEs, err = a.allocateResourcesByPCIE(nodeName, nodeDevice, gpuRequestPerCard, int(gpuWanted), zeroRDMARequest, false, unified.VFDeviceTypeGPU, deviceTopology, rdmaTopology, required, preferred, requiredDeviceResources, preemptibleFreeDevices)
 			if err != nil {
 				return nil, err
 			}
-			deviceAllocations[schedulingv1alpha1.RDMA] = rdmaAllocations
+			if !rdmaRequest.IsZero() && mustAllocateVF(pod) {
+				rdmaAllocations, err := a.allocateVFs(nodeName, rdmaRequest, len(allocatedPCIEs), false, allocatedPCIEs, deviceTopology, rdmaTopology, unified.VFDeviceTypeGPU)
+				if err != nil {
+					return nil, err
+				}
+				deviceAllocations[schedulingv1alpha1.RDMA] = rdmaAllocations
+			}
 		}
 	}
+
 	if !rdmaRequest.IsZero() && !mustAllocateVF(pod) {
 		rdmaAllocations, err := a.allocatePFs(nodeDevice, deviceTopology, rdmaRequest)
 		if err != nil {
@@ -211,7 +230,7 @@ func (a *AutopilotAllocator) Allocate(nodeName string, pod *corev1.Pod, podReque
 	}
 
 	// 先暂时不支持为 Reservation 预留 NVSwitch 设备
-	if !reservationutil.IsReservePod(pod) {
+	if !reservationutil.IsReservePod(pod) && !mustAllocateGPUByPartition(node) {
 		nvSwitches, err := a.allocateNVSwitches(len(deviceAllocations[schedulingv1alpha1.GPU]), nodeDevice, required, preferred, requiredDeviceResources, preemptibleFreeDevices)
 		if err != nil {
 			return nil, err
@@ -262,18 +281,109 @@ func (a *AutopilotAllocator) allocateNonGPUDevices(
 	return deviceAllocations, nil
 }
 
-func (a *AutopilotAllocator) allocateResourcesByPCIE(
+func (a *AutopilotAllocator) allocateResourcesByPartition(
 	nodeName string,
 	nodeDevice *nodeDevice,
+	deviceObj *schedulingv1alpha1.Device,
 	gpuRequestPerCard corev1.ResourceList,
+	gpuWanted int,
 	rdmaRequest resource.Quantity,
 	requireAllocateVF bool,
-	gpuWanted int,
+	vfDeviceType unified.VFDeviceType,
+	partitionTable map[int][]GPUPartition,
 	deviceTopology *unified.DeviceTopology,
 	rdmaTopology *unified.RDMATopology,
 	required, preferred map[schedulingv1alpha1.DeviceType]sets.Int,
 	requiredDeviceResources, preemptibleFreeDevices map[schedulingv1alpha1.DeviceType]deviceResources,
+) (apiext.DeviceAllocations, error) {
+	partitions, ok := partitionTable[gpuWanted]
+	if !ok {
+		return nil, errors.New("node(s) Unsupported number of GPU requests")
+	}
+
+	deviceAllocations := apiext.DeviceAllocations{}
+	satisfiedDeviceCount := 0
+	var allocatedPCIEs sets.Int
+	for _, partition := range partitions {
+		minors := sets.NewInt()
+		for _, moduleID := range partition.ModuleIDs {
+			for _, v := range deviceObj.Spec.Devices {
+				if v.ModuleID != nil && int(*v.ModuleID) == moduleID && v.Minor != nil {
+					minors.Insert(int(*v.Minor))
+				}
+			}
+		}
+		devices := map[schedulingv1alpha1.DeviceType][]int{
+			schedulingv1alpha1.GPU: minors.UnsortedList(),
+		}
+		partitionDevice := nodeDevice.filter(devices, requiredDeviceResources, preemptibleFreeDevices)
+
+		totalFreeGPUMemoryRatio := sumDeviceResource(partitionDevice.deviceFree[schedulingv1alpha1.GPU], apiext.ResourceGPUMemoryRatio)
+		gpuMemoryRatioRequest := gpuRequestPerCard[apiext.ResourceGPUMemoryRatio]
+		freeCount := int(totalFreeGPUMemoryRatio / gpuMemoryRatioRequest.Value())
+		if freeCount < gpuWanted {
+			continue
+		}
+
+		var gpuAllocations []*apiext.DeviceAllocation
+		for i := 0; i < gpuWanted; i++ {
+			resourceRequest := gpuRequestPerCard.DeepCopy()
+			allocations, err := partitionDevice.tryAllocateDevice(resourceRequest, required, preferred, nil, nil)
+			if err != nil {
+				break
+			}
+			for k, v := range allocations {
+				gpuAllocations = append(gpuAllocations, v...)
+				partitionDevice.updateDeviceUsed(k, v, true)
+			}
+			partitionDevice.resetDeviceFree(schedulingv1alpha1.GPU)
+		}
+
+		satisfiedDeviceCount = len(gpuAllocations)
+		if satisfiedDeviceCount == gpuWanted {
+			deviceAllocations[schedulingv1alpha1.GPU] = gpuAllocations
+			allocatedPCIEs = sets.NewInt()
+			for _, numaSocket := range deviceTopology.NUMASockets {
+				for _, numaNode := range numaSocket.NUMANodes {
+					for _, pcie := range numaNode.PCIESwitches {
+						for _, minor := range pcie.GPUs {
+							if minors.Has(int(minor)) {
+								allocatedPCIEs.Insert(int(pcie.Index))
+							}
+						}
+					}
+				}
+			}
+			break
+		}
+	}
+
+	if satisfiedDeviceCount != gpuWanted {
+		return nil, fmt.Errorf("node does not have enough GPU")
+	}
+
+	if !rdmaRequest.IsZero() && requireAllocateVF {
+		rdmaAllocations, err := a.allocateVFs(nodeName, rdmaRequest, len(allocatedPCIEs), false, allocatedPCIEs, deviceTopology, rdmaTopology, vfDeviceType)
+		if err != nil {
+			return nil, err
+		}
+		deviceAllocations[schedulingv1alpha1.RDMA] = rdmaAllocations
+	}
+	return deviceAllocations, nil
+}
+
+func (a *AutopilotAllocator) allocateResourcesByPCIE(
+	nodeName string,
+	nodeDevice *nodeDevice,
+	gpuRequestPerCard corev1.ResourceList,
+	gpuWanted int,
+	rdmaRequest resource.Quantity,
+	requireAllocateVF bool,
 	vfDeviceType unified.VFDeviceType,
+	deviceTopology *unified.DeviceTopology,
+	rdmaTopology *unified.RDMATopology,
+	required, preferred map[schedulingv1alpha1.DeviceType]sets.Int,
+	requiredDeviceResources, preemptibleFreeDevices map[schedulingv1alpha1.DeviceType]deviceResources,
 ) (apiext.DeviceAllocations, sets.Int, error) {
 	acc := newDeviceAccumulator(deviceTopology, nodeDevice, gpuWanted, requiredDeviceResources, preemptibleFreeDevices)
 	pcieSwitchGroups := acc.freePCIESwitchesInNode()
