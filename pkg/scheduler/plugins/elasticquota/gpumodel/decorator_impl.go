@@ -26,12 +26,7 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/client/clientset/versioned"
 	koordinatorinformers "github.com/koordinator-sh/koordinator/pkg/client/informers/externalversions"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
-	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota/core"
 )
-
-func init() {
-	core.RegisterDecorator(&GPUModelCache{})
-}
 
 func (gm *GPUModelCache) Init(handle framework.Handle) error {
 	var koordSharedInformerFactory koordinatorinformers.SharedInformerFactory
