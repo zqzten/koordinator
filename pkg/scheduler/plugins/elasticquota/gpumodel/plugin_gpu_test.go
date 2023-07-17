@@ -265,6 +265,7 @@ func CreateQuota2(name string, parentName string, maxCpu, maxMem int64, minCpu, 
 }
 
 func TestPlugin_OnQuotaAdd2(t *testing.T) {
+	cache := &GPUModelCache{}
 	suit := newPluginTestSuit(t, nil)
 	p, _ := suit.proxyNew(suit.elasticQuotaArgs, suit.Handle)
 	pl := p.(*elasticquota.Plugin)
@@ -291,6 +292,7 @@ func TestPlugin_OnQuotaAdd2(t *testing.T) {
 	}
 	sharedWeightStr, _ := json.Marshal(sharedWeight)
 	quota.Annotations[extension.AnnotationSharedWeight] = string(sharedWeightStr)
+	cache.DecorateElasticQuota(quota)
 	pl.OnQuotaAdd(quota)
 
 	assert.NotNil(t, gqm.GetQuotaInfoByName("1"))
@@ -348,6 +350,7 @@ func TestPlugin_OnQuotaAdd2(t *testing.T) {
 	sharedWeightStr, _ = json.Marshal(sharedWeight)
 	quota.Annotations[extension.AnnotationSharedWeight] = string(sharedWeightStr)
 
+	cache.DecorateElasticQuota(quota)
 	pl.OnQuotaUpdate(nil, quota)
 	quotaInfo = gqm.GetQuotaInfoByName("1")
 	assert.Equal(t, quotaInfo.CalculateInfo.Min, corev1.ResourceList{
@@ -377,6 +380,7 @@ func TestPlugin_OnQuotaAdd2(t *testing.T) {
 }
 
 func TestPlugin_OnNodeAdd2(t *testing.T) {
+	cache := &GPUModelCache{}
 	tests := []struct {
 		name     string
 		nodes    []*corev1.Node
@@ -418,6 +422,7 @@ func TestPlugin_OnNodeAdd2(t *testing.T) {
 			assert.Nil(t, err)
 			eQP := p.(*elasticquota.Plugin)
 			for _, node := range tt.nodes {
+				cache.DecorateNode(node)
 				eQP.OnNodeAdd(node)
 			}
 			gqm := eQP.GetGroupQuotaManager()
@@ -497,13 +502,16 @@ func TestPlugin_OnNodeUpdate2(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			cache := &GPUModelCache{}
 			suit := newPluginTestSuit(t, nil)
 			p, _ := suit.proxyNew(suit.elasticQuotaArgs, suit.Handle)
 			plugin := p.(*elasticquota.Plugin)
 			for _, node := range nodes {
+				cache.DecorateNode(node)
 				plugin.OnNodeAdd(node)
 			}
 			for i, node := range tt.nodes {
+				cache.DecorateNode(node)
 				plugin.OnNodeUpdate(nodes[i], node)
 			}
 			assert.Equal(t, p.(*elasticquota.Plugin).GetGroupQuotaManager().GetClusterTotalResource(), tt.totalRes)
@@ -551,10 +559,13 @@ func TestPlugin_OnNodeDelete2(t *testing.T) {
 			},
 		},
 	}
+	cache := &GPUModelCache{}
 	for _, node := range nodes {
+		cache.DecorateNode(node)
 		eQP.OnNodeAdd(node)
 	}
 	for i, node := range nodes {
+		cache.DecorateNode(node)
 		eQP.OnNodeDelete(node)
 		assert.Equal(t, gqp.GetClusterTotalResource(), corev1.ResourceList{
 			corev1.ResourceCPU:               *resource.NewMilliQuantity(int64(50-25*(i+1))*1000, resource.DecimalSI),
