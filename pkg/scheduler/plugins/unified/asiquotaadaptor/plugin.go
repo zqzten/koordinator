@@ -33,7 +33,6 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	schedclientset "sigs.k8s.io/scheduler-plugins/pkg/generated/clientset/versioned"
 	schedinformer "sigs.k8s.io/scheduler-plugins/pkg/generated/informers/externalversions"
-	schedlister "sigs.k8s.io/scheduler-plugins/pkg/generated/listers/scheduling/v1alpha1"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	"github.com/koordinator-sh/koordinator/pkg/features"
@@ -65,21 +64,20 @@ var _ framework.PreFilterPlugin = &Plugin{}
 var _ framework.ReservePlugin = &Plugin{}
 
 type Plugin struct {
-	cache                   *ASIQuotaCache
-	schedClient             schedclientset.Interface
-	elasticQuotaLister      schedlister.ElasticQuotaLister
-	asiQuotaInformerFactory uniexternalversions.SharedInformerFactory
+	handle        framework.Handle
+	cache         *ASIQuotaCache
+	unifiedClient uniclientset.Interface
 }
 
 func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error) {
-	client, ok := handle.(uniclientset.Interface)
+	unifiedClient, ok := handle.(uniclientset.Interface)
 	if !ok {
 		kubeConfig := handle.KubeConfig()
 		kubeConfig.ContentType = runtime.ContentTypeJSON
 		kubeConfig.AcceptContentTypes = runtime.ContentTypeJSON
-		client = uniclientset.NewForConfigOrDie(kubeConfig)
+		unifiedClient = uniclientset.NewForConfigOrDie(kubeConfig)
 	}
-	asiQuotaInformerFactory := uniexternalversions.NewSharedInformerFactory(client, 0)
+	asiQuotaInformerFactory := uniexternalversions.NewSharedInformerFactory(unifiedClient, 0)
 
 	schedClient, ok := handle.(schedclientset.Interface)
 	if !ok {
@@ -93,10 +91,9 @@ func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error)
 
 	cache := newASIQuotaCache()
 	pl := &Plugin{
-		cache:                   cache,
-		schedClient:             schedClient,
-		elasticQuotaLister:      elasticQuotaLister,
-		asiQuotaInformerFactory: asiQuotaInformerFactory,
+		handle:        handle,
+		cache:         cache,
+		unifiedClient: unifiedClient,
 	}
 
 	if enableCompatibleWithASIQuota {
@@ -127,6 +124,7 @@ func (pl *Plugin) NewControllers() ([]frameworkext.Controller, error) {
 
 func (pl *Plugin) Start() {
 	isLeader = true
+	pl.startSyncTaskQuota()
 }
 
 func (pl *Plugin) EventsToRegister() []framework.ClusterEvent {
