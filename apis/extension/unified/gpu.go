@@ -23,9 +23,8 @@ import (
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 )
 
-const GPUCardRatio corev1.ResourceName = apiext.ResourceDomainPrefix + "gpu-card-ratio"
-
 const (
+	GPUCardRatio                          = apiext.DomainPrefix + "gpu-card-ratio"
 	EnvActivelyAddedUnifiedGPUMemoryRatio = "ACTIVELY_ADDED_GPU_MEM_RATIO"
 )
 

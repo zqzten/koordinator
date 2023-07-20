@@ -30,6 +30,7 @@ func init() {
 	nodeTransformers = append(nodeTransformers,
 		TransformNodeAllocatableWithOverQuota,
 		TransformNodeAllocatableWithUnifiedGPUMemoryRatio,
+		TransformNodeAllocatableToUnifiedCardRatio,
 	)
 }
 
@@ -77,4 +78,10 @@ func TransformNodeAllocatableWithUnifiedGPUMemoryRatio(node *corev1.Node) {
 		node.Status.Allocatable = corev1.ResourceList{}
 	}
 	node.Status.Allocatable[apiext.ResourceNvidiaGPU] = *resource.NewQuantity(gpuMemoryRatio.Value()/100, resource.DecimalSI)
+}
+
+func TransformNodeAllocatableToUnifiedCardRatio(node *corev1.Node) {
+	if NodeAllocatableContainsGPU(node.Status.Allocatable) {
+		node.Status.Allocatable = ParseGPUResourcesByModel(node.Name, node.Status.Allocatable, node.Labels)
+	}
 }

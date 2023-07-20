@@ -47,6 +47,7 @@ func init() {
 		TransformUnifiedQuotaName,
 		TransformResourceSpec,
 		TransformResourceStatus,
+		TransformPodGPUResourcesToCardRatio,
 	)
 }
 
@@ -282,4 +283,36 @@ func TransformResourceStatus(pod *corev1.Pod) {
 			return
 		}
 	}
+}
+
+func TransformPodGPUResourcesToCardRatio(pod *corev1.Pod) {
+	if !enableTransformGPUCardRatio {
+		return
+	}
+	transformPodGPUResourcesToCardRatio(pod)
+}
+
+func transformPodGPUResourcesToCardRatio(pod *corev1.Pod) {
+	gpuModel := GetPodGPUModel(pod)
+	for _, container := range pod.Spec.Containers {
+		replaceUnifiedGPUResource(container.Resources.Requests)
+		replaceUnifiedGPUResource(container.Resources.Limits)
+		NormalizeGPUResourcesToCardRatioForPod(container.Resources.Requests, gpuModel)
+		NormalizeGPUResourcesToCardRatioForPod(container.Resources.Limits, gpuModel)
+	}
+	for _, container := range pod.Spec.InitContainers {
+		replaceUnifiedGPUResource(container.Resources.Requests)
+		replaceUnifiedGPUResource(container.Resources.Limits)
+		NormalizeGPUResourcesToCardRatioForPod(container.Resources.Requests, gpuModel)
+		NormalizeGPUResourcesToCardRatioForPod(container.Resources.Limits, gpuModel)
+	}
+	if pod.Spec.Overhead != nil {
+		replaceUnifiedGPUResource(pod.Spec.Overhead)
+		NormalizeGPUResourcesToCardRatioForPod(pod.Spec.Overhead, gpuModel)
+	}
+}
+
+func replaceUnifiedGPUResource(list corev1.ResourceList) {
+	replaceAndEraseResource(list, unifiedresourceext.GPUResourceMemRatio, extension.ResourceGPUMemoryRatio)
+	replaceAndEraseResource(list, unifiedresourceext.GPUResourceAlibaba, extension.ResourceNvidiaGPU)
 }
