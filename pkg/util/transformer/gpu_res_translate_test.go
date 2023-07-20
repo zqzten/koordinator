@@ -14,17 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package gpumodel
+package transformer
 
 import (
 	"testing"
 
+	cosextension "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/extension"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	quotav1 "k8s.io/apiserver/pkg/quota/v1"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
-	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 )
 
 func Test_normalizeGpuResourcesToCardRatioForNode(t *testing.T) {
@@ -45,9 +45,9 @@ func Test_normalizeGpuResourcesToCardRatioForNode(t *testing.T) {
 			extension.ResourceGPUMemoryRatio: resource.MustParse("200"),
 		}
 		resultExpect := corev1.ResourceList{
-			extension.ResourceGPUMemoryRatio: resource.MustParse("200"),
-			unified.GPUCardRatio:             resource.MustParse("200"),
-			unified.GPUCardRatio + "-v100":   resource.MustParse("200"),
+			extension.ResourceGPUMemoryRatio:            resource.MustParse("200"),
+			cosextension.GPUResourceCardRatio:           resource.MustParse("200"),
+			cosextension.GPUResourceCardRatio + "-v100": resource.MustParse("200"),
 		}
 		result = NormalizeGPUResourcesToCardRatioForNode(result, "v100")
 		if !quotav1.Equals(result, resultExpect) {
@@ -59,9 +59,9 @@ func Test_normalizeGpuResourcesToCardRatioForNode(t *testing.T) {
 			extension.ResourceNvidiaGPU: resource.MustParse("2"),
 		}
 		resultExpect := corev1.ResourceList{
-			extension.ResourceNvidiaGPU:    resource.MustParse("2"),
-			unified.GPUCardRatio:           resource.MustParse("200"),
-			unified.GPUCardRatio + "-v100": resource.MustParse("200"),
+			extension.ResourceNvidiaGPU:                 resource.MustParse("2"),
+			cosextension.GPUResourceCardRatio:           resource.MustParse("200"),
+			cosextension.GPUResourceCardRatio + "-v100": resource.MustParse("200"),
 		}
 		result = NormalizeGPUResourcesToCardRatioForNode(result, "v100")
 		if !quotav1.Equals(result, resultExpect) {
@@ -112,11 +112,11 @@ func Test_parseGPUResourceByModel(t *testing.T) {
 				extension.ResourceNvidiaGPU: resource.MustParse("1"),
 			},
 			output: corev1.ResourceList{
-				corev1.ResourceCPU:                        resource.MustParse("1"),
-				corev1.ResourceMemory:                     resource.MustParse("1Gi"),
-				extension.ResourceNvidiaGPU:               resource.MustParse("1"),
-				unified.GPUCardRatio:                      resource.MustParse("100"),
-				unified.GPUCardRatio + "-tesla-p100-16gb": resource.MustParse("100"),
+				corev1.ResourceCPU:                                     resource.MustParse("1"),
+				corev1.ResourceMemory:                                  resource.MustParse("1Gi"),
+				extension.ResourceNvidiaGPU:                            resource.MustParse("1"),
+				cosextension.GPUResourceCardRatio:                      resource.MustParse("100"),
+				cosextension.GPUResourceCardRatio + "-tesla-p100-16gb": resource.MustParse("100"),
 			},
 		},
 		{
@@ -131,12 +131,12 @@ func Test_parseGPUResourceByModel(t *testing.T) {
 				extension.ResourceGPUMemoryRatio: resource.MustParse("100"),
 			},
 			output: corev1.ResourceList{
-				corev1.ResourceCPU:                        resource.MustParse("1"),
-				corev1.ResourceMemory:                     resource.MustParse("1Gi"),
-				extension.ResourceNvidiaGPU:               resource.MustParse("1"),
-				extension.ResourceGPUMemoryRatio:          resource.MustParse("100"),
-				unified.GPUCardRatio:                      resource.MustParse("100"),
-				unified.GPUCardRatio + "-tesla-p100-16gb": resource.MustParse("100"),
+				corev1.ResourceCPU:                                     resource.MustParse("1"),
+				corev1.ResourceMemory:                                  resource.MustParse("1Gi"),
+				extension.ResourceNvidiaGPU:                            resource.MustParse("1"),
+				extension.ResourceGPUMemoryRatio:                       resource.MustParse("100"),
+				cosextension.GPUResourceCardRatio:                      resource.MustParse("100"),
+				cosextension.GPUResourceCardRatio + "-tesla-p100-16gb": resource.MustParse("100"),
 			},
 		},
 	}
@@ -178,10 +178,10 @@ func TestNormalizeQuotaResourcesToCardRatio(t *testing.T) {
 				extension.ResourceNvidiaGPU: resource.MustParse("1"),
 			},
 			output: map[corev1.ResourceName]resource.Quantity{
-				corev1.ResourceCPU:          resource.MustParse("1"),
-				corev1.ResourceMemory:       resource.MustParse("1Gi"),
-				extension.ResourceNvidiaGPU: resource.MustParse("1"),
-				unified.GPUCardRatio:        resource.MustParse("100"),
+				corev1.ResourceCPU:                resource.MustParse("1"),
+				corev1.ResourceMemory:             resource.MustParse("1Gi"),
+				extension.ResourceNvidiaGPU:       resource.MustParse("1"),
+				cosextension.GPUResourceCardRatio: resource.MustParse("100"),
 			},
 		},
 		{
@@ -192,10 +192,10 @@ func TestNormalizeQuotaResourcesToCardRatio(t *testing.T) {
 				extension.ResourceGPU: resource.MustParse("100"),
 			},
 			output: map[corev1.ResourceName]resource.Quantity{
-				corev1.ResourceCPU:    resource.MustParse("1"),
-				corev1.ResourceMemory: resource.MustParse("1Gi"),
-				extension.ResourceGPU: resource.MustParse("100"),
-				unified.GPUCardRatio:  resource.MustParse("100"),
+				corev1.ResourceCPU:                resource.MustParse("1"),
+				corev1.ResourceMemory:             resource.MustParse("1Gi"),
+				extension.ResourceGPU:             resource.MustParse("100"),
+				cosextension.GPUResourceCardRatio: resource.MustParse("100"),
 			},
 		},
 		{
@@ -206,10 +206,10 @@ func TestNormalizeQuotaResourcesToCardRatio(t *testing.T) {
 				extension.ResourceGPUMemoryRatio: resource.MustParse("100"),
 			},
 			output: map[corev1.ResourceName]resource.Quantity{
-				corev1.ResourceCPU:               resource.MustParse("1"),
-				corev1.ResourceMemory:            resource.MustParse("1Gi"),
-				extension.ResourceGPUMemoryRatio: resource.MustParse("100"),
-				unified.GPUCardRatio:             resource.MustParse("100"),
+				corev1.ResourceCPU:                resource.MustParse("1"),
+				corev1.ResourceMemory:             resource.MustParse("1Gi"),
+				extension.ResourceGPUMemoryRatio:  resource.MustParse("100"),
+				cosextension.GPUResourceCardRatio: resource.MustParse("100"),
 			},
 		},
 		{
@@ -221,11 +221,11 @@ func TestNormalizeQuotaResourcesToCardRatio(t *testing.T) {
 				extension.ResourceGPUCore:        resource.MustParse("150"),
 			},
 			output: map[corev1.ResourceName]resource.Quantity{
-				corev1.ResourceCPU:               resource.MustParse("1"),
-				corev1.ResourceMemory:            resource.MustParse("1Gi"),
-				extension.ResourceGPUMemoryRatio: resource.MustParse("100"),
-				extension.ResourceGPUCore:        resource.MustParse("150"),
-				unified.GPUCardRatio:             resource.MustParse("150"),
+				corev1.ResourceCPU:                resource.MustParse("1"),
+				corev1.ResourceMemory:             resource.MustParse("1Gi"),
+				extension.ResourceGPUMemoryRatio:  resource.MustParse("100"),
+				extension.ResourceGPUCore:         resource.MustParse("150"),
+				cosextension.GPUResourceCardRatio: resource.MustParse("150"),
 			},
 		},
 		{
@@ -237,12 +237,12 @@ func TestNormalizeQuotaResourcesToCardRatio(t *testing.T) {
 				extension.ResourceNvidiaGPU: resource.MustParse("1"),
 			},
 			output: map[corev1.ResourceName]resource.Quantity{
-				corev1.ResourceCPU:                          resource.MustParse("1"),
-				corev1.ResourceMemory:                       resource.MustParse("1Gi"),
-				extension.ResourceNvidiaGPU:                 resource.MustParse("1"),
-				extension.ResourceNvidiaGPU + "-tesla-v100": resource.MustParse("1"),
-				unified.GPUCardRatio:                        resource.MustParse("100"),
-				unified.GPUCardRatio + "-tesla-v100":        resource.MustParse("100"),
+				corev1.ResourceCPU:                                resource.MustParse("1"),
+				corev1.ResourceMemory:                             resource.MustParse("1Gi"),
+				extension.ResourceNvidiaGPU:                       resource.MustParse("1"),
+				extension.ResourceNvidiaGPU + "-tesla-v100":       resource.MustParse("1"),
+				cosextension.GPUResourceCardRatio:                 resource.MustParse("100"),
+				cosextension.GPUResourceCardRatio + "-tesla-v100": resource.MustParse("100"),
 			},
 		},
 		{
@@ -254,12 +254,12 @@ func TestNormalizeQuotaResourcesToCardRatio(t *testing.T) {
 				extension.ResourceGPU: resource.MustParse("100"),
 			},
 			output: map[corev1.ResourceName]resource.Quantity{
-				corev1.ResourceCPU:                    resource.MustParse("1"),
-				corev1.ResourceMemory:                 resource.MustParse("1Gi"),
-				extension.ResourceGPU:                 resource.MustParse("100"),
-				extension.ResourceGPU + "-tesla-v100": resource.MustParse("100"),
-				unified.GPUCardRatio:                  resource.MustParse("100"),
-				unified.GPUCardRatio + "-tesla-v100":  resource.MustParse("100"),
+				corev1.ResourceCPU:                                resource.MustParse("1"),
+				corev1.ResourceMemory:                             resource.MustParse("1Gi"),
+				extension.ResourceGPU:                             resource.MustParse("100"),
+				extension.ResourceGPU + "-tesla-v100":             resource.MustParse("100"),
+				cosextension.GPUResourceCardRatio:                 resource.MustParse("100"),
+				cosextension.GPUResourceCardRatio + "-tesla-v100": resource.MustParse("100"),
 			},
 		},
 		{
@@ -272,12 +272,12 @@ func TestNormalizeQuotaResourcesToCardRatio(t *testing.T) {
 				extension.ResourceNvidiaGPU + "-tesla-v100": resource.MustParse("1"),
 			},
 			output: map[corev1.ResourceName]resource.Quantity{
-				corev1.ResourceCPU:                          resource.MustParse("1"),
-				corev1.ResourceMemory:                       resource.MustParse("1Gi"),
-				extension.ResourceNvidiaGPU:                 resource.MustParse("2"),
-				extension.ResourceNvidiaGPU + "-tesla-v100": resource.MustParse("2"),
-				unified.GPUCardRatio:                        resource.MustParse("200"),
-				unified.GPUCardRatio + "-tesla-v100":        resource.MustParse("200"),
+				corev1.ResourceCPU:                                resource.MustParse("1"),
+				corev1.ResourceMemory:                             resource.MustParse("1Gi"),
+				extension.ResourceNvidiaGPU:                       resource.MustParse("2"),
+				extension.ResourceNvidiaGPU + "-tesla-v100":       resource.MustParse("2"),
+				cosextension.GPUResourceCardRatio:                 resource.MustParse("200"),
+				cosextension.GPUResourceCardRatio + "-tesla-v100": resource.MustParse("200"),
 			},
 		},
 		{
@@ -293,8 +293,8 @@ func TestNormalizeQuotaResourcesToCardRatio(t *testing.T) {
 				corev1.ResourceMemory:                       resource.MustParse("1Gi"),
 				extension.ResourceNvidiaGPU:                 resource.MustParse("2"),
 				extension.ResourceNvidiaGPU + "-tesla-v100": resource.MustParse("1"),
-				unified.GPUCardRatio:                        resource.MustParse("200"),
-				//unified.GPUCardRatio + "-tesla-v100": resource.MustParse("100"),
+				cosextension.GPUResourceCardRatio:           resource.MustParse("200"),
+				//cosextension.GPUResourceCardRatio + "-tesla-v100": resource.MustParse("100"),
 			},
 		},
 	}
@@ -328,10 +328,10 @@ func TestNormalizeGpuResourcesToCardRatioForQuota2(t *testing.T) {
 			extension.ResourceNvidiaGPU + "-v100": resource.MustParse("4"),
 		}
 		resultExpect := corev1.ResourceList{
-			extension.ResourceNvidiaGPU:           resource.MustParse("5"),
-			extension.ResourceNvidiaGPU + "-v100": resource.MustParse("4"),
-			unified.GPUCardRatio:                  resource.MustParse("500"),
-			unified.GPUCardRatio + "-v100":        resource.MustParse("400"),
+			extension.ResourceNvidiaGPU:                 resource.MustParse("5"),
+			extension.ResourceNvidiaGPU + "-v100":       resource.MustParse("4"),
+			cosextension.GPUResourceCardRatio:           resource.MustParse("500"),
+			cosextension.GPUResourceCardRatio + "-v100": resource.MustParse("400"),
 		}
 		result = NormalizeGpuResourcesToCardRatioForQuota(result)
 		if !quotav1.Equals(result, resultExpect) {
@@ -344,10 +344,10 @@ func TestNormalizeGpuResourcesToCardRatioForQuota2(t *testing.T) {
 			extension.ResourceGPU + "-v100": resource.MustParse("400"),
 		}
 		resultExpect := corev1.ResourceList{
-			extension.ResourceGPU:           resource.MustParse("500"),
-			extension.ResourceGPU + "-v100": resource.MustParse("400"),
-			unified.GPUCardRatio:            resource.MustParse("500"),
-			unified.GPUCardRatio + "-v100":  resource.MustParse("400"),
+			extension.ResourceGPU:                       resource.MustParse("500"),
+			extension.ResourceGPU + "-v100":             resource.MustParse("400"),
+			cosextension.GPUResourceCardRatio:           resource.MustParse("500"),
+			cosextension.GPUResourceCardRatio + "-v100": resource.MustParse("400"),
 		}
 		result = NormalizeGpuResourcesToCardRatioForQuota(result)
 		if !quotav1.Equals(result, resultExpect) {
@@ -356,12 +356,12 @@ func TestNormalizeGpuResourcesToCardRatioForQuota2(t *testing.T) {
 	}
 	{
 		result := corev1.ResourceList{
-			unified.GPUCardRatio:           resource.MustParse("500"),
-			unified.GPUCardRatio + "-v100": resource.MustParse("400"),
+			cosextension.GPUResourceCardRatio:           resource.MustParse("500"),
+			cosextension.GPUResourceCardRatio + "-v100": resource.MustParse("400"),
 		}
 		resultExpect := corev1.ResourceList{
-			unified.GPUCardRatio:           resource.MustParse("500"),
-			unified.GPUCardRatio + "-v100": resource.MustParse("400"),
+			cosextension.GPUResourceCardRatio:           resource.MustParse("500"),
+			cosextension.GPUResourceCardRatio + "-v100": resource.MustParse("400"),
 		}
 		result = NormalizeGpuResourcesToCardRatioForQuota(result)
 		if !quotav1.Equals(result, resultExpect) {
@@ -389,10 +389,10 @@ func TestNormalizeGpuResourcesToCardRatioForQuota(t *testing.T) {
 			extension.ResourceNvidiaGPU + "-v100": resource.MustParse("4"),
 		}
 		resultExpect := corev1.ResourceList{
-			extension.ResourceNvidiaGPU:           resource.MustParse("4"),
-			extension.ResourceNvidiaGPU + "-v100": resource.MustParse("4"),
-			unified.GPUCardRatio:                  resource.MustParse("400"),
-			unified.GPUCardRatio + "-v100":        resource.MustParse("400"),
+			extension.ResourceNvidiaGPU:                 resource.MustParse("4"),
+			extension.ResourceNvidiaGPU + "-v100":       resource.MustParse("4"),
+			cosextension.GPUResourceCardRatio:           resource.MustParse("400"),
+			cosextension.GPUResourceCardRatio + "-v100": resource.MustParse("400"),
 		}
 		result = NormalizeGpuResourcesToCardRatioForQuota(result)
 		if !quotav1.Equals(result, resultExpect) {
@@ -405,10 +405,10 @@ func TestNormalizeGpuResourcesToCardRatioForQuota(t *testing.T) {
 			extension.ResourceGPU + "-v100": resource.MustParse("400"),
 		}
 		resultExpect := corev1.ResourceList{
-			extension.ResourceGPU:           resource.MustParse("400"),
-			extension.ResourceGPU + "-v100": resource.MustParse("400"),
-			unified.GPUCardRatio:            resource.MustParse("400"),
-			unified.GPUCardRatio + "-v100":  resource.MustParse("400"),
+			extension.ResourceGPU:                       resource.MustParse("400"),
+			extension.ResourceGPU + "-v100":             resource.MustParse("400"),
+			cosextension.GPUResourceCardRatio:           resource.MustParse("400"),
+			cosextension.GPUResourceCardRatio + "-v100": resource.MustParse("400"),
 		}
 		result = NormalizeGpuResourcesToCardRatioForQuota(result)
 		if !quotav1.Equals(result, resultExpect) {
@@ -417,12 +417,12 @@ func TestNormalizeGpuResourcesToCardRatioForQuota(t *testing.T) {
 	}
 	{
 		result := corev1.ResourceList{
-			unified.GPUCardRatio:           resource.MustParse("600"),
-			unified.GPUCardRatio + "-v100": resource.MustParse("400"),
+			cosextension.GPUResourceCardRatio:           resource.MustParse("600"),
+			cosextension.GPUResourceCardRatio + "-v100": resource.MustParse("400"),
 		}
 		resultExpect := corev1.ResourceList{
-			unified.GPUCardRatio:           resource.MustParse("600"),
-			unified.GPUCardRatio + "-v100": resource.MustParse("400"),
+			cosextension.GPUResourceCardRatio:           resource.MustParse("600"),
+			cosextension.GPUResourceCardRatio + "-v100": resource.MustParse("400"),
 		}
 		result = NormalizeGpuResourcesToCardRatioForQuota(result)
 		if !quotav1.Equals(result, resultExpect) {
@@ -435,11 +435,11 @@ func TestNormalizeGpuResourcesToCardRatioForQuota(t *testing.T) {
 			extension.ResourceNvidiaGPU + "-p100": resource.MustParse("4"),
 		}
 		resultExpect := corev1.ResourceList{
-			unified.GPUCardRatio:                  resource.MustParse("1000"),
-			unified.GPUCardRatio + "-v100":        resource.MustParse("600"),
-			unified.GPUCardRatio + "-p100":        resource.MustParse("400"),
-			extension.ResourceNvidiaGPU + "-v100": resource.MustParse("6"),
-			extension.ResourceNvidiaGPU + "-p100": resource.MustParse("4"),
+			cosextension.GPUResourceCardRatio:           resource.MustParse("1000"),
+			cosextension.GPUResourceCardRatio + "-v100": resource.MustParse("600"),
+			cosextension.GPUResourceCardRatio + "-p100": resource.MustParse("400"),
+			extension.ResourceNvidiaGPU + "-v100":       resource.MustParse("6"),
+			extension.ResourceNvidiaGPU + "-p100":       resource.MustParse("4"),
 		}
 		result = NormalizeGpuResourcesToCardRatioForQuota(result)
 		if !quotav1.Equals(result, resultExpect) {
@@ -453,12 +453,12 @@ func TestNormalizeGpuResourcesToCardRatioForQuota(t *testing.T) {
 			extension.ResourceNvidiaGPU + "-p100": resource.MustParse("4"),
 		}
 		resultExpect := corev1.ResourceList{
-			unified.GPUCardRatio:                  resource.MustParse("1200"),
-			unified.GPUCardRatio + "-v100":        resource.MustParse("600"),
-			unified.GPUCardRatio + "-p100":        resource.MustParse("400"),
-			extension.ResourceNvidiaGPU:           resource.MustParse("12"),
-			extension.ResourceNvidiaGPU + "-v100": resource.MustParse("6"),
-			extension.ResourceNvidiaGPU + "-p100": resource.MustParse("4"),
+			cosextension.GPUResourceCardRatio:           resource.MustParse("1200"),
+			cosextension.GPUResourceCardRatio + "-v100": resource.MustParse("600"),
+			cosextension.GPUResourceCardRatio + "-p100": resource.MustParse("400"),
+			extension.ResourceNvidiaGPU:                 resource.MustParse("12"),
+			extension.ResourceNvidiaGPU + "-v100":       resource.MustParse("6"),
+			extension.ResourceNvidiaGPU + "-p100":       resource.MustParse("4"),
 		}
 		result = NormalizeGpuResourcesToCardRatioForQuota(result)
 		if !quotav1.Equals(result, resultExpect) {
