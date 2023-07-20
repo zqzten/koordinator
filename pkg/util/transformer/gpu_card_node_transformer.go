@@ -14,30 +14,31 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package gpumodel
+package transformer
 
 import (
 	"fmt"
 	"strings"
 
+	cosextension "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/extension"
 	v1 "k8s.io/api/core/v1"
 	apires "k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
-	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 )
 
-var GPUResourceMemRatio = extension.ResourceGPUMemoryRatio
-var GPUResourceCardRatio = unified.GPUCardRatio
+const (
+	DeprecatedLabelNodeGPUModel = extension.DomainPrefix + "gpu-model"
+)
 
 var NormalGPUNamesForNode = sets.NewString(
 	string(extension.ResourceNvidiaGPU),
 )
 
 var PercentageGPUNamesForNode = sets.NewString(
-	string(GPUResourceMemRatio),
+	string(extension.ResourceGPUMemoryRatio),
 	string(extension.ResourceGPU),
 )
 
@@ -48,7 +49,15 @@ func MaxInt64(a, b int64) int64 {
 	return b
 }
 
-func NodeAllocatableContainsGpu(allocatable v1.ResourceList) bool {
+func GetNodeGPUModel(nodeLabels map[string]string) string {
+	model := nodeLabels[extension.LabelGPUModel]
+	if model != "" {
+		return model
+	}
+	return nodeLabels[DeprecatedLabelNodeGPUModel]
+}
+
+func NodeAllocatableContainsGPU(allocatable v1.ResourceList) bool {
 	for rname := range NormalGPUNamesForNode.Union(PercentageGPUNamesForNode) {
 		if _, ok := allocatable[v1.ResourceName(rname)]; ok {
 			return true
@@ -68,8 +77,6 @@ func ParseGPUResourcesByModel(nodeName string, allocatable v1.ResourceList, node
 	return result
 }
 
-// NormalizeGPUResourcesToCardRatioForNode 从node上解析的gpu资源最终应该翻译成：alibabacloud.com/gpu-mem-ratio->
-// alibabacloud.com/gpu-card-ratio-tesla-v100-sxm2-16gb
 func NormalizeGPUResourcesToCardRatioForNode(res v1.ResourceList, gpuModel string) v1.ResourceList {
 	if len(res) == 0 || gpuModel == "" {
 		return res
@@ -95,7 +102,7 @@ func NormalizeGPUResourcesToCardRatioForNode(res v1.ResourceList, gpuModel strin
 	}
 
 	q := apires.NewQuantity(quantity, apires.DecimalSI)
-	res[GPUResourceCardRatio] = *q
-	res[v1.ResourceName(strings.ToLower(fmt.Sprintf("%s-%s", GPUResourceCardRatio, gpuModel)))] = *q
+	res[cosextension.GPUResourceCardRatio] = *q
+	res[v1.ResourceName(strings.ToLower(fmt.Sprintf("%s-%s", cosextension.GPUResourceCardRatio, gpuModel)))] = *q
 	return res
 }

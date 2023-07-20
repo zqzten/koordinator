@@ -19,61 +19,20 @@ package unified
 import (
 	"strings"
 
-	cosextension "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/extension"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
 	schedulinglisterv1alpha1 "sigs.k8s.io/scheduler-plugins/pkg/generated/listers/scheduling/v1alpha1"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
 	"github.com/koordinator-sh/koordinator/apis/extension/ack"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota"
-	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota/gpumodel"
 )
 
 func init() {
 	elasticquota.GetQuotaName = GetQuotaName
-	gpumodel.GPUResourceMemRatio = cosextension.GPUResourceMemRatio
-	gpumodel.GPUResourceMem = cosextension.GPUResourceMem
-	gpumodel.GPUResourceCardRatio = cosextension.GPUResourceCardRatio
-	gpumodel.GPUResourceCore = cosextension.GPUResourceCore
-	gpumodel.NormalGPUNamesForNode = NormalGPUNamesForNode
-	gpumodel.PercentageGPUNamesForNode = PercentageGPUNamesForNode
-	gpumodel.NormalGPUNamesForQuota = NormalGPUNamesForQuota
-	gpumodel.NormalGPUNamesForPod = NormalGPUNamesForPod
-	gpumodel.PercentageGPUNamesForPod = PercentageGPUNamesForPod
-	gpumodel.PercentageGPUNamesForQuota = PercentageGPUNamesForQuota
 }
-
-var NormalGPUNamesForNode = sets.NewString(
-	cosextension.GPUResourceNvidia,
-)
-
-var PercentageGPUNamesForNode = sets.NewString(
-	cosextension.GPUResourceMemRatio,
-	cosextension.GPUResourceAlibaba,
-)
-
-var NormalGPUNamesForQuota = sets.NewString(
-	cosextension.GPUResourceNvidia,
-)
-
-var PercentageGPUNamesForQuota = sets.NewString(
-	cosextension.GPUResourceAlibaba,
-	cosextension.GPUResourceCardRatio,
-)
-
-var NormalGPUNamesForPod = sets.NewString(
-	cosextension.GPUResourceNvidia,
-)
-
-var PercentageGPUNamesForPod = sets.NewString(
-	cosextension.GPUResourceAlibaba,
-	cosextension.GPUResourceMemRatio,
-	cosextension.GPUResourceCore,
-)
 
 func GetQuotaName(pod *v1.Pod, quotaLister schedulinglisterv1alpha1.ElasticQuotaLister) string {
 	quotaName := extension.GetQuotaName(pod)

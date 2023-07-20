@@ -14,13 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package gpumodel
+package transformer
 
 import (
 	"encoding/json"
 	"sort"
 	"strings"
 
+	cosextension "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/extension"
 	v1 "k8s.io/api/core/v1"
 	apires "k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -33,12 +34,12 @@ var NormalGPUNamesForQuota = sets.NewString(
 )
 
 var PercentageGPUNamesForQuota = sets.NewString(
-	string(GPUResourceCardRatio),
+	cosextension.GPUResourceCardRatio,
 	string(extension.ResourceGPU),
 )
 
 // 解析quota的配置维度尝试翻译成card-ratio：
-// nvida/gpu:20                      ------>  alibabacloud.com/gpu-card-ratio:2000
+// nvidia/gpu:20                     ------>  alibabacloud.com/gpu-card-ratio:2000
 // alibabacloud.com/gpu:20           ------>  alibabacloud.com/gpu-card-ratio:2000
 // nvida/gpu-v100-16gb               ------>  alibabacloud.com/gpu-card-ratio-v100-16gb:2000
 // alibabacloud.com/gpu-v100-16gb:20 ------>  alibabacloud.com/gpu-card-ratio-v100-16gb:2000
@@ -69,14 +70,14 @@ func NormalizeGpuResourcesToCardRatioForQuota(res v1.ResourceList) v1.ResourceLi
 			if NormalGPUNamesForQuota.Has(prefix) {
 				q.Set(q.Value() * 100)
 			}
-			newRname := v1.ResourceName(strings.Replace(string(rname), prefix, string(GPUResourceCardRatio), -1))
+			newRname := v1.ResourceName(strings.Replace(string(rname), prefix, cosextension.GPUResourceCardRatio, -1))
 			resCopy[newRname] = q
 			modeledCardRatioSum += q.Value()
 		}
 	}
 	cardRatioValue = MaxInt64(cardRatioValue, modeledCardRatioSum)
 	if cardRatioValue > 0 {
-		resCopy[GPUResourceCardRatio] = *apires.NewQuantity(cardRatioValue, apires.DecimalSI)
+		resCopy[cosextension.GPUResourceCardRatio] = *apires.NewQuantity(cardRatioValue, apires.DecimalSI)
 	}
 	return resCopy
 }
