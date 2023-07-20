@@ -522,6 +522,12 @@ func (r *DrainNodeReconciler) progressMigration(dn *v1alpha1.DrainNode, actualPo
 	}
 	pod := podInfo.Pod
 	switch actualPodMigration.Phase {
+	case v1alpha1.PodMigrationPhaseUnmigratable:
+		if r.podFilter(pod) {
+			actualPodMigration.Phase = v1alpha1.PodMigrationPhaseWaiting
+			return r.progressMigration(dn, actualPodMigration, podInfo)
+		}
+		return nil
 	case v1alpha1.PodMigrationPhaseWaiting:
 		migrationPolicy, err := utils.GetMigrationPolicy(pod)
 		if err != nil {
