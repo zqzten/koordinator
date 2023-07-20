@@ -45,6 +45,7 @@ const (
 	EnableResourceFlavor                        featuregate.Feature = "EnableResourceFlavor"
 	RejectQuotaNotExist                         featuregate.Feature = "RejectQuotaNotExist"
 	QuotaRunTime                                featuregate.Feature = "QuotaRunTime"
+	SyncTaskQuota                               featuregate.Feature = "SyncTaskQuota"
 	DisableCPUSetOversold                       featuregate.Feature = "DisableCPUSetOversold"
 )
 
@@ -75,6 +76,7 @@ var defaultUnifiedSchedulerFeatureGates = map[featuregate.Feature]featuregate.Fe
 	DefaultHonorTaintTolerationInTopologySpread: {Default: false, PreRelease: featuregate.Beta},
 	RejectQuotaNotExist:                         {Default: false, PreRelease: featuregate.Beta},
 	QuotaRunTime:                                {Default: false, PreRelease: featuregate.Beta},
+	SyncTaskQuota:                               {Default: false, PreRelease: featuregate.Beta},
 	DisableCPUSetOversold:                       {Default: false, PreRelease: featuregate.Beta},
 }
 
