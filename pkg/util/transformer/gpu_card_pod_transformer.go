@@ -14,12 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package gpumodel
+package transformer
 
 import (
 	"fmt"
 	"strings"
 
+	cosextension "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/extension"
 	v1 "k8s.io/api/core/v1"
 	apires "k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -27,15 +28,13 @@ import (
 	"github.com/koordinator-sh/koordinator/apis/extension"
 )
 
-var GPUResourceCore = extension.ResourceGPUCore
-
 var NormalGPUNamesForPod = sets.NewString(
 	string(extension.ResourceNvidiaGPU),
 )
 
 var PercentageGPUNamesForPod = sets.NewString(
-	string(GPUResourceMemRatio),
-	string(GPUResourceCore),
+	string(extension.ResourceGPUMemoryRatio),
+	string(extension.ResourceGPUCore),
 	string(extension.ResourceGPU),
 )
 
@@ -63,10 +62,42 @@ func NormalizeGPUResourcesToCardRatioForPod(res v1.ResourceList, gpuModel string
 
 	// 填充card-ratio的值
 	q := apires.NewQuantity(gpuCardRatio, apires.DecimalSI)
-	res[GPUResourceCardRatio] = *q
+	res[cosextension.GPUResourceCardRatio] = *q
 	if gpuModel != "" {
-		res[v1.ResourceName(strings.ToLower(fmt.Sprintf("%s-%s", GPUResourceCardRatio, gpuModel)))] = *q
+		res[v1.ResourceName(strings.ToLower(fmt.Sprintf("%s-%s", cosextension.GPUResourceCardRatio, gpuModel)))] = *q
 	}
 
 	return res
+}
+
+// GetPodGPUModel if the pod is assigned, get model from GPUModelCache
+func GetPodGPUModel(pod *v1.Pod) string {
+	if pod == nil {
+		return ""
+	}
+
+	if pod.Spec.NodeSelector != nil {
+		if model, ok := pod.Spec.NodeSelector[extension.LabelGPUModel]; ok {
+			return model
+		}
+	}
+
+	if pod.Spec.Affinity != nil && pod.Spec.Affinity.NodeAffinity != nil &&
+		pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil &&
+		len(pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms) > 0 {
+		for i := range pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms {
+			term := &pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms[i]
+			for ei := range term.MatchExpressions {
+				e := term.MatchExpressions[ei]
+				gpuModel := ""
+				if e.Key == extension.LabelGPUModel && e.Operator == v1.NodeSelectorOpIn && len(e.Values) == 1 {
+					gpuModel = e.Values[0]
+				}
+				if gpuModel != "" {
+					return gpuModel
+				}
+			}
+		}
+	}
+	return ""
 }

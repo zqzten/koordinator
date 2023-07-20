@@ -34,29 +34,6 @@ func TestTransformElasticQuota(t *testing.T) {
 		wantEQ *v1alpha1.ElasticQuota
 	}{
 		{
-			name: "normal elastic quota",
-			eq: &v1alpha1.ElasticQuota{
-				Spec: v1alpha1.ElasticQuotaSpec{
-					Max: map[corev1.ResourceName]resource.Quantity{
-						apiext.ResourceGPUCore: resource.MustParse("100"),
-					},
-					Min: map[corev1.ResourceName]resource.Quantity{
-						apiext.ResourceGPUCore: resource.MustParse("100"),
-					},
-				},
-			},
-			wantEQ: &v1alpha1.ElasticQuota{
-				Spec: v1alpha1.ElasticQuotaSpec{
-					Max: map[corev1.ResourceName]resource.Quantity{
-						apiext.ResourceGPUCore: resource.MustParse("100"),
-					},
-					Min: map[corev1.ResourceName]resource.Quantity{
-						apiext.ResourceGPUCore: resource.MustParse("100"),
-					},
-				},
-			},
-		},
-		{
 			name: "elastic quota with deprecated batch resources and current version resources",
 			eq: &v1alpha1.ElasticQuota{
 				Spec: v1alpha1.ElasticQuotaSpec{

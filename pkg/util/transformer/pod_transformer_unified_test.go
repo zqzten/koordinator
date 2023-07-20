@@ -25,6 +25,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	quotav1 "k8s.io/apiserver/pkg/quota/v1"
 	"k8s.io/utils/pointer"
 	syncerconsts "sigs.k8s.io/cluster-api-provider-nested/virtualcluster/pkg/syncer/constants"
 
@@ -465,6 +466,45 @@ func TestTransformENIResource(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			TransformENIResource(tt.pod)
 			assert.Equal(t, tt.expectedPod, tt.pod)
+		})
+	}
+}
+
+func TestTransformPodGPUResourcesToCardRatio(t *testing.T) {
+	tests := []struct {
+		name     string
+		pod      *corev1.Pod
+		expected corev1.ResourceList
+	}{
+		{
+			name: "both exists",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Resources: corev1.ResourceRequirements{
+								Limits: corev1.ResourceList{
+									unifiedresourceext.GPUResourceMemRatio: resource.MustParse("100"),
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: corev1.ResourceList{
+				unifiedresourceext.GPUResourceCardRatio: resource.MustParse("100"),
+				extension.ResourceGPUMemoryRatio:        resource.MustParse("100"),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			transformPodGPUResourcesToCardRatio(tt.pod)
+			for _, container := range tt.pod.Spec.Containers {
+				if !quotav1.Equals(tt.expected, container.Resources.Limits) {
+					t.Errorf("error")
+				}
+			}
 		})
 	}
 }
