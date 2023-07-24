@@ -29,6 +29,7 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/descheduler/controllers/drain/reservation"
 	"github.com/koordinator-sh/koordinator/pkg/descheduler/controllers/drain/utils"
 	"github.com/koordinator-sh/koordinator/pkg/descheduler/controllers/options"
+	evictionsutil "github.com/koordinator-sh/koordinator/pkg/descheduler/evictions"
 	"github.com/koordinator-sh/koordinator/pkg/descheduler/framework"
 
 	v1 "k8s.io/api/core/v1"
@@ -467,7 +468,7 @@ func (r *DrainNodeReconciler) getActualPodMigrations(dn *v1alpha1.DrainNode, pod
 			Phase:          v1alpha1.PodMigrationPhaseWaiting,
 			StartTimestamp: metav1.Now(),
 		}
-		if !r.podFilter(p.Pod) {
+		if !evictionsutil.HaveEvictAnnotation(dn) && !r.podFilter(p.Pod) {
 			actualPodMigration.Phase = v1alpha1.PodMigrationPhaseUnmigratable
 		}
 		if dn.Spec.ConfirmState == v1alpha1.ConfirmStateConfirmed {
@@ -523,7 +524,7 @@ func (r *DrainNodeReconciler) progressMigration(dn *v1alpha1.DrainNode, actualPo
 	pod := podInfo.Pod
 	switch actualPodMigration.Phase {
 	case v1alpha1.PodMigrationPhaseUnmigratable:
-		if r.podFilter(pod) {
+		if evictionsutil.HaveEvictAnnotation(dn) || r.podFilter(pod) {
 			actualPodMigration.Phase = v1alpha1.PodMigrationPhaseWaiting
 			return r.progressMigration(dn, actualPodMigration, podInfo)
 		}
@@ -684,6 +685,11 @@ func (r *DrainNodeReconciler) createMigration(dn *v1alpha1.DrainNode, actualPodM
 				},
 			},
 		},
+	}
+	if dn.Annotations != nil {
+		if _, ok := dn.Annotations[evictionsutil.EvictPodAnnotationKey]; ok {
+			job.Annotations = map[string]string{evictionsutil.EvictPodAnnotationKey: "true"}
+		}
 	}
 	err = r.Client.Create(context.Background(), job)
 	return job, err
