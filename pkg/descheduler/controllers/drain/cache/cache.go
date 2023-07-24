@@ -82,6 +82,9 @@ func (c *drainNodeCache) GetPods(nodeName string) []*PodInfo {
 	defer c.RUnlock()
 	ni := c.nodes[nodeName]
 	ret := []*PodInfo{}
+	if ni == nil {
+		return ret
+	}
 	for i := range ni.Pods {
 		p := ni.Pods[i]
 		ret = append(ret, p)
