@@ -38,6 +38,7 @@ const (
 	LocalDeviceVolume                           featuregate.Feature = "LocalDeviceVolume"
 	EnableLocalVolumeCapacity                   featuregate.Feature = "EnableLocalVolumeCapacity"
 	EnableLocalVolumeIOLimit                    featuregate.Feature = "EnableLocalVolumeIOLimit"
+	EnableQuotaPathCapacity                     featuregate.Feature = "EnableQuotaPathCapacity"
 	EnableDefaultECIProfile                     featuregate.Feature = "EnableDefaultECIProfile"
 	EnableNodeInclusionPolicyInPodConstraint    featuregate.Feature = "EnableNodeInclusionPolicyInPodConstraint"
 	DefaultHonorTaintTolerationInPodConstraint  featuregate.Feature = "DefaultHonorTaintTolerationInPodConstraint"
@@ -70,6 +71,7 @@ var defaultUnifiedSchedulerFeatureGates = map[featuregate.Feature]featuregate.Fe
 	LocalDeviceVolume:                           {Default: false, PreRelease: featuregate.Beta},
 	EnableLocalVolumeCapacity:                   {Default: true, PreRelease: featuregate.Beta},
 	EnableLocalVolumeIOLimit:                    {Default: false, PreRelease: featuregate.Beta},
+	EnableQuotaPathCapacity:                     {Default: true, PreRelease: featuregate.Beta},
 	EnableDefaultECIProfile:                     {Default: false, PreRelease: featuregate.Beta},
 	EnableNodeInclusionPolicyInPodConstraint:    {Default: true, PreRelease: featuregate.Beta},
 	DefaultHonorTaintTolerationInPodConstraint:  {Default: false, PreRelease: featuregate.Beta},
