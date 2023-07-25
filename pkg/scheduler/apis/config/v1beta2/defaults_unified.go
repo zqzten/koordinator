@@ -16,10 +16,20 @@ limitations under the License.
 
 package v1beta2
 
+import "k8s.io/utils/pointer"
+
 var (
 	defaultNetwork = "tcp"
 	defaultAddress = ":10261"
+
+	defaultEnableDefaultPodConstraint = pointer.Bool(false)
 )
+
+func SetDefaults_UnifiedPodConstraintArgs(obj *UnifiedPodConstraintArgs) {
+	if obj.EnableDefaultPodConstraint == nil {
+		obj.EnableDefaultPodConstraint = defaultEnableDefaultPodConstraint
+	}
+}
 
 // SetDefaults_CachedPodArgs sets the default parameters for CachedPod plugin.
 func SetDefaults_CachedPodArgs(obj *CachedPodArgs) {
@@ -28,5 +38,16 @@ func SetDefaults_CachedPodArgs(obj *CachedPodArgs) {
 	}
 	if obj.Address == "" {
 		obj.Address = defaultAddress
+	}
+}
+
+func SetDefaults_LimitAwareArgs(obj *LimitAwareArgs) {
+	if len(obj.ScoringResourceWeights) == 0 {
+		obj.ScoringResourceWeights = defaultResourceWeights
+	}
+	for resourceName, weight := range obj.ScoringResourceWeights {
+		if weight == 0 {
+			obj.ScoringResourceWeights[resourceName] = 1
+		}
 	}
 }
