@@ -29,6 +29,7 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sfeature "k8s.io/apiserver/pkg/util/feature"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
@@ -42,6 +43,7 @@ import (
 	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 	"github.com/koordinator-sh/koordinator/pkg/features"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/eci"
+	koordutilfeature "github.com/koordinator-sh/koordinator/pkg/util/feature"
 )
 
 var _ framework.SharedLister = &testSharedLister{}
@@ -859,11 +861,13 @@ func TestVolumePreAssignFilterForLocalPV(t *testing.T) {
 		localInfo                     *extension.LocalInfo
 		pvcs                          []*v1.PersistentVolumeClaim
 		pvs                           []*v1.PersistentVolume
+		disableQuotaPathCapacity      bool
 		ephemeralStorage              string
 		assignedSystemDisk            string
 		assignedLocalVolumes          map[string]string
 		wantPreAssignFilterStatus     *framework.Status
 		wantStateAfterPreAssignFilter *stateData
+		wantFilterFailure             bool
 	}{
 		{
 			name: "preAssignFilter lvm",
@@ -928,6 +932,53 @@ func TestVolumePreAssignFilterForLocalPV(t *testing.T) {
 					},
 				},
 			},
+			localInfo: &extension.LocalInfo{
+				DiskInfos: []extension.DiskInfo{
+					{
+						Device:         "/dev/sda1",
+						FileSystemType: "ext4",
+						Size:           128 * 1024 * 1024 * 1024, // 128GB
+						MountPoint:     "/home/t4",
+						DiskType:       extension.DiskTypeSSD,
+						IsGraphDisk:    true,
+					},
+				},
+			},
+			pvcs: []*v1.PersistentVolumeClaim{
+				makePVCWithStorageSize("pvc-a", "1", "", quotaPathSC.Name, "60Gi"),
+			},
+			wantPreAssignFilterStatus: nil,
+			wantStateAfterPreAssignFilter: &stateData{
+				boundClaims: []*v1.PersistentVolumeClaim{},
+				claimsToBind: []*v1.PersistentVolumeClaim{
+					makePVCWithStorageSize("pvc-a", "1", "", quotaPathSC.Name, "60Gi"),
+				},
+				podVolumesByNode: map[string]*PodVolumes{
+					"test-node-1": {
+						DynamicProvisions: []*v1.PersistentVolumeClaim{
+							makePVCWithStorageSize("pvc-a", "1", "", quotaPathSC.Name, "60Gi"),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "provisioning QuotaPath and disable capacity check",
+			pod:  makePodForBindingTest("pod-a", []string{"pvc-a"}),
+			node: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-node-1",
+					Annotations: map[string]string{
+						unified.AnnotationNodeLocalStorageTopologyKey: "[{\"type\": \"lvm\", \"name\": \"vg-1\", \"capacity\": 105151127552}]",
+					},
+				},
+				Status: v1.NodeStatus{
+					Allocatable: v1.ResourceList{
+						v1.ResourceEphemeralStorage: resource.MustParse("128Gi"),
+					},
+				},
+			},
+			disableQuotaPathCapacity: true,
 			localInfo: &extension.LocalInfo{
 				DiskInfos: []extension.DiskInfo{
 					{
@@ -1087,6 +1138,8 @@ func TestVolumePreAssignFilterForLocalPV(t *testing.T) {
 
 	for _, item := range table {
 		t.Run(item.name, func(t *testing.T) {
+			defer koordutilfeature.SetFeatureGateDuringTest(t, k8sfeature.DefaultMutableFeatureGate, features.EnableQuotaPathCapacity, !item.disableQuotaPathCapacity)()
+
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			client := fake.NewSimpleClientset()
