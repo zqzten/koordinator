@@ -1106,8 +1106,10 @@ func (b *volumeBinder) checkVolumeProvisions(pod *v1.Pod, staticBindings []*Bind
 				vgName := class.Parameters[unified.CSILVMVolumeGroupName]
 				localVolumesInBytes[vgName] += quantity.Value()
 			case unified.CSILocalVolumeQuotaPath:
-				rootPath := class.Parameters[unified.CSIQuotaPathRootPath]
-				localVolumesInBytes[rootPath] += quantity.Value()
+				if utilfeature.DefaultFeatureGate.Enabled(koordfeature.EnableQuotaPathCapacity) {
+					rootPath := class.Parameters[unified.CSIQuotaPathRootPath]
+					localVolumesInBytes[rootPath] += quantity.Value()
+				}
 			case unified.CSILocalVolumeDevice:
 			case unified.CSILocalLoopDevice:
 				rootPath := class.Parameters[unified.CSILoopDeviceRootPath]
