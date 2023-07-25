@@ -17,7 +17,10 @@ limitations under the License.
 package config
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/koordinator-sh/koordinator/apis/extension"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -40,4 +43,17 @@ type CachedPodArgs struct {
 	Address    string
 	ServerCert []byte
 	ServerKey  []byte
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// LimitAwareArgs defines the parameters for LimitAware plugin.
+type LimitAwareArgs struct {
+	metav1.TypeMeta
+
+	// ScoringStrategy selects the node resource scoring strategy.
+	ScoringResourceWeights map[corev1.ResourceName]int64
+
+	// DefaultLimitToAllocatable cluster-level limitToAllocatable
+	DefaultLimitToAllocatable extension.LimitToAllocatable
 }

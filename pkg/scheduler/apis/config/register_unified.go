@@ -23,6 +23,7 @@ func init() {
 		scheme.AddKnownTypes(SchemeGroupVersion,
 			&UnifiedPodConstraintArgs{},
 			&CachedPodArgs{},
+			&LimitAwareArgs{},
 		)
 		return nil
 	})

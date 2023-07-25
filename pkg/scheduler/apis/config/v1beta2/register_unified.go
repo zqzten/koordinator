@@ -22,6 +22,7 @@ func init() {
 	localSchemeBuilder.Register(func(scheme *runtime.Scheme) error {
 		scheme.AddKnownTypes(SchemeGroupVersion,
 			&UnifiedPodConstraintArgs{},
+			&LimitAwareArgs{},
 			&CachedPodArgs{},
 		)
 		return nil

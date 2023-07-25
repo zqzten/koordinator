@@ -40,7 +40,7 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&ElasticQuotaArgs{},
 		&CoschedulingArgs{},
 		&DeviceShareArgs{},
-		&UnifiedPodConstraintArgs{},
+
 	)
 	return nil
 }

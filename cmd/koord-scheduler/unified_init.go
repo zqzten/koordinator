@@ -32,6 +32,7 @@ import (
 	unifiedhijack "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/hijack"
 	unifiedinplaceupdate "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/inplaceupdate"
 	unifiedinterpodaffinity "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/interpodaffinity"
+	unifiedlimitaware "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/limitaware"
 	unifiednodeaffinity "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/nodeaffinity"
 	unifiednodeports "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/nodeports"
 	unifiedoverquota "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/overquota"
@@ -65,4 +66,5 @@ func init() {
 	koordinatorPlugins[unifiedpodtopologyaware.Name] = unifiedpodtopologyaware.New
 	koordinatorPlugins[unifieddeviceshare.Name] = unifieddeviceshare.New
 	koordinatorPlugins[unifiedinplaceupdate.Name] = unifiedinplaceupdate.New
+	koordinatorPlugins[unifiedlimitaware.Name] = unifiedlimitaware.New
 }
