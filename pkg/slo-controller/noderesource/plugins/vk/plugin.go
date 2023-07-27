@@ -61,7 +61,7 @@ func (p *Plugin) Calculate(strategy *extension.ColocationStrategy, node *corev1.
 			continue
 		}
 
-		qosClass := extension.GetPodQoSClass(&pod)
+		qosClass := extension.GetPodQoSClassRaw(&pod)
 		podRequest := util.GetPodRequest(&pod, corev1.ResourceCPU, corev1.ResourceMemory)
 		if qosClass != extension.QoSBE {
 			podNonBERequest = quotav1.Add(podNonBERequest, podRequest)
