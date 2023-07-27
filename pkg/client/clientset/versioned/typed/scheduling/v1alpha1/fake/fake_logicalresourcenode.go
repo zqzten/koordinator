@@ -110,7 +110,7 @@ func (c *FakeLogicalResourceNodes) UpdateStatus(ctx context.Context, logicalReso
 // Delete takes name of the logicalResourceNode and deletes it. Returns an error if one occurs.
 func (c *FakeLogicalResourceNodes) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteAction(logicalresourcenodesResource, name), &v1alpha1.LogicalResourceNode{})
+		Invokes(testing.NewRootDeleteActionWithOptions(logicalresourcenodesResource, name, opts), &v1alpha1.LogicalResourceNode{})
 	return err
 }
 

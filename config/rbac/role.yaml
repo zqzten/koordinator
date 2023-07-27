@@ -107,32 +107,6 @@ rules:
   - update
   - watch
 - apiGroups:
-    - scheduling.alibabacloud.com
-  resources:
-    - resourceflavor
-  verbs:
-    - create
-    - delete
-    - get
-    - list
-    - patch
-    - update
-    - watch
-- apiGroups:
-    - scheduling.alibabacloud.com
-  resources:
-    - resourceflavor/finalizers
-  verbs:
-    - update
-- apiGroups:
-    - scheduling.alibabacloud.com
-  resources:
-    - resourceflavor/status
-  verbs:
-    - get
-    - patch
-    - update
-- apiGroups:
   - scheduling.alibabacloud.com
   resources:
   - reserveresources
@@ -144,6 +118,32 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - scheduling.alibabacloud.com
+  resources:
+  - resourceflavor
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - scheduling.alibabacloud.com
+  resources:
+  - resourceflavor/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - scheduling.alibabacloud.com
+  resources:
+  - resourceflavor/status
+  verbs:
+  - get
+  - patch
+  - update
 - apiGroups:
   - scheduling.alibabacloud.com
   resources:

@@ -110,7 +110,7 @@ func (c *FakeResourcePolicies) UpdateStatus(ctx context.Context, resourcePolicy 
 // Delete takes name of the resourcePolicy and deletes it. Returns an error if one occurs.
 func (c *FakeResourcePolicies) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteAction(resourcepoliciesResource, name), &v1alpha1.ResourcePolicy{})
+		Invokes(testing.NewRootDeleteActionWithOptions(resourcepoliciesResource, name, opts), &v1alpha1.ResourcePolicy{})
 	return err
 }
 

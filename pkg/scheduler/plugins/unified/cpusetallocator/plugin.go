@@ -150,7 +150,7 @@ func (p *Plugin) Filter(ctx context.Context, cycleState *framework.CycleState, p
 type getAvailableCPUsFn func(nodeName string) (availableCPUs cpuset.CPUSet, allocated nodenumaresource.CPUDetails, err error)
 
 func filterWithDisableCPUSetOversold(pod *corev1.Pod, nodeInfo *framework.NodeInfo, getAvailableCPUs getAvailableCPUsFn) *framework.Status {
-	if extension.GetPriorityClass(pod) != extension.PriorityProd {
+	if extension.GetPodPriorityClassRaw(pod) != extension.PriorityProd {
 		return nil
 	}
 

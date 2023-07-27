@@ -102,7 +102,7 @@ func (q *ASIQuota) addPod(pod *corev1.Pod, requests corev1.ResourceList) {
 	if q.pods.Has(key) {
 		return
 	}
-	if apiext.GetPodQoSClass(pod) == apiext.QoSBE {
+	if apiext.GetPodQoSClassRaw(pod) == apiext.QoSBE {
 		requests = convertToBatchRequests(requests)
 	}
 	q.used = quotav1.Add(q.used, requests)
@@ -120,7 +120,7 @@ func (q *ASIQuota) removePod(pod *corev1.Pod, requests corev1.ResourceList) {
 		return
 	}
 
-	if apiext.GetPodQoSClass(pod) == apiext.QoSBE {
+	if apiext.GetPodQoSClassRaw(pod) == apiext.QoSBE {
 		requests = convertToBatchRequests(requests)
 	}
 	q.used = quotav1.SubtractWithNonNegativeResult(q.used, requests)

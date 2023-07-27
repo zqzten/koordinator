@@ -110,7 +110,7 @@ func (c *FakeDrainNodeGroups) UpdateStatus(ctx context.Context, drainNodeGroup *
 // Delete takes name of the drainNodeGroup and deletes it. Returns an error if one occurs.
 func (c *FakeDrainNodeGroups) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteAction(drainnodegroupsResource, name), &v1alpha1.DrainNodeGroup{})
+		Invokes(testing.NewRootDeleteActionWithOptions(drainnodegroupsResource, name, opts), &v1alpha1.DrainNodeGroup{})
 	return err
 }
 

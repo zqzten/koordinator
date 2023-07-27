@@ -135,7 +135,7 @@ func (pl *Plugin) Reserve(ctx context.Context, cycleState *framework.CycleState,
 		return nil
 	}
 
-	nominatedReservation := frameworkext.GetNominatedReservation(cycleState)
+	nominatedReservation := frameworkext.GetNominatedReservation(cycleState, nodeName)
 	if nominatedReservation == nil || !apiext.IsReservationOperatingMode(nominatedReservation.GetReservePod()) {
 		return framework.NewStatus(framework.Error, "no satisfied cached pod")
 	}
@@ -152,7 +152,7 @@ func (pl *Plugin) Bind(ctx context.Context, cycleState *framework.CycleState, po
 		return framework.NewStatus(framework.Skip)
 	}
 
-	nominatedReservation := frameworkext.GetNominatedReservation(cycleState)
+	nominatedReservation := frameworkext.GetNominatedReservation(cycleState, nodeName)
 	if nominatedReservation == nil || !apiext.IsReservationOperatingMode(nominatedReservation.GetReservePod()) {
 		return framework.NewStatus(framework.Error, "no satisfied cached pod")
 	}

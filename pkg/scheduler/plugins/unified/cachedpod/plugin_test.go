@@ -91,15 +91,17 @@ func TestReserve(t *testing.T) {
 	assert.False(t, status.IsSuccess())
 
 	// nominated reservation is reservation
-	frameworkext.SetNominatedReservation(cycleState, frameworkext.NewReservationInfo(&schedulingv1alpha1.Reservation{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "test-r",
-		},
-		Spec: schedulingv1alpha1.ReservationSpec{
-			Template: &corev1.PodTemplateSpec{},
-		},
-	}))
-	status = pl.Reserve(context.TODO(), cycleState, requestPod, "")
+	frameworkext.SetNominatedReservation(cycleState, map[string]*frameworkext.ReservationInfo{
+		"test-node": frameworkext.NewReservationInfo(&schedulingv1alpha1.Reservation{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-r",
+			},
+			Spec: schedulingv1alpha1.ReservationSpec{
+				Template: &corev1.PodTemplateSpec{},
+			},
+		}),
+	})
+	status = pl.Reserve(context.TODO(), cycleState, requestPod, "test-node")
 	assert.False(t, status.IsSuccess())
 
 	targetPod := &corev1.Pod{
@@ -110,8 +112,10 @@ func TestReserve(t *testing.T) {
 			},
 		},
 	}
-	frameworkext.SetNominatedReservation(cycleState, frameworkext.NewReservationInfoFromPod(targetPod))
-	status = pl.Reserve(context.TODO(), cycleState, requestPod, "")
+	frameworkext.SetNominatedReservation(cycleState, map[string]*frameworkext.ReservationInfo{
+		"test-node": frameworkext.NewReservationInfoFromPod(targetPod),
+	})
+	status = pl.Reserve(context.TODO(), cycleState, requestPod, "test-node")
 	targetPodInState := hijack.GetTargetPod(cycleState)
 	assert.Equal(t, targetPod, targetPodInState)
 	assert.True(t, status.IsSuccess())
@@ -132,15 +136,17 @@ func TestBind(t *testing.T) {
 	assert.False(t, status.IsSuccess())
 
 	// nominated reservation is reservation
-	frameworkext.SetNominatedReservation(cycleState, frameworkext.NewReservationInfo(&schedulingv1alpha1.Reservation{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "test-r",
-		},
-		Spec: schedulingv1alpha1.ReservationSpec{
-			Template: &corev1.PodTemplateSpec{},
-		},
-	}))
-	status = pl.Bind(context.TODO(), cycleState, requestPod, "")
+	frameworkext.SetNominatedReservation(cycleState, map[string]*frameworkext.ReservationInfo{
+		"test-node": frameworkext.NewReservationInfo(&schedulingv1alpha1.Reservation{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-r",
+			},
+			Spec: schedulingv1alpha1.ReservationSpec{
+				Template: &corev1.PodTemplateSpec{},
+			},
+		}),
+	})
+	status = pl.Bind(context.TODO(), cycleState, requestPod, "test-node")
 	assert.False(t, status.IsSuccess())
 
 	cachedPod := &corev1.Pod{
@@ -151,8 +157,10 @@ func TestBind(t *testing.T) {
 			},
 		},
 	}
-	frameworkext.SetNominatedReservation(cycleState, frameworkext.NewReservationInfoFromPod(cachedPod))
-	status = pl.Bind(context.TODO(), cycleState, requestPod, "")
+	frameworkext.SetNominatedReservation(cycleState, map[string]*frameworkext.ReservationInfo{
+		"test-node": frameworkext.NewReservationInfoFromPod(cachedPod),
+	})
+	status = pl.Bind(context.TODO(), cycleState, requestPod, "test-node")
 	assert.True(t, status.IsSuccess())
 
 	assert.Equal(t, requestPod, fs.completeRequestPod)
