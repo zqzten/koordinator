@@ -113,7 +113,7 @@ func scaleCPUAndACU(pod *corev1.Pod, node *corev1.Node, resourceList corev1.Reso
 	if resourceList == nil {
 		return
 	}
-	podQoS := extension.GetPodQoSClass(pod)
+	podQoS := extension.GetPodQoSClassRaw(pod)
 	if isNodeEnabledACU(node) {
 		acuRatio := getACURatio(node)
 		if podQoS == extension.QoSLS && utilfeature.DefaultFeatureGate.Enabled(features.DefaultEnableACUForLSPod) {
