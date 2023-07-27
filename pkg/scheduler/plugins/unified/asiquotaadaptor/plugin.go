@@ -176,7 +176,7 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 		return nil, nil
 	}
 
-	if apiext.GetPodQoSClass(pod) == apiext.QoSBE {
+	if apiext.GetPodQoSClassRaw(pod) == apiext.QoSBE {
 		podRequests = convertToBatchRequests(podRequests)
 	}
 

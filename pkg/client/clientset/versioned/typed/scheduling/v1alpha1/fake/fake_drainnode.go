@@ -110,7 +110,7 @@ func (c *FakeDrainNodes) UpdateStatus(ctx context.Context, drainNode *v1alpha1.D
 // Delete takes name of the drainNode and deletes it. Returns an error if one occurs.
 func (c *FakeDrainNodes) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteAction(drainnodesResource, name), &v1alpha1.DrainNode{})
+		Invokes(testing.NewRootDeleteActionWithOptions(drainnodesResource, name, opts), &v1alpha1.DrainNode{})
 	return err
 }
 

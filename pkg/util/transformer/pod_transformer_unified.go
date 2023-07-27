@@ -258,7 +258,7 @@ func TransformResourceSpec(pod *corev1.Pod) {
 			return
 		}
 
-		if extension.GetPodQoSClass(pod) == extension.QoSNone {
+		if extension.GetPodQoSClassRaw(pod) == extension.QoSNone {
 			if pod.Labels == nil {
 				pod.Labels = map[string]string{}
 			}
