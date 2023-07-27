@@ -318,66 +318,6 @@ func (f *fakeExtendedHandle) SnapshotSharedLister() framework.SharedLister {
 	return f.ExtendedHandle.SnapshotSharedLister()
 }
 
-func Test_appendNetworkingVFMetas(t *testing.T) {
-	pod := &corev1.Pod{}
-
-	allocations := apiext.DeviceAllocations{
-		schedulingv1alpha1.RDMA: []*apiext.DeviceAllocation{
-			{
-				Minor: 1,
-				Extension: json.RawMessage(`{
-					"vfs": [
-                    	{
-                        	"bondName": "bond1",
-                        	"busID": "0000:5f:00.2",
-                        	"minor": 0,
-                        	"priority": "VFPriorityLow"
-                    	}
-                	],
-					"bondSlaves": ["eth0", "eth1"]
-				}`),
-			},
-			{
-				Minor: 2,
-				Extension: json.RawMessage(`{
-					"vfs": [
-                    	{
-                        	"bondName": "bond2",
-                        	"busID": "0000:6f:00.1",
-                        	"minor": 1,
-                        	"priority": "VFPriorityLow"
-                    	}
-                	],
-					"bondSlaves": ["eth2", "eth3"]
-				}`),
-			},
-		},
-	}
-
-	err := appendNetworkingVFMetas(pod, allocations)
-	assert.NoError(t, err)
-
-	var gotMetas []unified.VFMeta
-	err = json.Unmarshal([]byte(pod.Annotations[unified.AnnotationNetworkingVFMeta]), &gotMetas)
-	assert.NoError(t, err)
-
-	expectedMetas := []unified.VFMeta{
-		{
-			BondName:   "bond1",
-			VFIndex:    0,
-			PCIAddress: "0000:5f:00.2",
-			BondSlaves: []string{"eth0", "eth1"},
-		},
-		{
-			BondName:   "bond2",
-			VFIndex:    1,
-			PCIAddress: "0000:6f:00.1",
-			BondSlaves: []string{"eth2", "eth3"},
-		},
-	}
-	assert.Equal(t, expectedMetas, gotMetas)
-}
-
 func Test_appendRundResult(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -758,6 +698,130 @@ func Test_getDeviceShareArgs(t *testing.T) {
 				return
 			}
 			assert.Equal(t, tt.want, args)
+		})
+	}
+}
+
+func TestMatchDriverVersions(t *testing.T) {
+	tests := []struct {
+		name           string
+		runc           bool
+		selector       *unified.GPUSelector
+		driverVersions unified.NVIDIADriverVersions
+		wantErr        bool
+	}{
+		{
+			name:           "no selector and have driver version",
+			driverVersions: unified.NVIDIADriverVersions{"2.2.2", "3.3.3"},
+			wantErr:        false,
+		},
+		{
+			name:    "no selector, runc and nodes no driver versions",
+			runc:    true,
+			wantErr: false,
+		},
+		{
+			name:    "no selector, rund and nodes no driver versions",
+			wantErr: true,
+		},
+		{
+			name: "selector and matched",
+			selector: &unified.GPUSelector{
+				DriverVersions: []string{"1.1.1", "2.2.2"},
+			},
+			driverVersions: unified.NVIDIADriverVersions{"2.2.2", "3.3.3"},
+		},
+		{
+			name: "selector and unmatched",
+			selector: &unified.GPUSelector{
+				DriverVersions: []string{"1.1.1", "2.2.2"},
+			},
+			driverVersions: unified.NVIDIADriverVersions{"3.3.3"},
+			wantErr:        true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeDevice := fakeDeviceCR.DeepCopy()
+			if tt.driverVersions != nil {
+				data, err := json.Marshal(tt.driverVersions)
+				assert.NoError(t, err)
+				if fakeDevice.Annotations == nil {
+					fakeDevice.Annotations = map[string]string{}
+				}
+				fakeDevice.Annotations[unified.AnnotationNVIDIADriverVersions] = string(data)
+			}
+
+			suit := newPluginTestSuit(t, []*corev1.Node{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-node-1",
+					},
+				},
+			})
+
+			_, err := suit.koordClientSet.SchedulingV1alpha1().Devices().Create(context.TODO(), fakeDevice, metav1.CreateOptions{})
+			assert.NoError(t, err)
+
+			extender := suit.ExtenderFactory.NewFrameworkExtender(suit.Framework)
+			fakeHandle := &fakeExtendedHandle{
+				ExtendedHandle: extender,
+				Interface:      cosfake.NewSimpleClientset(),
+			}
+			p, err := New(nil, fakeHandle)
+			assert.NoError(t, err)
+
+			suit.Framework.SharedInformerFactory().Start(nil)
+			suit.koordinatorSharedInformerFactory.Start(nil)
+			suit.Framework.SharedInformerFactory().WaitForCacheSync(nil)
+			suit.koordinatorSharedInformerFactory.WaitForCacheSync(nil)
+
+			podRequest := corev1.ResourceList{
+				apiext.ResourceNvidiaGPU: *resource.NewQuantity(int64(1), resource.DecimalSI),
+			}
+
+			pod := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+					Name:      "test-pod",
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name: "main",
+							Resources: corev1.ResourceRequirements{
+								Requests: podRequest,
+							},
+						},
+					},
+				},
+			}
+			if tt.selector != nil {
+				data, err := json.Marshal(tt.selector)
+				assert.NoError(t, err)
+				pod.Annotations = map[string]string{
+					unified.AnnotationNVIDIAGPUSelector: string(data),
+				}
+			}
+			if !tt.runc {
+				pod.Spec.RuntimeClassName = pointer.String("rund")
+			}
+
+			cycleState := framework.NewCycleState()
+			pl := p.(*Plugin)
+			_, status := pl.PreFilter(context.TODO(), cycleState, pod)
+			assert.True(t, status.IsSuccess())
+
+			nodeInfo, err := suit.Framework.SnapshotSharedLister().NodeInfos().Get("test-node-1")
+			assert.NoError(t, err)
+			assert.NotNil(t, nodeInfo)
+
+			status = pl.Filter(context.TODO(), cycleState, pod, nodeInfo)
+			if !status.IsSuccess() != tt.wantErr {
+				t.Errorf("Filter error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
 		})
 	}
 }

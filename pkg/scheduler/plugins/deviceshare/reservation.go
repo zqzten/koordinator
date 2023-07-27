@@ -108,7 +108,7 @@ func (rs *nodeReservationRestoreStateData) mergeReservationAllocations() {
 }
 
 func (p *Plugin) PreRestoreReservation(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod) *framework.Status {
-	skip, _, status := preparePod(pod)
+	skip, _, status := PreparePod(pod)
 	if !status.IsSuccess() {
 		return status
 	}

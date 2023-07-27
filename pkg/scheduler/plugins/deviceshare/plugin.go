@@ -142,7 +142,7 @@ func (p *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState
 	}
 
 	var status *framework.Status
-	state.skip, state.podRequests, status = preparePod(pod)
+	state.skip, state.podRequests, status = PreparePod(pod)
 	if !status.IsSuccess() {
 		return nil, status
 	}
@@ -150,7 +150,7 @@ func (p *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState
 	return nil, nil
 }
 
-func preparePod(pod *corev1.Pod) (skip bool, requests corev1.ResourceList, status *framework.Status) {
+func PreparePod(pod *corev1.Pod) (skip bool, requests corev1.ResourceList, status *framework.Status) {
 	podRequests, _ := resource.PodRequestsAndLimits(pod)
 	podRequests = quotav1.RemoveZeros(podRequests)
 

@@ -136,16 +136,6 @@ func (a *AutopilotAllocator) Allocate(nodeName string, pod *corev1.Pod, podReque
 		return nil, err
 	}
 
-	if pod.Spec.RuntimeClassName != nil && *pod.Spec.RuntimeClassName == "rund" && HasDeviceResource(podRequest, schedulingv1alpha1.GPU) {
-		matchedVersion, err := MatchDriverVersions(pod, deviceObj)
-		if err != nil {
-			return nil, err
-		}
-		if matchedVersion == "" {
-			return nil, fmt.Errorf("unmatched driver versions")
-		}
-	}
-
 	rdmaTopology, err := unified.GetRDMATopology(deviceObj.Annotations)
 	if err != nil {
 		return nil, err
@@ -543,7 +533,7 @@ allocateVFLoop:
 					if candidateFirst && !candidatePCIEs.Has(int(pcie.Index)) {
 						continue
 					}
-					freeVF, bondSlaves, rdmaMinor := a.allocateVFFromRDMA(&pcie, rdmaTopology, allocatedVFs, vfDeviceType)
+					freeVF, _, rdmaMinor := a.allocateVFFromRDMA(&pcie, rdmaTopology, allocatedVFs, vfDeviceType)
 					if freeVF == nil {
 						if fullAllocated {
 							return nil, fmt.Errorf("node does not have enough RDMA")
@@ -553,8 +543,7 @@ allocateVFLoop:
 
 					extension := unified.DeviceAllocationExtension{
 						RDMAAllocatedExtension: &unified.RDMAAllocatedExtension{
-							VFs:        []*unified.VF{freeVF},
-							BondSlaves: bondSlaves,
+							VFs: []*unified.VF{freeVF},
 						},
 					}
 					data, err := json.Marshal(extension)
@@ -626,10 +615,8 @@ func (a *AutopilotAllocator) allocateVFFromRDMA(
 				vf = &remainingVFs[len(remainingVFs)-1]
 			}
 			freeVF = &unified.VF{
-				BondName: fmt.Sprintf("bond%d", rdma.Bond),
-				BusID:    vf.BusID,
-				Minor:    vf.Minor,
-				Priority: vf.Priority,
+				BusID: vf.BusID,
+				Minor: vf.Minor,
 			}
 		}
 		if freeVF != nil {
@@ -1017,34 +1004,6 @@ func sumDeviceResource(resources deviceResources, resName corev1.ResourceName) i
 		total += q.Value()
 	}
 	return total
-}
-
-func MatchDriverVersions(pod *corev1.Pod, device *schedulingv1alpha1.Device) (string, error) {
-	driverVersions, err := unified.GetDriverVersions(device.Annotations)
-	if err != nil {
-		return "", err
-	}
-	if len(driverVersions) == 0 {
-		return "", err
-	}
-	sort.Strings(driverVersions)
-	selector, err := unified.GetGPUSelector(pod.Annotations)
-	if err != nil {
-		return "", err
-	}
-	if len(selector.DriverVersions) == 0 {
-		return driverVersions[0], nil
-	}
-
-	versions := sets.NewString(driverVersions...)
-	var matchedVersion string
-	for _, v := range selector.DriverVersions {
-		if versions.Has(v) {
-			matchedVersion = v
-			break
-		}
-	}
-	return matchedVersion, nil
 }
 
 func mustAllocateVF(pod *corev1.Pod) bool {
