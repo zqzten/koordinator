@@ -268,7 +268,7 @@ func TestAutopilotAllocator(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:03.7","minor":29,"priority":"VFPriorityLow"}],"bondSlaves":["eth0","eth1"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:1f:03.7","minor":29}]}`),
 					},
 				},
 			},
@@ -290,7 +290,7 @@ func TestAutopilotAllocator(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:1f:00.2","minor":0}]}`),
 					},
 				},
 			},
@@ -316,7 +316,7 @@ func TestAutopilotAllocator(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:1f:00.2","minor":0}]}`),
 					},
 				},
 			},
@@ -346,14 +346,14 @@ func TestAutopilotAllocator(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:1f:00.2","minor":0}]}`),
 					},
 					{
 						Minor: 2,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond2","busID":"0000:90:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth2","eth3"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:90:00.2","minor":0}]}`),
 					},
 				},
 			},
@@ -387,14 +387,14 @@ func TestAutopilotAllocator(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:1f:00.2","minor":0}]}`),
 					},
 					{
 						Minor: 2,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond2","busID":"0000:90:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth2","eth3"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:90:00.2","minor":0}]}`),
 					},
 				},
 			},
@@ -436,21 +436,21 @@ func TestAutopilotAllocator(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:1f:00.2","minor":0}]}`),
 					},
 					{
 						Minor: 2,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond2","busID":"0000:90:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth2","eth3"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:90:00.2","minor":0}]}`),
 					},
 					{
 						Minor: 3,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond3","busID":"0000:51:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth4","eth5"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:51:00.2","minor":0}]}`),
 					},
 				},
 			},
@@ -500,28 +500,28 @@ func TestAutopilotAllocator(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:1f:00.2","minor":0}]}`),
 					},
 					{
 						Minor: 2,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond2","busID":"0000:90:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth2","eth3"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:90:00.2","minor":0}]}`),
 					},
 					{
 						Minor: 3,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond3","busID":"0000:51:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth4","eth5"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:51:00.2","minor":0}]}`),
 					},
 					{
 						Minor: 4,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond4","busID":"0000:b9:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth6","eth7"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:b9:00.2","minor":0}]}`),
 					},
 				},
 			},
@@ -543,7 +543,7 @@ func TestAutopilotAllocator(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:1f:00.2","minor":0}]}`),
 					},
 				},
 			},
@@ -564,7 +564,7 @@ func TestAutopilotAllocator(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond2","busID":"0000:90:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth2","eth3"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:90:00.2","minor":0}]}`),
 					},
 				},
 			},
@@ -586,7 +586,7 @@ func TestAutopilotAllocator(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:1f:00.2","minor":0}]}`),
 					},
 				},
 			},
@@ -611,14 +611,14 @@ func TestAutopilotAllocator(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.3","minor":1,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:1f:00.3","minor":1}]}`),
 					},
 					{
 						Minor: 2,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond2","busID":"0000:90:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth2","eth3"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:90:00.2","minor":0}]}`),
 					},
 				},
 			},
@@ -654,7 +654,7 @@ func TestAutopilotAllocator(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:20:00.0","minor":0,"priority":"VFPriorityHigh"}]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:20:00.0","minor":0}]}`),
 					},
 				},
 			},
@@ -690,7 +690,7 @@ func TestAutopilotAllocator(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:20:00.0","minor":0,"priority":"VFPriorityHigh"}]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:20:00.0","minor":0}]}`),
 					},
 				},
 			},
@@ -719,14 +719,14 @@ func TestAutopilotAllocator(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:20:00.1","minor":1,"priority":"VFPriorityHigh"}]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:20:00.1","minor":1}]}`),
 					},
 					{
 						Minor: 2,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond2","busID":"0000:21:00.0","minor":0,"priority":"VFPriorityHigh"}]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:21:00.0","minor":0}]}`),
 					},
 				},
 			},
@@ -911,7 +911,7 @@ func TestAutopilotAllocatorVFByType(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond2","busID":"0000:90:03.5","minor":27,"priority":"VFPriorityLow"}],"bondSlaves":["eth2","eth3"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:90:03.5","minor":27}]}`),
 					},
 				},
 			},
@@ -933,7 +933,7 @@ func TestAutopilotAllocatorVFByType(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond2","busID":"0000:90:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth2","eth3"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:90:00.2","minor":0}]}`),
 					},
 				},
 			},
@@ -1030,126 +1030,6 @@ func TestAutopilotAllocatorVFByType(t *testing.T) {
 	}
 }
 
-func TestMatchDriverVersions(t *testing.T) {
-	tests := []struct {
-		name           string
-		runc           bool
-		selector       *unified.GPUSelector
-		driverVersions unified.NVIDIADriverVersions
-		want           bool
-		wantErr        bool
-	}{
-		{
-			name:           "no selector and have driver version",
-			driverVersions: unified.NVIDIADriverVersions{"2.2.2", "3.3.3"},
-			want:           true,
-			wantErr:        false,
-		},
-		{
-			name:    "no selector, runc and nodes no driver versions",
-			runc:    true,
-			want:    true,
-			wantErr: false,
-		},
-		{
-			name:    "no selector, rund and nodes no driver versions",
-			want:    false,
-			wantErr: true,
-		},
-		{
-			name: "selector and matched",
-			selector: &unified.GPUSelector{
-				DriverVersions: []string{"1.1.1", "2.2.2"},
-			},
-			driverVersions: unified.NVIDIADriverVersions{"2.2.2", "3.3.3"},
-			want:           true,
-		},
-		{
-			name: "selector and unmatched",
-			selector: &unified.GPUSelector{
-				DriverVersions: []string{"1.1.1", "2.2.2"},
-			},
-			driverVersions: unified.NVIDIADriverVersions{"3.3.3"},
-			want:           false,
-			wantErr:        true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			fakeDevice := fakeDeviceCR.DeepCopy()
-			if tt.driverVersions != nil {
-				data, err := json.Marshal(tt.driverVersions)
-				assert.NoError(t, err)
-				if fakeDevice.Annotations == nil {
-					fakeDevice.Annotations = map[string]string{}
-				}
-				fakeDevice.Annotations[unified.AnnotationNVIDIADriverVersions] = string(data)
-			}
-
-			koordFakeClient := koordfake.NewSimpleClientset()
-			_, err := koordFakeClient.SchedulingV1alpha1().Devices().Create(context.TODO(), fakeDevice, metav1.CreateOptions{})
-			assert.NoError(t, err)
-			koordShareInformerFactory := koordinatorinformers.NewSharedInformerFactory(koordFakeClient, 0)
-
-			kubeFakeClient := kubefake.NewSimpleClientset(&corev1.Node{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-node-1",
-				},
-			})
-			sharedInformerFactory := informers.NewSharedInformerFactory(kubeFakeClient, 0)
-
-			deviceCache := newNodeDeviceCache()
-			registerDeviceEventHandler(deviceCache, koordShareInformerFactory)
-			registerPodEventHandler(deviceCache, sharedInformerFactory, koordShareInformerFactory)
-
-			allocator := NewAutopilotAllocator(AllocatorOptions{
-				SharedInformerFactory:      sharedInformerFactory,
-				KoordSharedInformerFactory: koordShareInformerFactory,
-			})
-
-			sharedInformerFactory.Start(nil)
-			sharedInformerFactory.WaitForCacheSync(nil)
-
-			nodeDevice := deviceCache.getNodeDevice("test-node-1", false)
-			assert.NotNil(t, nodeDevice)
-
-			podRequest := corev1.ResourceList{
-				apiext.ResourceNvidiaGPU: *resource.NewQuantity(int64(1), resource.DecimalSI),
-			}
-			combination, err := ValidateDeviceRequest(podRequest)
-			assert.NoError(t, err)
-			podRequest = ConvertDeviceRequest(podRequest, combination)
-
-			nodeDevice.lock.Lock()
-			defer nodeDevice.lock.Unlock()
-
-			pod := &corev1.Pod{}
-			if tt.selector != nil {
-				data, err := json.Marshal(tt.selector)
-				assert.NoError(t, err)
-				pod.Annotations = map[string]string{
-					unified.AnnotationNVIDIAGPUSelector: string(data),
-				}
-			}
-			if !tt.runc {
-				pod.Spec.RuntimeClassName = pointer.String("rund")
-			}
-
-			allocations, err := allocator.Allocate("test-node-1", pod, podRequest, nodeDevice, nil, nil, nil, nil)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Allocate() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-
-			if (allocations != nil) != tt.want {
-				t.Errorf("Allocate() allocations = %v, want %v", allocations, tt.want)
-				return
-			}
-		})
-	}
-}
-
 func TestAutopilotAllocatorReserveAndUnreserve(t *testing.T) {
 	fakeDevice := fakeDeviceCR.DeepCopy()
 	for i := 0; i < 6; i++ {
@@ -1200,14 +1080,14 @@ func TestAutopilotAllocatorReserveAndUnreserve(t *testing.T) {
 				Resources: corev1.ResourceList{
 					apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 				},
-				Extension: json.RawMessage(`{"vfs":[{"busID":"0000:1f:00.3","minor":1,"priority":"VFPriorityHigh"}]}`),
+				Extension: json.RawMessage(`{"vfs":[{"busID":"0000:1f:00.3","minor":1}]}`),
 			},
 			{
 				Minor: 2,
 				Resources: corev1.ResourceList{
 					apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 				},
-				Extension: json.RawMessage(`{"vfs":[{"busID":"0000:90:00.2","minor":0,"priority":"VFPriorityHigh"}]}`),
+				Extension: json.RawMessage(`{"vfs":[{"busID":"0000:90:00.2","minor":0}]}`),
 			},
 		},
 		unified.NVSwitchDeviceType: []*apiext.DeviceAllocation{
@@ -1292,7 +1172,7 @@ func TestAutopilotAllocateNVSwitch(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:1f:00.2","minor":0}]}`),
 					},
 				},
 			},
@@ -1318,7 +1198,7 @@ func TestAutopilotAllocateNVSwitch(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:1f:00.2","minor":0}]}`),
 					},
 				},
 				unified.NVSwitchDeviceType: []*apiext.DeviceAllocation{
@@ -1356,14 +1236,14 @@ func TestAutopilotAllocateNVSwitch(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:1f:00.2","minor":0}]}`),
 					},
 					{
 						Minor: 2,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond2","busID":"0000:90:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth2","eth3"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:90:00.2","minor":0}]}`),
 					},
 				},
 				unified.NVSwitchDeviceType: []*apiext.DeviceAllocation{
@@ -1427,28 +1307,28 @@ func TestAutopilotAllocateNVSwitch(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth0","eth1"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:1f:00.2","minor":0}]}`),
 					},
 					{
 						Minor: 2,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond2","busID":"0000:90:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth2","eth3"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:90:00.2","minor":0}]}`),
 					},
 					{
 						Minor: 3,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond3","busID":"0000:51:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth4","eth5"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:51:00.2","minor":0}]}`),
 					},
 					{
 						Minor: 4,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond4","busID":"0000:b9:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth6","eth7"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:b9:00.2","minor":0}]}`),
 					},
 				},
 				unified.NVSwitchDeviceType: []*apiext.DeviceAllocation{
@@ -1508,7 +1388,7 @@ func TestAutopilotAllocateNVSwitch(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:1f:00.2","minor":0,"priority":"VFPriorityHigh"}]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:1f:00.2","minor":0}]}`),
 					},
 				},
 				unified.NVSwitchDeviceType: []*apiext.DeviceAllocation{
@@ -1537,7 +1417,7 @@ func TestAutopilotAllocateNVSwitch(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond2","busID":"0000:90:00.2","minor":0,"priority":"VFPriorityHigh"}],"bondSlaves":["eth2","eth3"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:90:00.2","minor":0}]}`),
 					},
 				},
 				unified.NVSwitchDeviceType: []*apiext.DeviceAllocation{
@@ -1822,7 +1702,7 @@ func TestAllocateByPartition(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:09:02.5","minor":19,"priority":"VFPriorityLow"}],"bondSlaves":["eth0","eth1"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:09:02.5","minor":19}]}`),
 					},
 				},
 			},
@@ -1844,7 +1724,7 @@ func TestAllocateByPartition(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond5","busID":"0001:08:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth10","eth11"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0001:08:00.3","minor":1}]}`),
 					},
 				},
 			},
@@ -1870,14 +1750,14 @@ func TestAllocateByPartition(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond5","busID":"0001:08:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth10","eth11"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0001:08:00.3","minor":1}]}`),
 					},
 					{
 						Minor: 6,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond6","busID":"0001:7e:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth12","eth13"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0001:7e:00.3","minor":1}]}`),
 					},
 				},
 			},
@@ -1917,28 +1797,28 @@ func TestAllocateByPartition(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond5","busID":"0001:08:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth10","eth11"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0001:08:00.3","minor":1}]}`),
 					},
 					{
 						Minor: 6,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond6","busID":"0001:7e:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth12","eth13"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0001:7e:00.3","minor":1}]}`),
 					},
 					{
 						Minor: 7,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond7","busID":"0001:a2:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth14","eth15"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0001:a2:00.3","minor":1}]}`),
 					},
 					{
 						Minor: 8,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond8","busID":"0001:c6:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth16","eth17"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0001:c6:00.3","minor":1}]}`),
 					},
 				},
 			},
@@ -1994,56 +1874,56 @@ func TestAllocateByPartition(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond1","busID":"0000:09:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth0","eth1"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:09:00.3","minor":1}]}`),
 					},
 					{
 						Minor: 2,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond2","busID":"0000:7f:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth4","eth5"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:7f:00.3","minor":1}]}`),
 					},
 					{
 						Minor: 3,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond3","busID":"0000:a3:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth6","eth7"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:a3:00.3","minor":1}]}`),
 					},
 					{
 						Minor: 4,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond4","busID":"0000:c7:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth8","eth9"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0000:c7:00.3","minor":1}]}`),
 					},
 					{
 						Minor: 5,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond5","busID":"0001:08:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth10","eth11"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0001:08:00.3","minor":1}]}`),
 					},
 					{
 						Minor: 6,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond6","busID":"0001:7e:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth12","eth13"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0001:7e:00.3","minor":1}]}`),
 					},
 					{
 						Minor: 7,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond7","busID":"0001:a2:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth14","eth15"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0001:a2:00.3","minor":1}]}`),
 					},
 					{
 						Minor: 8,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond8","busID":"0001:c6:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth16","eth17"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0001:c6:00.3","minor":1}]}`),
 					},
 				},
 			},
@@ -2070,14 +1950,14 @@ func TestAllocateByPartition(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond5","busID":"0001:08:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth10","eth11"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0001:08:00.3","minor":1}]}`),
 					},
 					{
 						Minor: 6,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond6","busID":"0001:7e:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth12","eth13"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0001:7e:00.3","minor":1}]}`),
 					},
 				},
 			},
@@ -2098,14 +1978,14 @@ func TestAllocateByPartition(t *testing.T) {
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond7","busID":"0001:a2:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth14","eth15"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0001:a2:00.3","minor":1}]}`),
 					},
 					{
 						Minor: 8,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
-						Extension: json.RawMessage(`{"vfs":[{"bondName":"bond8","busID":"0001:c6:00.3","minor":1,"priority":"VFPriorityLow"}],"bondSlaves":["eth16","eth17"]}`),
+						Extension: json.RawMessage(`{"vfs":[{"busID":"0001:c6:00.3","minor":1}]}`),
 					},
 				},
 			},
