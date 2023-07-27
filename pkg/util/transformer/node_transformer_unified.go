@@ -41,7 +41,7 @@ func TransformNodeAllocatableWithOverQuota(node *corev1.Node) {
 		milliCPU := node.Status.Allocatable.Cpu().MilliValue()
 		milliCPU = milliCPU * cpuOverQuotaRatio / 100
 		originalResources[corev1.ResourceCPU] = node.Status.Allocatable[corev1.ResourceCPU]
-		node.Status.Allocatable[corev1.ResourceCPU] = *resource.NewQuantity(milliCPU, resource.DecimalSI)
+		node.Status.Allocatable[corev1.ResourceCPU] = *resource.NewMilliQuantity(milliCPU, resource.DecimalSI)
 	}
 	if memoryOverQuotaRatio > 0 && memoryOverQuotaRatio != 100 {
 		memoryBytes := node.Status.Allocatable.Memory().Value()
