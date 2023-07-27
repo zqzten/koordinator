@@ -122,7 +122,6 @@ type RDMATopology struct {
 
 type VF struct {
 	Name     string       `json:"name,omitempty"`
-	BondName string       `json:"bondName,omitempty"`
 	BusID    string       `json:"busID,omitempty"`
 	Minor    int32        `json:"minor"`
 	Priority VFPriority   `json:"priority,omitempty"`
