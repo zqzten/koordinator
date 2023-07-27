@@ -30,6 +30,7 @@ import (
 	apiresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	quotav1 "k8s.io/apiserver/pkg/quota/v1"
 	k8sfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
@@ -49,6 +50,10 @@ import (
 
 const (
 	Name = "UnifiedDeviceShare"
+
+	stateKey                 = Name
+	ErrInvalidDriverVersion  = "node(s) invalid driver version"
+	ErrMismatchDriverVersion = "node(s) mismatch driver version"
 )
 
 var (
@@ -65,7 +70,8 @@ var (
 )
 
 type Plugin struct {
-	handle framework.Handle
+	handle       frameworkext.ExtendedHandle
+	deviceLister schedulingv1alpha1listers.DeviceLister
 	*deviceshare.Plugin
 }
 
@@ -80,9 +86,16 @@ func New(obj runtime.Object, handle framework.Handle) (framework.Plugin, error) 
 		return nil, err
 	}
 
+	extendedHandle, ok := handle.(frameworkext.ExtendedHandle)
+	if !ok {
+		return nil, fmt.Errorf("expect handle to be type frameworkext.ExtendedHandle, got %T", handle)
+	}
+	deviceLister := extendedHandle.KoordinatorSharedInformerFactory().Scheduling().V1alpha1().Devices().Lister()
+
 	p := &Plugin{
-		handle: handle,
-		Plugin: internalPlugin.(*deviceshare.Plugin),
+		handle:       extendedHandle,
+		deviceLister: deviceLister,
+		Plugin:       internalPlugin.(*deviceshare.Plugin),
 	}
 	return p, nil
 }
@@ -122,6 +135,42 @@ func (pl *Plugin) Name() string {
 	return Name
 }
 
+type preFilterState struct {
+	skip        bool
+	podRequests corev1.ResourceList
+}
+
+func (s *preFilterState) Clone() framework.StateData {
+	return s
+}
+
+func getPreFilterState(cycleState *framework.CycleState) (*preFilterState, *framework.Status) {
+	value, err := cycleState.Read(stateKey)
+	if err != nil {
+		return nil, framework.AsStatus(err)
+	}
+	state := value.(*preFilterState)
+	return state, nil
+}
+
+func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod) (*framework.PreFilterResult, *framework.Status) {
+	result, status := pl.Plugin.PreFilter(ctx, cycleState, pod)
+	if !status.IsSuccess() {
+		return nil, status
+	}
+
+	state := &preFilterState{
+		skip: true,
+	}
+
+	state.skip, state.podRequests, status = deviceshare.PreparePod(pod)
+	if !status.IsSuccess() {
+		return nil, status
+	}
+	cycleState.Write(stateKey, state)
+	return result, nil
+}
+
 func (pl *Plugin) Filter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
 	node := nodeInfo.Node()
 	if node == nil {
@@ -131,7 +180,37 @@ func (pl *Plugin) Filter(ctx context.Context, cycleState *framework.CycleState, 
 		return nil
 	}
 
+	state, status := getPreFilterState(cycleState)
+	if !status.IsSuccess() {
+		return status
+	}
+	if state.skip {
+		return nil
+	}
+
+	if status := pl.checkDriverVersionIfNeed(state, pod, node.Name); !status.IsSuccess() {
+		return status
+	}
+
 	return pl.Plugin.Filter(ctx, cycleState, pod, nodeInfo)
+}
+
+func (pl *Plugin) checkDriverVersionIfNeed(state *preFilterState, pod *corev1.Pod, nodeName string) *framework.Status {
+	deviceObj, err := pl.deviceLister.Get(nodeName)
+	if err != nil {
+		return framework.NewStatus(framework.UnschedulableAndUnresolvable, deviceshare.ErrMissingDevice)
+	}
+
+	if pod.Spec.RuntimeClassName != nil && *pod.Spec.RuntimeClassName == "rund" && deviceshare.HasDeviceResource(state.podRequests, schedulingv1alpha1.GPU) {
+		matchedVersion, err := MatchDriverVersions(pod, deviceObj)
+		if err != nil {
+			return framework.NewStatus(framework.UnschedulableAndUnresolvable, ErrInvalidDriverVersion)
+		}
+		if matchedVersion == "" {
+			return framework.NewStatus(framework.UnschedulableAndUnresolvable, ErrMismatchDriverVersion)
+		}
+	}
+	return nil
 }
 
 func (pl *Plugin) FilterReservation(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, reservationInfo *frameworkext.ReservationInfo, nodeName string) *framework.Status {
@@ -234,12 +313,7 @@ func (pl *Plugin) appendInternalAnnotations(obj metav1.Object, allocResult apiex
 	}
 	ack.AppendAckAnnotations(pod, allocResult)
 	if isVirtualGPUCard(allocResult) {
-		extendedHandle, ok := pl.handle.(frameworkext.ExtendedHandle)
-		if !ok {
-			return fmt.Errorf("expect handle to be type frameworkext.ExtendedHandle, got %T", pl.handle)
-		}
-		deviceLister := extendedHandle.KoordinatorSharedInformerFactory().Scheduling().V1alpha1().Devices().Lister()
-		device, err := deviceLister.Get(nodeName)
+		device, err := pl.deviceLister.Get(nodeName)
 		if err != nil {
 			return err
 		}
@@ -256,9 +330,6 @@ func (pl *Plugin) appendInternalAnnotations(obj metav1.Object, allocResult apiex
 		pod.Annotations[ack.AnnotationAliyunEnvMemPod] = fmt.Sprintf("%v", gpuMemoryPod.Value()/1024/1024/1024)
 	}
 	if err := appendUnifiedDeviceAllocStatus(pod, allocResult); err != nil {
-		return err
-	}
-	if err := appendNetworkingVFMetas(pod, allocResult); err != nil {
 		return err
 	}
 	return appendRundResult(pod, allocResult, pl)
@@ -439,37 +510,6 @@ func isExclusiveGPURes(res map[string]apiresource.Quantity) bool {
 	return true
 }
 
-func appendNetworkingVFMetas(pod *corev1.Pod, allocResult apiext.DeviceAllocations) error {
-	rdmaAllocs, ok := allocResult[schedulingv1alpha1.RDMA]
-	if !ok {
-		return nil
-	}
-	var metas []extunified.VFMeta
-	for _, v := range rdmaAllocs {
-		if len(v.Extension) == 0 {
-			continue
-		}
-		var allocationExt extunified.DeviceAllocationExtension
-		if err := json.Unmarshal(v.Extension, &allocationExt); err != nil {
-			return err
-		}
-		if allocationExt.RDMAAllocatedExtension != nil {
-			for _, vf := range allocationExt.RDMAAllocatedExtension.VFs {
-				metas = append(metas, extunified.VFMeta{
-					BondName:   vf.BondName,
-					BondSlaves: allocationExt.BondSlaves,
-					VFIndex:    int(vf.Minor),
-					PCIAddress: vf.BusID,
-				})
-			}
-		}
-	}
-	if len(metas) == 0 {
-		return nil
-	}
-	return extunified.SetVFMeta(pod, metas)
-}
-
 func getDevicesBusID(pod *corev1.Pod, allocResult apiext.DeviceAllocations, deviceLister schedulingv1alpha1listers.DeviceLister) (map[schedulingv1alpha1.DeviceType]map[int]string, error) {
 	device, err := deviceLister.Get(pod.Spec.NodeName)
 	if err != nil {
@@ -584,7 +624,7 @@ func appendRundResult(pod *corev1.Pod, allocResult apiext.DeviceAllocations, pl 
 		if err != nil {
 			return err
 		}
-		matchedVersion, err := deviceshare.MatchDriverVersions(pod, device)
+		matchedVersion, err := MatchDriverVersions(pod, device)
 		if err != nil {
 			return nil
 		}
@@ -594,4 +634,32 @@ func appendRundResult(pod *corev1.Pod, allocResult apiext.DeviceAllocations, pl 
 		pod.Annotations[extunified.AnnotationRundNvidiaDriverVersion] = matchedVersion
 	}
 	return nil
+}
+
+func MatchDriverVersions(pod *corev1.Pod, device *schedulingv1alpha1.Device) (string, error) {
+	driverVersions, err := extunified.GetDriverVersions(device.Annotations)
+	if err != nil {
+		return "", err
+	}
+	if len(driverVersions) == 0 {
+		return "", err
+	}
+	sort.Strings(driverVersions)
+	selector, err := extunified.GetGPUSelector(pod.Annotations)
+	if err != nil {
+		return "", err
+	}
+	if len(selector.DriverVersions) == 0 {
+		return driverVersions[0], nil
+	}
+
+	versions := sets.NewString(driverVersions...)
+	var matchedVersion string
+	for _, v := range selector.DriverVersions {
+		if versions.Has(v) {
+			matchedVersion = v
+			break
+		}
+	}
+	return matchedVersion, nil
 }
