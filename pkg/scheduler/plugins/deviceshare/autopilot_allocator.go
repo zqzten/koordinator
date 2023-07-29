@@ -290,7 +290,7 @@ func (a *AutopilotAllocator) allocateResourcesByPartition(
 	rdmaRequest resource.Quantity,
 	requireAllocateVF bool,
 	vfDeviceType unified.VFDeviceType,
-	partitionTable map[int][]GPUPartition,
+	partitionTable map[int][]unified.GPUPartition,
 	deviceTopology *unified.DeviceTopology,
 	rdmaTopology *unified.RDMATopology,
 	required, preferred map[schedulingv1alpha1.DeviceType]sets.Int,
