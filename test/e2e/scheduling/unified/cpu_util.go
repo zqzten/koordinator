@@ -1,4 +1,20 @@
-package scheduler
+/*
+Copyright 2022 The Koordinator Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package unified
 
 import (
 	"context"
@@ -22,11 +38,12 @@ import (
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/klog"
 
-	"k8s.io/kubernetes/test/e2e/framework"
-	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
 	"k8s.io/kubernetes/test/e2e_ak8s/env"
 	"k8s.io/kubernetes/test/e2e_ak8s/swarm"
 	"k8s.io/kubernetes/test/e2e_ak8s/util"
+
+	"github.com/koordinator-sh/koordinator/test/e2e/framework"
+	e2epod "github.com/koordinator-sh/koordinator/test/e2e/framework/pod"
 )
 
 const (
@@ -295,7 +312,7 @@ func cleanJob(tc *testContext) {
 	cleanContainers(tc, nil)
 }
 
-//用于释放指定 case 的资源
+// 用于释放指定 case 的资源
 func releaseResource(tc *testContext, caseIndexes []int) map[string]map[string]struct{} {
 	caseIndexSet := map[int]bool{}
 	for _, v := range caseIndexes {
