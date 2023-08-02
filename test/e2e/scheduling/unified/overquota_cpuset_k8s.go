@@ -28,10 +28,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 
-	"k8s.io/kubernetes/test/e2e_ak8s/swarm"
-
 	"github.com/koordinator-sh/koordinator/test/e2e/framework"
-	"github.com/koordinator-sh/koordinator/test/e2e/scheduling"
+	"github.com/koordinator-sh/koordinator/test/e2e/scheduling/unified/swarm"
 )
 
 var _ = Describe("[e2e-ak8s][ak8s-scheduler][cpuset][cpu]", func() {
@@ -94,7 +92,7 @@ var _ = Describe("[e2e-ak8s][ak8s-scheduler][cpuset][cpu]", func() {
 	// 2. 每个核的超卖比不大于2
 
 	It("[p2] overQuotaCPUSetK8s001: ", func() {
-		scheduling.WaitForStableCluster(cs, masterNodes)
+		WaitForStableCluster(cs, masterNodes)
 
 		nodeName := GetNodeThatCanRunPod(f)
 		Expect(nodeName).ToNot(BeNil())
@@ -193,7 +191,7 @@ var _ = Describe("[e2e-ak8s][ak8s-scheduler][cpuset][cpu]", func() {
 		Expect(nodeName).ToNot(BeNil())
 
 		framework.Logf("get one node to schedule, nodeName: %s", nodeName)
-		scheduling.WaitForStableCluster(cs, masterNodes)
+		WaitForStableCluster(cs, masterNodes)
 
 		AllocatableCPU := nodeToAllocatableMapCPU[nodeName]
 		AllocatableMemory := nodeToAllocatableMapMem[nodeName]

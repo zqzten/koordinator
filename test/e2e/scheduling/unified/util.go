@@ -12,26 +12,23 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/sirupsen/logrus"
 	sigmak8sapi "gitlab.alibaba-inc.com/sigma/sigma-k8s-api/pkg/api"
-
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/apimachinery/pkg/util/uuid"
 	clientset "k8s.io/client-go/kubernetes"
-	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
-
-	"github.com/koordinator-sh/koordinator/test/e2e/e2e_ak8s/env"
-	"github.com/koordinator-sh/koordinator/test/e2e/e2e_ak8s/swarm"
-	"github.com/koordinator-sh/koordinator/test/e2e/e2e_ak8s/util"
+	v1helper "k8s.io/component-helpers/scheduling/corev1"
+	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 
 	"github.com/koordinator-sh/koordinator/test/e2e/framework"
 	e2enode "github.com/koordinator-sh/koordinator/test/e2e/framework/node"
 	e2epod "github.com/koordinator-sh/koordinator/test/e2e/framework/pod"
-	"github.com/koordinator-sh/koordinator/test/e2e/scheduling"
+	"github.com/koordinator-sh/koordinator/test/e2e/scheduling/unified/env"
+	"github.com/koordinator-sh/koordinator/test/e2e/scheduling/unified/swarm"
+	"github.com/koordinator-sh/koordinator/test/e2e/scheduling/unified/util"
+	imageutils "github.com/koordinator-sh/koordinator/test/utils/image"
 )
 
 // variable set in BeforeEach, never modified afterwards
@@ -56,10 +53,7 @@ type pausePodConfig struct {
 }
 
 func initPausePod(f *framework.Framework, conf pausePodConfig) *v1.Pod {
-	pauseImage := util.SigmaPauseImage
-	if pauseImage == "" {
-		pauseImage = "k8s.gcr.io/pause-amd64"
-	}
+	pauseImage := imageutils.GetPauseImageName()
 
 	if conf.Labels == nil {
 		conf.Labels = make(map[string]string)
@@ -194,81 +188,11 @@ func getRequestedStorageEphemeralStorage(pod v1.Pod) int64 {
 	return result
 }
 
-// createPausePodAction returns a closure that creates a pause pod upon invocation.
-func createPausePodAction(f *framework.Framework, conf pausePodConfig) scheduling.Action {
-	return func() error {
-		_, err := f.ClientSet.CoreV1().Pods(f.Namespace.Name).Create(context.TODO(), initPausePod(f, conf), metav1.CreateOptions{})
-		return err
-	}
-}
-
-// WaitForSchedulerAfterAction performs the provided action and then waits for
-// scheduler to act on the given pod.
-func WaitForSchedulerAfterAction(f *framework.Framework, action scheduling.Action, podName string, expectSuccess bool) {
-	predicate := scheduleFailureEvent(podName)
-	if expectSuccess {
-		predicate = scheduleSuccessEvent(podName, "" /* any node */)
-	}
-	success, err := scheduling.ObserveEventAfterAction(f.ClientSet, f.Namespace.Name, predicate, action)
-	Expect(err).NotTo(HaveOccurred())
-	Expect(success).To(Equal(true))
-}
-
-// TODO: upgrade calls in PodAffinity tests when we're able to run them
-func verifyResult(c clientset.Interface, expectedScheduled int, expectedNotScheduled int, ns string) {
-	allPods, err := c.CoreV1().Pods(ns).List(context.TODO(), metav1.ListOptions{})
-	framework.ExpectNoError(err)
-	scheduledPods, notScheduledPods := scheduling.GetPodsScheduled(masterNodes, allPods)
-
-	printed := false
-	printOnce := func(msg string) string {
-		if !printed {
-			printed = true
-			return msg
-		}
-		return ""
-	}
-
-	Expect(len(notScheduledPods)).To(Equal(expectedNotScheduled), printOnce(fmt.Sprintf("Not scheduled Pods: %#v", notScheduledPods)))
-	Expect(len(scheduledPods)).To(Equal(expectedScheduled), printOnce(fmt.Sprintf("Scheduled Pods: %#v", scheduledPods)))
-}
-
-// verifyReplicasResult is wrapper of verifyResult for a group pods with same "name: labelName" label, which means they belong to same RC
-func verifyReplicasResult(c clientset.Interface, expectedScheduled int, expectedNotScheduled int, ns string, labelName string) {
-	allPods := getPodsByLabels(c, ns, map[string]string{"name": labelName})
-	scheduledPods, notScheduledPods := scheduling.GetPodsScheduled(masterNodes, allPods)
-
-	printed := false
-	printOnce := func(msg string) string {
-		if !printed {
-			printed = true
-			return msg
-		}
-		return ""
-	}
-
-	Expect(len(notScheduledPods)).To(Equal(expectedNotScheduled), printOnce(fmt.Sprintf("Not scheduled Pods: %#v", notScheduledPods)))
-	Expect(len(scheduledPods)).To(Equal(expectedScheduled), printOnce(fmt.Sprintf("Scheduled Pods: %#v", scheduledPods)))
-}
-
 func getPodsByLabels(c clientset.Interface, ns string, labelsMap map[string]string) *v1.PodList {
 	selector := labels.SelectorFromSet(labels.Set(labelsMap))
 	allPods, err := c.CoreV1().Pods(ns).List(context.TODO(), metav1.ListOptions{LabelSelector: selector.String()})
 	framework.ExpectNoError(err)
 	return allPods
-}
-
-func runAndKeepPodWithLabelAndGetNodeName(f *framework.Framework) (string, string) {
-	// launch a pod to find a node which can launch a pod. We intentionally do
-	// not just take the node list and choose the first of them. Depending on the
-	// cluster and the scheduler it might be that a "normal" pod cannot be
-	// scheduled onto it.
-	By("Trying to launch a pod with a label to get a node which can launch it.")
-	pod := runPausePod(f, pausePodConfig{
-		Name:   "with-label-" + string(uuid.NewUUID()),
-		Labels: map[string]string{"security": "S1"},
-	})
-	return pod.Spec.NodeName, pod.Name
 }
 
 // GetNodeThatCanRunPod return a nodename that can run pod.
@@ -534,7 +458,7 @@ func DumpSchedulerState(f *framework.Framework, cnt int) {
 			break
 		}
 		allocplan := swarm.GetHostPods(f.ClientSet, node.Name)
-		logrus.Infof("******** Output of scheduler allocplan")
+		klog.Infof("******** Output of scheduler allocplan")
 		tmp, _ := json.MarshalIndent(allocplan, "  ", "  ")
 		if tmp != nil {
 			fmt.Println(string(tmp))
@@ -586,10 +510,8 @@ func isNodeSchedulable(node *v1.Node) bool {
 		return false
 	}
 
-	nodeReady := e2enode.IsConditionSetAsExpected(node, v1.NodeReady, true)
-	networkReady := e2enode.IsConditionUnset(node, v1.NodeNetworkUnavailable) ||
-		e2enode.IsConditionSetAsExpectedSilent(node, v1.NodeNetworkUnavailable, false)
-	return !node.Spec.Unschedulable && nodeReady && networkReady
+	nodeReady := e2enode.IsNodeReady(node)
+	return !node.Spec.Unschedulable && nodeReady
 }
 
 func DeprecatedMightBeMasterNode(nodeName string) bool {
@@ -604,4 +526,66 @@ func DeprecatedMightBeMasterNode(nodeName string) bool {
 		return strings.HasSuffix(nodeName[:len(nodeName)-3], "master-")
 	}
 	return false
+}
+
+var (
+	timeout  = 10 * time.Minute
+	waitTime = 2 * time.Second
+)
+
+// WaitForStableCluster waits until all existing pods are scheduled and returns their amount.
+func WaitForStableCluster(c clientset.Interface, workerNodes sets.String) int {
+	startTime := time.Now()
+	// Wait for all pods to be scheduled.
+	allScheduledPods, allNotScheduledPods := getScheduledAndUnscheduledPods(c, workerNodes)
+	for len(allNotScheduledPods) != 0 {
+		time.Sleep(waitTime)
+		if startTime.Add(timeout).Before(time.Now()) {
+			framework.Logf("Timed out waiting for the following pods to schedule")
+			for _, p := range allNotScheduledPods {
+				framework.Logf("%v/%v", p.Namespace, p.Name)
+			}
+			framework.Failf("Timed out after %v waiting for stable cluster.", timeout)
+			break
+		}
+		allScheduledPods, allNotScheduledPods = getScheduledAndUnscheduledPods(c, workerNodes)
+	}
+	return len(allScheduledPods)
+}
+
+// getScheduledAndUnscheduledPods lists scheduled and not scheduled pods in all namespaces, with succeeded and failed pods filtered out.
+func getScheduledAndUnscheduledPods(c clientset.Interface, workerNodes sets.String) (scheduledPods, notScheduledPods []v1.Pod) {
+	pods, err := c.CoreV1().Pods(metav1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
+	framework.ExpectNoError(err, fmt.Sprintf("listing all pods in namespace %q while waiting for stable cluster", metav1.NamespaceAll))
+
+	// API server returns also Pods that succeeded. We need to filter them out.
+	filteredPods := make([]v1.Pod, 0, len(pods.Items))
+	for _, p := range pods.Items {
+		if !podTerminated(p) {
+			filteredPods = append(filteredPods, p)
+		}
+	}
+	pods.Items = filteredPods
+	return GetPodsScheduled(workerNodes, pods)
+}
+
+// GetPodsScheduled returns a number of currently scheduled and not scheduled Pods on worker nodes.
+func GetPodsScheduled(workerNodes sets.String, pods *v1.PodList) (scheduledPods, notScheduledPods []v1.Pod) {
+	for _, pod := range pods.Items {
+		if pod.Spec.NodeName != "" && workerNodes.Has(pod.Spec.NodeName) {
+			_, scheduledCondition := podutil.GetPodCondition(&pod.Status, v1.PodScheduled)
+			framework.ExpectEqual(scheduledCondition != nil, true)
+			if scheduledCondition != nil {
+				framework.ExpectEqual(scheduledCondition.Status, v1.ConditionTrue)
+				scheduledPods = append(scheduledPods, pod)
+			}
+		} else if pod.Spec.NodeName == "" {
+			notScheduledPods = append(notScheduledPods, pod)
+		}
+	}
+	return
+}
+
+func podTerminated(p v1.Pod) bool {
+	return p.Status.Phase == v1.PodSucceeded || p.Status.Phase == v1.PodFailed
 }
