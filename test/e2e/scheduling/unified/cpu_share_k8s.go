@@ -28,7 +28,6 @@ import (
 	clientset "k8s.io/client-go/kubernetes"
 
 	"github.com/koordinator-sh/koordinator/test/e2e/framework"
-	"github.com/koordinator-sh/koordinator/test/e2e/scheduling"
 )
 
 var _ = Describe("[e2e-ak8s][ak8s-scheduler][cpushare][cpu]", func() {
@@ -89,7 +88,7 @@ var _ = Describe("[e2e-ak8s][ak8s-scheduler][cpushare][cpu]", func() {
 	//2. cpuset的cpu，容器内不重叠
 	//3. cpuset的cpu，整机不重叠
 	It("[p1] cpushare001", func() {
-		scheduling.WaitForStableCluster(cs, masterNodes)
+		WaitForStableCluster(cs, masterNodes)
 
 		nodeName := GetNodeThatCanRunPod(f)
 		Expect(nodeName).ToNot(BeNil())
@@ -170,7 +169,7 @@ var _ = Describe("[e2e-ak8s][ak8s-scheduler][cpushare][cpu]", func() {
 
 	// 非超卖 k8s 单链路 cpushare 测试，检查 sharepool 的状态
 	It("[p2] cpushareK8s.", func() {
-		scheduling.WaitForStableCluster(cs, masterNodes)
+		WaitForStableCluster(cs, masterNodes)
 
 		nodeName := GetNodeThatCanRunPod(f)
 		Expect(nodeName).ToNot(BeNil())
