@@ -544,6 +544,10 @@ func (r *DrainNodeReconciler) progressMigration(dn *v1alpha1.DrainNode, actualPo
 		}
 		return nil
 	case v1alpha1.PodMigrationPhaseReady:
+		if dn.Spec.MigrationPolicy.JobMode == v1alpha1.PodMigrationJobModeEvictionDirectly {
+			actualPodMigration.Phase = v1alpha1.PodMigrationPhaseAvailable
+			return r.progressMigration(dn, actualPodMigration, podInfo)
+		}
 		rr, err := r.reservationInterpreter.GetReservation(context.Background(), dn.Name, actualPodMigration.PodUID)
 		if err != nil {
 			return err
@@ -653,17 +657,9 @@ func (r *DrainNodeReconciler) abort(dn *v1alpha1.DrainNode) error {
 }
 
 func (r *DrainNodeReconciler) createMigration(dn *v1alpha1.DrainNode, actualPodMigration *v1alpha1.PodMigration) (*v1alpha1.PodMigrationJob, error) {
-	rr, err := r.reservationInterpreter.GetReservation(context.Background(), dn.Name, actualPodMigration.PodUID)
-	if err != nil {
-		return nil, err
-	}
-	if rr == nil {
-		return nil, fmt.Errorf("DrainNode %v Reservation %v NotFound", dn.Name, getReservationOrMigrationJobName(dn.Name, actualPodMigration.PodUID))
-	}
-
 	job := &v1alpha1.PodMigrationJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: rr.GetName(),
+			Name: getReservationOrMigrationJobName(dn.Name, actualPodMigration.PodUID),
 			Labels: map[string]string{
 				utils.DrainNodeKey: dn.Name,
 			},
@@ -672,26 +668,37 @@ func (r *DrainNodeReconciler) createMigration(dn *v1alpha1.DrainNode, actualPodM
 		Spec: v1alpha1.PodMigrationJobSpec{
 			Paused: utils.PausedForPodAfterConfirmed(dn) && actualPodMigration.ChartedAfterDrainNodeConfirmed,
 			PodRef: &v1.ObjectReference{
-				Namespace: rr.GetLabels()[utils.PodNamespaceKey],
-				Name:      rr.GetLabels()[utils.PodNameKey],
-			},
-			ReservationOptions: &v1alpha1.PodMigrateReservationOptions{
-				ReservationRef: &v1.ObjectReference{
-					Kind:       rr.GetObjectKind().GroupVersionKind().Kind,
-					APIVersion: rr.GetObjectKind().GroupVersionKind().Version,
-					Namespace:  rr.GetNamespace(),
-					Name:       rr.GetName(),
-					UID:        rr.GetUID(),
-				},
+				Namespace: actualPodMigration.Namespace,
+				Name:      actualPodMigration.PodName,
 			},
 		},
+	}
+	if dn.Spec.MigrationPolicy.JobMode == v1alpha1.PodMigrationJobModeEvictionDirectly {
+		job.Spec.Mode = v1alpha1.PodMigrationJobModeEvictionDirectly
+	} else {
+		rr, err := r.reservationInterpreter.GetReservation(context.Background(), dn.Name, actualPodMigration.PodUID)
+		if err != nil {
+			return nil, err
+		}
+		if rr == nil {
+			return nil, fmt.Errorf("DrainNode %v Reservation %v NotFound", dn.Name, getReservationOrMigrationJobName(dn.Name, actualPodMigration.PodUID))
+		}
+		job.Spec.ReservationOptions = &v1alpha1.PodMigrateReservationOptions{
+			ReservationRef: &v1.ObjectReference{
+				Kind:       rr.GetObjectKind().GroupVersionKind().Kind,
+				APIVersion: rr.GetObjectKind().GroupVersionKind().Version,
+				Namespace:  rr.GetNamespace(),
+				Name:       rr.GetName(),
+				UID:        rr.GetUID(),
+			},
+		}
 	}
 	if dn.Annotations != nil {
 		if _, ok := dn.Annotations[evictionsutil.EvictPodAnnotationKey]; ok {
 			job.Annotations = map[string]string{evictionsutil.EvictPodAnnotationKey: "true"}
 		}
 	}
-	err = r.Client.Create(context.Background(), job)
+	err := r.Client.Create(context.Background(), job)
 	return job, err
 }
 
