@@ -51,8 +51,9 @@ type DrainNodeSpec struct {
 }
 
 type MigrationPolicy struct {
-	Mode         MigrationPodMode `json:"mode,omitempty"`
-	WaitDuration *metav1.Duration `json:"waitDuration,omitempty"`
+	Mode         MigrationPodMode    `json:"mode,omitempty"`
+	WaitDuration *metav1.Duration    `json:"waitDuration,omitempty"`
+	JobMode      PodMigrationJobMode `json:"jobMode,omitempty"`
 }
 
 type MigrationPodMode string

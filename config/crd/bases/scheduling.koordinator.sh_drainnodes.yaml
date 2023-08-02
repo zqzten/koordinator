@@ -64,6 +64,8 @@ spec:
               migrationPolicy:
                 description: MigrationPolicy decides how the migrations progress
                 properties:
+                  jobMode:
+                    type: string
                   mode:
                     type: string
                   waitDuration:

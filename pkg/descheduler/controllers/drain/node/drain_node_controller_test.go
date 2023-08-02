@@ -629,7 +629,7 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 			wantReservation: nil,
 		},
 		{
-			name: "migrationMode evictDirectly, one normal to pending reservation",
+			name: "migrationMode migrateDirectly, one normal to pending reservation",
 			fields: fields{
 				objs: []runtime.Object{
 					&v1alpha1.DrainNode{
@@ -855,7 +855,7 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 			},
 		},
 		{
-			name: "migrationMode evictDirectly, one normal to pending reservation, one unmigratable pod, one unexpected reservation",
+			name: "migrationMode migrateDirectly, one normal to pending reservation, one unmigratable pod, one unexpected reservation",
 			fields: fields{
 				objs: []runtime.Object{
 					&v1alpha1.DrainNode{
@@ -1103,7 +1103,7 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 			},
 		},
 		{
-			name: "migrationMode evictDirectly, one normal to pending reservation, one unmigratable pod, one unexpected reservation; unmigratable pod changed to wait after requeue",
+			name: "migrationMode migrateDirectly, one normal to pending reservation, one unmigratable pod, one unexpected reservation; unmigratable pod changed to wait after requeue",
 			fields: fields{
 				objs: []runtime.Object{
 					&v1alpha1.DrainNode{
@@ -1357,7 +1357,7 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 			},
 		},
 		{
-			name: "migrationMode evictDirectly, one normal to pending reservation, one unmigratable pod changed to wait because dn have annotation, one unexpected reservation",
+			name: "migrationMode migrateDirectly, one normal to pending reservation, one unmigratable pod changed to wait because dn have annotation, one unexpected reservation",
 			fields: fields{
 				objs: []runtime.Object{
 					&v1alpha1.DrainNode{
@@ -1608,7 +1608,7 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 			},
 		},
 		{
-			name: "migrationMode evictDirectly, one unavailable reservation",
+			name: "migrationMode migrateDirectly, one unavailable reservation",
 			fields: fields{
 				objs: []runtime.Object{
 					&v1alpha1.DrainNode{
@@ -1847,7 +1847,7 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 			wantReservation: []*v1alpha1.Reservation{},
 		},
 		{
-			name: "migrationMode evictDirectly, one ready migration to Available",
+			name: "migrationMode migrateDirectly, one ready migration to Available",
 			fields: fields{
 				objs: []runtime.Object{
 					&v1alpha1.DrainNode{
@@ -2087,7 +2087,247 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 			wantReservation: []*v1alpha1.Reservation{},
 		},
 		{
-			name: "migrationMode evictDirectly, one ready migration to pending job",
+			name: "migrationMode migrateDirectly, one ready migration to Available",
+			fields: fields{
+				objs: []runtime.Object{
+					&v1alpha1.DrainNode{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "123",
+						},
+						Spec: v1alpha1.DrainNodeSpec{
+							NodeName:     "node123",
+							CordonPolicy: &v1alpha1.CordonNodePolicy{Mode: v1alpha1.CordonNodeModeTaint},
+							MigrationPolicy: v1alpha1.MigrationPolicy{
+								Mode:         v1alpha1.MigrationPodModeMigrateDirectly,
+								WaitDuration: nil,
+								JobMode:      v1alpha1.PodMigrationJobModeEvictionDirectly,
+							},
+						},
+						Status: v1alpha1.DrainNodeStatus{
+							Phase: v1alpha1.DrainNodePhaseRunning,
+						},
+					},
+					&corev1.Node{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "node123",
+						},
+						Spec: corev1.NodeSpec{
+							Taints: []corev1.Taint{
+								{
+									Key:    utils.DrainNodeKey,
+									Value:  "123",
+									Effect: corev1.TaintEffectNoSchedule,
+								},
+							},
+						},
+					},
+					&v1alpha1.Reservation{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: getReservationOrMigrationJobName("123", podsOnNode[0].UID),
+							Labels: map[string]string{
+								utils.DrainNodeKey:    "123",
+								utils.PodNamespaceKey: podsOnNode[0].Namespace,
+								utils.PodNameKey:      podsOnNode[0].Name,
+							},
+							OwnerReferences: []metav1.OwnerReference{
+								{APIVersion: "scheduling.koordinator.sh/v1alpha1",
+									Kind:               "DrainNode",
+									Name:               "123",
+									UID:                "",
+									Controller:         pointer.Bool(true),
+									BlockOwnerDeletion: pointer.Bool(true),
+								},
+							},
+						},
+						Spec: v1alpha1.ReservationSpec{
+							Template: &corev1.PodTemplateSpec{
+								ObjectMeta: metav1.ObjectMeta{
+									Namespace: podsOnNode[0].Namespace,
+									Labels: map[string]string{
+										utils.PodNameKey: podsOnNode[0].Name,
+									},
+									OwnerReferences: podsOnNode[0].OwnerReferences,
+								},
+								Spec: corev1.PodSpec{
+									Affinity: &corev1.Affinity{
+										NodeAffinity: &corev1.NodeAffinity{
+											RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+												NodeSelectorTerms: []corev1.NodeSelectorTerm{
+													{
+														MatchExpressions: []corev1.NodeSelectorRequirement{
+															{
+																Key:      "test",
+																Operator: corev1.NodeSelectorOpIn,
+																Values:   []string{"test1"},
+															},
+															{
+																Key:      utils.PlanningKey,
+																Operator: corev1.NodeSelectorOpDoesNotExist,
+															},
+														},
+														MatchFields: []corev1.NodeSelectorRequirement{{
+															Key:      "metadata.name",
+															Operator: corev1.NodeSelectorOpNotIn,
+															Values:   []string{podsOnNode[0].Spec.NodeName},
+														}},
+													},
+												},
+											},
+											PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{
+												{
+													Weight: 100,
+													Preference: corev1.NodeSelectorTerm{
+														MatchExpressions: []corev1.NodeSelectorRequirement{{
+															Key:      "key2",
+															Operator: corev1.NodeSelectorOpIn,
+															Values:   []string{"test1"},
+														}},
+													},
+												},
+												{
+													Weight: 100,
+													Preference: corev1.NodeSelectorTerm{
+														MatchExpressions: []corev1.NodeSelectorRequirement{{
+															Key:      utils.DrainNodeKey,
+															Operator: corev1.NodeSelectorOpDoesNotExist,
+														}},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+							Owners: []v1alpha1.ReservationOwner{
+								{Controller: &v1alpha1.ReservationControllerReference{
+									OwnerReference: podsOnNode[0].OwnerReferences[0],
+									Namespace:      podsOnNode[0].Namespace,
+								}},
+							},
+							AllocateOnce: pointer.Bool(true),
+						},
+						Status: v1alpha1.ReservationStatus{
+							Phase:    v1alpha1.ReservationAvailable,
+							NodeName: "456",
+						},
+					},
+				},
+				cache: &testCache{
+					nodeInfo: &cache.NodeInfo{
+						Name:        "123",
+						Reservation: nil,
+					},
+					pods: []*cache.PodInfo{
+						{
+							UID: podsOnNode[0].UID,
+							NamespacedName: types.NamespacedName{
+								Namespace: podsOnNode[0].Namespace,
+								Name:      podsOnNode[0].Name,
+							},
+							Ignore:     false,
+							Migratable: true,
+							Pod:        podsOnNode[0],
+						},
+					},
+				},
+			},
+			args: args{
+				request: reconcile.Request{NamespacedName: types.NamespacedName{Name: "123"}},
+			},
+			want: reconcile.Result{
+				Requeue:      false,
+				RequeueAfter: defaultRequeueAfter,
+			},
+			wantErr: false,
+			wantObj: &v1alpha1.DrainNode{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "123",
+				},
+				Spec: v1alpha1.DrainNodeSpec{
+					NodeName:     "node123",
+					CordonPolicy: &v1alpha1.CordonNodePolicy{Mode: v1alpha1.CordonNodeModeTaint},
+					MigrationPolicy: v1alpha1.MigrationPolicy{
+						Mode:         v1alpha1.MigrationPodModeMigrateDirectly,
+						WaitDuration: nil,
+						JobMode:      v1alpha1.PodMigrationJobModeEvictionDirectly,
+					},
+				},
+				Status: v1alpha1.DrainNodeStatus{
+					Phase: v1alpha1.DrainNodePhaseRunning,
+					PodMigrations: []v1alpha1.PodMigration{
+						{
+							PodUID:               podsOnNode[0].UID,
+							Namespace:            podsOnNode[0].Namespace,
+							PodName:              podsOnNode[0].Name,
+							Phase:                v1alpha1.PodMigrationPhaseAvailable,
+							StartTimestamp:       metav1.Time{},
+							TargetNode:           "",
+							PodMigrationJobName:  "",
+							PodMigrationJobPhase: "",
+						},
+					},
+					Conditions: []v1alpha1.DrainNodeCondition{
+						{
+							Type:    v1alpha1.DrainNodeConditionUnexpectedReservationExists,
+							Status:  metav1.ConditionFalse,
+							Reason:  fmt.Sprintf("unexpected reservation count: %d,", 0),
+							Message: fmt.Sprintf("unexpectedRR: %v", []string{}),
+						},
+						{
+							Type:    v1alpha1.DrainNodeConditionUnmigratablePodExists,
+							Status:  metav1.ConditionFalse,
+							Reason:  fmt.Sprintf("unmigratable pod count: %d", 0),
+							Message: fmt.Sprintf("unmigratable pod count: %d", 0),
+						},
+						{
+							Type:    v1alpha1.DrainNodeConditionUnavailableReservationExists,
+							Status:  metav1.ConditionFalse,
+							Reason:  fmt.Sprintf("unavailable reservation count: %d", 0),
+							Message: fmt.Sprintf("unavailable reservation count: %d", 0),
+						},
+						{
+							Type:    v1alpha1.DrainNodeConditionFailedMigrationJobExists,
+							Status:  metav1.ConditionFalse,
+							Reason:  fmt.Sprintf("failed job count: %d", 0),
+							Message: fmt.Sprintf("failed job count: %d", 0),
+						},
+						{
+							Type:    v1alpha1.DrainNodeConditionOnceAvailable,
+							Status:  metav1.ConditionTrue,
+							Reason:  string(v1alpha1.DrainNodeConditionOnceAvailable),
+							Message: "no unmigratable, waiting, ready and unavailable migration",
+						},
+					},
+					PodMigrationSummary: map[v1alpha1.PodMigrationPhase]int32{
+						v1alpha1.PodMigrationPhaseUnmigratable: 0,
+						v1alpha1.PodMigrationPhaseWaiting:      0,
+						v1alpha1.PodMigrationPhaseReady:        0,
+						v1alpha1.PodMigrationPhaseAvailable:    1,
+						v1alpha1.PodMigrationPhaseUnavailable:  0,
+						v1alpha1.PodMigrationPhaseMigrating:    0,
+						v1alpha1.PodMigrationPhaseSucceed:      0,
+						v1alpha1.PodMigrationPhaseFailed:       0,
+					},
+				},
+			},
+			wantNode: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node123",
+				},
+				Spec: corev1.NodeSpec{
+					Taints: []corev1.Taint{
+						{
+							Key:    utils.DrainNodeKey,
+							Value:  "123",
+							Effect: corev1.TaintEffectNoSchedule,
+						},
+					},
+				},
+			},
+			wantReservation: []*v1alpha1.Reservation{},
+		},
+		{
+			name: "migrationMode migrateDirectly, one ready migration to pending job",
 			fields: fields{
 				objs: []runtime.Object{
 					&v1alpha1.DrainNode{
@@ -2337,7 +2577,7 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 			wantReservation: []*v1alpha1.Reservation{},
 		},
 		{
-			name: "migrationMode evictDirectly, one ready migration to pending job, available condition has been satisfied, but new pod scheduled to this node",
+			name: "migrationMode migrateDirectly, one ready migration to pending job, available condition has been satisfied, but new pod scheduled to this node",
 			fields: fields{
 				objs: []runtime.Object{
 					&v1alpha1.DrainNode{
@@ -2659,7 +2899,7 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 			wantReservation: []*v1alpha1.Reservation{},
 		},
 		{
-			name: "migrationMode evictDirectly, one ready migration, but user rejected",
+			name: "migrationMode migrateDirectly, one ready migration, but user rejected",
 			fields: fields{
 				objs: []runtime.Object{
 					&v1alpha1.DrainNode{
@@ -2949,7 +3189,7 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 			wantReservation: []*v1alpha1.Reservation{},
 		},
 		{
-			name: "migrationMode evictDirectly, one migrating migration to pending job",
+			name: "migrationMode migrateDirectly, one migrating migration to pending job",
 			fields: fields{
 				objs: []runtime.Object{
 					&v1alpha1.DrainNode{
@@ -3239,7 +3479,7 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 			},
 		},
 		{
-			name: "migrationMode evictDirectly, one migrating migration to failed job",
+			name: "migrationMode migrateDirectly, one migrating migration to failed job",
 			fields: fields{
 				objs: []runtime.Object{
 					&v1alpha1.DrainNode{
@@ -3536,7 +3776,7 @@ func TestDrainNodeReconciler_Reconcile_Running(t *testing.T) {
 			wantReservation: []*v1alpha1.Reservation{},
 		},
 		{
-			name: "migrationMode evictDirectly, one migrating migration to succeed job",
+			name: "migrationMode migrateDirectly, one migrating migration to succeed job",
 			fields: fields{
 				objs: []runtime.Object{
 					&v1alpha1.DrainNode{
