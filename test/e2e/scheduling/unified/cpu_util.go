@@ -36,14 +36,13 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
 	clientset "k8s.io/client-go/kubernetes"
-	"k8s.io/klog"
-
-	"k8s.io/kubernetes/test/e2e_ak8s/env"
-	"k8s.io/kubernetes/test/e2e_ak8s/swarm"
-	"k8s.io/kubernetes/test/e2e_ak8s/util"
+	"k8s.io/klog/v2"
 
 	"github.com/koordinator-sh/koordinator/test/e2e/framework"
 	e2epod "github.com/koordinator-sh/koordinator/test/e2e/framework/pod"
+	"github.com/koordinator-sh/koordinator/test/e2e/scheduling/unified/env"
+	"github.com/koordinator-sh/koordinator/test/e2e/scheduling/unified/swarm"
+	"github.com/koordinator-sh/koordinator/test/e2e/scheduling/unified/util"
 )
 
 const (

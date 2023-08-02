@@ -28,7 +28,6 @@ import (
 	clientset "k8s.io/client-go/kubernetes"
 
 	"github.com/koordinator-sh/koordinator/test/e2e/framework"
-	"github.com/koordinator-sh/koordinator/test/e2e/scheduling"
 )
 
 var _ = Describe("[e2e-ak8s][ak8s-scheduler][cpushare][cpu]", func() {
@@ -91,7 +90,7 @@ var _ = Describe("[e2e-ak8s][ak8s-scheduler][cpushare][cpu]", func() {
 	//4. 校验整机cpu，最大引用次数不超过2
 	It("[p2] overQuotaCPUShareK8s001", func() {
 
-		scheduling.WaitForStableCluster(cs, masterNodes)
+		WaitForStableCluster(cs, masterNodes)
 
 		nodeName := GetNodeThatCanRunPod(f)
 		Expect(nodeName).ToNot(BeNil())

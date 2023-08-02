@@ -37,12 +37,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	clientset "k8s.io/client-go/kubernetes"
 
-	"k8s.io/kubernetes/test/e2e/scheduling"
-	"k8s.io/kubernetes/test/e2e_ak8s/swarm"
-	"k8s.io/kubernetes/test/e2e_ak8s/util"
-
 	"github.com/koordinator-sh/koordinator/test/e2e/framework"
 	e2epod "github.com/koordinator-sh/koordinator/test/e2e/framework/pod"
+	"github.com/koordinator-sh/koordinator/test/e2e/scheduling/unified/swarm"
+	"github.com/koordinator-sh/koordinator/test/e2e/scheduling/unified/util"
 )
 
 var _ = Describe("[e2e-ak8s][ak8s-scheduler][cpuset][cpu]", func() {
@@ -334,7 +332,7 @@ var _ = Describe("[e2e-ak8s][ak8s-scheduler][cpuset][cpu]", func() {
 		Expect(nodeName).ToNot(BeNil())
 
 		framework.Logf("get one node to schedule, nodeName: %s", nodeName)
-		scheduling.WaitForStableCluster(cs, masterNodes)
+		WaitForStableCluster(cs, masterNodes)
 		// Apply kubernetes node label to each node
 
 		AllocatableCPU := nodeToAllocatableMapCPU[nodeName]
@@ -414,7 +412,7 @@ var _ = Describe("[e2e-ak8s][ak8s-scheduler][cpuset][cpu]", func() {
 		Expect(nodeName).ToNot(BeNil())
 
 		framework.Logf("get one node to schedule, nodeName: %s", nodeName)
-		scheduling.WaitForStableCluster(cs, masterNodes)
+		WaitForStableCluster(cs, masterNodes)
 		// Apply kubernetes node label to each node
 
 		AllocatableCPU := nodeToAllocatableMapCPU[nodeName]
@@ -497,7 +495,7 @@ var _ = Describe("[e2e-ak8s][ak8s-scheduler][cpuset][cpu]", func() {
 		Expect(nodeName).ToNot(BeNil())
 
 		framework.Logf("get one node to schedule, nodeName: %s", nodeName)
-		scheduling.WaitForStableCluster(cs, masterNodes)
+		WaitForStableCluster(cs, masterNodes)
 
 		AllocatableCPU := nodeToAllocatableMapCPU[nodeName]
 		AllocatableMemory := nodeToAllocatableMapMem[nodeName]

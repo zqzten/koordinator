@@ -21,10 +21,9 @@ import (
 	"testing"
 
 	simgak8s "gitlab.alibaba-inc.com/sigma/sigma-k8s-api/pkg/api"
+	v1 "k8s.io/api/core/v1"
 
-	"k8s.io/api/core/v1"
-
-	"k8s.io/kubernetes/test/e2e_ak8s/swarm"
+	"github.com/koordinator-sh/koordinator/test/e2e/scheduling/unified/swarm"
 )
 
 func TestCheckCPUIDNotDuplicated(t *testing.T) {
