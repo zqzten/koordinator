@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/pointer"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 )
@@ -248,6 +249,10 @@ func NewFakePod(requestID string, template *corev1.PodTemplateSpec, index int) *
 
 	if fakePod.Spec.SchedulerName == "" {
 		fakePod.Spec.SchedulerName = corev1.DefaultSchedulerName
+	}
+
+	if fakePod.Spec.Priority == nil {
+		fakePod.Spec.Priority = pointer.Int32(0)
 	}
 
 	if fakePod.Annotations == nil {
