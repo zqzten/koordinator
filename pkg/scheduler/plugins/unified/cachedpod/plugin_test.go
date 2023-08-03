@@ -132,6 +132,9 @@ func TestBind(t *testing.T) {
 	// no nominated reservation
 	cycleState := framework.NewCycleState()
 	requestPod := NewFakePod("123456", &corev1.PodTemplateSpec{}, 0)
+	assert.Equal(t, corev1.NamespaceDefault, requestPod.Namespace)
+	assert.Equal(t, corev1.DefaultSchedulerName, requestPod.Spec.SchedulerName)
+	assert.NotNil(t, requestPod.Spec.Priority)
 	status = pl.Bind(context.TODO(), cycleState, requestPod, "")
 	assert.False(t, status.IsSuccess())
 
