@@ -34,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
+	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
@@ -113,31 +114,9 @@ func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error)
 		DeleteFunc: adaptor.OnQuotaTreeDelete,
 	})
 
-	if ns, err := handle.ClientSet().CoreV1().Namespaces().Get(context.TODO(), ackElasticQuotaTreeNamespace, metav1.GetOptions{}); err == nil {
-		klog.Infof("get elasticQuotaTree namespace success, namespace:%v", ns.Name)
-		return adaptor, nil
-	}
-
-	err := util.RetryOnConflictOrTooManyRequests(
-		func() error {
-			_, err := handle.ClientSet().CoreV1().Namespaces().Create(context.TODO(), &v1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: ackElasticQuotaTreeNamespace,
-				},
-			}, metav1.CreateOptions{})
-			if err != nil {
-				klog.V(4).ErrorS(err, "create elasticQuotaTree namespace fail, namespace:%v",
-					ackElasticQuotaTreeNamespace)
-				return err
-			}
-			klog.Infof("create elasticQuotaTree namespace success, namespace:%v", ackElasticQuotaTreeNamespace)
-			return nil
-		})
-	if err != nil {
-		if !errors.IsAlreadyExists(err) {
-			return nil, err
-		}
-		klog.Errorf("create elasticQuotaTree namespace fail, namespace:%v, err:%v", ackElasticQuotaTreeNamespace, err.Error())
+	if err := createElasticQuotaTreeNamespace(handle.ClientSet(), ackElasticQuotaTreeNamespace); err != nil {
+		klog.ErrorS(err, "Failed to create elasticQuotaTree Namespace")
+		return nil, err
 	}
 
 	ctx := context.TODO()
@@ -145,6 +124,36 @@ func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error)
 	quotaFactory.WaitForCacheSync(ctx.Done())
 
 	return adaptor, nil
+}
+
+func createElasticQuotaTreeNamespace(client clientset.Interface, namespace string) error {
+	if ns, err := client.CoreV1().Namespaces().Get(context.TODO(), namespace, metav1.GetOptions{}); err == nil {
+		klog.Infof("get elasticQuotaTree namespace success, namespace:%v", ns.Name)
+		return nil
+	}
+
+	err := util.RetryOnConflictOrTooManyRequests(
+		func() error {
+			namespaceObj := &v1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: ackElasticQuotaTreeNamespace,
+				},
+			}
+			_, err := client.CoreV1().Namespaces().Create(context.TODO(), namespaceObj, metav1.CreateOptions{})
+			if err != nil {
+				klog.V(4).ErrorS(err, "create elasticQuotaTree namespace fail, namespace:%v", ackElasticQuotaTreeNamespace)
+				return err
+			}
+			klog.Infof("create elasticQuotaTree namespace success, namespace:%v", ackElasticQuotaTreeNamespace)
+			return nil
+		})
+	if err != nil {
+		if !errors.IsAlreadyExists(err) {
+			klog.ErrorS(err, "Failed to create elasticQuotaTree namespace", "namespace", ackElasticQuotaTreeNamespace)
+			return err
+		}
+	}
+	return nil
 }
 
 func (p *Plugin) NewControllers() ([]frameworkext.Controller, error) {
