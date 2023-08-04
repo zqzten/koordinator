@@ -18,6 +18,8 @@ package extension
 
 import (
 	"encoding/json"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -30,7 +32,8 @@ type TopologyAwareConstraint struct {
 }
 
 type TopologyConstraint struct {
-	Topologies []TopologyAwareTerm `json:"topologies,omitempty"`
+	Topologies    []TopologyAwareTerm    `json:"topologies,omitempty"`
+	NodeSelectors []metav1.LabelSelector `json:"nodeSelectors,omitempty"`
 }
 
 type TopologyAwareTerm struct {

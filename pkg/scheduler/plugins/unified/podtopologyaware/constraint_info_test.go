@@ -24,6 +24,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/defaultbinder"
@@ -147,6 +149,93 @@ func Test_partitionTopologies(t *testing.T) {
 		name:       constraint.Name,
 		pods:       sets.NewString(),
 		constraint: constraint,
+		index:      0,
+		topologies: topologies,
+	}
+	assert.Equal(t, expectedConstraintInfo, cInfo)
+}
+
+func Test_partitionTopologies_with_selector(t *testing.T) {
+	constraint := &apiext.TopologyAwareConstraint{
+		Name: "test-constraint",
+		Required: &apiext.TopologyConstraint{
+			Topologies: []apiext.TopologyAwareTerm{
+				{
+					Key: "az-topology",
+				},
+				{
+					Key: "custom-topology",
+				},
+			},
+			NodeSelectors: []metav1.LabelSelector{
+				{
+					MatchLabels: map[string]string{
+						"test": "true",
+					},
+				},
+			},
+		},
+	}
+
+	var nodes []*corev1.Node
+	var topologies []*topology
+	for j := 0; j < 3; j++ {
+		az := fmt.Sprintf("az-%d", j)
+		custom := fmt.Sprintf("t%d", j)
+		topo := topology{
+			uniqueName: strings.Join([]string{az, custom}, "#"),
+			labels: map[string]string{
+				"az-topology":     az,
+				"custom-topology": custom,
+			},
+			nodes: sets.NewString(),
+		}
+		for i := 0; i < 5; i++ {
+			node := schedulertesting.MakeNode().
+				Name(fmt.Sprintf("node-%d%d", j, i)).
+				Label("az-topology", az).
+				Label("custom-topology", custom).
+				Label("test", "true").
+				Obj()
+			nodes = append(nodes, node)
+			topo.nodes.Insert(node.Name)
+		}
+		topologies = append(topologies, &topo)
+	}
+	for i := 0; i < 5; i++ {
+		node := schedulertesting.MakeNode().Name(fmt.Sprintf("unsatisfied-node-%d", i)).Label("az-topology", "az-4").Label("test", "false").Obj()
+		nodes = append(nodes, node)
+	}
+
+	snapshot := newTestSharedLister(nodes)
+
+	fh, err := schedulertesting.NewFramework(
+		[]schedulertesting.RegisterPluginFunc{
+			schedulertesting.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
+			schedulertesting.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
+		},
+		"koord-scheduler",
+		frameworkruntime.WithSnapshotSharedLister(snapshot))
+	assert.NoError(t, err)
+
+	cInfo := newTopologyAwareConstraintInfo("default", constraint)
+	err = cInfo.partitionNodeByTopologies(context.TODO(), fh)
+	assert.NoError(t, err)
+
+	selector, err := metav1.LabelSelectorAsSelector(&metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			"test": "true",
+		},
+	})
+	assert.NoError(t, err)
+	expectedConstraintInfo := &constraintInfo{
+		namespace:  "default",
+		name:       constraint.Name,
+		pods:       sets.NewString(),
+		constraint: constraint,
+		selectors: []labels.Selector{
+			selector,
+		},
 		index:      0,
 		topologies: topologies,
 	}
