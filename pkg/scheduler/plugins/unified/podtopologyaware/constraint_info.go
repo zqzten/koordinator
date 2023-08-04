@@ -22,7 +22,10 @@ import (
 	"strings"
 	"sync/atomic"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
@@ -33,6 +36,7 @@ type constraintInfo struct {
 	name       string
 	pods       sets.String
 	constraint *apiext.TopologyAwareConstraint
+	selectors  []labels.Selector
 
 	index      int
 	topologies []*topology
@@ -46,12 +50,24 @@ type topology struct {
 }
 
 func newTopologyAwareConstraintInfo(namespace string, constraint *apiext.TopologyAwareConstraint) *constraintInfo {
-	return &constraintInfo{
+	ci := &constraintInfo{
 		namespace:  namespace,
 		name:       constraint.Name,
 		pods:       sets.NewString(),
 		constraint: constraint,
 	}
+	if constraint.Required != nil {
+		for _, term := range constraint.Required.NodeSelectors {
+			selector, err := metav1.LabelSelectorAsSelector(&term)
+			if err != nil {
+				klog.ErrorS(err, "failed to parse selector", "term", term)
+				ci.selectors = append(ci.selectors, labels.Nothing())
+			} else {
+				ci.selectors = append(ci.selectors, selector)
+			}
+		}
+	}
+	return ci
 }
 
 func (s *constraintInfo) shouldRefreshTopologies() bool {
@@ -82,6 +98,18 @@ func (s *constraintInfo) partitionNodeByTopologies(ctx context.Context, handle f
 		if node == nil {
 			return
 		}
+
+		nodeMatched := true
+		for _, selector := range s.selectors {
+			if !selector.Matches(labels.Set(node.Labels)) {
+				nodeMatched = false
+				break
+			}
+		}
+		if !nodeMatched {
+			return
+		}
+
 		var topology topology
 		values := make([]string, 0, len(s.constraint.Required.Topologies))
 		for _, term := range s.constraint.Required.Topologies {

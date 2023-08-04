@@ -48,6 +48,7 @@ func init() {
 		TransformResourceSpec,
 		TransformResourceStatus,
 		TransformPodGPUResourcesToCardRatio,
+		TransformPodACKPodTopologyAware,
 	)
 }
 
@@ -315,4 +316,13 @@ func transformPodGPUResourcesToCardRatio(pod *corev1.Pod) {
 func replaceUnifiedGPUResource(list corev1.ResourceList) {
 	replaceAndEraseResource(list, unifiedresourceext.GPUResourceMemRatio, extension.ResourceGPUMemoryRatio)
 	replaceAndEraseResource(list, unifiedresourceext.GPUResourceAlibaba, extension.ResourceNvidiaGPU)
+}
+
+func TransformPodACKPodTopologyAware(pod *corev1.Pod) {
+	if val := pod.Annotations[extension.AnnotationTopologyAwareConstraint]; val != "" {
+		return
+	}
+	if val := pod.Annotations["alibabacloud.com/topology-aware-constraint"]; val != "" {
+		pod.Annotations[extension.AnnotationTopologyAwareConstraint] = val
+	}
 }
