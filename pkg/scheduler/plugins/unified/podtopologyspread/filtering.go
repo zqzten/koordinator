@@ -252,7 +252,7 @@ func (pl *PodTopologySpread) calPreFilterState(pod *v1.Pod) (*preFilterState, er
 		for _, constraint := range constraints {
 			pair := topologyPair{key: constraint.TopologyKey, value: node.Labels[constraint.TopologyKey]}
 			tpCount := s.TpPairToMatchNum[pair]
-			klog.Info(pair, tpCount)
+			klog.V(6).Info(pair, tpCount)
 			if tpCount == nil {
 				continue
 			}
