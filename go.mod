@@ -22,6 +22,7 @@ require (
 	github.com/jedib0t/go-pretty/v6 v6.4.0
 	github.com/k8stopologyawareschedwg/noderesourcetopology-api v0.1.1
 	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
+	github.com/koordinator-sh/scheduler-plugins v0.0.0-00010101000000-000000000000
 	github.com/mohae/deepcopy v0.0.0-20170603005431-491d3605edfb
 	github.com/mwitkow/grpc-proxy v0.0.0-20230212185441-f345521cb9c9
 	github.com/onsi/ginkgo v1.16.5
@@ -277,6 +278,7 @@ replace (
 	github.com/go-logr/logr => github.com/go-logr/logr v1.2.0
 	github.com/google/cadvisor => github.com/koordinator-sh/cadvisor v0.0.0-20230619152730-4b5c088201f6
 	github.com/gophercloud/gophercloud => github.com/gophercloud/gophercloud v0.1.0
+	github.com/koordinator-sh/scheduler-plugins => gitlab.alibaba-inc.com/koordinator-sh/scheduler-plugins v0.0.0-20230810023211-7f9eaa2ad018
 	github.com/prometheus/prometheus => github.com/prometheus/prometheus v0.39.2
 	go.opentelemetry.io/contrib => go.opentelemetry.io/contrib v0.20.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc => go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.20.0
