@@ -251,6 +251,10 @@ func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
 	}
 
 	cs := kubefake.NewSimpleClientset()
+	for _, v := range nodes {
+		_, err := cs.CoreV1().Nodes().Create(context.TODO(), v, metav1.CreateOptions{})
+		assert.NoError(t, err)
+	}
 	informerFactory := informers.NewSharedInformerFactory(cs, 0)
 	snapshot := newTestSharedLister(nil, nodes)
 
@@ -298,7 +302,7 @@ func Test_New(t *testing.T) {
 	assert.Nil(t, err)
 	args := &apiruntime.Unknown{
 		ContentType: apiruntime.ContentTypeJSON,
-		Raw:         []byte(`{"apiVersion":"kubescheduler.config.k8s.io/v1beta2", "allocator": "default"}`),
+		Raw:         []byte(`{"apiVersion":"kubescheduler.config.k8s.io/v1beta2", "allocator": "default","scoringStrategy":{"type":"LeastAllocated","resources":[{"Name":"koordinator.sh/gpu-memory-ratio", "Weight":1}]}}`),
 	}
 
 	p, err := proxyNew(args, fh)
@@ -393,8 +397,13 @@ func Test_appendRundResult(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			suit := newPluginTestSuit(t, nil)
-
+			suit := newPluginTestSuit(t, []*corev1.Node{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-node-1",
+					},
+				},
+			})
 			fakeDevice := fakeDeviceCR.DeepCopy()
 			var pciInfos []unified.DevicePCIInfo
 			for i := 0; i < 6; i++ {
@@ -432,11 +441,7 @@ func Test_appendRundResult(t *testing.T) {
 			_, err = suit.ExtenderFactory.KoordinatorClientSet().SchedulingV1alpha1().Devices().Create(context.TODO(), fakeDevice, metav1.CreateOptions{})
 			assert.NoError(t, err)
 
-			args := &apiruntime.Unknown{
-				ContentType: apiruntime.ContentTypeJSON,
-				Raw:         []byte(`{"apiVersion":"kubescheduler.config.k8s.io/v1beta2", "allocator": "default"}`),
-			}
-			pl, err := suit.proxyNew(args, suit.Framework)
+			pl, err := suit.proxyNew(nil, suit.Framework)
 			assert.NoError(t, err)
 
 			suit.SharedInformerFactory().Start(nil)
@@ -573,11 +578,7 @@ func TestPreBindUnifiedDevice(t *testing.T) {
 		ExtendedHandle: extender,
 		Interface:      cosfake.NewSimpleClientset(),
 	}
-	args := &apiruntime.Unknown{
-		ContentType: apiruntime.ContentTypeJSON,
-		Raw:         []byte(`{"apiVersion":"kubescheduler.config.k8s.io/v1beta2", "allocator": "default"}`),
-	}
-	p, err := New(args, fakeHandle)
+	p, err := New(nil, fakeHandle)
 	assert.NoError(t, err)
 
 	suit.Framework.SharedInformerFactory().Start(nil)
@@ -821,7 +822,7 @@ func TestMatchDriverVersions(t *testing.T) {
 
 			status = pl.Filter(context.TODO(), cycleState, pod, nodeInfo)
 			if !status.IsSuccess() != tt.wantErr {
-				t.Errorf("Filter error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("Filter error = %v, wantErr %v", status, tt.wantErr)
 				return
 			}
 		})
@@ -880,11 +881,7 @@ func TestPreBindWithACKGPUMemory(t *testing.T) {
 		ExtendedHandle: extender,
 		Interface:      cosfake.NewSimpleClientset(),
 	}
-	args := &apiruntime.Unknown{
-		ContentType: apiruntime.ContentTypeJSON,
-		Raw:         []byte(`{"apiVersion":"kubescheduler.config.k8s.io/v1beta2", "allocator": "default"}`),
-	}
-	p, err := New(args, fakeHandle)
+	p, err := New(nil, fakeHandle)
 	assert.NoError(t, err)
 
 	suit.Framework.SharedInformerFactory().Start(nil)

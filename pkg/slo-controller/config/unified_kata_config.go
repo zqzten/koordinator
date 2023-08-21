@@ -22,7 +22,7 @@ import (
 
 	"k8s.io/utils/pointer"
 
-	"github.com/koordinator-sh/koordinator/apis/extension"
+	"github.com/koordinator-sh/koordinator/apis/configuration"
 	"github.com/koordinator-sh/koordinator/pkg/util/sloconfig"
 )
 
@@ -44,7 +44,7 @@ func init() {
 	sloconfig.RegisterDefaultColocationExtension(KataResExtKey, defaultKataResourceConfig)
 }
 
-func ParseKataResourceConfig(strategy *extension.ColocationStrategy) (*KataResourceConfig, error) {
+func ParseKataResourceConfig(strategy *configuration.ColocationStrategy) (*KataResourceConfig, error) {
 	if strategy == nil || strategy.Extensions == nil {
 		return nil, nil
 	}

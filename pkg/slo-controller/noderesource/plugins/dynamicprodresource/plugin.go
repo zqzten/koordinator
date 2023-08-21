@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"time"
 
+	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -31,9 +32,7 @@ import (
 	clocks "k8s.io/utils/clock"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
-
-	"github.com/koordinator-sh/koordinator/apis/extension"
+	"github.com/koordinator-sh/koordinator/apis/configuration"
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	slov1alpha1 "github.com/koordinator-sh/koordinator/apis/slo/v1alpha1"
 	"github.com/koordinator-sh/koordinator/apis/thirdparty/unified"
@@ -71,7 +70,7 @@ func (p *Plugin) Setup(opt *framework.Option) error {
 	return nil
 }
 
-func (p *Plugin) NeedSyncMeta(strategy *extension.ColocationStrategy, oldNode, newNode *corev1.Node) (bool, string) {
+func (p *Plugin) NeedSyncMeta(strategy *configuration.ColocationStrategy, oldNode, newNode *corev1.Node) (bool, string) {
 	// NOTE: Skip for VK nodes since the dynamic prod overcommitment does not support VK.
 	if uniext.IsVirtualKubeletNode(newNode) {
 		return false, ""
@@ -106,12 +105,12 @@ func (p *Plugin) NeedSyncMeta(strategy *extension.ColocationStrategy, oldNode, n
 	return false, ""
 }
 
-func (p *Plugin) Execute(strategy *extension.ColocationStrategy, node *corev1.Node, nr *framework.NodeResource) error {
+func (p *Plugin) Execute(strategy *configuration.ColocationStrategy, node *corev1.Node, nr *framework.NodeResource) error {
 	// TODO: rename the NodePreparePlugin method to Prepare instead of Execute
 	return p.Prepare(strategy, node, nr)
 }
 
-func (p *Plugin) Prepare(strategy *extension.ColocationStrategy, node *corev1.Node, nr *framework.NodeResource) error {
+func (p *Plugin) Prepare(strategy *configuration.ColocationStrategy, node *corev1.Node, nr *framework.NodeResource) error {
 	// NOTE: Skip for VK nodes since the dynamic prod overcommitment does not support VK.
 	if uniext.IsVirtualKubeletNode(node) {
 		return nil
@@ -172,7 +171,7 @@ func (p *Plugin) Reset(node *corev1.Node, message string) []framework.ResourceIt
 }
 
 // Calculate calculates Prod resources according to the overcommit policy.
-func (p *Plugin) Calculate(strategy *extension.ColocationStrategy, node *corev1.Node, podList *corev1.PodList,
+func (p *Plugin) Calculate(strategy *configuration.ColocationStrategy, node *corev1.Node, podList *corev1.PodList,
 	metrics *framework.ResourceMetrics) ([]framework.ResourceItem, error) {
 	// NOTE: Skip for VK nodes since the dynamic prod overcommitment does not support VK.
 	if uniext.IsVirtualKubeletNode(node) {
@@ -206,7 +205,7 @@ func (p *Plugin) Calculate(strategy *extension.ColocationStrategy, node *corev1.
 	return p.calculate(cfg, node, podList, metrics)
 }
 
-func (p *Plugin) isDegradeNeeded(strategy *extension.ColocationStrategy, nodeMetric *slov1alpha1.NodeMetric) bool {
+func (p *Plugin) isDegradeNeeded(strategy *configuration.ColocationStrategy, nodeMetric *slov1alpha1.NodeMetric) bool {
 	if nodeMetric == nil || nodeMetric.Status.UpdateTime == nil {
 		klog.V(4).Infof("invalid NodeMetric: %v for prod overcommit resource, need degradation", nodeMetric)
 		return true
