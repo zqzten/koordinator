@@ -124,6 +124,7 @@ func getDeviceShareArgs(obj runtime.Object) (*schedulingconfig.DeviceShareArgs, 
 
 func getDefaultDeviceShareArgs() (*schedulingconfig.DeviceShareArgs, error) {
 	var v1beta2args v1beta2.DeviceShareArgs
+	v1beta2.SetDefaults_DeviceShareArgs(&v1beta2args)
 	var defaultDeviceShareArgs schedulingconfig.DeviceShareArgs
 	err := v1beta2.Convert_v1beta2_DeviceShareArgs_To_config_DeviceShareArgs(&v1beta2args, &defaultDeviceShareArgs, nil)
 	if err != nil {

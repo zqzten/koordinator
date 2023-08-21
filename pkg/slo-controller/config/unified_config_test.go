@@ -21,7 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/koordinator-sh/koordinator/apis/extension"
+	"github.com/koordinator-sh/koordinator/apis/configuration"
 	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 )
 
@@ -31,7 +31,7 @@ func TestParseDynamicProdResourceConfig(t *testing.T) {
 	testCfg.ProdOvercommitPolicy = &testPolicy
 	tests := []struct {
 		name    string
-		arg     *extension.ColocationStrategy
+		arg     *configuration.ColocationStrategy
 		want    *unified.DynamicProdResourceConfig
 		wantErr bool
 	}{
@@ -42,14 +42,14 @@ func TestParseDynamicProdResourceConfig(t *testing.T) {
 		},
 		{
 			name:    "use the default when the extension is empty",
-			arg:     &extension.ColocationStrategy{},
+			arg:     &configuration.ColocationStrategy{},
 			want:    DefaultDynamicProdResourceConfig,
 			wantErr: false,
 		},
 		{
 			name: "use the default when the config data is empty",
-			arg: &extension.ColocationStrategy{
-				ColocationStrategyExtender: extension.ColocationStrategyExtender{
+			arg: &configuration.ColocationStrategy{
+				ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 					Extensions: map[string]interface{}{},
 				},
 			},
@@ -58,8 +58,8 @@ func TestParseDynamicProdResourceConfig(t *testing.T) {
 		},
 		{
 			name: "failed to convert the config data",
-			arg: &extension.ColocationStrategy{
-				ColocationStrategyExtender: extension.ColocationStrategyExtender{
+			arg: &configuration.ColocationStrategy{
+				ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 					Extensions: map[string]interface{}{
 						DynamicProdResourceExtKey: 1,
 					},
@@ -70,8 +70,8 @@ func TestParseDynamicProdResourceConfig(t *testing.T) {
 		},
 		{
 			name: "failed to parse the config data",
-			arg: &extension.ColocationStrategy{
-				ColocationStrategyExtender: extension.ColocationStrategyExtender{
+			arg: &configuration.ColocationStrategy{
+				ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 					Extensions: map[string]interface{}{
 						DynamicProdResourceExtKey: "invalidField",
 					},
@@ -82,8 +82,8 @@ func TestParseDynamicProdResourceConfig(t *testing.T) {
 		},
 		{
 			name: "parse the config data successfully",
-			arg: &extension.ColocationStrategy{
-				ColocationStrategyExtender: extension.ColocationStrategyExtender{
+			arg: &configuration.ColocationStrategy{
+				ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 					Extensions: map[string]interface{}{
 						DynamicProdResourceExtKey: &unified.DynamicProdResourceConfig{
 							ProdOvercommitPolicy: &testPolicy,

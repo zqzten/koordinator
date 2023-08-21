@@ -3549,11 +3549,7 @@ func Test_Plugin_PreBind(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var nodes []*corev1.Node
-			if tt.args.node != nil {
-				nodes = append(nodes, tt.args.node)
-			}
-			suit := newPluginTestSuit(t, nodes)
+			suit := newPluginTestSuit(t, nil)
 			_, err := suit.ClientSet().CoreV1().Pods(testPod.Namespace).Create(context.TODO(), testPod, metav1.CreateOptions{})
 			assert.NoError(t, err)
 			pl, err := suit.proxyNew(getDefaultArgs(), suit.Framework)

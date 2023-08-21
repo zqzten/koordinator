@@ -27,7 +27,7 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"github.com/koordinator-sh/koordinator/apis/extension"
+	"github.com/koordinator-sh/koordinator/apis/configuration"
 	"github.com/koordinator-sh/koordinator/pkg/util/sloconfig"
 )
 
@@ -133,7 +133,7 @@ func Test_syncColocationConfigWithKataResourceIfChanged(t *testing.T) {
 					Namespace: sloconfig.ConfigNameSpace,
 				},
 				Data: map[string]string{
-					extension.ColocationConfigKey: "{\"metricAggregateDurationSeconds\":60,\"cpuReclaimThresholdPercent\":70," +
+					configuration.ColocationConfigKey: "{\"metricAggregateDurationSeconds\":60,\"cpuReclaimThresholdPercent\":70," +
 						"\"memoryReclaimThresholdPercent\":70,\"updateTimeThresholdSeconds\":100," +
 						"\"metricReportIntervalSeconds\":20," +
 						"\"extensions\":{\"kataResource\":{\"enable\":true}}}",

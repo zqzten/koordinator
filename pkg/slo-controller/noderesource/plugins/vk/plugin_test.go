@@ -26,6 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 
+	"github.com/koordinator-sh/koordinator/apis/configuration"
 	"github.com/koordinator-sh/koordinator/apis/extension"
 	slov1alpha1 "github.com/koordinator-sh/koordinator/apis/slo/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/framework"
@@ -43,7 +44,7 @@ func TestPlugin(t *testing.T) {
 
 func TestPluginCalculate(t *testing.T) {
 	type args struct {
-		strategy *extension.ColocationStrategy
+		strategy *configuration.ColocationStrategy
 		node     *corev1.Node
 		podList  *corev1.PodList
 		metrics  *framework.ResourceMetrics
@@ -69,7 +70,7 @@ func TestPluginCalculate(t *testing.T) {
 		{
 			name: "vk node",
 			args: args{
-				strategy: &extension.ColocationStrategy{
+				strategy: &configuration.ColocationStrategy{
 					Enable:                        pointer.BoolPtr(true),
 					CPUReclaimThresholdPercent:    pointer.Int64Ptr(70),
 					MemoryReclaimThresholdPercent: pointer.Int64Ptr(80),
