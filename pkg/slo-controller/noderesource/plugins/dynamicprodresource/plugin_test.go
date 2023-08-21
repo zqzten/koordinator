@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,9 +31,7 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
-
-	"github.com/koordinator-sh/koordinator/apis/extension"
+	"github.com/koordinator-sh/koordinator/apis/configuration"
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	slov1alpha1 "github.com/koordinator-sh/koordinator/apis/slo/v1alpha1"
 	"github.com/koordinator-sh/koordinator/apis/thirdparty/unified"
@@ -111,7 +110,7 @@ func TestPluginNeedSyncMeta(t *testing.T) {
 		},
 	}
 	type args struct {
-		strategy *extension.ColocationStrategy
+		strategy *configuration.ColocationStrategy
 		oldNode  *corev1.Node
 		newNode  *corev1.Node
 	}
@@ -124,8 +123,8 @@ func TestPluginNeedSyncMeta(t *testing.T) {
 		{
 			name: "not sync when failed to parse strategy",
 			args: args{
-				strategy: &extension.ColocationStrategy{
-					ColocationStrategyExtender: extension.ColocationStrategyExtender{
+				strategy: &configuration.ColocationStrategy{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 						Extensions: map[string]interface{}{
 							config.DynamicProdResourceExtKey: 1,
 						},
@@ -138,8 +137,8 @@ func TestPluginNeedSyncMeta(t *testing.T) {
 		{
 			name: "skip update meta for default policy=none",
 			args: args{
-				strategy: &extension.ColocationStrategy{
-					ColocationStrategyExtender: extension.ColocationStrategyExtender{
+				strategy: &configuration.ColocationStrategy{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 						Extensions: nil,
 					},
 				},
@@ -152,8 +151,8 @@ func TestPluginNeedSyncMeta(t *testing.T) {
 		{
 			name: "skip update meta for policy=dryRun",
 			args: args{
-				strategy: &extension.ColocationStrategy{
-					ColocationStrategyExtender: extension.ColocationStrategyExtender{
+				strategy: &configuration.ColocationStrategy{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 						Extensions: map[string]interface{}{
 							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
 								ProdOvercommitPolicy: getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyDryRun),
@@ -170,9 +169,9 @@ func TestPluginNeedSyncMeta(t *testing.T) {
 		{
 			name: "need update when old node does not have label",
 			args: args{
-				strategy: &extension.ColocationStrategy{
+				strategy: &configuration.ColocationStrategy{
 					ResourceDiffThreshold: pointer.Float64(0.05),
-					ColocationStrategyExtender: extension.ColocationStrategyExtender{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 						Extensions: map[string]interface{}{
 							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
 								ProdOvercommitPolicy: getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyAuto),
@@ -189,9 +188,9 @@ func TestPluginNeedSyncMeta(t *testing.T) {
 		{
 			name: "need update when over-quota label changes",
 			args: args{
-				strategy: &extension.ColocationStrategy{
+				strategy: &configuration.ColocationStrategy{
 					ResourceDiffThreshold: pointer.Float64(0.05),
-					ColocationStrategyExtender: extension.ColocationStrategyExtender{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 						Extensions: map[string]interface{}{
 							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
 								ProdOvercommitPolicy: getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyAuto),
@@ -208,9 +207,9 @@ func TestPluginNeedSyncMeta(t *testing.T) {
 		{
 			name: "skip update when everything is unchanged",
 			args: args{
-				strategy: &extension.ColocationStrategy{
+				strategy: &configuration.ColocationStrategy{
 					ResourceDiffThreshold: pointer.Float64(0.05),
-					ColocationStrategyExtender: extension.ColocationStrategyExtender{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 						Extensions: map[string]interface{}{
 							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
 								ProdOvercommitPolicy: getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyAuto),
@@ -227,9 +226,9 @@ func TestPluginNeedSyncMeta(t *testing.T) {
 		{
 			name: "skip update for a VK node",
 			args: args{
-				strategy: &extension.ColocationStrategy{
+				strategy: &configuration.ColocationStrategy{
 					ResourceDiffThreshold: pointer.Float64(0.01),
-					ColocationStrategyExtender: extension.ColocationStrategyExtender{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 						Extensions: map[string]interface{}{
 							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
 								ProdOvercommitPolicy: getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyAuto),
@@ -326,7 +325,7 @@ func TestPluginExecute(t *testing.T) {
 		},
 	}
 	type args struct {
-		strategy *extension.ColocationStrategy
+		strategy *configuration.ColocationStrategy
 		node     *corev1.Node
 		nr       *framework.NodeResource
 	}
@@ -339,8 +338,8 @@ func TestPluginExecute(t *testing.T) {
 		{
 			name: "failed to parse strategy",
 			args: args{
-				strategy: &extension.ColocationStrategy{
-					ColocationStrategyExtender: extension.ColocationStrategyExtender{
+				strategy: &configuration.ColocationStrategy{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 						Extensions: map[string]interface{}{
 							config.DynamicProdResourceExtKey: 1,
 						},
@@ -355,8 +354,8 @@ func TestPluginExecute(t *testing.T) {
 		{
 			name: "nothing to do for default policy=none",
 			args: args{
-				strategy: &extension.ColocationStrategy{
-					ColocationStrategyExtender: extension.ColocationStrategyExtender{
+				strategy: &configuration.ColocationStrategy{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 						Extensions: nil,
 					},
 				},
@@ -369,8 +368,8 @@ func TestPluginExecute(t *testing.T) {
 		{
 			name: "nothing to do for policy=dryRun",
 			args: args{
-				strategy: &extension.ColocationStrategy{
-					ColocationStrategyExtender: extension.ColocationStrategyExtender{
+				strategy: &configuration.ColocationStrategy{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 						Extensions: map[string]interface{}{
 							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
 								ProdOvercommitPolicy: getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyDryRun),
@@ -387,8 +386,8 @@ func TestPluginExecute(t *testing.T) {
 		{
 			name: "nothing to do for policy unsupported",
 			args: args{
-				strategy: &extension.ColocationStrategy{
-					ColocationStrategyExtender: extension.ColocationStrategyExtender{
+				strategy: &configuration.ColocationStrategy{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 						Extensions: map[string]interface{}{
 							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
 								ProdOvercommitPolicy: getProdOvercommitPolicyPointer("unknown"),
@@ -405,8 +404,8 @@ func TestPluginExecute(t *testing.T) {
 		{
 			name: "record results for policy=dryRun",
 			args: args{
-				strategy: &extension.ColocationStrategy{
-					ColocationStrategyExtender: extension.ColocationStrategyExtender{
+				strategy: &configuration.ColocationStrategy{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 						Extensions: map[string]interface{}{
 							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
 								ProdOvercommitPolicy: getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyAuto),
@@ -428,8 +427,8 @@ func TestPluginExecute(t *testing.T) {
 		{
 			name: "prepare node labels correctly",
 			args: args{
-				strategy: &extension.ColocationStrategy{
-					ColocationStrategyExtender: extension.ColocationStrategyExtender{
+				strategy: &configuration.ColocationStrategy{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 						Extensions: map[string]interface{}{
 							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
 								ProdOvercommitPolicy: getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyAuto),
@@ -451,8 +450,8 @@ func TestPluginExecute(t *testing.T) {
 		{
 			name: "skip for a VK node",
 			args: args{
-				strategy: &extension.ColocationStrategy{
-					ColocationStrategyExtender: extension.ColocationStrategyExtender{
+				strategy: &configuration.ColocationStrategy{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 						Extensions: map[string]interface{}{
 							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
 								ProdOvercommitPolicy: getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyAuto),
@@ -547,7 +546,7 @@ func TestPluginCalculate(t *testing.T) {
 		},
 	}
 	type args struct {
-		strategy *extension.ColocationStrategy
+		strategy *configuration.ColocationStrategy
 		node     *corev1.Node
 		podList  *corev1.PodList
 		metrics  *framework.ResourceMetrics
@@ -561,8 +560,8 @@ func TestPluginCalculate(t *testing.T) {
 		{
 			name: "failed to parse strategy",
 			args: args{
-				strategy: &extension.ColocationStrategy{
-					ColocationStrategyExtender: extension.ColocationStrategyExtender{
+				strategy: &configuration.ColocationStrategy{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 						Extensions: map[string]interface{}{
 							config.DynamicProdResourceExtKey: 1,
 						},
@@ -575,8 +574,8 @@ func TestPluginCalculate(t *testing.T) {
 		{
 			name: "skip calculation when policy=none",
 			args: args{
-				strategy: &extension.ColocationStrategy{
-					ColocationStrategyExtender: extension.ColocationStrategyExtender{
+				strategy: &configuration.ColocationStrategy{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 						Extensions: map[string]interface{}{
 							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
 								ProdOvercommitPolicy: getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyNone),
@@ -592,8 +591,8 @@ func TestPluginCalculate(t *testing.T) {
 		{
 			name: "calculate when policy=static",
 			args: args{
-				strategy: &extension.ColocationStrategy{
-					ColocationStrategyExtender: extension.ColocationStrategyExtender{
+				strategy: &configuration.ColocationStrategy{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 						Extensions: map[string]interface{}{
 							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
 								ProdOvercommitPolicy:               getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyStatic),
@@ -618,8 +617,8 @@ func TestPluginCalculate(t *testing.T) {
 		{
 			name: "calculate when policy=static but cpu percent is illegal",
 			args: args{
-				strategy: &extension.ColocationStrategy{
-					ColocationStrategyExtender: extension.ColocationStrategyExtender{
+				strategy: &configuration.ColocationStrategy{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 						Extensions: map[string]interface{}{
 							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
 								ProdOvercommitPolicy:               getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyStatic),
@@ -638,8 +637,8 @@ func TestPluginCalculate(t *testing.T) {
 		{
 			name: "calculate when policy=static but memory percent is illegal",
 			args: args{
-				strategy: &extension.ColocationStrategy{
-					ColocationStrategyExtender: extension.ColocationStrategyExtender{
+				strategy: &configuration.ColocationStrategy{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 						Extensions: map[string]interface{}{
 							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
 								ProdOvercommitPolicy:               getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyStatic),
@@ -658,9 +657,9 @@ func TestPluginCalculate(t *testing.T) {
 		{
 			name: "calculate when policy=dryRun",
 			args: args{
-				strategy: &extension.ColocationStrategy{
+				strategy: &configuration.ColocationStrategy{
 					DegradeTimeMinutes: pointer.Int64(10),
-					ColocationStrategyExtender: extension.ColocationStrategyExtender{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 						Extensions: map[string]interface{}{
 							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
 								ProdOvercommitPolicy:               getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyDryRun),
@@ -688,8 +687,8 @@ func TestPluginCalculate(t *testing.T) {
 		{
 			name: "calculate when policy=auto but metric is expired",
 			args: args{
-				strategy: &extension.ColocationStrategy{
-					ColocationStrategyExtender: extension.ColocationStrategyExtender{
+				strategy: &configuration.ColocationStrategy{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 						Extensions: map[string]interface{}{
 							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
 								ProdOvercommitPolicy:               getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyAuto),
@@ -725,9 +724,9 @@ func TestPluginCalculate(t *testing.T) {
 		{
 			name: "calculate when policy=auto",
 			args: args{
-				strategy: &extension.ColocationStrategy{
+				strategy: &configuration.ColocationStrategy{
 					DegradeTimeMinutes: pointer.Int64(10),
-					ColocationStrategyExtender: extension.ColocationStrategyExtender{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 						Extensions: map[string]interface{}{
 							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
 								ProdOvercommitPolicy:               getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyAuto),
@@ -755,9 +754,9 @@ func TestPluginCalculate(t *testing.T) {
 		{
 			name: "calculate when policy=auto and result is capped",
 			args: args{
-				strategy: &extension.ColocationStrategy{
+				strategy: &configuration.ColocationStrategy{
 					DegradeTimeMinutes: pointer.Int64(10),
-					ColocationStrategyExtender: extension.ColocationStrategyExtender{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 						Extensions: map[string]interface{}{
 							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
 								ProdOvercommitPolicy:               getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyAuto),
@@ -789,9 +788,9 @@ func TestPluginCalculate(t *testing.T) {
 		{
 			name: "calculate for a VK node",
 			args: args{
-				strategy: &extension.ColocationStrategy{
+				strategy: &configuration.ColocationStrategy{
 					DegradeTimeMinutes: pointer.Int64(10),
-					ColocationStrategyExtender: extension.ColocationStrategyExtender{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
 						Extensions: map[string]interface{}{
 							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
 								ProdOvercommitPolicy:               getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyAuto),
@@ -962,7 +961,7 @@ func TestPlugin_isDegradeNeeded(t *testing.T) {
 		Clock clock.Clock
 	}
 	type args struct {
-		strategy   *extension.ColocationStrategy
+		strategy   *configuration.ColocationStrategy
 		nodeMetric *slov1alpha1.NodeMetric
 	}
 	tests := []struct {
@@ -988,7 +987,7 @@ func TestPlugin_isDegradeNeeded(t *testing.T) {
 		{
 			name: "outdated NodeMetric status should degrade",
 			args: args{
-				strategy: &extension.ColocationStrategy{
+				strategy: &configuration.ColocationStrategy{
 					Enable:             pointer.Bool(true),
 					DegradeTimeMinutes: pointer.Int64(degradeTimeoutMinutes),
 				},
@@ -1011,7 +1010,7 @@ func TestPlugin_isDegradeNeeded(t *testing.T) {
 				Clock: clock.NewFakeClock(time.Now().Add(time.Minute * (degradeTimeoutMinutes + 2))),
 			},
 			args: args{
-				strategy: &extension.ColocationStrategy{
+				strategy: &configuration.ColocationStrategy{
 					Enable:             pointer.Bool(true),
 					DegradeTimeMinutes: pointer.Int64(degradeTimeoutMinutes),
 				},
@@ -1042,7 +1041,7 @@ func TestPlugin_isDegradeNeeded(t *testing.T) {
 		{
 			name: "NodeMetric without prod reclaimable should degrade",
 			args: args{
-				strategy: &extension.ColocationStrategy{
+				strategy: &configuration.ColocationStrategy{
 					Enable:             pointer.Bool(true),
 					DegradeTimeMinutes: pointer.Int64(degradeTimeoutMinutes),
 				},
@@ -1070,7 +1069,7 @@ func TestPlugin_isDegradeNeeded(t *testing.T) {
 		{
 			name: "valid NodeMetric status should not degrade",
 			args: args{
-				strategy: &extension.ColocationStrategy{
+				strategy: &configuration.ColocationStrategy{
 					Enable:             pointer.Bool(true),
 					DegradeTimeMinutes: pointer.Int64(degradeTimeoutMinutes),
 				},

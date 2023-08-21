@@ -19,16 +19,16 @@ package vk
 import (
 	"fmt"
 
+	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	quotav1 "k8s.io/apiserver/pkg/quota/v1"
 	"k8s.io/klog/v2"
 
+	"github.com/koordinator-sh/koordinator/apis/configuration"
 	"github.com/koordinator-sh/koordinator/apis/extension"
 	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/framework"
 	"github.com/koordinator-sh/koordinator/pkg/util"
-
-	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 )
 
 const PluginName = "VKResource"
@@ -47,7 +47,7 @@ func (p *Plugin) Reset(node *corev1.Node, message string) []framework.ResourceIt
 	return nil
 }
 
-func (p *Plugin) Calculate(strategy *extension.ColocationStrategy, node *corev1.Node, podList *corev1.PodList,
+func (p *Plugin) Calculate(strategy *configuration.ColocationStrategy, node *corev1.Node, podList *corev1.PodList,
 	metrics *framework.ResourceMetrics) ([]framework.ResourceItem, error) {
 	if !uniext.IsVirtualKubeletNode(node) {
 		return nil, nil
@@ -76,7 +76,7 @@ func (p *Plugin) Calculate(strategy *extension.ColocationStrategy, node *corev1.
 	return resourceItems, nil
 }
 
-func (p *Plugin) calculateForBatchResource(strategy *extension.ColocationStrategy, node *corev1.Node,
+func (p *Plugin) calculateForBatchResource(strategy *configuration.ColocationStrategy, node *corev1.Node,
 	podList *corev1.PodList) ([]framework.ResourceItem, error) {
 	// HP means High-Priority (i.e. not Batch or Free) pods
 	podHPRequest := util.NewZeroResourceList()
@@ -126,7 +126,7 @@ func (p *Plugin) calculateForBatchResource(strategy *extension.ColocationStrateg
 	}, nil
 }
 
-func (p *Plugin) calculateForMidResources(strategy *extension.ColocationStrategy, node *corev1.Node,
+func (p *Plugin) calculateForMidResources(strategy *configuration.ColocationStrategy, node *corev1.Node,
 	podList *corev1.PodList) ([]framework.ResourceItem, error) {
 	// currently, vk node does not support Mid-tier overcommitment
 	return nil, nil
@@ -140,7 +140,7 @@ func getNodeAllocatable(node *corev1.Node) corev1.ResourceList {
 }
 
 // getNodeReservation gets node-level safe-guarding reservation with the node's allocatable
-func getNodeReservation(strategy *extension.ColocationStrategy, node *corev1.Node) corev1.ResourceList {
+func getNodeReservation(strategy *configuration.ColocationStrategy, node *corev1.Node) corev1.ResourceList {
 	nodeAllocatable := getNodeAllocatable(node)
 	cpuReserveQuant := util.MultiplyMilliQuant(nodeAllocatable[corev1.ResourceCPU], getReserveRatio(*strategy.CPUReclaimThresholdPercent))
 	memReserveQuant := util.MultiplyQuant(nodeAllocatable[corev1.ResourceMemory], getReserveRatio(*strategy.MemoryReclaimThresholdPercent))

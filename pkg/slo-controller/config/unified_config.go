@@ -23,7 +23,7 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 
-	"github.com/koordinator-sh/koordinator/apis/extension"
+	"github.com/koordinator-sh/koordinator/apis/configuration"
 	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 	"github.com/koordinator-sh/koordinator/pkg/util/sloconfig"
 )
@@ -46,7 +46,7 @@ var DefaultDynamicProdResourceConfig = &unified.DynamicProdResourceConfig{
 	ProdMemoryOvercommitMinPercent: pointer.Int64(100),
 }
 
-func ParseDynamicProdResourceConfig(strategy *extension.ColocationStrategy) (*unified.DynamicProdResourceConfig, error) {
+func ParseDynamicProdResourceConfig(strategy *configuration.ColocationStrategy) (*unified.DynamicProdResourceConfig, error) {
 	if strategy == nil {
 		return nil, fmt.Errorf("strategy is nil")
 	}
