@@ -69,8 +69,9 @@ func TestPluginPreFilter(t *testing.T) {
 	assert.True(t, status.IsSuccess())
 	sd := getStateData(cycleState)
 	expectedSD := &stateData{
-		skip:      false,
-		quotaName: testQuotaObj.Name,
+		skip:        false,
+		quotaName:   testQuotaObj.Name,
+		podRequests: requests,
 	}
 	assert.Equal(t, expectedSD, sd)
 }
