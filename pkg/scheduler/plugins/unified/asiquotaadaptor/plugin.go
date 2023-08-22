@@ -37,6 +37,7 @@ import (
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	"github.com/koordinator-sh/koordinator/pkg/features"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
+	reservationutil "github.com/koordinator-sh/koordinator/pkg/util/reservation"
 )
 
 const (
@@ -158,7 +159,9 @@ func getStateData(cycleState *framework.CycleState) *stateData {
 
 func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod) (*framework.PreFilterResult, *framework.Status) {
 	if pod.Labels[LabelQuotaSkipCheck] == "true" ||
-		!k8sfeature.DefaultFeatureGate.Enabled(features.QuotaRunTime) {
+		!k8sfeature.DefaultFeatureGate.Enabled(features.QuotaRunTime) ||
+		reservationutil.IsReservePod(pod) ||
+		isDaemonSetPod(pod.OwnerReferences) {
 		return nil, nil
 	}
 
