@@ -36,6 +36,8 @@ import (
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	"github.com/koordinator-sh/koordinator/pkg/features"
+	schedulerconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/validation"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 	reservationutil "github.com/koordinator-sh/koordinator/pkg/util/reservation"
 )
@@ -65,12 +67,22 @@ var _ framework.PreFilterPlugin = &Plugin{}
 var _ framework.ReservePlugin = &Plugin{}
 
 type Plugin struct {
-	handle        framework.Handle
-	cache         *ASIQuotaCache
-	unifiedClient uniclientset.Interface
+	handle           framework.Handle
+	args             *schedulerconfig.ASIQuotaAdaptorArgs
+	preemptionConfig *PreemptionConfig
+	cache            *ASIQuotaCache
+	unifiedClient    uniclientset.Interface
 }
 
 func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+	pluginArgs, ok := args.(*schedulerconfig.ASIQuotaAdaptorArgs)
+	if !ok {
+		return nil, fmt.Errorf("want args to be of type ASIQuotaAdaptorArgs, got %T", args)
+	}
+	if err := validation.ValidateASIQuotaAdaptorArgs(pluginArgs); err != nil {
+		return nil, err
+	}
+
 	unifiedClient, ok := handle.(uniclientset.Interface)
 	if !ok {
 		kubeConfig := handle.KubeConfig()
@@ -90,11 +102,14 @@ func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error)
 	schedInformFactory := schedinformer.NewSharedInformerFactory(schedClient, 0)
 	elasticQuotaLister := schedInformFactory.Scheduling().V1alpha1().ElasticQuotas().Lister()
 
-	cache := newASIQuotaCache()
+	preemptionConfig := NewPreemptionConfig(pluginArgs)
+	cache := newASIQuotaCache(withPreemptionConfig(preemptionConfig))
 	pl := &Plugin{
-		handle:        handle,
-		cache:         cache,
-		unifiedClient: unifiedClient,
+		handle:           handle,
+		args:             pluginArgs,
+		preemptionConfig: preemptionConfig,
+		cache:            cache,
+		unifiedClient:    unifiedClient,
 	}
 
 	if enableCompatibleWithASIQuota {
@@ -192,6 +207,18 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 			"Insufficient quotas, quotaName: %v, available: %v, remained: %v, used: %v, pod's request: %v, exceedDimensions: %v",
 			quotaName, marshalResourceList(available), marshalResourceList(remained),
 			marshalResourceList(quota.used), marshalResourceList(podRequests), exceedDimensions))
+	}
+
+	if pl.preemptionConfig != nil && !pl.preemptionConfig.CanBePreempted(pod) {
+		used := quotav1.Add(podRequests, quota.nonPreemptible)
+		available = quota.min
+		if isLessEqual, exceedDimensions := quotav1.LessThanOrEqual(used, available); !isLessEqual {
+			remained := quotav1.SubtractWithNonNegativeResult(available, quota.nonPreemptible)
+			return nil, framework.NewStatus(framework.Unschedulable, fmt.Sprintf(
+				"Insufficient non-preemptible quotas, quotaName: %v, available: %v, remained: %v, used: %v, pod's request: %v, exceedDimensions: %v",
+				quotaName, marshalResourceList(available), marshalResourceList(remained),
+				marshalResourceList(quota.nonPreemptible), marshalResourceList(podRequests), exceedDimensions))
+		}
 	}
 
 	cycleState.Write(Name, &stateData{

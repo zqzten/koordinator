@@ -24,6 +24,7 @@ func init() {
 			&UnifiedPodConstraintArgs{},
 			&LimitAwareArgs{},
 			&CachedPodArgs{},
+			&ASIQuotaAdaptorArgs{},
 		)
 		return nil
 	})

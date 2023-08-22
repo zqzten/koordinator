@@ -108,13 +108,13 @@ func TestQuota(t *testing.T) {
 			UID: "123456",
 		},
 	}
-	quota.addPod(pod, requests)
+	quota.addPod(pod, requests, false)
 	assert.True(t, quota.pods.Has(string(pod.UID)))
 	assert.True(t, assert.True(t, equality.Semantic.DeepEqual(corev1.ResourceList{
 		corev1.ResourceCPU:    resource.MustParse("4"),
 		corev1.ResourceMemory: resource.MustParse("8Gi"),
 	}, quota.used)))
-	quota.removePod(pod, requests)
+	quota.removePod(pod, requests, false)
 	assert.True(t, !quota.pods.Has(string(pod.UID)))
 	assert.True(t, quotav1.IsZero(quota.used))
 
@@ -125,13 +125,13 @@ func TestQuota(t *testing.T) {
 	pod.Labels = map[string]string{
 		apiext.LabelPodQoS: string(apiext.QoSBE),
 	}
-	quota.addPod(pod, requests)
+	quota.addPod(pod, requests, false)
 	assert.True(t, quota.pods.Has(string(pod.UID)))
 	assert.True(t, assert.True(t, equality.Semantic.DeepEqual(corev1.ResourceList{
 		corev1.ResourceCPU:    resource.MustParse("4"),
 		corev1.ResourceMemory: resource.MustParse("8Gi"),
 	}, quota.used)))
-	quota.removePod(pod, requests)
+	quota.removePod(pod, requests, false)
 	assert.True(t, !quota.pods.Has(string(pod.UID)))
 	assert.True(t, quotav1.IsZero(quota.used))
 }
