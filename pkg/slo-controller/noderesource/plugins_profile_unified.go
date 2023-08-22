@@ -29,10 +29,10 @@ import (
 
 func init() {
 	// set default plugins
-	NodeResourcePlugins = append(NodeResourcePlugins, midresource.PluginName)
-	NodeResourcePlugins = append(NodeResourcePlugins, batchresource.PluginName)
-	NodeResourcePlugins = append(NodeResourcePlugins, dynamicprodresource.PluginName)
-	NodeResourcePlugins = append(NodeResourcePlugins, vk.PluginName)
+	addPluginOption(&midresource.Plugin{}, true)
+	addPluginOption(&batchresource.Plugin{}, true)
+	addPluginOption(&dynamicprodresource.Plugin{}, false) // disable by default
+	addPluginOption(&vk.Plugin{}, true)
 }
 
 func addPlugins(filter framework.FilterFn) {
