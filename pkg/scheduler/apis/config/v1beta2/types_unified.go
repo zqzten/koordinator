@@ -57,3 +57,30 @@ type LimitAwareArgs struct {
 	// DefaultLimitToAllocatable cluster-level limitToAllocatable
 	DefaultLimitToAllocatable extension.LimitToAllocatable `json:"defaultLimitToAllocatable,omitempty"`
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+type ASIQuotaAdaptorArgs struct {
+	metav1.TypeMeta
+
+	PriorityRangeConfig map[string]*PriorityRangeConfig `json:"priorityRangeConfig,omitempty"`
+}
+
+// PriorityRangeConfig 用来配置priority的一些抢占属性
+type PriorityRangeConfig struct {
+	// 开始的优先级，包含等于
+	PriorityStart int `json:"priorityStart"`
+	// 结束的优先级，包含等于
+	PriorityEnd int `json:"priorityEnd"`
+	// 是否触发抢占
+	EnablePreempt bool `json:"enablePreempt"`
+	// 是否允许被抢占
+	EnableBePreempted bool `json:"enableBePreempted"`
+	// 是否允许跨段抢占
+	EnableCrossBandPreempt bool `json:"enableCrossBandPreempt"`
+	// 默认的驱逐策略
+	DefaultEvictAction string `json:"defaultEvictAction"`
+
+	// PriorityLevel
+	PriorityLevel int `json:"priorityLevel"`
+}

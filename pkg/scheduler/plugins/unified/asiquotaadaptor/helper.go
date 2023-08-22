@@ -16,7 +16,15 @@ limitations under the License.
 
 package asiquotaadaptor
 
-import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	"sort"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
+
+	schedulerconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
+)
 
 // isDaemonSetPod returns true if the pod is a IsDaemonSetPod.
 func isDaemonSetPod(ownerRefList []metav1.OwnerReference) bool {
@@ -26,4 +34,42 @@ func isDaemonSetPod(ownerRefList []metav1.OwnerReference) bool {
 		}
 	}
 	return false
+}
+
+func buildPriorityRangeConfigMap(args *schedulerconfig.ASIQuotaAdaptorArgs) map[int]*schedulerconfig.PriorityRangeConfig {
+	items := make([]*schedulerconfig.PriorityRangeConfig, 0, len(args.PriorityRangeConfig))
+	for _, item := range args.PriorityRangeConfig {
+		items = append(items, item)
+	}
+
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].PriorityStart < items[j].PriorityStart
+	})
+
+	priorityRangeConfigByPriority := make(map[int]*schedulerconfig.PriorityRangeConfig, 10000)
+	for _, item := range items {
+		for i := item.PriorityStart; i <= item.PriorityEnd; i++ {
+			priorityRangeConfigByPriority[i] = item
+		}
+	}
+	return priorityRangeConfigByPriority
+}
+
+type PreemptionConfig struct {
+	priorityRange map[int]*schedulerconfig.PriorityRangeConfig
+}
+
+func NewPreemptionConfig(args *schedulerconfig.ASIQuotaAdaptorArgs) *PreemptionConfig {
+	priorityRange := buildPriorityRangeConfigMap(args)
+	return &PreemptionConfig{
+		priorityRange: priorityRange,
+	}
+}
+
+func (c *PreemptionConfig) CanBePreempted(pod *corev1.Pod) bool {
+	config := c.priorityRange[int(pointer.Int32Deref(pod.Spec.Priority, 0))]
+	if config == nil {
+		return false
+	}
+	return config.EnableBePreempted
 }

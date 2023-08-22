@@ -30,11 +30,13 @@ import (
 type ASIQuota struct {
 	name     string
 	quotaObj *asiquotav1.Quota
-	pods     sets.String
-	used     corev1.ResourceList
 	min      corev1.ResourceList
 	max      corev1.ResourceList
 	runtime  corev1.ResourceList
+
+	pods           sets.String
+	used           corev1.ResourceList
+	nonPreemptible corev1.ResourceList
 }
 
 func newASIQuota(quotaObj *asiquotav1.Quota) (*ASIQuota, error) {
@@ -55,13 +57,14 @@ func newASIQuota(quotaObj *asiquotav1.Quota) (*ASIQuota, error) {
 
 func (q *ASIQuota) Clone() *ASIQuota {
 	return &ASIQuota{
-		name:     q.name,
-		quotaObj: q.quotaObj,
-		pods:     sets.NewString(q.pods.UnsortedList()...),
-		used:     q.used.DeepCopy(),
-		min:      q.min.DeepCopy(),
-		max:      q.max.DeepCopy(),
-		runtime:  q.runtime.DeepCopy(),
+		name:           q.name,
+		quotaObj:       q.quotaObj,
+		pods:           sets.NewString(q.pods.UnsortedList()...),
+		used:           q.used.DeepCopy(),
+		nonPreemptible: q.nonPreemptible.DeepCopy(),
+		min:            q.min.DeepCopy(),
+		max:            q.max.DeepCopy(),
+		runtime:        q.runtime.DeepCopy(),
 	}
 }
 
@@ -92,7 +95,7 @@ func (q *ASIQuota) update(oldQuotaObj, newQuotaObj *asiquotav1.Quota) {
 	q.runtime = runtimeQuota
 }
 
-func (q *ASIQuota) addPod(pod *corev1.Pod, requests corev1.ResourceList) {
+func (q *ASIQuota) addPod(pod *corev1.Pod, requests corev1.ResourceList, nonPreemptible bool) {
 	key, err := framework.GetPodKey(pod)
 	if err != nil {
 		klog.ErrorS(err, "Failed to GetPodKey", "pod", klog.KObj(pod))
@@ -106,10 +109,13 @@ func (q *ASIQuota) addPod(pod *corev1.Pod, requests corev1.ResourceList) {
 		requests = convertToBatchRequests(requests)
 	}
 	q.used = quotav1.Add(q.used, requests)
+	if nonPreemptible {
+		q.nonPreemptible = quotav1.Add(q.nonPreemptible, requests)
+	}
 	q.pods.Insert(key)
 }
 
-func (q *ASIQuota) removePod(pod *corev1.Pod, requests corev1.ResourceList) {
+func (q *ASIQuota) removePod(pod *corev1.Pod, requests corev1.ResourceList, nonPreemptible bool) {
 	key, err := framework.GetPodKey(pod)
 	if err != nil {
 		klog.ErrorS(err, "Failed to GetPodKey", "pod", klog.KObj(pod))
@@ -124,5 +130,8 @@ func (q *ASIQuota) removePod(pod *corev1.Pod, requests corev1.ResourceList) {
 		requests = convertToBatchRequests(requests)
 	}
 	q.used = quotav1.SubtractWithNonNegativeResult(q.used, requests)
+	if nonPreemptible {
+		q.nonPreemptible = quotav1.SubtractWithNonNegativeResult(q.nonPreemptible, requests)
+	}
 	q.pods.Delete(key)
 }
