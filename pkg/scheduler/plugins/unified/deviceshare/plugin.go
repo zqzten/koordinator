@@ -111,6 +111,7 @@ func getDeviceShareArgs(obj runtime.Object) (*schedulingconfig.DeviceShareArgs, 
 		return nil, fmt.Errorf("got args of type %T, want *DeviceShareArgs", obj)
 	}
 	var v1beta2args v1beta2.DeviceShareArgs
+	v1beta2.SetDefaults_DeviceShareArgs(&v1beta2args)
 	if err := frameworkruntime.DecodeInto(unknownObj, &v1beta2args); err != nil {
 		return nil, err
 	}

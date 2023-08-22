@@ -36,6 +36,7 @@ import (
 	"k8s.io/client-go/informers"
 	kubefake "k8s.io/client-go/kubernetes/fake"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
+	schedconfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/defaultbinder"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/queuesort"
@@ -674,6 +675,23 @@ func Test_getDeviceShareArgs(t *testing.T) {
 			},
 			want: &schedulingconfig.DeviceShareArgs{
 				Allocator: "autopilotAllocator",
+				ScoringStrategy: &schedulingconfig.ScoringStrategy{
+					Type: schedulingconfig.LeastAllocated,
+					Resources: []schedconfig.ResourceSpec{
+						{
+							Name:   string(apiext.ResourceGPUMemoryRatio),
+							Weight: 1,
+						},
+						{
+							Name:   string(apiext.ResourceRDMA),
+							Weight: 1,
+						},
+						{
+							Name:   string(apiext.ResourceFPGA),
+							Weight: 1,
+						},
+					},
+				},
 			},
 			wantErr: false,
 		},
