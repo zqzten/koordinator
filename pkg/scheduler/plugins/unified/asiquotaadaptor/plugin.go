@@ -153,8 +153,9 @@ func (pl *Plugin) EventsToRegister() []framework.ClusterEvent {
 }
 
 type stateData struct {
-	skip      bool
-	quotaName string
+	skip        bool
+	quotaName   string
+	podRequests corev1.ResourceList
 }
 
 func (s *stateData) Clone() framework.StateData {
@@ -203,8 +204,10 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 
 	if isLessEqual, exceedDimensions := quotav1.LessThanOrEqual(used, available); !isLessEqual {
 		remained := quotav1.SubtractWithNonNegativeResult(available, quota.used)
+		// NOTE: Must add `quota not enough` in the message since be dependent by other systems.
+		// Later, we will add the special annotation that represents the insufficient quotas.
 		return nil, framework.NewStatus(framework.Unschedulable, fmt.Sprintf(
-			"Insufficient quotas, quotaName: %v, available: %v, remained: %v, used: %v, pod's request: %v, exceedDimensions: %v",
+			"quota not enough, Insufficient quotas, quotaName: %v, available: %v, remained: %v, used: %v, pod's request: %v, exceedDimensions: %v",
 			quotaName, marshalResourceList(available), marshalResourceList(remained),
 			marshalResourceList(quota.used), marshalResourceList(podRequests), exceedDimensions))
 	}
@@ -214,16 +217,19 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 		available = quota.min
 		if isLessEqual, exceedDimensions := quotav1.LessThanOrEqual(used, available); !isLessEqual {
 			remained := quotav1.SubtractWithNonNegativeResult(available, quota.nonPreemptible)
+			// NOTE: Must add `quota not enough` in the message since be dependent by other systems.
+			// Later, we will add the special annotation that represents the insufficient quotas.
 			return nil, framework.NewStatus(framework.Unschedulable, fmt.Sprintf(
-				"Insufficient non-preemptible quotas, quotaName: %v, available: %v, remained: %v, used: %v, pod's request: %v, exceedDimensions: %v",
+				"quota not enough, Insufficient non-preemptible quotas, quotaName: %v, available: %v, remained: %v, used: %v, pod's request: %v, exceedDimensions: %v",
 				quotaName, marshalResourceList(available), marshalResourceList(remained),
 				marshalResourceList(quota.nonPreemptible), marshalResourceList(podRequests), exceedDimensions))
 		}
 	}
 
 	cycleState.Write(Name, &stateData{
-		skip:      false,
-		quotaName: quotaName,
+		skip:        false,
+		quotaName:   quotaName,
+		podRequests: podRequests,
 	})
 
 	return nil, nil
@@ -238,7 +244,7 @@ func (pl *Plugin) Reserve(ctx context.Context, cycleState *framework.CycleState,
 	if sd.skip {
 		return nil
 	}
-	pl.cache.assumePod(pod)
+	pl.cache.assumePod(pod, sd.podRequests)
 	return nil
 }
 
@@ -247,5 +253,5 @@ func (pl *Plugin) Unreserve(ctx context.Context, cycleState *framework.CycleStat
 	if sd.skip {
 		return
 	}
-	pl.cache.forgetPod(pod)
+	pl.cache.forgetPod(pod, sd.podRequests)
 }
