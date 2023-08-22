@@ -29,13 +29,14 @@ import (
 var _ services.APIServiceProvider = &Plugin{}
 
 type QuotaSummary struct {
-	Name     string              `json:"name,omitempty"`
-	Pods     []string            `json:"pods,omitempty"`
-	Used     corev1.ResourceList `json:"used,omitempty"`
-	Min      corev1.ResourceList `json:"min,omitempty"`
-	Max      corev1.ResourceList `json:"max,omitempty"`
-	Runtime  corev1.ResourceList `json:"runtime,omitempty"`
-	QuotaObj *asiquotav1.Quota   `json:"quotaObj,omitempty"`
+	Name           string              `json:"name,omitempty"`
+	Pods           []string            `json:"pods,omitempty"`
+	Used           corev1.ResourceList `json:"used,omitempty"`
+	NonPreemptible corev1.ResourceList `json:"nonPreemptible,omitempty"`
+	Min            corev1.ResourceList `json:"min,omitempty"`
+	Max            corev1.ResourceList `json:"max,omitempty"`
+	Runtime        corev1.ResourceList `json:"runtime,omitempty"`
+	QuotaObj       *asiquotav1.Quota   `json:"quotaObj,omitempty"`
 }
 
 func (pl *Plugin) RegisterEndpoints(group *gin.RouterGroup) {
@@ -48,13 +49,14 @@ func (pl *Plugin) RegisterEndpoints(group *gin.RouterGroup) {
 		}
 
 		qs := &QuotaSummary{
-			Name:     quota.name,
-			Pods:     quota.pods.List(),
-			Used:     quota.used,
-			Min:      quota.min,
-			Max:      quota.max,
-			Runtime:  quota.runtime,
-			QuotaObj: quota.quotaObj,
+			Name:           quota.name,
+			Pods:           quota.pods.List(),
+			Used:           quota.used,
+			NonPreemptible: quota.nonPreemptible,
+			Min:            quota.min,
+			Max:            quota.max,
+			Runtime:        quota.runtime,
+			QuotaObj:       quota.quotaObj,
 		}
 		c.JSON(http.StatusOK, qs)
 	})

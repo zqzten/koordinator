@@ -26,14 +26,25 @@ import (
 )
 
 type ASIQuotaCache struct {
-	quotas map[string]*ASIQuota
-	lock   sync.Mutex
+	quotas           map[string]*ASIQuota
+	lock             sync.Mutex
+	preemptionConfig *PreemptionConfig
 }
 
-func newASIQuotaCache() *ASIQuotaCache {
-	return &ASIQuotaCache{
+func withPreemptionConfig(preemptionConfig *PreemptionConfig) func(*ASIQuotaCache) {
+	return func(cache *ASIQuotaCache) {
+		cache.preemptionConfig = preemptionConfig
+	}
+}
+
+func newASIQuotaCache(options ...func(cache *ASIQuotaCache)) *ASIQuotaCache {
+	cache := &ASIQuotaCache{
 		quotas: map[string]*ASIQuota{},
 	}
+	for _, opt := range options {
+		opt(cache)
+	}
+	return cache
 }
 
 func (c *ASIQuotaCache) getQuota(quotaName string) *ASIQuota {
@@ -84,7 +95,9 @@ func (c *ASIQuotaCache) updatePod(oldPod, newPod *corev1.Pod) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	c.removePodUsedUnsafe(oldQuotaName, oldPod, oldRequests)
+	if oldPod != nil {
+		c.removePodUsedUnsafe(oldQuotaName, oldPod, oldRequests)
+	}
 	c.addPodUsedUnsafe(quotaName, newPod, newRequests)
 }
 
@@ -101,14 +114,16 @@ func (c *ASIQuotaCache) deletePod(pod *corev1.Pod) {
 }
 
 func (c *ASIQuotaCache) removePodUsedUnsafe(quotaName string, pod *corev1.Pod, requests corev1.ResourceList) {
+	canBePreempted := c.preemptionConfig != nil && c.preemptionConfig.CanBePreempted(pod)
 	if quota := c.quotas[quotaName]; quota != nil {
-		quota.removePod(pod, requests)
+		quota.removePod(pod, requests, !canBePreempted)
 	}
 }
 
 func (c *ASIQuotaCache) addPodUsedUnsafe(quotaName string, pod *corev1.Pod, requests corev1.ResourceList) {
+	canBePreempted := c.preemptionConfig != nil && c.preemptionConfig.CanBePreempted(pod)
 	if quota := c.quotas[quotaName]; quota != nil {
-		quota.addPod(pod, requests)
+		quota.addPod(pod, requests, !canBePreempted)
 	}
 }
 

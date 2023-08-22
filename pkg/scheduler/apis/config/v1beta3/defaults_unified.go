@@ -16,7 +16,9 @@ limitations under the License.
 
 package v1beta2
 
-import "k8s.io/utils/pointer"
+import (
+	"k8s.io/utils/pointer"
+)
 
 var (
 	defaultNetwork = "tcp"
@@ -48,6 +50,56 @@ func SetDefaults_LimitAwareArgs(obj *LimitAwareArgs) {
 	for resourceName, weight := range obj.ScoringResourceWeights {
 		if weight == 0 {
 			obj.ScoringResourceWeights[resourceName] = 1
+		}
+	}
+}
+
+func SetDefaults_ASIQuotaAdaptorArgs(obj *ASIQuotaAdaptorArgs) {
+	if obj.PriorityRangeConfig == nil {
+		obj.PriorityRangeConfig = map[string]*PriorityRangeConfig{
+			"unified-prod": {
+				PriorityStart:     9500,
+				PriorityEnd:       9599,
+				EnablePreempt:     true,
+				EnableBePreempted: false,
+			},
+			"unified-prod-low": {
+				PriorityStart:          9300,
+				PriorityEnd:            9399,
+				EnablePreempt:          true,
+				EnableBePreempted:      true,
+				EnableCrossBandPreempt: true,
+			},
+			"unified-mid": {
+				PriorityStart:     7000,
+				PriorityEnd:       7099,
+				EnablePreempt:     true,
+				EnableBePreempted: true,
+			},
+			"unified-batch-high": {
+				PriorityStart:     6700,
+				PriorityEnd:       6799,
+				EnablePreempt:     true,
+				EnableBePreempted: true,
+			},
+			"unified-batch": {
+				PriorityStart:     6500,
+				PriorityEnd:       6599,
+				EnablePreempt:     true,
+				EnableBePreempted: true,
+			},
+			"unified-batch-low": {
+				PriorityStart:     6300,
+				PriorityEnd:       6399,
+				EnablePreempt:     false,
+				EnableBePreempted: true,
+			},
+			"unified-be": {
+				PriorityStart:     3500,
+				PriorityEnd:       3599,
+				EnablePreempt:     false,
+				EnableBePreempted: true,
+			},
 		}
 	}
 }

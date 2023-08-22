@@ -13,3 +13,24 @@ func ValidateLimitAwareArgs(limitAwareArgs *config.LimitAwareArgs) error {
 	}
 	return allErrs.ToAggregate()
 }
+
+func ValidateASIQuotaAdaptorArgs(args *config.ASIQuotaAdaptorArgs) error {
+	var allErrs field.ErrorList
+	rangeConfPath := field.NewPath("priorityRangeConfig")
+	for k, v := range args.PriorityRangeConfig {
+		path := rangeConfPath.Key(k)
+		allErrs = append(allErrs, validatePriorityRangeConf(path, v)...)
+	}
+	if len(allErrs) == 0 {
+		return nil
+	}
+	return allErrs.ToAggregate()
+}
+
+func validatePriorityRangeConf(path *field.Path, conf *config.PriorityRangeConfig) field.ErrorList {
+	allErrs := field.ErrorList{}
+	if conf.PriorityStart > conf.PriorityEnd {
+		allErrs = append(allErrs, field.Invalid(path.Child("priorityStart"), conf.PriorityStart, "must be equal or bigger than priorityEnd"))
+	}
+	return allErrs
+}
