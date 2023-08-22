@@ -23,6 +23,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/api/v1/resource"
+
+	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 )
 
 type ASIQuotaCache struct {
@@ -58,24 +60,22 @@ func (c *ASIQuotaCache) getQuota(quotaName string) *ASIQuota {
 	return q.Clone()
 }
 
-func (c *ASIQuotaCache) assumePod(pod *corev1.Pod) {
+func (c *ASIQuotaCache) assumePod(pod *corev1.Pod, podRequests corev1.ResourceList) {
 	quotaName := pod.Labels[asiquotav1.LabelQuotaName]
-	requests, _ := resource.PodRequestsAndLimits(pod)
 
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	c.addPodUsedUnsafe(quotaName, pod, requests)
+	c.addPodUsedUnsafe(quotaName, pod, podRequests)
 }
 
-func (c *ASIQuotaCache) forgetPod(pod *corev1.Pod) {
+func (c *ASIQuotaCache) forgetPod(pod *corev1.Pod, podRequests corev1.ResourceList) {
 	quotaName := pod.Labels[asiquotav1.LabelQuotaName]
-	requests, _ := resource.PodRequestsAndLimits(pod)
 
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	c.removePodUsedUnsafe(quotaName, pod, requests)
+	c.removePodUsedUnsafe(quotaName, pod, podRequests)
 }
 
 func (c *ASIQuotaCache) updatePod(oldPod, newPod *corev1.Pod) {
@@ -87,9 +87,15 @@ func (c *ASIQuotaCache) updatePod(oldPod, newPod *corev1.Pod) {
 	var oldQuotaName string
 	if oldPod != nil {
 		oldRequests, _ = resource.PodRequestsAndLimits(oldPod)
+		if apiext.GetPodQoSClassRaw(oldPod) == apiext.QoSBE {
+			oldRequests = convertToBatchRequests(oldRequests)
+		}
 		oldQuotaName = oldPod.Labels[asiquotav1.LabelQuotaName]
 	}
 	newRequests, _ := resource.PodRequestsAndLimits(newPod)
+	if apiext.GetPodQoSClassRaw(newPod) == apiext.QoSBE {
+		newRequests = convertToBatchRequests(newRequests)
+	}
 	quotaName := newPod.Labels[asiquotav1.LabelQuotaName]
 
 	c.lock.Lock()
@@ -107,6 +113,9 @@ func (c *ASIQuotaCache) deletePod(pod *corev1.Pod) {
 	}
 	quotaName := pod.Labels[asiquotav1.LabelQuotaName]
 	requests, _ := resource.PodRequestsAndLimits(pod)
+	if apiext.GetPodQoSClassRaw(pod) == apiext.QoSBE {
+		requests = convertToBatchRequests(requests)
+	}
 
 	c.lock.Lock()
 	defer c.lock.Unlock()
