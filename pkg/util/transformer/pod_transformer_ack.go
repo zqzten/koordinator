@@ -21,6 +21,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	quotav1 "k8s.io/apiserver/pkg/quota/v1"
 	k8sfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 
@@ -43,33 +44,57 @@ func TransformACKDeviceAllocation(pod *corev1.Pod) {
 		return
 	}
 
-	allocated := ack.GetPodResourceFromV2(pod)
-	if allocated == nil {
-		allocated = ack.GetPodResourceFromV1(pod)
+	gpuMemoryAllocation := ack.GetPodResourceFromV2(pod, ack.AnnotationACKGPUShareAllocation)
+	if gpuMemoryAllocation == nil {
+		gpuMemoryAllocation = ack.GetPodResourceFromV1(pod)
 	}
-	if allocated == nil {
+
+	gpuCoreAllocation := ack.GetPodResourceFromV2(pod, ack.AnnotationACKGPUCoreAllocation)
+	if gpuMemoryAllocation == nil && gpuCoreAllocation == nil {
 		return
 	}
 
-	m := map[string]int{}
-	for _, deviceResources := range allocated {
-		for deviceIndex, allocatedMemory := range deviceResources {
-			m[deviceIndex] += allocatedMemory * 1024 * 1024 * 1024
+	m := map[string]map[corev1.ResourceName]int64{}
+	fn := func(allocation map[int]map[string]int64, resourceName corev1.ResourceName) {
+		for _, deviceResources := range allocation {
+			for deviceIndex, allocatedRes := range deviceResources {
+				allocated := m[deviceIndex]
+				if allocated == nil {
+					allocated = make(map[corev1.ResourceName]int64)
+					m[deviceIndex] = allocated
+				}
+				if resourceName == extension.ResourceGPUMemory {
+					allocated[extension.ResourceGPUMemory] += allocatedRes * 1024 * 1024 * 1024
+				} else {
+					allocated[resourceName] += allocatedRes
+				}
+			}
 		}
 	}
+	fn(gpuMemoryAllocation, extension.ResourceGPUMemory)
+	fn(gpuCoreAllocation, extension.ResourceGPUCore)
 
 	var allocations []*extension.DeviceAllocation
-	for deviceIndex, allocatedMemory := range m {
+	for deviceIndex, allocated := range m {
 		minor, err := strconv.Atoi(deviceIndex)
 		if err != nil {
 			klog.ErrorS(err, "Failed to convert ACK Device allocation", "pod", klog.KObj(pod))
 			return
 		}
+		resourceList := corev1.ResourceList{}
+		for k, v := range allocated {
+			if k == extension.ResourceGPUMemory {
+				resourceList[k] = *resource.NewQuantity(v, resource.BinarySI)
+			} else {
+				resourceList[k] = *resource.NewQuantity(v, resource.DecimalSI)
+			}
+		}
+		if quotav1.IsZero(resourceList) {
+			continue
+		}
 		allocations = append(allocations, &extension.DeviceAllocation{
-			Minor: int32(minor),
-			Resources: corev1.ResourceList{
-				extension.ResourceGPUMemory: *resource.NewQuantity(int64(allocatedMemory), resource.BinarySI),
-			},
+			Minor:     int32(minor),
+			Resources: resourceList,
 		})
 	}
 	err := extension.SetDeviceAllocations(pod, extension.DeviceAllocations{

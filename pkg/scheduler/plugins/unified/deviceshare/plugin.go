@@ -327,6 +327,10 @@ func (pl *Plugin) appendInternalAnnotations(obj metav1.Object, allocResult apiex
 			klog.ErrorS(err, "Failed to append ACK Annotation with GPU Memory", "pod", klog.KObj(pod))
 			return err
 		}
+		if err := ack.AppendAckAnnotationsIfHasGPUCore(pod, allocResult); err != nil {
+			klog.ErrorS(err, "Failed to append ACK Annotation with GPU Core", "pod", klog.KObj(pod))
+			return err
+		}
 	}
 	if err := appendUnifiedDeviceAllocStatus(pod, allocResult); err != nil {
 		return err

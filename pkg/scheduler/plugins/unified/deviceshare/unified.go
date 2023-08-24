@@ -35,7 +35,8 @@ const (
 	unifiedGPUMemoryRatio = 1 << 53
 	aliyunGPUCompute      = 1 << 54
 	aliyunGPUMemory       = 1 << 55
-	aliyunPPU             = 1 << 56
+	aliyunGPUCorePercent  = 1 << 56
+	aliyunPPU             = 1 << 57
 )
 
 var DeviceResourceFlags = map[corev1.ResourceName]uint{
@@ -45,6 +46,7 @@ var DeviceResourceFlags = map[corev1.ResourceName]uint{
 	unifiedresourceext.GPUResourceMemRatio: unifiedGPUMemoryRatio,
 	ack.ResourceAliyunGPUCompute:           aliyunGPUCompute,
 	ack.ResourceAliyunGPUMemory:            aliyunGPUMemory,
+	ack.ResourceALiyunGPUCorePercentage:    aliyunGPUCorePercent,
 	unified.ResourcePPU:                    aliyunPPU,
 }
 
@@ -52,6 +54,8 @@ var ValidResourceCombinations = map[uint]bool{
 	aliyunPPU:                              true,
 	aliyunGPUCompute:                       true,
 	aliyunGPUMemory:                        true,
+	aliyunGPUCorePercent:                   true,
+	aliyunGPUMemory | aliyunGPUCorePercent: true,
 	unifiedGPU:                             true,
 	unifiedGPUMemoryRatio:                  true,
 	unifiedGPUMemory:                       true,
@@ -61,6 +65,7 @@ var ValidResourceCombinations = map[uint]bool{
 
 var ResourceValidators = map[corev1.ResourceName]func(q resource.Quantity) bool{
 	ack.ResourceAliyunGPUCompute:           deviceshare.ValidatePercentageResource,
+	ack.ResourceALiyunGPUCorePercentage:    deviceshare.ValidatePercentageResource,
 	unifiedresourceext.GPUResourceCore:     deviceshare.ValidatePercentageResource,
 	unifiedresourceext.GPUResourceMemRatio: deviceshare.ValidatePercentageResource,
 	unifiedresourceext.GPUResourceAlibaba:  deviceshare.ValidatePercentageResource,
@@ -105,6 +110,20 @@ var ResourceCombinationsMapper = map[uint]func(podRequest corev1.ResourceList) c
 		quantity := podRequest[ack.ResourceAliyunGPUMemory]
 		return corev1.ResourceList{
 			apiext.ResourceGPUMemory: *resource.NewQuantity(quantity.Value()*1024*1024*1024, resource.BinarySI),
+		}
+	},
+	aliyunGPUCorePercent: func(podRequest corev1.ResourceList) corev1.ResourceList {
+		quantity := podRequest[ack.ResourceALiyunGPUCorePercentage]
+		return corev1.ResourceList{
+			apiext.ResourceGPUCore: quantity,
+		}
+	},
+	aliyunGPUMemory | aliyunGPUCorePercent: func(podRequest corev1.ResourceList) corev1.ResourceList {
+		memoryQuantity := podRequest[ack.ResourceAliyunGPUMemory]
+		coreQuantity := podRequest[ack.ResourceALiyunGPUCorePercentage]
+		return corev1.ResourceList{
+			apiext.ResourceGPUMemory: *resource.NewQuantity(memoryQuantity.Value()*1024*1024*1024, resource.BinarySI),
+			apiext.ResourceGPUCore:   coreQuantity,
 		}
 	},
 	aliyunPPU: func(podRequest corev1.ResourceList) corev1.ResourceList {
