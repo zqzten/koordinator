@@ -17,9 +17,10 @@ limitations under the License.
 package ack
 
 const (
-	ResourceAliyunGPU        = "aliyun.com/gpu"
-	ResourceAliyunGPUCompute = "aliyun.com/gpu-compute"
-	ResourceAliyunGPUMemory  = "aliyun.com/gpu-mem"
+	ResourceAliyunGPU               = "aliyun.com/gpu"
+	ResourceAliyunGPUCompute        = "aliyun.com/gpu-compute"
+	ResourceAliyunGPUMemory         = "aliyun.com/gpu-mem"
+	ResourceALiyunGPUCorePercentage = "aliyun.com/gpu-core.percentage"
 
 	// AnnotationAliyunEnvResourceIndex represents the minor of the gpuAllocation in order to adapt to gpuShare-device-plugin
 	AnnotationAliyunEnvResourceIndex       = "ALIYUN_COM_GPU_MEM_IDX"
@@ -33,6 +34,7 @@ const (
 	AnnotationAliyunEnvMemPod              = "ALIYUN_COM_GPU_MEM_POD"
 
 	AnnotationACKGPUShareAllocation = "scheduler.framework.gpushare.allocation"
+	AnnotationACKGPUCoreAllocation  = "gpushare.alibabacloud.com/core-percentage"
 	AnnotationACKGPUShareAssigned   = "scheduler.framework.gpushare.assigned"
 	AnnotationACKGPUShareAssumeTime = "scheduler.framework.gpushare.assume-time"
 )

@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -103,13 +104,35 @@ func TestTransformACKDeviceAllocation(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "ACK v2 GPU Pod - GPU Memory and Core",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"scheduler.framework.gpushare.allocation": `{"0":{"1":1},"1":{"1":7}}`,
+						ack.AnnotationACKGPUCoreAllocation:        `{"0":{"1":50},"1":{"1":50}}`,
+					},
+				},
+			},
+			want: extension.DeviceAllocations{
+				schedulingv1alpha1.GPU: {
+					{
+						Minor: 1,
+						Resources: corev1.ResourceList{
+							extension.ResourceGPUMemory: *resource.NewQuantity(8*1024*1024*1024, resource.BinarySI),
+							extension.ResourceGPUCore:   *resource.NewQuantity(100, resource.DecimalSI),
+						},
+					},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			TransformACKDeviceAllocation(tt.pod)
 			got, err := extension.GetDeviceAllocations(tt.pod.Annotations)
 			assert.NoError(t, err)
-			assert.Equal(t, tt.want, got)
+			assert.True(t, equality.Semantic.DeepEqual(tt.want, got))
 		})
 	}
 }
