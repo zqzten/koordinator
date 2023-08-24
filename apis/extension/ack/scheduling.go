@@ -117,12 +117,50 @@ func AppendAckAnnotationsIfHasGPUMemory(pod *corev1.Pod, allocations extension.D
 		pod.Annotations = map[string]string{}
 	}
 	pod.Annotations[AnnotationACKGPUShareAllocation] = string(data)
-	pod.Annotations[AnnotationACKGPUShareAssigned] = "true"
 	pod.Annotations[AnnotationACKGPUShareAssumeTime] = fmt.Sprintf("%d", NowFn().UnixNano())
+	pod.Annotations[AnnotationACKGPUShareAssigned] = "false" // ACK DP will update the annotation to true
 	return nil
 }
 
-func GetPodResourceFromV1(pod *corev1.Pod) map[int]map[string]int {
+func AppendAckAnnotationsIfHasGPUCore(pod *corev1.Pod, allocations extension.DeviceAllocations) error {
+	requests, _ := k8sresource.PodRequestsAndLimits(pod)
+	if quantity := requests[ResourceALiyunGPUCorePercentage]; quantity.IsZero() {
+		return nil
+	}
+	m := map[string]int64{}
+	for deviceType, deviceAllocations := range allocations {
+		if deviceType != schedulingv1alpha1.GPU {
+			continue
+		}
+		for _, deviceAlloc := range deviceAllocations {
+			minor := strconv.Itoa(int(deviceAlloc.Minor))
+			quantity := deviceAlloc.Resources[extension.ResourceGPUCore]
+			m[minor] += quantity.Value()
+		}
+	}
+	if len(m) == 0 {
+		return nil
+	}
+	for minor, quantity := range m {
+		m[minor] = quantity
+	}
+	ackResult := map[string]map[string]int64{
+		"0": m,
+	}
+	data, err := json.Marshal(ackResult)
+	if err != nil {
+		return err
+	}
+	if pod.Annotations == nil {
+		pod.Annotations = map[string]string{}
+	}
+	pod.Annotations[AnnotationACKGPUCoreAllocation] = string(data)
+	pod.Annotations[AnnotationACKGPUShareAssumeTime] = fmt.Sprintf("%d", NowFn().UnixNano())
+	pod.Annotations[AnnotationACKGPUShareAssigned] = "false" // ACK DP will update the annotation to true
+	return nil
+}
+
+func GetPodResourceFromV1(pod *corev1.Pod) map[int]map[string]int64 {
 	value, ok := pod.Annotations[AnnotationAliyunEnvMemPod]
 	if !ok || value == "" {
 		return nil
@@ -136,17 +174,17 @@ func GetPodResourceFromV1(pod *corev1.Pod) map[int]map[string]int {
 	if !ok || deviceIndex == "" {
 		return nil
 	}
-	return map[int]map[string]int{
+	return map[int]map[string]int64{
 		0: {
-			deviceIndex: allocatedGPUMemory,
+			deviceIndex: int64(allocatedGPUMemory),
 		},
 	}
 }
 
-func GetPodResourceFromV2(pod *corev1.Pod) map[int]map[string]int {
-	value := pod.Annotations[AnnotationACKGPUShareAllocation]
+func GetPodResourceFromV2(pod *corev1.Pod, annotationKey string) map[int]map[string]int64 {
+	value := pod.Annotations[annotationKey]
 	if value != "" {
-		data := map[int]map[string]int{}
+		data := map[int]map[string]int64{}
 		err := json.Unmarshal([]byte(value), &data)
 		if err != nil {
 			klog.Errorf("failed to parse allocation from annotation: %v", err)
