@@ -19,29 +19,27 @@ package cpusetallocator
 import (
 	"k8s.io/apimachinery/pkg/types"
 
-	schedulingconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/nodenumaresource"
-	"github.com/koordinator-sh/koordinator/pkg/util/cpuset"
 )
 
 type cpuManagerAdapter struct {
-	nodenumaresource.CPUManager
+	nodenumaresource.ResourceManager
 	updater *cpuSharePoolUpdater
 }
 
-func newCPUManagerAdapter(cpuManager nodenumaresource.CPUManager, updater *cpuSharePoolUpdater) nodenumaresource.CPUManager {
+func newCPUManagerAdapter(resourceManager nodenumaresource.ResourceManager, updater *cpuSharePoolUpdater) nodenumaresource.ResourceManager {
 	return &cpuManagerAdapter{
-		CPUManager: cpuManager,
-		updater:    updater,
+		ResourceManager: resourceManager,
+		updater:         updater,
 	}
 }
 
-func (m *cpuManagerAdapter) UpdateAllocatedCPUSet(nodeName string, podUID types.UID, cpuset cpuset.CPUSet, cpuExclusivePolicy schedulingconfig.CPUExclusivePolicy) {
-	m.CPUManager.UpdateAllocatedCPUSet(nodeName, podUID, cpuset, cpuExclusivePolicy)
+func (m *cpuManagerAdapter) Update(nodeName string, allocation *nodenumaresource.PodAllocation) {
+	m.ResourceManager.Update(nodeName, allocation)
 	m.updater.asyncUpdate(nodeName)
 }
 
-func (m *cpuManagerAdapter) Free(nodeName string, podUID types.UID) {
-	m.CPUManager.Free(nodeName, podUID)
+func (m *cpuManagerAdapter) Release(nodeName string, podUID types.UID) {
+	m.ResourceManager.Release(nodeName, podUID)
 	m.updater.asyncUpdate(nodeName)
 }
