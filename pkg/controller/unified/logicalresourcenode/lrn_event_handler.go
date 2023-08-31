@@ -33,28 +33,28 @@ import (
 	lrnutil "github.com/koordinator-sh/koordinator/pkg/util/logicalresourcenode"
 )
 
-type reservationNodeEventHandler struct {
+type nodeEventHandler struct {
 	cache client.Reader
 }
 
-func (n *reservationNodeEventHandler) Create(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+func (n *nodeEventHandler) Create(e event.CreateEvent, q workqueue.RateLimitingInterface) {
 	n.enqueue(e.Object, q)
 }
 
-func (n *reservationNodeEventHandler) Update(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (n *nodeEventHandler) Update(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	nodeExpectations.Observe(e.ObjectNew)
 	n.enqueue(e.ObjectNew, q)
 }
 
-func (n *reservationNodeEventHandler) Delete(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+func (n *nodeEventHandler) Delete(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
 	n.enqueue(e.Object, q)
 }
 
-func (n *reservationNodeEventHandler) Generic(e event.GenericEvent, q workqueue.RateLimitingInterface) {
+func (n *nodeEventHandler) Generic(e event.GenericEvent, q workqueue.RateLimitingInterface) {
 	n.enqueue(e.Object, q)
 }
 
-func (n *reservationNodeEventHandler) enqueue(obj client.Object, q workqueue.RateLimitingInterface) {
+func (n *nodeEventHandler) enqueue(obj client.Object, q workqueue.RateLimitingInterface) {
 	node, ok := obj.(*corev1.Node)
 	if !ok {
 		return
@@ -99,5 +99,29 @@ func (n *reservationNodeEventHandler) enqueue(obj client.Object, q workqueue.Rat
 
 	for _, name := range lrnNames.UnsortedList() {
 		q.Add(ctrl.Request{NamespacedName: types.NamespacedName{Name: name}})
+	}
+}
+
+type qosGroupEventHandler struct{}
+
+func (h *qosGroupEventHandler) Create(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+	h.enqueue(e.Object, q)
+}
+
+func (h *qosGroupEventHandler) Update(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+	h.enqueue(e.ObjectNew, q)
+}
+
+func (h *qosGroupEventHandler) Delete(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+	return
+}
+
+func (h *qosGroupEventHandler) Generic(e event.GenericEvent, q workqueue.RateLimitingInterface) {
+	h.enqueue(e.Object, q)
+}
+
+func (h *qosGroupEventHandler) enqueue(obj client.Object, q workqueue.RateLimitingInterface) {
+	if lrnName := obj.GetLabels()[labelOwnedByLRN]; lrnName != "" {
+		q.Add(ctrl.Request{NamespacedName: types.NamespacedName{Name: lrnName}})
 	}
 }

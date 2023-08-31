@@ -33,7 +33,20 @@ const (
 
 	// AnnotationLogicalResourceNodeDevices is the devices that have allocated to the LRN.
 	AnnotationLogicalResourceNodeDevices = "lrn.koordinator.sh/devices"
+
+	// AnnotationVPCQoSThreshold is the threshold limits for the LRN.
+	AnnotationVPCQoSThreshold = "lrn.koordinator.sh/vpc-qos-threshold"
+
+	// LabelVPCQoSGroupID is the vpc qos group id for the LRN.
+	LabelVPCQoSGroupID = "lrn.koordinator.sh/vpc-qos-group-id"
 )
+
+type LRNVPCQoSThreshold struct {
+	Rx    string `json:"rx"`
+	RxPps string `json:"rxPps"`
+	Tx    string `json:"tx"`
+	TxPps string `json:"txPps"`
+}
 
 // LogicalResourceNodeSpec defines the desired state of LogicalResourceNode
 type LogicalResourceNodeSpec struct {
