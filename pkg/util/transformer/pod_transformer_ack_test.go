@@ -24,13 +24,19 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sfeature "k8s.io/apiserver/pkg/util/feature"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
 	"github.com/koordinator-sh/koordinator/apis/extension/ack"
+	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
+	koordfeatures "github.com/koordinator-sh/koordinator/pkg/features"
+	utilfeature "github.com/koordinator-sh/koordinator/pkg/util/feature"
 )
 
 func TestTransformACKDeviceAllocation(t *testing.T) {
+	defer utilfeature.SetFeatureGateDuringTest(t, k8sfeature.DefaultMutableFeatureGate, koordfeatures.EnableACKGPUShareScheduling, true)()
+
 	tests := []struct {
 		name string
 		pod  *corev1.Pod
@@ -133,6 +139,76 @@ func TestTransformACKDeviceAllocation(t *testing.T) {
 			got, err := extension.GetDeviceAllocations(tt.pod.Annotations)
 			assert.NoError(t, err)
 			assert.True(t, equality.Semantic.DeepEqual(tt.want, got))
+		})
+	}
+}
+
+func TestTransformACKGPUMemoryRatio(t *testing.T) {
+	defer utilfeature.SetFeatureGateDuringTest(t, k8sfeature.DefaultMutableFeatureGate, koordfeatures.EnableACKGPUShareScheduling, true)()
+
+	tests := []struct {
+		name string
+		pod  *corev1.Pod
+		want *corev1.Pod
+	}{
+		{
+			name: "pod has modified with ack gpu share",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name: "main",
+							Env: []corev1.EnvVar{
+								{
+									Name:  unified.EnvActivelyAddedUnifiedGPUMemoryRatio,
+									Value: "true",
+								},
+							},
+							Resources: corev1.ResourceRequirements{
+								Limits: corev1.ResourceList{
+									extension.ResourceGPUMemoryRatio: *resource.NewQuantity(100, resource.DecimalSI),
+									ack.ResourceAliyunGPUMemory:      *resource.NewQuantity(100, resource.DecimalSI),
+								},
+								Requests: corev1.ResourceList{
+									extension.ResourceGPUMemoryRatio: *resource.NewQuantity(100, resource.DecimalSI),
+									ack.ResourceAliyunGPUMemory:      *resource.NewQuantity(100, resource.DecimalSI),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name: "main",
+							Env: []corev1.EnvVar{
+								{
+									Name:  unified.EnvActivelyAddedUnifiedGPUMemoryRatio,
+									Value: "true",
+								},
+							},
+							Resources: corev1.ResourceRequirements{
+								Limits: corev1.ResourceList{
+									ack.ResourceAliyunGPUMemory: *resource.NewQuantity(100, resource.DecimalSI),
+								},
+								Requests: corev1.ResourceList{
+									ack.ResourceAliyunGPUMemory: *resource.NewQuantity(100, resource.DecimalSI),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			TransformACKGPUMemoryRatio(tt.pod)
+			assert.Equal(t, tt.want, tt.pod)
 		})
 	}
 }

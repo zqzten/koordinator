@@ -857,7 +857,7 @@ func TestPreBindWithACKGPUMemory(t *testing.T) {
 		ack.NowFn = originalNowFn
 	}()
 
-	defer featuregatetesting.SetFeatureGateDuringTest(t, k8sfeature.DefaultFeatureGate, koordfeatures.EnableACKGPUMemoryScheduling, true)()
+	defer featuregatetesting.SetFeatureGateDuringTest(t, k8sfeature.DefaultFeatureGate, koordfeatures.EnableACKGPUShareScheduling, true)()
 
 	node := &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
@@ -967,7 +967,7 @@ func TestPreBindWithACKGPUMemoryAndCore(t *testing.T) {
 		ack.NowFn = originalNowFn
 	}()
 
-	defer featuregatetesting.SetFeatureGateDuringTest(t, k8sfeature.DefaultFeatureGate, koordfeatures.EnableACKGPUMemoryScheduling, true)()
+	defer featuregatetesting.SetFeatureGateDuringTest(t, k8sfeature.DefaultFeatureGate, koordfeatures.EnableACKGPUShareScheduling, true)()
 
 	node := &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
