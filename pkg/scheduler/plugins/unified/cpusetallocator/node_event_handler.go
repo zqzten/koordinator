@@ -34,10 +34,10 @@ var (
 )
 
 type nodeEventHandler struct {
-	topologyManager nodenumaresource.CPUTopologyManager
+	topologyManager nodenumaresource.TopologyOptionsManager
 }
 
-func registerNodeEventHandler(handle framework.Handle, topologyManager nodenumaresource.CPUTopologyManager) {
+func registerNodeEventHandler(handle framework.Handle, topologyManager nodenumaresource.TopologyOptionsManager) {
 	nodeInformer := handle.SharedInformerFactory().Core().V1().Nodes().Informer()
 	eventHandler := &nodeEventHandler{
 		topologyManager: topologyManager,
@@ -67,7 +67,7 @@ func (c *nodeEventHandler) OnUpdate(oldObj, newObj interface{}) {
 }
 
 func (c *nodeEventHandler) updateNode(oldNode, node *corev1.Node) {
-	c.topologyManager.UpdateCPUTopologyOptions(node.Name, func(options *nodenumaresource.CPUTopologyOptions) {
+	c.topologyManager.UpdateTopologyOptions(node.Name, func(options *nodenumaresource.TopologyOptions) {
 		var maxRefCount int
 		if k8sfeature.DefaultFeatureGate.Enabled(features.DisableCPUSetOversold) {
 			maxRefCount = 1

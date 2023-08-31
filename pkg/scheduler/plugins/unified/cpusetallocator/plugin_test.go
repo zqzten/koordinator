@@ -591,9 +591,9 @@ func TestPlugin_CPUSharePool(t *testing.T) {
 			assert.NoError(t, err)
 
 			cpuTopology := convertCPUTopology(reportedCPUTopology)
-			topologyManager := p.(*Plugin).GetCPUTopologyManager()
-			topologyManager.UpdateCPUTopologyOptions(nodeResTopology.Name, func(options *nodenumaresource.CPUTopologyOptions) {
-				*options = nodenumaresource.CPUTopologyOptions{
+			topologyManager := p.(*Plugin).GetTopologyOptionsManager()
+			topologyManager.UpdateTopologyOptions(nodeResTopology.Name, func(options *nodenumaresource.TopologyOptions) {
+				*options = nodenumaresource.TopologyOptions{
 					CPUTopology: cpuTopology,
 				}
 			})
@@ -714,7 +714,7 @@ func TestPlugin_MaxRefCount(t *testing.T) {
 
 	suit := newPluginTestSuit(t, nodes)
 
-	topologyManager := nodenumaresource.NewCPUTopologyManager()
+	topologyManager := nodenumaresource.NewTopologyOptionsManager()
 	assert.NotNil(t, topologyManager)
 	registerNodeEventHandler(suit.Handle, topologyManager)
 	suit.start()
@@ -726,14 +726,14 @@ func TestPlugin_MaxRefCount(t *testing.T) {
 	_, err = suit.Handle.ClientSet().CoreV1().Nodes().Create(context.TODO(), nodes[0], metav1.CreateOptions{})
 	assert.Nil(t, err)
 	time.Sleep(100 * time.Millisecond)
-	topologyOptions := topologyManager.GetCPUTopologyOptions(nodes[0].Name)
+	topologyOptions := topologyManager.GetTopologyOptions(nodes[0].Name)
 	assert.Equal(t, 2, topologyOptions.MaxRefCount)
 
 	nodes[0].Labels[extunified.LabelCPUOverQuota] = "3.0"
 	_, err = suit.Handle.ClientSet().CoreV1().Nodes().Update(context.TODO(), nodes[0], metav1.UpdateOptions{})
 	assert.Nil(t, err)
 	time.Sleep(100 * time.Millisecond)
-	topologyOptions = topologyManager.GetCPUTopologyOptions(nodes[0].Name)
+	topologyOptions = topologyManager.GetTopologyOptions(nodes[0].Name)
 	assert.Equal(t, 3, topologyOptions.MaxRefCount)
 }
 
@@ -860,7 +860,7 @@ func TestFilterWithDisableCPUSetOversold(t *testing.T) {
 			nodeInfo.Requested.MilliCPU += int64(tt.usedCPUShares * 1000)
 			nodeInfo.Requested.MilliCPU += int64(tt.usedCPUSets * 1000)
 
-			getCPUSets := func(nodeName string) (availableCPUs cpuset.CPUSet, allocated nodenumaresource.CPUDetails, err error) {
+			getCPUSets := func(nodeName string, preferred cpuset.CPUSet) (availableCPUs cpuset.CPUSet, allocated nodenumaresource.CPUDetails, err error) {
 				if tt.usedCPUSets > 0 {
 					allocated = nodenumaresource.NewCPUDetails()
 					for i := 0; i < tt.usedCPUSets; i++ {

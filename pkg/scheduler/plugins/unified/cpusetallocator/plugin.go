@@ -68,13 +68,13 @@ func New(obj runtime.Object, handle framework.Handle) (framework.Plugin, error) 
 	}
 	defaultNUMAAllocateStrategy := nodenumaresource.GetDefaultNUMAAllocateStrategy(args)
 
-	topologyManager := nodenumaresource.NewCPUTopologyManager()
-	cpuManager := nodenumaresource.NewCPUManager(handle, defaultNUMAAllocateStrategy, topologyManager)
+	topologyManager := nodenumaresource.NewTopologyOptionsManager()
+	cpuManager := nodenumaresource.NewResourceManager(handle, defaultNUMAAllocateStrategy, topologyManager)
 	updater := newCPUSharePoolUpdater(handle, cpuManager)
 	cpuManager = newCPUManagerAdapter(cpuManager, updater)
 	internalPlugin, err := nodenumaresource.NewWithOptions(args, handle,
-		nodenumaresource.WithCPUTopologyManager(topologyManager),
-		nodenumaresource.WithCPUManager(cpuManager),
+		nodenumaresource.WithTopologyOptionsManager(topologyManager),
+		nodenumaresource.WithResourceManager(cpuManager),
 	)
 	if err != nil {
 		return nil, err
@@ -85,7 +85,7 @@ func New(obj runtime.Object, handle framework.Handle) (framework.Plugin, error) 
 		Plugin:              internalPlugin.(*nodenumaresource.Plugin),
 		cpuSharePoolUpdater: updater,
 	}
-	registerNodeEventHandler(handle, p.GetCPUTopologyManager())
+	registerNodeEventHandler(handle, p.GetTopologyOptionsManager())
 	return p, nil
 }
 
@@ -142,12 +142,12 @@ func (p *Plugin) Filter(ctx context.Context, cycleState *framework.CycleState, p
 	}
 
 	if k8sfeature.DefaultFeatureGate.Enabled(features.DisableCPUSetOversold) {
-		return filterWithDisableCPUSetOversold(pod, nodeInfo, p.Plugin.GetCPUManager().GetAvailableCPUs)
+		return filterWithDisableCPUSetOversold(pod, nodeInfo, p.Plugin.GetResourceManager().GetAvailableCPUs)
 	}
 	return nil
 }
 
-type getAvailableCPUsFn func(nodeName string) (availableCPUs cpuset.CPUSet, allocated nodenumaresource.CPUDetails, err error)
+type getAvailableCPUsFn func(nodeName string, preferredCPUs cpuset.CPUSet) (availableCPUs cpuset.CPUSet, allocated nodenumaresource.CPUDetails, err error)
 
 func filterWithDisableCPUSetOversold(pod *corev1.Pod, nodeInfo *framework.NodeInfo, getAvailableCPUs getAvailableCPUsFn) *framework.Status {
 	if extension.GetPodPriorityClassRaw(pod) != extension.PriorityProd {
@@ -164,7 +164,7 @@ func filterWithDisableCPUSetOversold(pod *corev1.Pod, nodeInfo *framework.NodeIn
 		return nil
 	}
 
-	availableCPUs, allocatedCPUSets, err := getAvailableCPUs(node.Name)
+	availableCPUs, allocatedCPUSets, err := getAvailableCPUs(node.Name, cpuset.CPUSet{})
 	if err != nil {
 		return framework.NewStatus(framework.UnschedulableAndUnresolvable, err.Error())
 	}

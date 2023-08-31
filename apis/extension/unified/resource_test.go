@@ -150,8 +150,7 @@ func TestGetResourceStatus(t *testing.T) {
 				annotations: nil,
 			},
 			want: &extension.ResourceStatus{
-				CPUSet:         "",
-				CPUSharedPools: nil,
+				CPUSet: "",
 			},
 			wantErr: assert.NoError,
 		},
@@ -161,8 +160,7 @@ func TestGetResourceStatus(t *testing.T) {
 				annotations: map[string]string{extension.AnnotationResourceStatus: koordResourceStatusData},
 			},
 			want: &extension.ResourceStatus{
-				CPUSet:         "0-3",
-				CPUSharedPools: nil,
+				CPUSet: "0-3",
 			},
 			wantErr: assert.NoError,
 		},
@@ -172,8 +170,7 @@ func TestGetResourceStatus(t *testing.T) {
 				annotations: map[string]string{uniext.AnnotationAllocStatus: unifiedAllocStatusData},
 			},
 			want: &extension.ResourceStatus{
-				CPUSet:         "0-3",
-				CPUSharedPools: nil,
+				CPUSet: "0-3",
 			},
 			wantErr: assert.NoError,
 		},
@@ -183,8 +180,7 @@ func TestGetResourceStatus(t *testing.T) {
 				annotations: map[string]string{AnnotationAllocSpec: string(asiAllocSpecData)},
 			},
 			want: &extension.ResourceStatus{
-				CPUSet:         "0-3",
-				CPUSharedPools: nil,
+				CPUSet: "0-3",
 			},
 			wantErr: assert.NoError,
 		},
