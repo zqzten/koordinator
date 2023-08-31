@@ -18,6 +18,7 @@ package validating
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -85,6 +86,26 @@ func validateLRN(lrn *schedulingv1alpha1.LogicalResourceNode) error {
 
 	if err := validateRequirements(&lrn.Spec.Requirements); err != nil {
 		return err
+	}
+
+	if str, ok := lrn.Annotations[schedulingv1alpha1.AnnotationVPCQoSThreshold]; ok {
+		threshold := schedulingv1alpha1.LRNVPCQoSThreshold{}
+		if err := json.Unmarshal([]byte(str), &threshold); err != nil {
+			return fmt.Errorf("failed to unmarshal %s: %v", str, err)
+		}
+
+		if _, err := resource.ParseQuantity(threshold.Tx); err != nil {
+			return fmt.Errorf("invalid qos threshold Tx %s: %v", threshold.Tx, err)
+		}
+		if _, err := resource.ParseQuantity(threshold.Rx); err != nil {
+			return fmt.Errorf("invalid qos threshold Rx %s: %v", threshold.Rx, err)
+		}
+		if _, err := resource.ParseQuantity(threshold.TxPps); err != nil {
+			return fmt.Errorf("invalid qos threshold TxPps %s: %v", threshold.TxPps, err)
+		}
+		if _, err := resource.ParseQuantity(threshold.RxPps); err != nil {
+			return fmt.Errorf("invalid qos threshold RxPps %s: %v", threshold.RxPps, err)
+		}
 	}
 
 	return nil
