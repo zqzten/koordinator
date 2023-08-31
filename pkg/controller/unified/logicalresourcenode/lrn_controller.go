@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	terwayapis "github.com/AliyunContainerService/terway-apis/network.alibabacloud.com/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -52,6 +53,7 @@ type internalReconciler interface {
 // +kubebuilder:rbac:groups=scheduling.koordinator.sh,resources=logicalresourcenodes,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=scheduling.koordinator.sh,resources=logicalresourcenodes/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=scheduling.koordinator.sh,resources=reservations,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=network.alibabacloud.com,resources=eniqosgroups,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch;update;patch;delete
 
 func (r *LogicalResourceNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, retErr error) {
@@ -136,7 +138,8 @@ func (r *LogicalResourceNodeReconciler) setup(mgr ctrl.Manager) error {
 			OwnerType:    &schedulingv1alpha1.LogicalResourceNode{},
 			IsController: true,
 		}).
-		Watches(&source.Kind{Type: &corev1.Node{}}, &reservationNodeEventHandler{cache: mgr.GetCache()}).
+		Watches(&source.Kind{Type: &corev1.Node{}}, &nodeEventHandler{cache: mgr.GetCache()}).
+		Watches(&source.Kind{Type: &terwayapis.ENIQosGroup{}}, &qosGroupEventHandler{}).
 		Named("logicalresourcenode").
 		Complete(r)
 }

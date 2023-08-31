@@ -24,12 +24,7 @@ import (
 	"strings"
 	"time"
 
-	lrnutil "github.com/koordinator-sh/koordinator/pkg/util/logicalresourcenode"
-
-	apiext "github.com/koordinator-sh/koordinator/apis/extension"
-	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
-	"github.com/koordinator-sh/koordinator/pkg/util"
-
+	terwayapis "github.com/AliyunContainerService/terway-apis/network.alibabacloud.com/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -39,6 +34,11 @@ import (
 	"k8s.io/utils/strings/slices"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	apiext "github.com/koordinator-sh/koordinator/apis/extension"
+	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
+	"github.com/koordinator-sh/koordinator/pkg/util"
+	lrnutil "github.com/koordinator-sh/koordinator/pkg/util/logicalresourcenode"
 )
 
 type reservationReconciler struct {
@@ -49,10 +49,6 @@ func (r *reservationReconciler) reconcile(ctx context.Context, lrn *schedulingv1
 	activeReservations, terminatingReservations, err := r.getOwnedReservations(ctx, lrn)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to get owned reservations: %v", err)
-	}
-
-	for _, rr := range append(activeReservations, terminatingReservations...) {
-		reservationExpectations.Observe(rr)
 	}
 
 	if allSatisfied, unsatisfiedNames := reservationExpectations.IsAllSatisfied(lrn.Name); !allSatisfied {
@@ -103,6 +99,18 @@ func (r *reservationReconciler) reconcile(ctx context.Context, lrn *schedulingv1
 		}
 	}
 
+	var qosGroup *terwayapis.ENIQosGroup
+	if reservation != nil && hasQoSGroup(reservation) {
+		qosGroup, err = r.getQoSGroupForReservation(ctx, reservation)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if allSatisfied, unsatisfiedNames := qosGroupExpectations.IsAllSatisfied(reservation.Name); !allSatisfied {
+			klog.Warningf("Skip manage ENIQosGroup for reservation %s unsatisfied: %v.", reservation.Name, unsatisfiedNames)
+			return ctrl.Result{RequeueAfter: time.Second * 10}, nil
+		}
+	}
+
 	klog.V(3).Infof("Reconciling LogicalResourceNode %s with current generation %v and reservation %v", lrn.Name, currentGeneration, nameOfReservation(reservation))
 
 	// Initial steps for a new LRN
@@ -126,7 +134,7 @@ func (r *reservationReconciler) reconcile(ctx context.Context, lrn *schedulingv1
 	}
 
 	// The main reconcile is here.
-	newStatus, err := r.reconcileWithReservation(ctx, lrn, reservation, currentGeneration)
+	newStatus, err := r.reconcileWithReservation(ctx, lrn, reservation, currentGeneration, qosGroup)
 	if err != nil {
 		return result, err
 	}
@@ -143,7 +151,7 @@ func (r *reservationReconciler) reconcile(ctx context.Context, lrn *schedulingv1
 }
 
 func (r *reservationReconciler) reconcileWithReservation(ctx context.Context, lrn *schedulingv1alpha1.LogicalResourceNode,
-	reservation *schedulingv1alpha1.Reservation, currentGeneration int64) (status *schedulingv1alpha1.LogicalResourceNodeStatus, err error) {
+	reservation *schedulingv1alpha1.Reservation, currentGeneration int64, qosGroup *terwayapis.ENIQosGroup) (status *schedulingv1alpha1.LogicalResourceNodeStatus, err error) {
 
 	status = &schedulingv1alpha1.LogicalResourceNodeStatus{Phase: schedulingv1alpha1.LogicalResourceNodePending}
 
@@ -180,6 +188,22 @@ func (r *reservationReconciler) reconcileWithReservation(ctx context.Context, lr
 			return nil, fmt.Errorf("unexpected Reservation %s available but no nodeName", reservation.Name)
 		}
 
+		// Create or wait QoSGroup if needed
+		if hasQoSGroup(reservation) {
+			if qosGroup == nil {
+				qosGroup, err = generateENIQoSGroup(reservation)
+				if err != nil {
+					return nil, fmt.Errorf("failed to generate ENIQoSGroup: %v", err)
+				}
+
+				if err = r.Create(ctx, qosGroup); err != nil {
+					return nil, fmt.Errorf("failed to create ENIQoSGroup: %v", err)
+				}
+				qosGroupExpectations.Expect(qosGroup, reservation.Name)
+				return nil, nil
+			}
+		}
+
 		// Get Node of the Reservation
 		node = &corev1.Node{}
 		if err := r.Get(ctx, types.NamespacedName{Name: reservation.Status.NodeName}, node); err != nil {
@@ -203,7 +227,7 @@ func (r *reservationReconciler) reconcileWithReservation(ctx context.Context, lr
 	}
 
 	// TODO: temporarily help users to update pod-label-selector on LRN. Should be removed later.
-	if err := r.updateReservation(ctx, lrn, reservation); err != nil {
+	if err := r.updateReservation(ctx, lrn, reservation, qosGroup); err != nil {
 		return nil, fmt.Errorf("failed to update reservation: %v", err)
 	}
 
@@ -215,25 +239,67 @@ func (r *reservationReconciler) reconcileWithReservation(ctx context.Context, lr
 	return
 }
 
+func (r *reservationReconciler) getQoSGroupForReservation(ctx context.Context, reservation *schedulingv1alpha1.Reservation) (*terwayapis.ENIQosGroup, error) {
+	qosGroup := &terwayapis.ENIQosGroup{}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: metav1.NamespaceSystem, Name: reservation.Name}, qosGroup); err != nil {
+		if !errors.IsNotFound(err) {
+			return nil, fmt.Errorf("failed to get ENIQosGroup %s: %v", reservation.Name, err)
+		}
+		return nil, nil
+	}
+	qosGroupExpectations.Observe(qosGroup)
+
+	ownerRef := metav1.GetControllerOf(qosGroup)
+	if ownerRef == nil || ownerRef.UID != reservation.UID {
+		return nil, fmt.Errorf("found ENIQosGroup owner %+v not matched reservation %s", ownerRef, reservation.Name)
+	}
+
+	return qosGroup, nil
+}
+
 // TODO: temporarily help users to update pod-label-selector on LRN. Should be removed later.
-func (r *reservationReconciler) updateReservation(ctx context.Context, lrn *schedulingv1alpha1.LogicalResourceNode, reservation *schedulingv1alpha1.Reservation) error {
+func (r *reservationReconciler) updateReservation(ctx context.Context, lrn *schedulingv1alpha1.LogicalResourceNode,
+	reservation *schedulingv1alpha1.Reservation, qosGroup *terwayapis.ENIQosGroup) error {
+
 	if len(reservation.Spec.Owners) != 1 || reservation.Spec.Owners[0].LabelSelector == nil || reservation.Spec.Owners[0].LabelSelector.MatchLabels == nil {
 		return fmt.Errorf("invalid reservation %s with owner %v", reservation.Name, util.DumpJSON(reservation.Spec.Owners))
 	}
+
+	patchBody := newPatchObject()
 
 	podLabelSelector, err := lrnutil.GetPodLabelSelector(lrn)
 	if err != nil {
 		return err
 	}
-	if reflect.DeepEqual(podLabelSelector, reservation.Spec.Owners[0].LabelSelector.MatchLabels) {
+	if !reflect.DeepEqual(podLabelSelector, reservation.Spec.Owners[0].LabelSelector.MatchLabels) {
+		patchBody.Spec["owners"] = []schedulingv1alpha1.ReservationOwner{{LabelSelector: &metav1.LabelSelector{MatchLabels: podLabelSelector}}}
+	}
+
+	if qosGroup != nil && qosGroup.Status.Phase == terwayapis.QosGroupPhaseReady {
+		if reservation.Labels[schedulingv1alpha1.LabelVPCQoSGroupID] != qosGroup.Status.AutoCreatedID {
+			patchBody.Metadata.Labels[schedulingv1alpha1.LabelVPCQoSGroupID] = qosGroup.Status.AutoCreatedID
+		}
+		if reservation.Spec.Unschedulable {
+			patchBody.Spec["unschedulable"] = false
+		}
+	}
+
+	syncedLabels := getAlreadySyncedLabels(lrn.GetAnnotations())
+	for k, v := range lrn.Labels {
+		if syncedLabels.Has(k) || skipSyncReservationLabels.Has(k) || reservation.Labels[k] != "" {
+			continue
+		}
+		patchBody.Metadata.Labels[k] = v
+	}
+
+	if patchBody.isEmpty() {
 		return nil
 	}
 
-	newOwners := []schedulingv1alpha1.ReservationOwner{{LabelSelector: &metav1.LabelSelector{MatchLabels: podLabelSelector}}}
-	patchBody := fmt.Sprintf(`{"spec":{"owners":%s}}`, util.DumpJSON(newOwners))
-	if err := r.Patch(ctx, reservation, client.RawPatch(types.MergePatchType, []byte(patchBody))); err != nil {
-		return fmt.Errorf("failed to patch %s to reservation %s: %v", patchBody, reservation.Name, err)
+	if err := r.Patch(ctx, reservation, client.RawPatch(types.MergePatchType, []byte(util.DumpJSON(patchBody)))); err != nil {
+		return fmt.Errorf("failed to patch %s to reservation %s: %v", util.DumpJSON(patchBody), reservation.Name, err)
 	}
+	klog.Infof("Successfully patched %s to reservation %s", util.DumpJSON(patchBody), reservation.Name)
 	reservationExpectations.Expect(reservation, lrn.Name)
 	return nil
 }
@@ -247,6 +313,8 @@ func (r *reservationReconciler) getOwnedReservations(ctx context.Context, lrn *s
 
 	for i := range reservationList.Items {
 		rr := &reservationList.Items[i]
+		reservationExpectations.Observe(rr)
+
 		if rr.DeletionTimestamp != nil {
 			terminatingReservations = append(terminatingReservations, rr)
 		} else {
@@ -330,11 +398,11 @@ func (r *reservationReconciler) updateLRNMetadata(ctx context.Context, lrn *sche
 		return nil
 	}
 
-	klog.V(3).Infof("Patch %s to LRN %s", util.DumpJSON(patchBody), lrn.Name)
 	if err := r.Patch(ctx, lrn, client.RawPatch(types.MergePatchType, []byte(util.DumpJSON(patchBody)))); err != nil {
-		return err
+		return fmt.Errorf("failed to patch %s to LRN: %v", util.DumpJSON(patchBody), err)
 	}
 	lrnExpectations.Expect(lrn)
+	klog.Infof("Successfully patched %s to LRN %s", util.DumpJSON(patchBody), lrn.Name)
 	return nil
 }
 

@@ -18,6 +18,7 @@ package mutating
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
@@ -26,6 +27,7 @@ import (
 	utilclient "github.com/koordinator-sh/koordinator/pkg/util/client"
 	lrnutil "github.com/koordinator-sh/koordinator/pkg/util/logicalresourcenode"
 
+	terwaytypes "github.com/AliyunContainerService/terway-apis/types"
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -138,7 +140,41 @@ func (h *PodMutatingHandler) mutatingLRNPodUpdate(ctx context.Context, req admis
 		pod.Labels = map[string]string{}
 	}
 	pod.Labels[schedulingv1alpha1.LabelLogicalResourceNodePodAssign] = lrnName
-	delete(pod.Labels, apiext.LabelPodMutatingUpdate)
 
+	if groupID := reservation.Labels[schedulingv1alpha1.LabelVPCQoSGroupID]; groupID != "" {
+		if err = injectQoSGroupID(pod, groupID); err != nil {
+			return err
+		}
+	}
+
+	delete(pod.Labels, apiext.LabelPodMutatingUpdate)
+	return nil
+}
+
+func injectQoSGroupID(pod *corev1.Pod, groupID string) error {
+	if groupID == "" {
+		return nil
+	}
+
+	str, ok := pod.Annotations[terwaytypes.PodNetworksAnnotation]
+	if !ok {
+		return nil
+	}
+
+	jsonObj := make(map[string]interface{})
+	if err := json.Unmarshal([]byte(str), &jsonObj); err != nil {
+		return fmt.Errorf("failed to unmarshal %s: %v", str, err)
+	}
+	if podNetworks, ok := jsonObj["podNetworks"]; ok {
+		if podNetworksSlice, ok := podNetworks.([]interface{}); ok {
+			for i := range podNetworksSlice {
+				if network, ok := podNetworksSlice[i].(map[string]interface{}); ok {
+					network["eniQosGroupID"] = groupID
+				}
+			}
+		}
+	}
+
+	pod.Annotations[terwaytypes.PodNetworksAnnotation] = util.DumpJSON(jsonObj)
 	return nil
 }

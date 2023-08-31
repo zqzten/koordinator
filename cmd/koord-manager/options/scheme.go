@@ -17,6 +17,7 @@ limitations under the License.
 package options
 
 import (
+	terwayapis "github.com/AliyunContainerService/terway-apis/network.alibabacloud.com/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -42,6 +43,8 @@ func init() {
 	_ = slov1alpha1.AddToScheme(Scheme)
 	_ = schedulingv1alpha1.AddToScheme(Scheme)
 	_ = v1alpha1.AddToScheme(Scheme)
+
+	_ = terwayapis.AddToScheme(Scheme)
 
 	Scheme.AddUnversionedTypes(metav1.SchemeGroupVersion, &metav1.UpdateOptions{}, &metav1.DeleteOptions{}, &metav1.CreateOptions{})
 	// +kubebuilder:scaffold:scheme

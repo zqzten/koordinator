@@ -18,6 +18,7 @@ package logicalresourcenode
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"reflect"
@@ -25,12 +26,9 @@ import (
 	"strings"
 	"unsafe"
 
-	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
-	"github.com/koordinator-sh/koordinator/pkg/util"
-	"github.com/koordinator-sh/koordinator/pkg/util/expectations"
-	lrnutil "github.com/koordinator-sh/koordinator/pkg/util/logicalresourcenode"
-
+	terwayapis "github.com/AliyunContainerService/terway-apis/network.alibabacloud.com/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -39,6 +37,12 @@ import (
 	"k8s.io/kubernetes/pkg/util/slice"
 	utilpointer "k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	apiext "github.com/koordinator-sh/koordinator/apis/extension"
+	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
+	"github.com/koordinator-sh/koordinator/pkg/util"
+	"github.com/koordinator-sh/koordinator/pkg/util/expectations"
+	lrnutil "github.com/koordinator-sh/koordinator/pkg/util/logicalresourcenode"
 )
 
 const (
@@ -47,6 +51,8 @@ const (
 
 	// labelReservationGeneration is the generation of the reservation, which indicates the recreation count for this LRN.
 	labelReservationGeneration = "lrn.koordinator.sh/reservation-generation"
+
+	labelOwnedByLRN = "lrn.koordinator.sh/owned-by-lrn"
 
 	annotationSyncNodeLabels = "lrn.koordinator.sh/sync-node-labels"
 
@@ -57,12 +63,16 @@ var (
 	nodeExpectations        = expectations.NewResourceVersionExpectation()
 	lrnExpectations         = expectations.NewResourceVersionExpectation()
 	reservationExpectations = expectations.NewResourceVersionExpectation()
+	qosGroupExpectations    = expectations.NewResourceVersionExpectation()
 
 	workerNumFlag              = flag.Int("lrn-controller-workers", 3, "The workers number of LRN controller.")
-	syncNodeLabelsFlag         = flag.String("lrn-sync-node-labels", "", "Node label keys that should be synced to LRN.")
+	syncNodeLabelsFlag         = flag.String("lrn-sync-node-labels", "node.koordinator.sh/asw-id,node.koordinator.sh/point-of-delivery,sigma.ali/user-id,alibabacloud.com/gpu-card-model,node.koordinator.sh/gpu-model,node.koordinator.sh/gpu-model-series", "Node label keys that should be synced to LRN.")
 	syncNodeConditionTypesFlag = flag.String("lrn-sync-node-condition-types", "Ready", "Node condition types that should be synced to LRN status.")
 
 	reservationCleanupGracePeriodSeconds = flag.Int("lrn-reservation-cleanup-grace-period-seconds", 10, "The grace period seconds that will delete all pods after their reservation has become terminating.")
+
+	skipSyncReservationLabels  = sets.NewString(labelReservationGeneration, schedulingv1alpha1.LabelNodeNameOfLogicalResourceNode)
+	syncReservationAnnotations = sets.NewString(apiext.SchedulingDomainPrefix+"/device-allocate-hint", schedulingv1alpha1.AnnotationVPCQoSThreshold)
 )
 
 func getsSyncNodeLabels(node *corev1.Node) (res map[string]string) {
@@ -123,7 +133,10 @@ func generateNewReservation(lrn *schedulingv1alpha1.LogicalResourceNode, generat
 			Finalizers: []string{
 				finalizerInternalGC,
 			},
-			Labels:          map[string]string{},
+			Labels: map[string]string{
+				labelOwnedByLRN: lrn.Name,
+			},
+			Annotations:     map[string]string{},
 			OwnerReferences: []metav1.OwnerReference{*ownerRef},
 		},
 		Spec: schedulingv1alpha1.ReservationSpec{
@@ -143,10 +156,21 @@ func generateNewReservation(lrn *schedulingv1alpha1.LogicalResourceNode, generat
 
 	syncedLabels := getAlreadySyncedLabels(lrn.Annotations)
 	for k, v := range lrn.Labels {
-		if !syncedLabels.Has(k) {
+		if !syncedLabels.Has(k) && !skipSyncReservationLabels.Has(k) {
 			reservation.Labels[k] = v
 		}
 	}
+
+	for k, v := range lrn.Annotations {
+		if syncReservationAnnotations.Has(k) {
+			reservation.Annotations[k] = v
+		}
+	}
+
+	if hasQoSGroup(lrn) {
+		reservation.Spec.Unschedulable = true
+	}
+
 	return reservation, nil
 }
 
@@ -237,7 +261,8 @@ func reservationConditionToNodeCondition(rCond schedulingv1alpha1.ReservationCon
 }
 
 type patchObject struct {
-	Metadata patchMetaData `json:"metadata"`
+	Metadata patchMetaData          `json:"metadata"`
+	Spec     map[string]interface{} `json:"spec,omitempty"`
 }
 
 type patchMetaData struct {
@@ -245,8 +270,19 @@ type patchMetaData struct {
 	Annotations map[string]interface{} `json:"annotations,omitempty"`
 }
 
+func newPatchObject() *patchObject {
+	return &patchObject{
+		Metadata: patchMetaData{Labels: map[string]interface{}{}, Annotations: map[string]interface{}{}},
+		Spec:     map[string]interface{}{},
+	}
+}
+
 func (po *patchObject) isConsistent(obj metav1.Object) bool {
 	return compareMap(obj.GetLabels(), po.Metadata.Labels) && compareMap(obj.GetAnnotations(), po.Metadata.Annotations)
+}
+
+func (po *patchObject) isEmpty() bool {
+	return len(po.Spec) == 0 && len(po.Metadata.Labels) == 0 && len(po.Metadata.Annotations) == 0
 }
 
 func compareMap(original map[string]string, patch map[string]interface{}) bool {
@@ -270,4 +306,48 @@ func getAlreadySyncedLabels(annotations map[string]string) sets.String {
 		return nil
 	}
 	return sets.NewString(strings.Split(val, ",")...)
+}
+
+func hasQoSGroup(obj metav1.Object) bool {
+	return obj.GetAnnotations()[schedulingv1alpha1.AnnotationVPCQoSThreshold] != ""
+}
+
+func generateENIQoSGroup(reservation *schedulingv1alpha1.Reservation) (*terwayapis.ENIQosGroup, error) {
+	str, ok := reservation.Annotations[schedulingv1alpha1.AnnotationVPCQoSThreshold]
+	if !ok {
+		return nil, fmt.Errorf("no annotation %s in reservation %s", schedulingv1alpha1.AnnotationVPCQoSThreshold, reservation.Name)
+	}
+
+	if reservation.Status.NodeName == "" {
+		return nil, fmt.Errorf("no nodeName in reservation %s status", reservation.Name)
+	}
+
+	threshold := schedulingv1alpha1.LRNVPCQoSThreshold{}
+	if err := json.Unmarshal([]byte(str), &threshold); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal %s: %v", str, err)
+	}
+
+	ownerRef := metav1.NewControllerRef(reservation, schedulingv1alpha1.SchemeGroupVersion.WithKind("Reservation"))
+	qosGroup := terwayapis.ENIQosGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: metav1.NamespaceSystem,
+			Name:      reservation.Name,
+			Labels: map[string]string{
+				labelOwnedByLRN: reservation.Labels[labelOwnedByLRN],
+			},
+			OwnerReferences: []metav1.OwnerReference{*ownerRef},
+		},
+		Spec: terwayapis.ENIQosGroupSpec{
+			NodeName: reservation.Status.NodeName,
+			Bandwidth: terwayapis.ENIQosGroupBandwidth{
+				Tx: resource.MustParse(threshold.Tx),
+				Rx: resource.MustParse(threshold.Rx),
+			},
+			PPS: terwayapis.ENIQosGroupPPS{
+				Tx: resource.MustParse(threshold.TxPps),
+				Rx: resource.MustParse(threshold.RxPps),
+			},
+		},
+	}
+	return &qosGroup, nil
 }
