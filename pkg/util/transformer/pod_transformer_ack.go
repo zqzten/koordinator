@@ -27,19 +27,22 @@ import (
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
 	"github.com/koordinator-sh/koordinator/apis/extension/ack"
+	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/features"
 )
 
 func init() {
-	if k8sfeature.DefaultFeatureGate.Enabled(features.EnableACKGPUMemoryScheduling) {
-		podTransformers = append(podTransformers,
-			TransformACKDeviceAllocation,
-		)
-	}
+	podTransformers = append(podTransformers,
+		TransformACKDeviceAllocation,
+		TransformACKGPUMemoryRatio,
+	)
 }
 
 func TransformACKDeviceAllocation(pod *corev1.Pod) {
+	if !k8sfeature.DefaultFeatureGate.Enabled(features.EnableACKGPUShareScheduling) {
+		return
+	}
 	if val := pod.Annotations[extension.AnnotationDeviceAllocated]; val != "" {
 		return
 	}
@@ -102,5 +105,25 @@ func TransformACKDeviceAllocation(pod *corev1.Pod) {
 	})
 	if err != nil {
 		klog.ErrorS(err, "Failed to SetDeviceAllocations from ACK result", "pod", klog.KObj(pod))
+	}
+}
+
+func TransformACKGPUMemoryRatio(pod *corev1.Pod) {
+	if !k8sfeature.DefaultFeatureGate.Enabled(features.EnableACKGPUShareScheduling) {
+		return
+	}
+	for i := range pod.Spec.Containers {
+		container := &pod.Spec.Containers[i]
+		if unified.IsContainerActivelyAddedGPUMemRatio(container) {
+			delete(container.Resources.Requests, extension.ResourceGPUMemoryRatio)
+			delete(container.Resources.Limits, extension.ResourceGPUMemoryRatio)
+		}
+	}
+	for i := range pod.Spec.InitContainers {
+		container := &pod.Spec.InitContainers[i]
+		if unified.IsContainerActivelyAddedGPUMemRatio(container) {
+			delete(container.Resources.Requests, extension.ResourceGPUMemoryRatio)
+			delete(container.Resources.Limits, extension.ResourceGPUMemoryRatio)
+		}
 	}
 }
