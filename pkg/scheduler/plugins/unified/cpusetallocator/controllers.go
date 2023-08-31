@@ -60,11 +60,11 @@ type cpuSharePoolUpdater struct {
 	handle               framework.Handle
 }
 
-func newCPUSharePoolUpdater(handle framework.Handle, cpuManager nodenumaresource.CPUManager) *cpuSharePoolUpdater {
+func newCPUSharePoolUpdater(handle framework.Handle, resourceManager nodenumaresource.ResourceManager) *cpuSharePoolUpdater {
 	updater := &cpuSharePoolUpdater{
 		queue: workqueue.NewRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter()),
 		getAvailableCPUsFunc: func(nodeName string) (cpuset.CPUSet, error) {
-			availableCPUs, _, err := cpuManager.GetAvailableCPUs(nodeName)
+			availableCPUs, _, err := resourceManager.GetAvailableCPUs(nodeName, cpuset.CPUSet{})
 			return availableCPUs, err
 		},
 		handle: handle,
