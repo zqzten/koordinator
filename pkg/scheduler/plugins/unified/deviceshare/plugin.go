@@ -27,6 +27,7 @@ import (
 	unifiedresourceext "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/extension"
 	unifiedschedulingv1beta1 "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/scheduling/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apiresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -34,6 +35,7 @@ import (
 	quotav1 "k8s.io/apiserver/pkg/quota/v1"
 	k8sfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
+	"k8s.io/kubernetes/pkg/api/v1/resource"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 
@@ -182,6 +184,12 @@ func (pl *Plugin) Filter(ctx context.Context, cycleState *framework.CycleState, 
 	if extunified.IsVirtualKubeletNode(nodeInfo.Node()) {
 		return nil
 	}
+	if _, err := pl.deviceLister.Get(node.Name); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return framework.NewStatus(framework.UnschedulableAndUnresolvable, err.Error())
+	}
 
 	state, status := getPreFilterState(cycleState)
 	if !status.IsSuccess() {
@@ -287,7 +295,7 @@ func (pl *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState,
 		return nil
 	}
 
-	if err := pl.appendInternalAnnotations(pod, allocations, nodeName); err != nil {
+	if err := pl.appendInternalAnnotations(pod, allocations, node); err != nil {
 		return framework.NewStatus(framework.Error, err.Error())
 	}
 
@@ -309,12 +317,13 @@ func (pl *Plugin) PreBindReservation(ctx context.Context, cycleState *framework.
 	return pl.Plugin.PreBindReservation(ctx, cycleState, reservation, nodeName)
 }
 
-func (pl *Plugin) appendInternalAnnotations(obj metav1.Object, allocResult apiext.DeviceAllocations, nodeName string) error {
+func (pl *Plugin) appendInternalAnnotations(obj metav1.Object, allocResult apiext.DeviceAllocations, node *corev1.Node) error {
 	pod, ok := obj.(*corev1.Pod)
 	if !ok {
 		return nil
 	}
 
+	nodeName := node.Name
 	device, err := pl.deviceLister.Get(nodeName)
 	if err != nil {
 		klog.ErrorS(err, "Failed to get Device", "pod", klog.KObj(pod), "node", nodeName)
@@ -322,7 +331,7 @@ func (pl *Plugin) appendInternalAnnotations(obj metav1.Object, allocResult apiex
 	}
 
 	ack.AppendAckAnnotationsIfHasGPUCompute(pod, device, allocResult)
-	if k8sfeature.DefaultFeatureGate.Enabled(features.EnableACKGPUMemoryScheduling) {
+	if k8sfeature.DefaultFeatureGate.Enabled(features.EnableACKGPUShareScheduling) {
 		if err := ack.AppendAckAnnotationsIfHasGPUMemory(pod, allocResult); err != nil {
 			klog.ErrorS(err, "Failed to append ACK Annotation with GPU Memory", "pod", klog.KObj(pod))
 			return err
@@ -331,11 +340,82 @@ func (pl *Plugin) appendInternalAnnotations(obj metav1.Object, allocResult apiex
 			klog.ErrorS(err, "Failed to append ACK Annotation with GPU Core", "pod", klog.KObj(pod))
 			return err
 		}
+		if err := appendKoordGPUMemoryRatioIfNeeded(pod, allocResult, node); err != nil {
+			klog.ErrorS(err, "Failed to appendKoordGPUMemoryRatioIfNeeded", "pod", klog.KObj(pod))
+			return err
+		}
 	}
 	if err := appendUnifiedDeviceAllocStatus(pod, allocResult); err != nil {
 		return err
 	}
 	return appendRundResult(pod, allocResult, pl)
+}
+
+func appendKoordGPUMemoryRatioIfNeeded(pod *corev1.Pod, deviceAllocations apiext.DeviceAllocations, node *corev1.Node) error {
+	// Pod 如果声明了 ack gpu share 协议，又调度到了只有koordinator dp的节点，
+	// 这个时候需要追加 koordinator.sh/gpu-memory-ratio 触发kubelet DP链路
+	if node.Labels["__internal_gpu-compatible__"] != "ack-gpu-share" {
+		return nil
+	}
+
+	podRequests, _ := resource.PodRequestsAndLimits(pod)
+	if quantity := podRequests[ack.ResourceAliyunGPUMemory]; quantity.IsZero() {
+		return nil
+	}
+
+	totalGPUResources := make(corev1.ResourceList)
+	for deviceType, allocations := range deviceAllocations {
+		if len(allocations) <= 0 {
+			continue
+		}
+		if deviceType != schedulingv1alpha1.GPU {
+			continue
+		}
+		for _, deviceAllocation := range allocations {
+			resources := extunified.ConvertToUnifiedGPUResources(deviceAllocation.Resources)
+			totalGPUResources = quotav1.Add(totalGPUResources, resources)
+		}
+	}
+
+	if len(totalGPUResources) > 0 {
+		totalGPUMemory := totalGPUResources[unifiedresourceext.GPUResourceMem]
+		totalGPUMemoryRatio := totalGPUResources[unifiedresourceext.GPUResourceMemRatio]
+		if totalGPUMemory.IsZero() {
+			return fmt.Errorf("unreached error but got, missing GPUResourceMem")
+		}
+		for i := range pod.Spec.Containers {
+			container := &pod.Spec.Containers[i]
+			if !deviceshare.HasDeviceResource(container.Resources.Requests, schedulingv1alpha1.GPU) {
+				continue
+			}
+			combination, err := deviceshare.ValidateDeviceRequest(container.Resources.Requests)
+			if err != nil {
+				return err
+			}
+			resources := deviceshare.ConvertDeviceRequest(container.Resources.Requests, combination)
+			gpuMemoryQuantity := resources[apiext.ResourceGPUMemory]
+			gpuMemoryRatioQuantity := resources[apiext.ResourceGPUMemoryRatio]
+			if gpuMemoryQuantity.IsZero() && gpuMemoryRatioQuantity.IsZero() {
+				continue
+			}
+			needPatch := false
+			var memoryRatio int64
+			if gpuMemoryQuantity.Value() > 0 {
+				needPatch = true
+				memoryRatio = gpuMemoryQuantity.Value() * totalGPUMemoryRatio.Value() / totalGPUMemory.Value()
+			} else if gpuMemoryRatioQuantity.Value() > 0 {
+				needPatch = true
+				memoryRatio = gpuMemoryRatioQuantity.Value()
+			}
+			if needPatch {
+				if addContainerGPUResourceForPatch(container, apiext.ResourceGPUMemoryRatio, memoryRatio) {
+					setContainerEnv(container, &corev1.EnvVar{Name: extunified.EnvActivelyAddedUnifiedGPUMemoryRatio, Value: "true"})
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 func appendUnifiedDeviceAllocStatus(pod *corev1.Pod, deviceAllocations apiext.DeviceAllocations) error {
@@ -427,7 +507,7 @@ func appendUnifiedDeviceAllocStatus(pod *corev1.Pod, deviceAllocations apiext.De
 			if needPatch {
 				if addContainerGPUResourceForPatch(container, unifiedresourceext.GPUResourceMemRatio, memoryRatio) {
 					// NOTE: Kube Scheduler Framework 通过Filter/Score 选择出一个合适的节点后会 Assume Pod 到 NodeInfo 中，
-					// 此时 Pod 的容器中并没有 alibabacloud.com/gpu-mem-ratio 声明这个资源，所以 NodeInfo.Requested 中也不会记录
+					// 此时 Pod 的容器中并没有声明资源 alibabacloud.com/gpu-mem-ratio，所以 NodeInfo.Requested 中也不会记录
 					// 该资源名称。但我们又会在 PreBind 阶段追加这个资源，导致后续 Pod 被删除时，NodeInfo.RemovePod() 会按照最新的 Pod
 					// 清理 NodeInfo.Requested，导致 NodeInfo.Requested.ScalarResources["alibabacloud.com/gpu-mem-ratio"] 变成负数。
 					// 后续如果有 Pod 又使用了 alibabacloud.com/gpu-mem-ratio 请求资源时，会导致像插件 NodeResourcesFit.Score 结果变成负数。
