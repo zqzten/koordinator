@@ -905,10 +905,14 @@ func Test_getNodeNUMAResourceArgs(t *testing.T) {
 			want: &schedulingconfig.NodeNUMAResourceArgs{
 				DefaultCPUBindPolicy: "FullPCPUs",
 				ScoringStrategy: &schedulingconfig.ScoringStrategy{
-					Type: schedulingconfig.MostAllocated,
+					Type: schedulingconfig.LeastAllocated,
 					Resources: []schedconfig.ResourceSpec{
 						{
 							Name:   "cpu",
+							Weight: 1,
+						},
+						{
+							Name:   "memory",
 							Weight: 1,
 						},
 					},
