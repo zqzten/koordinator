@@ -205,8 +205,8 @@ func TestPlugin_OnNodeAdd2(t *testing.T) {
 }
 
 func TestPlugin_OnNodeUpdate2(t *testing.T) {
-	nodes := []*corev1.Node{defaultCreateNodeWithResourceVersion("1"), defaultCreateNodeWithResourceVersion("2"),
-		defaultCreateNodeWithResourceVersion("3")}
+	nodes := []*corev1.Node{defaultCreateNodeWithLabels("1", nil), defaultCreateNodeWithLabels("2", nil),
+		defaultCreateNodeWithLabels("3", nil)}
 	tests := []struct {
 		name     string
 		nodes    []*corev1.Node
