@@ -64,7 +64,9 @@ func Test_rundResourceCollector_Run(t *testing.T) {
 	})
 	collector := c.(*rundResourceCollector)
 	collector.started = atomic.NewBool(true)
-	collector.Setup(&framework.Context{})
+	collector.Setup(&framework.Context{
+		State: framework.NewSharedState(),
+	})
 	assert.True(t, collector.Enabled())
 	assert.True(t, collector.Started())
 	assert.NotPanics(t, func() {
@@ -76,6 +78,9 @@ func Test_rundResourceCollector_Run(t *testing.T) {
 
 func Test_collectRundPodsResUsed(t *testing.T) {
 	testNow := time.Now()
+	timeNow = func() time.Time {
+		return testNow
+	}
 	testContainerID := "containerd://123abc"
 	testContainerIDParsed := "123abc"
 	testPodMetaDir := "kubepods.slice/kubepods-podxxxxxxxx.slice"
@@ -166,6 +171,8 @@ func Test_collectRundPodsResUsed(t *testing.T) {
 	type wantFields struct {
 		checkPodResourceMetric       func(t *testing.T, metricCache metriccache.MetricCache)
 		checkContainerResourceMetric func(t *testing.T, metricCache metriccache.MetricCache)
+		allCPU                       float64
+		allMemory                    float64
 	}
 	tests := []struct {
 		name   string
@@ -258,6 +265,8 @@ total_unevictable 0
 				checkContainerResourceMetric: func(t *testing.T, metricCache metriccache.MetricCache) {
 					testGetContainerMetric(t, metricCache, testContainerID, testNow.Add(-time.Minute), testNow.Add(time.Minute))
 				},
+				allCPU:    1,
+				allMemory: 104857600,
 			},
 		},
 		// FIXME: currently rund pod collection does not support cgroups-v2
@@ -309,6 +318,9 @@ total_unevictable 0
 					CollectorName: tt.fields.podFilterOption,
 				},
 			})
+			collector.Setup(&framework.Context{
+				State: framework.NewSharedState(),
+			})
 			c := collector.(*rundResourceCollector)
 			tt.fields.initPodLastStat(c.lastPodCPUStat)
 			tt.fields.initContainerLastTick(c.lastContainerCPUStat)
@@ -323,6 +335,15 @@ total_unevictable 0
 			if tt.want.checkContainerResourceMetric != nil {
 				tt.want.checkContainerResourceMetric(t, metricCache)
 			}
+
+			// check share state
+			podsCPUUsageByCollector, podsMemoryUsageByCollector := c.sharedState.GetPodsUsageByCollector()
+			podsCPUUsage, cpuExist := podsCPUUsageByCollector[CollectorName]
+			assert.True(t, cpuExist)
+			assert.Equal(t, podsCPUUsage.Value, tt.want.allCPU)
+			podsMemoryUsage, memoryExist := podsMemoryUsageByCollector[CollectorName]
+			assert.True(t, memoryExist)
+			assert.Equal(t, podsMemoryUsage.Value, tt.want.allMemory)
 		})
 	}
 }
