@@ -49,6 +49,7 @@ const (
 	SyncTaskQuota                               featuregate.Feature = "SyncTaskQuota"
 	DisableCPUSetOversold                       featuregate.Feature = "DisableCPUSetOversold"
 	EnableACKGPUShareScheduling                 featuregate.Feature = "EnableACKGPUShareScheduling"
+	DisableInterPodAffinityByNamespaces         featuregate.Feature = "DisableInterPodAffinityByNamespaces"
 )
 
 const (
@@ -82,6 +83,7 @@ var defaultUnifiedSchedulerFeatureGates = map[featuregate.Feature]featuregate.Fe
 	SyncTaskQuota:                               {Default: false, PreRelease: featuregate.Beta},
 	DisableCPUSetOversold:                       {Default: false, PreRelease: featuregate.Beta},
 	EnableACKGPUShareScheduling:                 {Default: false, PreRelease: featuregate.Beta},
+	DisableInterPodAffinityByNamespaces:         {Default: false, PreRelease: featuregate.Beta},
 }
 
 var defaultUnifiedKoordletFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
