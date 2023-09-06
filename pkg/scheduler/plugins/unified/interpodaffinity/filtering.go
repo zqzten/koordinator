@@ -23,11 +23,13 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	k8sfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/interpodaffinity"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	"github.com/koordinator-sh/koordinator/pkg/features"
 )
 
 const (
@@ -133,10 +135,17 @@ func (m topologyToMatchedTermCount) updateWithAffinityTerms(
 func (m topologyToMatchedTermCount) updateWithAntiAffinityTerms(terms []framework.AffinityTerm, pod *v1.Pod, nsLabels labels.Set, node *v1.Node, value int64, enableNamespaceSelector bool) {
 	// Check anti-affinity terms.
 	for _, t := range terms {
-		if t.Matches(pod, nsLabels) {
+		if Matches(pod, nsLabels, &t) {
 			m.update(node, t.TopologyKey, value)
 		}
 	}
+}
+
+func Matches(pod *v1.Pod, nsLabels labels.Set, at *framework.AffinityTerm) bool {
+	if k8sfeature.DefaultFeatureGate.Enabled(features.DisableInterPodAffinityByNamespaces) {
+		return at.Selector.Matches(labels.Set(pod.Labels))
+	}
+	return at.Matches(pod, nsLabels)
 }
 
 // returns true IFF the given pod matches all the given terms.
@@ -147,7 +156,7 @@ func podMatchesAllAffinityTerms(terms []framework.AffinityTerm, pod *v1.Pod, ena
 	for _, t := range terms {
 		// The incoming pod NamespaceSelector was merged into the Namespaces set, and so
 		// we are not explicitly passing in namespace labels.
-		if !t.Matches(pod, nil) {
+		if !Matches(pod, nil, &t) {
 			return false
 		}
 	}
