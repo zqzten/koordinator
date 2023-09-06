@@ -28,10 +28,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
+	k8sfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/feature"
 	plugintesting "k8s.io/kubernetes/pkg/scheduler/framework/plugins/testing"
+	"k8s.io/utils/pointer"
+
+	"github.com/koordinator-sh/koordinator/pkg/features"
+	utilfeature "github.com/koordinator-sh/koordinator/pkg/util/feature"
 )
 
 // Snapshot is a snapshot of cache NodeInfo and NodeTree order. The scheduler takes a
@@ -217,12 +222,13 @@ func TestRequiredAffinitySingleNode(t *testing.T) {
 	podLabel2 := map[string]string{"security": "S1"}
 	node1 := v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "machine1", Labels: labels1}}
 	tests := []struct {
-		pod               *v1.Pod
-		pods              []*v1.Pod
-		node              *v1.Node
-		name              string
-		wantStatus        *framework.Status
-		disableNSSelector bool
+		pod                                 *v1.Pod
+		pods                                []*v1.Pod
+		node                                *v1.Node
+		name                                string
+		wantStatus                          *framework.Status
+		disableNSSelector                   bool
+		DisableInterPodAffinityByNamespaces *bool
 	}{
 		{
 			name: "A pod that has no required pod affinity scheduling rules can schedule onto a node with no existing pods",
@@ -1054,6 +1060,36 @@ func TestRequiredAffinitySingleNode(t *testing.T) {
 			),
 		},
 		{
+			name: "affinity with non-matching NamespaceSelector, but DisableInterPodAffinityByNamespaces featureGate enabled",
+			pod: createPodWithAffinityTerms(defaultNamespace, "", podLabel2,
+				[]v1.PodAffinityTerm{
+					{
+						LabelSelector: &metav1.LabelSelector{
+							MatchExpressions: []metav1.LabelSelectorRequirement{
+								{
+									Key:      "service",
+									Operator: metav1.LabelSelectorOpIn,
+									Values:   []string{"securityscan", "value2"},
+								},
+							},
+						},
+						NamespaceSelector: &metav1.LabelSelector{
+							MatchExpressions: []metav1.LabelSelectorRequirement{
+								{
+									Key:      "team",
+									Operator: metav1.LabelSelectorOpIn,
+									Values:   []string{"team1"},
+								},
+							},
+						},
+						TopologyKey: "region",
+					},
+				}, nil),
+			pods:                                []*v1.Pod{{Spec: v1.PodSpec{NodeName: "machine1"}, ObjectMeta: metav1.ObjectMeta{Namespace: "subteam1.team2", Labels: podLabel}}},
+			node:                                &node1,
+			DisableInterPodAffinityByNamespaces: pointer.Bool(true),
+		},
+		{
 			name: "anti-affinity with matching NamespaceSelector",
 			pod: createPodWithAffinityTerms("subteam1.team1", "", podLabel2, nil,
 				[]v1.PodAffinityTerm{
@@ -1140,10 +1176,48 @@ func TestRequiredAffinitySingleNode(t *testing.T) {
 			pods: []*v1.Pod{{Spec: v1.PodSpec{NodeName: "machine1"}, ObjectMeta: metav1.ObjectMeta{Namespace: "subteam1.team2", Labels: podLabel}}},
 			node: &node1,
 		},
+		{
+			name: "anti-affinity with non-matching NamespaceSelector, but DisableInterPodAffinityByNamespaces featureGate enabled",
+			pod: createPodWithAffinityTerms("subteam1.team1", "", podLabel2, nil,
+				[]v1.PodAffinityTerm{
+					{
+						LabelSelector: &metav1.LabelSelector{
+							MatchExpressions: []metav1.LabelSelectorRequirement{
+								{
+									Key:      "service",
+									Operator: metav1.LabelSelectorOpIn,
+									Values:   []string{"securityscan", "value2"},
+								},
+							},
+						},
+						NamespaceSelector: &metav1.LabelSelector{
+							MatchExpressions: []metav1.LabelSelectorRequirement{
+								{
+									Key:      "team",
+									Operator: metav1.LabelSelectorOpIn,
+									Values:   []string{"team1"},
+								},
+							},
+						},
+						TopologyKey: "zone",
+					},
+				}),
+			pods:                                []*v1.Pod{{Spec: v1.PodSpec{NodeName: "machine1"}, ObjectMeta: metav1.ObjectMeta{Namespace: "subteam1.team2", Labels: podLabel}}},
+			node:                                &node1,
+			DisableInterPodAffinityByNamespaces: pointer.Bool(true),
+			wantStatus: framework.NewStatus(
+				framework.Unschedulable,
+				ErrReasonAntiAffinityRulesNotMatch,
+			),
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			if test.DisableInterPodAffinityByNamespaces != nil {
+				defer utilfeature.SetFeatureGateDuringTest(t, k8sfeature.DefaultFeatureGate, features.DisableInterPodAffinityByNamespaces, *test.DisableInterPodAffinityByNamespaces)()
+			}
+
 			ctx := context.Background()
 			snapshot := NewSnapshot(test.pods, []*v1.Node{test.node})
 			n := func(plArgs runtime.Object, fh framework.Handle) (framework.Plugin, error) {
