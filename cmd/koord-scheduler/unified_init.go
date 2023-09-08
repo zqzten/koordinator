@@ -38,6 +38,7 @@ import (
 	unifiedpodconstraint "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/podconstraint"
 	unifiedpodtopologyaware "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/podtopologyaware"
 	unifiedpodtopologyspread "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/podtopologyspread"
+	unifiedquotaaware "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/quotaaware"
 	unifiedresourcepolicy "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/resourcepolicy"
 	unifiedscheduleresult "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/scheduleresult"
 	unifiedtainttoleration "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/tainttoleration"
@@ -66,4 +67,5 @@ func init() {
 	koordinatorPlugins[unifieddeviceshare.Name] = unifieddeviceshare.New
 	koordinatorPlugins[unifiedinplaceupdate.Name] = unifiedinplaceupdate.New
 	koordinatorPlugins[unifiedlimitaware.Name] = unifiedlimitaware.New
+	koordinatorPlugins[unifiedquotaaware.Name] = unifiedquotaaware.New
 }
