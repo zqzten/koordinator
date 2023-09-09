@@ -18,6 +18,7 @@ package quotaaware
 
 import (
 	"context"
+	"fmt"
 	"sync/atomic"
 
 	corev1 "k8s.io/api/core/v1"
@@ -27,6 +28,7 @@ import (
 	"k8s.io/klog/v2"
 	apiresource "k8s.io/kubernetes/pkg/api/v1/resource"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
+	"sigs.k8s.io/scheduler-plugins/pkg/apis/scheduling"
 	schedclientset "sigs.k8s.io/scheduler-plugins/pkg/generated/clientset/versioned"
 	schedinformers "sigs.k8s.io/scheduler-plugins/pkg/generated/informers/externalversions"
 	schedlisters "sigs.k8s.io/scheduler-plugins/pkg/generated/listers/scheduling/v1alpha1"
@@ -40,6 +42,7 @@ const (
 	Name = "QuotaAware"
 )
 
+var _ framework.EnqueueExtensions = &Plugin{}
 var _ framework.PreFilterPlugin = &Plugin{}
 var _ framework.PostFilterPlugin = &Plugin{}
 var _ framework.ReservePlugin = &Plugin{}
@@ -77,13 +80,39 @@ func New(obj runtime.Object, handle framework.Handle) (framework.Plugin, error) 
 	podInfoCache := newPodInfoCache()
 	registerPodEventHandler(quotaCache, podInfoCache, handle.SharedInformerFactory())
 
-	return &Plugin{
+	pl := &Plugin{
 		internalPlugin:     internalPlugin.(*elasticquota.Plugin),
 		handle:             handle,
 		quotaCache:         quotaCache,
 		podInfoCache:       podInfoCache,
 		elasticQuotaLister: elasticQuotaInformer.Lister(),
-	}, nil
+	}
+	extendedHandle := handle.(frameworkext.ExtendedHandle)
+	extendedHandle.RegisterErrorHandlerFilters(nil, func(info *framework.QueuedPodInfo, err error) bool {
+		if info.Pod.Labels[LabelQuotaID] == "" {
+			return false
+		}
+		pi := pl.podInfoCache.getPendingPodInfo(info.Pod.UID)
+		if pi == nil {
+			return false
+		}
+		extendedHandle.Scheduler().GetSchedulingQueue().MoveAllToActiveOrBackoffQueue(framework.ClusterEvent{Resource: framework.WildCard, ActionType: framework.All}, func(pod *corev1.Pod) bool {
+			if pod.UID != info.Pod.UID {
+				return false
+			}
+			if pi.processedQuotas.Len() > 0 && pi.pendingQuotas.Len() > 0 && pi.processedQuotas.Equal(pi.pendingQuotas) {
+				klog.V(4).InfoS("Pod has retried multiple available Quotas, but scheduling still failed.", "pod", klog.KObj(pod), "processedQuotas", pi.processedQuotas.List())
+				pi.processedQuotas = sets.NewString()
+				pi.pendingQuotas = sets.NewString()
+				pi.frozenQuotas = sets.NewString()
+				return false
+			}
+			return true
+		})
+		return true
+	})
+
+	return pl, nil
 }
 
 func (pl *Plugin) Name() string {
@@ -92,6 +121,16 @@ func (pl *Plugin) Name() string {
 
 func (pl *Plugin) NewControllers() ([]frameworkext.Controller, error) {
 	return pl.internalPlugin.NewControllers()
+}
+
+func (pl *Plugin) EventsToRegister() []framework.ClusterEvent {
+	// To register a custom event, follow the naming convention at:
+	// https://git.k8s.io/kubernetes/pkg/scheduler/eventhandlers.go#L403-L410
+	eqGVK := fmt.Sprintf("elasticquotas.v1alpha1.%v", scheduling.GroupName)
+	return []framework.ClusterEvent{
+		{Resource: framework.Pod, ActionType: framework.Delete},
+		{Resource: framework.GVK(eqGVK), ActionType: framework.All},
+	}
 }
 
 func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod) (*framework.PreFilterResult, *framework.Status) {
@@ -130,6 +169,12 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 		}
 		availableQuotas = frozenQuotas
 		pi.frozenQuotas = sets.NewString()
+	}
+
+	if pi.pendingQuotas.Len() == 0 {
+		for _, v := range availableQuotas {
+			pi.pendingQuotas.Insert(v.name)
+		}
 	}
 
 	minSufficientQuotas, minInsufficientQuotas := filterReplicasSufficientQuotas(podRequests, availableQuotas, pi.selectedQuotaName, true, 100, true)
@@ -182,6 +227,7 @@ func (pl *Plugin) PostFilter(ctx context.Context, cycleState *framework.CycleSta
 	if !sd.skip {
 		pi := pl.podInfoCache.getPendingPodInfo(pod.UID)
 		if pi != nil {
+			pi.processedQuotas.Insert(pi.selectedQuotaName)
 			pi.frozenQuotas.Insert(pi.selectedQuotaName)
 			pi.selectedQuotaName = ""
 		}
@@ -206,6 +252,7 @@ func (pl *Plugin) Unreserve(ctx context.Context, cycleState *framework.CycleStat
 	if !sd.skip {
 		pi := pl.podInfoCache.getPendingPodInfo(pod.UID)
 		if pi != nil {
+			pi.processedQuotas.Insert(pi.selectedQuotaName)
 			pl.internalPlugin.UnreserveQuota(pod, pi.selectedQuotaName)
 			pl.quotaCache.forgetPod(pod, sd.podRequests)
 		}
