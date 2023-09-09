@@ -32,7 +32,6 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/controller/resourceflavor"
 	"github.com/koordinator-sh/koordinator/pkg/controller/unified/logicalresourcenode"
 	"github.com/koordinator-sh/koordinator/pkg/controller/unified/resourcesummary"
-	_ "github.com/koordinator-sh/koordinator/pkg/webhook/elasticquota/unified"
 	_ "github.com/koordinator-sh/koordinator/pkg/webhook/pod/validating/unified"
 )
 

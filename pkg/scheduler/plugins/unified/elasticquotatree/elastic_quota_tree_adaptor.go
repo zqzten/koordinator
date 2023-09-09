@@ -45,7 +45,6 @@ import (
 	"sigs.k8s.io/scheduler-plugins/pkg/generated/listers/scheduling/v1alpha1"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
-	"github.com/koordinator-sh/koordinator/apis/extension/ack"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 	"github.com/koordinator-sh/koordinator/pkg/util"
 )
@@ -380,5 +379,5 @@ func parseElasticQuotaSpec(quota *apiv1alpha1.ElasticQuota, spec v1beta1.Elastic
 		quota.Labels[extension.LabelQuotaIsParent] = "true"
 	}
 	quota.Labels[extension.LabelQuotaParent] = parent
-	quota.Annotations[ack.AnnotationQuotaNamespaces] = strings.Join(spec.Namespaces, ",")
+	quota.Annotations[extension.AnnotationQuotaNamespaces] = strings.Join(spec.Namespaces, ",")
 }
