@@ -28,14 +28,18 @@ type pendingPodInfo struct {
 	name              string
 	frozenQuotas      sets.String
 	selectedQuotaName string
+	pendingQuotas     sets.String
+	processedQuotas   sets.String
 }
 
 func newPendingPodInfo(pod *corev1.Pod) *pendingPodInfo {
 	pi := &pendingPodInfo{
-		uid:          pod.UID,
-		namespace:    pod.Namespace,
-		name:         pod.Name,
-		frozenQuotas: sets.NewString(),
+		uid:             pod.UID,
+		namespace:       pod.Namespace,
+		name:            pod.Name,
+		frozenQuotas:    sets.NewString(),
+		pendingQuotas:   sets.NewString(),
+		processedQuotas: sets.NewString(),
 	}
 	return pi
 }
