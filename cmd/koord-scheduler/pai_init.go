@@ -17,11 +17,6 @@ limitations under the License.
 package main
 
 import (
-	_ "github.com/koordinator-sh/koordinator/apis/extension/ack"
-	_ "github.com/koordinator-sh/koordinator/apis/extension/unified"
-	_ "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota/unified"
-	_ "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/volumebinding/metrics"
-
 	unifiednetworktopology "github.com/koordinator-sh/scheduler-plugins/pkg/plugins/networktopology"
 )
 

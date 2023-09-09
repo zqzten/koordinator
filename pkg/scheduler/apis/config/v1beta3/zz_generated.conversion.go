@@ -156,11 +156,6 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
-	if err := s.AddConversionFunc((*LoadAwareSchedulingArgs)(nil), (*config.LoadAwareSchedulingArgs)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1beta2_LoadAwareSchedulingArgs_To_config_LoadAwareSchedulingArgs(a.(*LoadAwareSchedulingArgs), b.(*config.LoadAwareSchedulingArgs), scope)
-	}); err != nil {
-		return err
-	}
 	if err := s.AddGeneratedConversionFunc((*UnifiedPodConstraintArgs)(nil), (*config.UnifiedPodConstraintArgs)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_v1beta2_UnifiedPodConstraintArgs_To_config_UnifiedPodConstraintArgs(a.(*UnifiedPodConstraintArgs), b.(*config.UnifiedPodConstraintArgs), scope)
 	}); err != nil {
@@ -168,6 +163,11 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}
 	if err := s.AddGeneratedConversionFunc((*config.UnifiedPodConstraintArgs)(nil), (*UnifiedPodConstraintArgs)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_config_UnifiedPodConstraintArgs_To_v1beta2_UnifiedPodConstraintArgs(a.(*config.UnifiedPodConstraintArgs), b.(*UnifiedPodConstraintArgs), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddConversionFunc((*LoadAwareSchedulingArgs)(nil), (*config.LoadAwareSchedulingArgs)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1beta2_LoadAwareSchedulingArgs_To_config_LoadAwareSchedulingArgs(a.(*LoadAwareSchedulingArgs), b.(*config.LoadAwareSchedulingArgs), scope)
 	}); err != nil {
 		return err
 	}
