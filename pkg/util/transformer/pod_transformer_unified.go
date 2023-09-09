@@ -83,7 +83,7 @@ func TransformNonProdPodResourceSpec(pod *corev1.Pod) {
 }
 
 func transformNonProdPodResourceSpec(podSpec *corev1.PodSpec) {
-	priorityClass := unified.GetPriorityClass(&corev1.Pod{Spec: *podSpec})
+	priorityClass := extension.GetPodPriorityClassRaw(&corev1.Pod{Spec: *podSpec})
 	if priorityClass == extension.PriorityNone || priorityClass == extension.PriorityProd {
 		return
 	}
