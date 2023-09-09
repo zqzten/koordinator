@@ -25,26 +25,7 @@ import (
 
 func init() {
 	extension.DefaultPriorityClass = extension.PriorityProd
-	extension.PriorityBatchValueMin = uniext.PriorityBatchValueMin
 	extension.PriorityBatchValueMax = uniext.PriorityBatchValueMax
-}
-
-func GetPriorityClass(pod *corev1.Pod) extension.PriorityClass {
-	if pod == nil {
-		return extension.PriorityNone
-	}
-	priorityClass := uniext.GetPriorityClass(pod)
-	switch priorityClass {
-	case uniext.PriorityProd:
-		return extension.PriorityProd
-	case uniext.PriorityMid:
-		return extension.PriorityMid
-	case uniext.PriorityBatch:
-		return extension.PriorityBatch
-	case uniext.PriorityFree:
-		return extension.PriorityFree
-	}
-	return extension.PriorityProd
 }
 
 func GetUnifiedPriorityClass(pod *corev1.Pod) uniext.PriorityClass {
