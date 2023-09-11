@@ -40,9 +40,9 @@ func TestPlugin_OnQuotaAdd2(t *testing.T) {
 	suit := newPluginTestSuit(t, nil)
 	p, _ := suit.proxyNew(suit.elasticQuotaArgs, suit.Handle)
 	pl := p.(*Plugin)
-	pl.GetGroupQuotaManager("").UpdateClusterTotalResource(createResourceList(501952056, 0))
-	gqm := pl.GetGroupQuotaManager("")
-	quota := CreateQuota2("1", "", 0, 0, 0, 0, 0, 0, false)
+	pl.GetGroupQuotaManagerForTree("").UpdateClusterTotalResource(createResourceList(501952056, 0))
+	gqm := pl.GetGroupQuotaManagerForTree("")
+	quota := CreateQuota2("1", "", 0, 0, 0, 0, 0, 0, false, "")
 	quota.Spec.Min = corev1.ResourceList{
 		corev1.ResourceCPU:                    *resource.NewMilliQuantity(100*1000, resource.DecimalSI),
 		corev1.ResourceMemory:                 *resource.NewQuantity(1000, resource.BinarySI),
@@ -99,7 +99,7 @@ func TestPlugin_OnQuotaAdd2(t *testing.T) {
 	}))
 
 	//update
-	quota = CreateQuota2("1", "", 0, 0, 0, 0, 0, 0, false)
+	quota = CreateQuota2("1", "", 0, 0, 0, 0, 0, 0, false, "")
 	quota.Spec.Min = corev1.ResourceList{
 		corev1.ResourceCPU:                    *resource.NewMilliQuantity(1000*1000, resource.DecimalSI),
 		corev1.ResourceMemory:                 *resource.NewQuantity(10000, resource.BinarySI),
@@ -197,7 +197,7 @@ func TestPlugin_OnNodeAdd2(t *testing.T) {
 				transformer.TransformNodeAllocatableToUnifiedCardRatio(node)
 				eQP.OnNodeAdd(node)
 			}
-			gqm := eQP.GetGroupQuotaManager("")
+			gqm := eQP.GetGroupQuotaManagerForTree("")
 			assert.NotNil(t, gqm)
 			assert.Equal(t, tt.totalRes, gqm.GetClusterTotalResource())
 		})
@@ -272,7 +272,7 @@ func TestPlugin_OnNodeUpdate2(t *testing.T) {
 				transformer.TransformNodeAllocatableToUnifiedCardRatio(node)
 				plugin.OnNodeUpdate(nodes[i], node)
 			}
-			assert.Equal(t, p.(*Plugin).GetGroupQuotaManager("").GetClusterTotalResource(), tt.totalRes)
+			assert.Equal(t, p.(*Plugin).GetGroupQuotaManagerForTree("").GetClusterTotalResource(), tt.totalRes)
 		})
 	}
 }
@@ -283,7 +283,7 @@ func TestPlugin_OnNodeDelete2(t *testing.T) {
 	assert.NotNil(t, p)
 	assert.Nil(t, err)
 	eQP := p.(*Plugin)
-	gqp := eQP.GetGroupQuotaManager("")
+	gqp := eQP.GetGroupQuotaManagerForTree("")
 	assert.NotNil(t, gqp)
 	nodes := []*corev1.Node{
 		{
