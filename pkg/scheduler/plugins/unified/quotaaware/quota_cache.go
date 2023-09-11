@@ -47,7 +47,7 @@ func (c *QuotaCache) getQuota(quotaName string) *QuotaObject {
 	if q == nil {
 		return nil
 	}
-	return q.Clone()
+	return q.clone()
 }
 
 func (c *QuotaCache) assumePod(pod *corev1.Pod, podRequests corev1.ResourceList) {

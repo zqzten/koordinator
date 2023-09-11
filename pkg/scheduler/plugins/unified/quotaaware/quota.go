@@ -31,9 +31,8 @@ type QuotaObject struct {
 	min      corev1.ResourceList
 	max      corev1.ResourceList
 	runtime  corev1.ResourceList
-
-	pods sets.String
-	used corev1.ResourceList
+	used     corev1.ResourceList
+	pods     sets.String
 }
 
 func newQuotaObject(quotaObj *schedv1alpha1.ElasticQuota) (*QuotaObject, error) {
@@ -52,7 +51,7 @@ func newQuotaObject(quotaObj *schedv1alpha1.ElasticQuota) (*QuotaObject, error) 
 	return q, nil
 }
 
-func (q *QuotaObject) Clone() *QuotaObject {
+func (q *QuotaObject) clone() *QuotaObject {
 	return &QuotaObject{
 		name:     q.name,
 		quotaObj: q.quotaObj,

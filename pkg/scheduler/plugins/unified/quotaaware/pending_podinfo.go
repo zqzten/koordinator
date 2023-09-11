@@ -26,10 +26,12 @@ type pendingPodInfo struct {
 	uid               types.UID
 	namespace         string
 	name              string
-	frozenQuotas      sets.String
 	selectedQuotaName string
+	frozenQuotas      sets.String
 	pendingQuotas     sets.String
 	processedQuotas   sets.String
+
+	lastProcessedQuotas sets.String
 }
 
 func newPendingPodInfo(pod *corev1.Pod) *pendingPodInfo {
@@ -42,4 +44,24 @@ func newPendingPodInfo(pod *corev1.Pod) *pendingPodInfo {
 		processedQuotas: sets.NewString(),
 	}
 	return pi
+}
+
+func (p *pendingPodInfo) clone() *pendingPodInfo {
+	return &pendingPodInfo{
+		uid:                 p.uid,
+		namespace:           p.namespace,
+		name:                p.name,
+		selectedQuotaName:   p.selectedQuotaName,
+		frozenQuotas:        sets.NewString(p.frozenQuotas.UnsortedList()...),
+		pendingQuotas:       sets.NewString(p.pendingQuotas.UnsortedList()...),
+		processedQuotas:     sets.NewString(p.processedQuotas.UnsortedList()...),
+		lastProcessedQuotas: sets.NewString(p.lastProcessedQuotas.UnsortedList()...),
+	}
+}
+
+func (p *pendingPodInfo) resetTrackState() {
+	p.lastProcessedQuotas = p.processedQuotas
+	p.frozenQuotas = sets.NewString()
+	p.pendingQuotas = sets.NewString()
+	p.processedQuotas = sets.NewString()
 }
