@@ -29,8 +29,6 @@ import (
 	apiresource "k8s.io/kubernetes/pkg/api/v1/resource"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"sigs.k8s.io/scheduler-plugins/pkg/apis/scheduling"
-	schedclientset "sigs.k8s.io/scheduler-plugins/pkg/generated/clientset/versioned"
-	schedinformers "sigs.k8s.io/scheduler-plugins/pkg/generated/informers/externalversions"
 	schedlisters "sigs.k8s.io/scheduler-plugins/pkg/generated/listers/scheduling/v1alpha1"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
@@ -65,18 +63,13 @@ func New(obj runtime.Object, handle framework.Handle) (framework.Plugin, error) 
 	if err != nil {
 		return nil, err
 	}
+	elasticQuotaPlugin := internalPlugin.(*elasticquota.Plugin)
+	elasticQuotaInformer := elasticQuotaPlugin.GetElasticQuotaInformer()
 
-	client, ok := handle.(schedclientset.Interface)
-	if !ok {
-		kubeConfig := *handle.KubeConfig()
-		kubeConfig.ContentType = runtime.ContentTypeJSON
-		kubeConfig.AcceptContentTypes = runtime.ContentTypeJSON
-		client = schedclientset.NewForConfigOrDie(&kubeConfig)
-	}
-	schedInformerFactory := schedinformers.NewSharedInformerFactory(client, 0)
-	elasticQuotaInformer := schedInformerFactory.Scheduling().V1alpha1().ElasticQuotas()
 	quotaCache := newQuotaCache()
-	registerElasticQuotaEventHandler(quotaCache, schedInformerFactory)
+	registerElasticQuotaEventHandler(quotaCache, elasticQuotaInformer)
+	elasticQuotaLister := schedlisters.NewElasticQuotaLister(elasticQuotaInformer.GetIndexer())
+
 	podInfoCache := newPodInfoCache()
 	registerPodEventHandler(quotaCache, podInfoCache, handle.SharedInformerFactory())
 
@@ -85,7 +78,7 @@ func New(obj runtime.Object, handle framework.Handle) (framework.Plugin, error) 
 		handle:             handle,
 		quotaCache:         quotaCache,
 		podInfoCache:       podInfoCache,
-		elasticQuotaLister: elasticQuotaInformer.Lister(),
+		elasticQuotaLister: elasticQuotaLister,
 	}
 	extendedHandle := handle.(frameworkext.ExtendedHandle)
 	extendedHandle.RegisterErrorHandlerFilters(nil, func(info *framework.QueuedPodInfo, err error) bool {
@@ -102,9 +95,7 @@ func New(obj runtime.Object, handle framework.Handle) (framework.Plugin, error) 
 			}
 			if pi.processedQuotas.Len() > 0 && pi.pendingQuotas.Len() > 0 && pi.processedQuotas.Equal(pi.pendingQuotas) {
 				klog.V(4).InfoS("Pod has retried multiple available Quotas, but scheduling still failed.", "pod", klog.KObj(pod), "processedQuotas", pi.processedQuotas.List())
-				pi.processedQuotas = sets.NewString()
-				pi.pendingQuotas = sets.NewString()
-				pi.frozenQuotas = sets.NewString()
+				pi.resetTrackState()
 				return false
 			}
 			return true

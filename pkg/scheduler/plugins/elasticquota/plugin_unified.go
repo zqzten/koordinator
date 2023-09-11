@@ -21,20 +21,31 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	quotav1 "k8s.io/apiserver/pkg/quota/v1"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 )
 
 func (g *Plugin) TryAdd(pod *corev1.Pod, quotaName string) {
-	g.groupQuotaManager.OnPodAdd(quotaName, pod)
+	mgr := g.GetGroupQuotaManagerForQuota(quotaName)
+	if mgr != nil {
+		mgr.OnPodAdd(quotaName, pod)
+	}
 }
 
 func (g *Plugin) Forget(pod *corev1.Pod, quotaName string) {
-	g.groupQuotaManager.OnPodDelete(quotaName, pod)
+	mgr := g.GetGroupQuotaManagerForQuota(quotaName)
+	if mgr != nil {
+		mgr.OnPodDelete(quotaName, pod)
+	}
 }
 
 func (g *Plugin) FitQuota(podRequests corev1.ResourceList, quotaName string) (bool, *framework.Status) {
-	g.groupQuotaManager.RefreshRuntime(quotaName)
-	quotaInfo := g.groupQuotaManager.GetQuotaInfoByName(quotaName)
+	mgr := g.GetGroupQuotaManagerForQuota(quotaName)
+	if mgr == nil {
+		return false, framework.NewStatus(framework.Unschedulable, fmt.Sprintf("cannot find GroupQuotaManager by quota %s", quotaName))
+	}
+	mgr.RefreshRuntime(quotaName)
+	quotaInfo := mgr.GetQuotaInfoByName(quotaName)
 	if quotaInfo == nil {
 		return false, framework.NewStatus(framework.Error, fmt.Sprintf("Could not find the specified ElasticQuota"))
 	}
@@ -63,9 +74,19 @@ func (g *Plugin) FitQuota(podRequests corev1.ResourceList, quotaName string) (bo
 }
 
 func (g *Plugin) ReserveQuota(pod *corev1.Pod, quotaName string) {
-	g.groupQuotaManager.ReservePod(quotaName, pod)
+	mgr := g.GetGroupQuotaManagerForQuota(quotaName)
+	if mgr != nil {
+		mgr.ReservePod(quotaName, pod)
+	}
 }
 
 func (g *Plugin) UnreserveQuota(pod *corev1.Pod, quotaName string) {
-	g.groupQuotaManager.UnreservePod(quotaName, pod)
+	mgr := g.GetGroupQuotaManagerForQuota(quotaName)
+	if mgr != nil {
+		mgr.UnreservePod(quotaName, pod)
+	}
+}
+
+func (g *Plugin) GetElasticQuotaInformer() cache.SharedIndexInformer {
+	return g.quotaInformer
 }
