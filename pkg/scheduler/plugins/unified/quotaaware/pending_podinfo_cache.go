@@ -40,6 +40,16 @@ func (m *podInfoCache) getPendingPodInfo(uid types.UID) *pendingPodInfo {
 	return m.podInfos[uid]
 }
 
+func (m *podInfoCache) getAndClonePendingPodInfo(uid types.UID) *pendingPodInfo {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	pi := m.podInfos[uid]
+	if pi == nil {
+		return nil
+	}
+	return pi.clone()
+}
+
 func (m *podInfoCache) updatePod(oldPod, newPod *corev1.Pod) {
 	if newPod.Spec.NodeName != "" {
 		m.deletePod(newPod)

@@ -22,7 +22,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 	schedv1alpha1 "sigs.k8s.io/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
-	schedinformers "sigs.k8s.io/scheduler-plugins/pkg/generated/informers/externalversions"
 
 	frameworkexthelper "github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/helper"
 )
@@ -31,12 +30,11 @@ type quotaEventHandler struct {
 	cache *QuotaCache
 }
 
-func registerElasticQuotaEventHandler(cache *QuotaCache, factory schedinformers.SharedInformerFactory) {
+func registerElasticQuotaEventHandler(cache *QuotaCache, elasticQuotaInformer cache.SharedIndexInformer) {
 	handler := &quotaEventHandler{
 		cache: cache,
 	}
-	elasticQuotaInformer := factory.Scheduling().V1alpha1().ElasticQuotas()
-	frameworkexthelper.ForceSyncFromInformer(context.Background().Done(), factory, elasticQuotaInformer.Informer(), handler)
+	frameworkexthelper.ForceSyncFromInformer(context.Background().Done(), nil, elasticQuotaInformer, handler)
 }
 
 func (h *quotaEventHandler) OnAdd(obj interface{}) {
