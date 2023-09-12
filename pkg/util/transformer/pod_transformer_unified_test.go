@@ -138,6 +138,57 @@ func TestTransformSigmaIgnoreResourceContainers(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "pod with ACS  __IGNORE_RESOURCE__",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Env: []corev1.EnvVar{
+								{
+									Name:  unified.EnvACSIgnoreResource,
+									Value: "true",
+								},
+							},
+							Resources: corev1.ResourceRequirements{
+								Limits:   resources.DeepCopy(),
+								Requests: resources.DeepCopy(),
+							},
+						},
+						{
+							Resources: corev1.ResourceRequirements{
+								Limits:   resources.DeepCopy(),
+								Requests: resources.DeepCopy(),
+							},
+						},
+					},
+				},
+			},
+			expectedPod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Env: []corev1.EnvVar{
+								{
+									Name:  unified.EnvACSIgnoreResource,
+									Value: "true",
+								},
+							},
+							Resources: corev1.ResourceRequirements{
+								Limits:   resources.DeepCopy(),
+								Requests: updatedResources.DeepCopy(),
+							},
+						},
+						{
+							Resources: corev1.ResourceRequirements{
+								Limits:   resources.DeepCopy(),
+								Requests: resources.DeepCopy(),
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
