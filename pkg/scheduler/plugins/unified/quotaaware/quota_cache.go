@@ -21,10 +21,10 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
-	"k8s.io/kubernetes/pkg/api/v1/resource"
 	schedv1alpha1 "sigs.k8s.io/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
+	elasticquotacore "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota/core"
 )
 
 type QuotaCache struct {
@@ -76,10 +76,10 @@ func (c *QuotaCache) updatePod(oldPod, newPod *corev1.Pod) {
 	var oldRequests corev1.ResourceList
 	var oldQuotaName string
 	if oldPod != nil {
-		oldRequests, _ = resource.PodRequestsAndLimits(oldPod)
+		oldRequests, _ = elasticquotacore.PodRequestsAndLimits(oldPod)
 		oldQuotaName = apiext.GetQuotaName(oldPod)
 	}
-	newRequests, _ := resource.PodRequestsAndLimits(newPod)
+	newRequests, _ := elasticquotacore.PodRequestsAndLimits(newPod)
 	quotaName := apiext.GetQuotaName(newPod)
 
 	c.lock.Lock()
@@ -96,7 +96,7 @@ func (c *QuotaCache) deletePod(pod *corev1.Pod) {
 		return
 	}
 	quotaName := apiext.GetQuotaName(pod)
-	requests, _ := resource.PodRequestsAndLimits(pod)
+	requests, _ := elasticquotacore.PodRequestsAndLimits(pod)
 
 	c.lock.Lock()
 	defer c.lock.Unlock()

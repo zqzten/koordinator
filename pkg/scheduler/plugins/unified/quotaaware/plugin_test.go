@@ -193,7 +193,7 @@ func Test_PreFilterWithMinFirst(t *testing.T) {
 					apiext.LabelQuotaParent:  "second-root-quota-a",
 					LabelQuotaID:             "666",
 					LabelUserAccountId:       "123",
-					LabelPodType:             "aaa",
+					LabelQuotaPodType:        "aaa",
 				},
 			},
 			Spec: schedv1alpha1.ElasticQuotaSpec{
@@ -216,7 +216,7 @@ func Test_PreFilterWithMinFirst(t *testing.T) {
 					apiext.LabelQuotaParent:  "second-root-quota-a",
 					LabelQuotaID:             "666",
 					LabelUserAccountId:       "123",
-					LabelPodType:             "aaa",
+					LabelQuotaPodType:        "aaa",
 				},
 			},
 			Spec: schedv1alpha1.ElasticQuotaSpec{
@@ -292,7 +292,7 @@ func Test_PreFilterWithMax(t *testing.T) {
 					apiext.LabelQuotaParent:  "second-root-quota-a",
 					LabelQuotaID:             "666",
 					LabelUserAccountId:       "123",
-					LabelPodType:             "aaa",
+					LabelQuotaPodType:        "aaa",
 				},
 			},
 			Spec: schedv1alpha1.ElasticQuotaSpec{
@@ -311,7 +311,7 @@ func Test_PreFilterWithMax(t *testing.T) {
 					apiext.LabelQuotaParent:  "second-root-quota-a",
 					LabelQuotaID:             "666",
 					LabelUserAccountId:       "123",
-					LabelPodType:             "aaa",
+					LabelQuotaPodType:        "aaa",
 				},
 			},
 			Spec: schedv1alpha1.ElasticQuotaSpec{
@@ -383,7 +383,7 @@ func Test_PreFilterWithMaxAndFrozen(t *testing.T) {
 					apiext.LabelQuotaParent:  "second-root-quota-a",
 					LabelQuotaID:             "666",
 					LabelUserAccountId:       "123",
-					LabelPodType:             "aaa",
+					LabelQuotaPodType:        "aaa",
 				},
 			},
 			Spec: schedv1alpha1.ElasticQuotaSpec{
@@ -402,7 +402,7 @@ func Test_PreFilterWithMaxAndFrozen(t *testing.T) {
 					apiext.LabelQuotaParent:  "second-root-quota-a",
 					LabelQuotaID:             "666",
 					LabelUserAccountId:       "123",
-					LabelPodType:             "aaa",
+					LabelQuotaPodType:        "aaa",
 				},
 			},
 			Spec: schedv1alpha1.ElasticQuotaSpec{
@@ -421,7 +421,7 @@ func Test_PreFilterWithMaxAndFrozen(t *testing.T) {
 					apiext.LabelQuotaParent:  "second-root-quota-a",
 					LabelQuotaID:             "666",
 					LabelUserAccountId:       "123",
-					LabelPodType:             "aaa",
+					LabelQuotaPodType:        "aaa",
 				},
 			},
 			Spec: schedv1alpha1.ElasticQuotaSpec{
@@ -484,7 +484,7 @@ func Test_PreFilterWithNoAvailableQuota(t *testing.T) {
 					apiext.LabelQuotaParent:  "second-root-quota-a",
 					LabelQuotaID:             "666",
 					LabelUserAccountId:       "123",
-					LabelPodType:             "aaa",
+					LabelQuotaPodType:        "aaa",
 				},
 			},
 			Spec: schedv1alpha1.ElasticQuotaSpec{
@@ -527,7 +527,7 @@ func Test_PreFilterWithNoAvailableNodes(t *testing.T) {
 					apiext.LabelQuotaParent:  "second-root-quota-a",
 					LabelQuotaID:             "666",
 					LabelUserAccountId:       "123",
-					LabelPodType:             "aaa",
+					LabelQuotaPodType:        "aaa",
 				},
 			},
 			Spec: schedv1alpha1.ElasticQuotaSpec{
