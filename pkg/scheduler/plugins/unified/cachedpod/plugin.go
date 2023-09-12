@@ -77,7 +77,7 @@ func New(obj runtime.Object, handle framework.Handle) (framework.Plugin, error) 
 		isLeader: &isLeader,
 		server:   allocatorServer,
 	}
-	extendHandle.RegisterErrorHandler(pl.ErrorHandler)
+	extendHandle.RegisterErrorHandlerFilters(pl.ErrorHandler, nil)
 	return pl, nil
 }
 
