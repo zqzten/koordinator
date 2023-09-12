@@ -97,7 +97,7 @@ func (p *nodeAffinity) matchElasticQuotas(elasticQuotaLister schedlisters.Elasti
 				Values:   []string{p.quotaID},
 			},
 			{
-				Key:      LabelPodType,
+				Key:      LabelQuotaPodType,
 				Operator: metav1.LabelSelectorOpIn,
 				Values:   []string{p.podType},
 			},

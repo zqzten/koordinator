@@ -18,7 +18,6 @@ package quotaaware
 
 import (
 	"context"
-	"fmt"
 	"sync/atomic"
 
 	corev1 "k8s.io/api/core/v1"
@@ -26,14 +25,13 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	quotav1 "k8s.io/apiserver/pkg/quota/v1"
 	"k8s.io/klog/v2"
-	apiresource "k8s.io/kubernetes/pkg/api/v1/resource"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
-	"sigs.k8s.io/scheduler-plugins/pkg/apis/scheduling"
 	schedlisters "sigs.k8s.io/scheduler-plugins/pkg/generated/listers/scheduling/v1alpha1"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota"
+	elasticquotacore "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota/core"
 )
 
 const (
@@ -47,7 +45,7 @@ var _ framework.ReservePlugin = &Plugin{}
 var _ framework.PreBindPlugin = &Plugin{}
 
 type Plugin struct {
-	internalPlugin     *elasticquota.Plugin
+	*elasticquota.Plugin
 	handle             framework.Handle
 	quotaCache         *QuotaCache
 	podInfoCache       *podInfoCache
@@ -74,7 +72,7 @@ func New(obj runtime.Object, handle framework.Handle) (framework.Plugin, error) 
 	registerPodEventHandler(quotaCache, podInfoCache, handle.SharedInformerFactory())
 
 	pl := &Plugin{
-		internalPlugin:     internalPlugin.(*elasticquota.Plugin),
+		Plugin:             elasticQuotaPlugin,
 		handle:             handle,
 		quotaCache:         quotaCache,
 		podInfoCache:       podInfoCache,
@@ -110,23 +108,9 @@ func (pl *Plugin) Name() string {
 	return Name
 }
 
-func (pl *Plugin) NewControllers() ([]frameworkext.Controller, error) {
-	return pl.internalPlugin.NewControllers()
-}
-
-func (pl *Plugin) EventsToRegister() []framework.ClusterEvent {
-	// To register a custom event, follow the naming convention at:
-	// https://git.k8s.io/kubernetes/pkg/scheduler/eventhandlers.go#L403-L410
-	eqGVK := fmt.Sprintf("elasticquotas.v1alpha1.%v", scheduling.GroupName)
-	return []framework.ClusterEvent{
-		{Resource: framework.Pod, ActionType: framework.Delete},
-		{Resource: framework.GVK(eqGVK), ActionType: framework.All},
-	}
-}
-
 func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod) (*framework.PreFilterResult, *framework.Status) {
 	if pod.Labels[LabelQuotaID] == "" {
-		return pl.internalPlugin.PreFilter(ctx, cycleState, pod)
+		return pl.Plugin.PreFilter(ctx, cycleState, pod)
 	}
 
 	pi := pl.podInfoCache.getPendingPodInfo(pod.UID)
@@ -139,7 +123,7 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, err.Error())
 	}
 
-	podRequests, _ := apiresource.PodRequestsAndLimits(pod)
+	podRequests, _ := elasticquotacore.PodRequestsAndLimits(pod)
 	if quotav1.IsZero(podRequests) {
 		return nil, nil
 	}
@@ -231,7 +215,7 @@ func (pl *Plugin) Reserve(ctx context.Context, cycleState *framework.CycleState,
 	if !sd.skip {
 		pi := pl.podInfoCache.getPendingPodInfo(pod.UID)
 		if pi != nil {
-			pl.internalPlugin.ReserveQuota(pod, pi.selectedQuotaName)
+			pl.Plugin.ReserveQuota(pod, pi.selectedQuotaName)
 			pl.quotaCache.assumePod(pod, sd.podRequests)
 		}
 	}
@@ -244,7 +228,7 @@ func (pl *Plugin) Unreserve(ctx context.Context, cycleState *framework.CycleStat
 		pi := pl.podInfoCache.getPendingPodInfo(pod.UID)
 		if pi != nil {
 			pi.processedQuotas.Insert(pi.selectedQuotaName)
-			pl.internalPlugin.UnreserveQuota(pod, pi.selectedQuotaName)
+			pl.Plugin.UnreserveQuota(pod, pi.selectedQuotaName)
 			pl.quotaCache.forgetPod(pod, sd.podRequests)
 		}
 	}
@@ -270,10 +254,10 @@ func (pl *Plugin) selectCandidateQuotaAndNodes(pod *corev1.Pod, podRequests core
 		candidateNodes sets.String
 	)
 	for _, quota := range quotas {
-		pl.internalPlugin.TryAdd(pod, quota.name)
-		_, status := pl.internalPlugin.FitQuota(podRequests, quota.name)
+		pl.Plugin.TryAdd(pod, quota.name)
+		_, status := pl.Plugin.FitQuota(podRequests, quota.name)
 		if !status.IsSuccess() {
-			pl.internalPlugin.Forget(pod, quota.name)
+			pl.Plugin.Forget(pod, quota.name)
 			if status.Code() == framework.Error {
 				klog.ErrorS(status.AsError(), "Failed to FitQuota", "pod", klog.KObj(pod), "quota", klog.KObj(quota.quotaObj))
 			} else {
@@ -284,7 +268,7 @@ func (pl *Plugin) selectCandidateQuotaAndNodes(pod *corev1.Pod, podRequests core
 
 		var err error
 		if candidateNodes, err = pl.filterNodeInfosByQuota(quota); err != nil {
-			pl.internalPlugin.Forget(pod, quota.name)
+			pl.Plugin.Forget(pod, quota.name)
 			klog.ErrorS(err, "Failed to filterNodeInfosByQuota", "pod", klog.KObj(pod), "quota", klog.KObj(quota.quotaObj))
 			continue
 		}
@@ -294,7 +278,7 @@ func (pl *Plugin) selectCandidateQuotaAndNodes(pod *corev1.Pod, podRequests core
 			candidateQuota = quota
 			break
 		}
-		pl.internalPlugin.Forget(pod, quota.name)
+		pl.Plugin.Forget(pod, quota.name)
 	}
 	return candidateQuota, candidateNodes
 }
