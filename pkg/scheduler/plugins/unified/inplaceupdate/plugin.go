@@ -65,7 +65,7 @@ func New(obj runtime.Object, handle framework.Handle) (framework.Plugin, error) 
 		return scheduler.GetSchedulingQueue().Add(pod)
 	}
 	p := &Plugin{handle: handle, addInQFn: addInQFn}
-	extendHandle.RegisterErrorHandler(p.ErrorHandler)
+	extendHandle.RegisterErrorHandlerFilters(p.ErrorHandler, nil)
 	return p, nil
 }
 
