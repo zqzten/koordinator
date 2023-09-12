@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/koordinator-sh/koordinator/apis/configuration"
+	"github.com/koordinator-sh/koordinator/apis/extension"
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	slov1alpha1 "github.com/koordinator-sh/koordinator/apis/slo/v1alpha1"
 	"github.com/koordinator-sh/koordinator/apis/thirdparty/unified"
@@ -324,6 +325,36 @@ func TestPluginExecute(t *testing.T) {
 			},
 		},
 	}
+	testNode3 := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+			Labels: map[string]string{
+				extunified.LabelCPUOverQuota:    "1.80",
+				extunified.LabelMemoryOverQuota: "1.35",
+			},
+		},
+		Status: corev1.NodeStatus{
+			Allocatable: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceCPU:    resource.MustParse("100"),
+				corev1.ResourceMemory: resource.MustParse("200Gi"),
+			},
+		},
+	}
+	testNode4 := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+			Labels: map[string]string{
+				extunified.LabelCPUOverQuota:    "1.20",
+				extunified.LabelMemoryOverQuota: "1.0",
+			},
+		},
+		Status: corev1.NodeStatus{
+			Allocatable: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceCPU:    resource.MustParse("100"),
+				corev1.ResourceMemory: resource.MustParse("200Gi"),
+			},
+		},
+	}
 	type args struct {
 		strategy *configuration.ColocationStrategy
 		node     *corev1.Node
@@ -470,30 +501,84 @@ func TestPluginExecute(t *testing.T) {
 			wantErr:   false,
 			wantField: testNode2,
 		},
+		{
+			name: "prepare node labels correctly with cpu normalization ratio",
+			args: args{
+				strategy: &configuration.ColocationStrategy{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
+						Extensions: map[string]interface{}{
+							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
+								ProdOvercommitPolicy: getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyAuto),
+							},
+						},
+					},
+				},
+				node: testNode,
+				nr: &framework.NodeResource{
+					Labels: map[string]string{
+						extunified.LabelCPUOverQuota:    "1.5",
+						extunified.LabelMemoryOverQuota: "1.35",
+					},
+					Annotations: map[string]string{
+						extension.AnnotationCPUNormalizationRatio: "1.20",
+					},
+				},
+			},
+			wantErr:   false,
+			wantField: testNode3,
+		},
+		{
+			name: "prepare node labels when only has cpu normalization overcommitment",
+			args: args{
+				strategy: &configuration.ColocationStrategy{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
+						Extensions: map[string]interface{}{
+							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
+								ProdOvercommitPolicy: getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyAuto),
+							},
+						},
+					},
+				},
+				node: testNode,
+				nr: &framework.NodeResource{
+					Labels: map[string]string{
+						extunified.LabelCPUOverQuota:    "1.0",
+						extunified.LabelMemoryOverQuota: "1.0",
+					},
+					Annotations: map[string]string{
+						extension.AnnotationCPUNormalizationRatio: "1.20",
+					},
+				},
+			},
+			wantErr:   false,
+			wantField: testNode4,
+		},
 	}
 	oldClient := Client
 	defer func() {
 		Client = oldClient
 	}()
 	for _, tt := range tests {
-		p := &Plugin{}
-		Client = &fakeCtrlClient{
-			cachedObj: &unified.Machine{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "machine-" + tt.args.node.Name,
-				},
-				Spec: unified.MachineSpec{
-					LabelSpec: unified.LabelSpec{
-						Labels: map[string]string{
-							//extunified.LabelCPUOverQuota: "1.5",
+		t.Run(tt.name, func(t *testing.T) {
+			p := &Plugin{}
+			Client = &fakeCtrlClient{
+				cachedObj: &unified.Machine{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "machine-" + tt.args.node.Name,
+					},
+					Spec: unified.MachineSpec{
+						LabelSpec: unified.LabelSpec{
+							Labels: map[string]string{
+								//extunified.LabelCPUOverQuota: "1.5",
+							},
 						},
 					},
 				},
-			},
-		}
-		gotErr := p.Execute(tt.args.strategy, tt.args.node, tt.args.nr)
-		assert.Equal(t, tt.wantErr, gotErr != nil)
-		assert.Equal(t, tt.wantField, tt.args.node)
+			}
+			gotErr := p.Execute(tt.args.strategy, tt.args.node, tt.args.nr)
+			assert.Equal(t, tt.wantErr, gotErr != nil)
+			assert.Equal(t, tt.wantField, tt.args.node)
+		})
 	}
 }
 
