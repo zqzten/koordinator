@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/koordinator-sh/koordinator/apis/configuration"
+	"github.com/koordinator-sh/koordinator/apis/extension"
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	slov1alpha1 "github.com/koordinator-sh/koordinator/apis/slo/v1alpha1"
 	"github.com/koordinator-sh/koordinator/apis/thirdparty/unified"
@@ -129,7 +130,10 @@ func (p *Plugin) Prepare(strategy *configuration.ColocationStrategy, node *corev
 		klog.V(5).Infof("prod overcommit policy of node %s is %s, skip updating", node.Name, policy)
 		return nil
 	case extunified.ProdOvercommitPolicyDryRun:
-		cpuRatio, memRatio := getOverQuotaFromNodeResource(nr)
+		cpuRatio, memRatio, err := getFinalOverQuotaFromNodeResource(nr)
+		if err != nil {
+			klog.V(4).Infof("get final prod over-quota ratio for node %s err: %s", node.Name, err)
+		}
 		// record metrics and logs
 		metrics.RecordNodeProdResourceEstimatedOvercommitRatio(node, string(corev1.ResourceCPU), strToFloat64(cpuRatio))
 		metrics.RecordNodeProdResourceEstimatedOvercommitRatio(node, string(corev1.ResourceMemory), strToFloat64(memRatio))
@@ -138,11 +142,14 @@ func (p *Plugin) Prepare(strategy *configuration.ColocationStrategy, node *corev
 		return nil
 	case extunified.ProdOvercommitPolicyStatic, extunified.ProdOvercommitPolicyAuto:
 		// record metrics and logs before updating node
-		cpuRatio, memRatio := getOverQuotaFromNodeResource(nr)
+		cpuRatio, memRatio, err := getFinalOverQuotaFromNodeResource(nr)
+		if err != nil {
+			klog.V(5).Infof("get final prod over-quota ratio for node %s err: %s", node.Name, err)
+		}
 		metrics.RecordNodeProdResourceEstimatedOvercommitRatio(node, string(corev1.ResourceCPU), strToFloat64(cpuRatio))
 		metrics.RecordNodeProdResourceEstimatedOvercommitRatio(node, string(corev1.ResourceMemory), strToFloat64(memRatio))
 
-		if err = prepareNodeOverQuota(node, nr); err != nil {
+		if err = prepareNodeOverQuota(node, cpuRatio, memRatio); err != nil {
 			klog.V(4).Infof("failed to prepare prod overcommit resource for node %s, policy %s, err: %s",
 				node.Name, policy, err)
 			return err
@@ -408,6 +415,15 @@ func getAllocatableWithOverQuota(node *corev1.Node) corev1.ResourceList {
 	return allocatable
 }
 
+func getFinalOverQuotaFromNodeResource(nr *framework.NodeResource) (cpuRatio, memRatio string, err error) {
+	cpuRatio, memRatio = getOverQuotaFromNodeResource(nr)
+	cpuRatioNormalized, err := mutateCPUOverQuotaByCPUNormalization(cpuRatio, nr)
+	if err != nil {
+		return cpuRatio, memRatio, fmt.Errorf("mutate cpu overquota by cpunormalization failed, err: %w", err)
+	}
+	return cpuRatioNormalized, memRatio, nil
+}
+
 func getOverQuotaFromNodeResource(nr *framework.NodeResource) (cpuRatio, memRatio string) {
 	if nr == nil || nr.Labels == nil {
 		return "", ""
@@ -423,26 +439,43 @@ func strToFloat64(s string) float64 {
 	return v
 }
 
-func prepareNodeOverQuota(node *corev1.Node, nr *framework.NodeResource) error {
-	if node.Labels == nil {
-		node.Labels = map[string]string{}
-	}
-	if nr.Labels == nil {
-		return nil
-	}
-
-	for _, k := range Labels {
-		s := nr.Labels[k]
-		if len(s) <= 0 {
-			continue
+func prepareNodeOverQuota(node *corev1.Node, cpuOverQuota, memOverQuota string) error {
+	if len(cpuOverQuota) > 0 {
+		if err := isValidOverQuotaRatio(cpuOverQuota); err != nil {
+			return fmt.Errorf("%s is not valid %s, err: %v", cpuOverQuota, extunified.LabelCPUOverQuota, err)
 		}
-		if err := isValidOverQuotaRatio(s); err != nil {
-			return fmt.Errorf("%s is not valid %s, err: %v", s, k, err)
+		node.Labels[extunified.LabelCPUOverQuota] = cpuOverQuota
+	}
+	if len(memOverQuota) > 0 {
+		if err := isValidOverQuotaRatio(memOverQuota); err != nil {
+			return fmt.Errorf("%s is not valid %s, err: %v", memOverQuota, extunified.LabelMemoryOverQuota, err)
 		}
-		node.Labels[k] = s
+		node.Labels[extunified.LabelMemoryOverQuota] = memOverQuota
 	}
 
 	return nil
+}
+
+func mutateCPUOverQuotaByCPUNormalization(cpuOverQuota string, nr *framework.NodeResource) (string, error) {
+	overQuotaRatio := strToFloat64(cpuOverQuota)
+	if overQuotaRatio <= 0 {
+		return cpuOverQuota, fmt.Errorf("invalid cpu over quota %s", cpuOverQuota)
+	}
+
+	cpuNormalizationRatioStr, ok := nr.Annotations[extension.AnnotationCPUNormalizationRatio]
+	if !ok { // no cpu normalization
+		return cpuOverQuota, nil
+	}
+	cpuNormalizationRatio, err := strconv.ParseFloat(cpuNormalizationRatioStr, 64)
+	if err != nil {
+		return cpuOverQuota, fmt.Errorf("failed to parse ratio in NodeResource, err: %w", err)
+	}
+
+	if cpuNormalizationRatio > 1.0 {
+		return strconv.FormatFloat(overQuotaRatio*cpuNormalizationRatio, 'f', 2, 32), nil
+	}
+
+	return cpuOverQuota, nil
 }
 
 func isValidOvercommitPercent(cur, minimal, maximal *int64) bool {
