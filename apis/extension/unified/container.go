@@ -22,11 +22,12 @@ import (
 
 const (
 	EnvSigmaIgnoreResource = "SIGMA_IGNORE_RESOURCE"
+	EnvACSIgnoreResource   = "__IGNORE_RESOURCE__"
 )
 
 func IsContainerIgnoreResource(c *corev1.Container) bool {
-	for _, entry := range c.Env {
-		if entry.Name == EnvSigmaIgnoreResource && entry.Value == "true" {
+	for _, envVar := range c.Env {
+		if (envVar.Name == EnvSigmaIgnoreResource || envVar.Name == EnvACSIgnoreResource) && envVar.Value == "true" {
 			return true
 		}
 	}
