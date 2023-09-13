@@ -216,8 +216,9 @@ func (pl *Plugin) Reserve(ctx context.Context, cycleState *framework.CycleState,
 			pl.Plugin.ReserveQuota(pod, pi.selectedQuotaName)
 			pl.quotaCache.assumePod(pod, pi.selectedQuotaName, sd.podRequests)
 		}
+		return nil
 	}
-	return nil
+	return pl.Plugin.Reserve(ctx, cycleState, pod, nodeName)
 }
 
 func (pl *Plugin) Unreserve(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeName string) {
@@ -229,7 +230,9 @@ func (pl *Plugin) Unreserve(ctx context.Context, cycleState *framework.CycleStat
 			pl.Plugin.UnreserveQuota(pod, pi.selectedQuotaName)
 			pl.quotaCache.forgetPod(pod, pi.selectedQuotaName, sd.podRequests)
 		}
+		return
 	}
+	pl.Plugin.Unreserve(ctx, cycleState, pod, nodeName)
 }
 
 func (pl *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
