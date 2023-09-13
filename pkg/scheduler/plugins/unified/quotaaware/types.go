@@ -20,6 +20,5 @@ const (
 	QuotaManagerLabelPrefix = "qm.alibabacloud.com/"
 	LabelUserAccountId      = QuotaManagerLabelPrefix + "user-account-id"
 	LabelQuotaID            = QuotaManagerLabelPrefix + "resource-quota-id"
-	LabelQuotaPodType       = QuotaManagerLabelPrefix + "pod-type"
-	LabelPodType            = "alibabacloud.com/pod-type"
+	LabelInstanceType       = "alibabacloud.com/instance-type"
 )

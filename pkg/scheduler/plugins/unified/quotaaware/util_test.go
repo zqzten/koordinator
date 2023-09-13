@@ -54,17 +54,17 @@ func Test_newNodeAffinity(t *testing.T) {
 		},
 		{
 			name:    "missing acs pod type",
-			pod:     st.MakePod().Label(LabelUserAccountId, "123456").Label(LabelPodType, "666").Obj(),
+			pod:     st.MakePod().Label(LabelUserAccountId, "123456").Label(LabelInstanceType, "666").Obj(),
 			want:    nil,
 			wantErr: true,
 		},
 		{
 			name: "target pod",
-			pod:  st.MakePod().Label(LabelUserAccountId, "123456").Label(LabelQuotaID, "666").Label(LabelPodType, "aaa").Obj(),
+			pod:  st.MakePod().Label(LabelUserAccountId, "123456").Label(LabelQuotaID, "666").Label(LabelInstanceType, "aaa").Obj(),
 			want: &nodeAffinity{
 				userID:         "123456",
 				quotaID:        "666",
-				podType:        "aaa",
+				instanceType:   "aaa",
 				affinityZones:  sets.NewString(),
 				affinityArches: sets.NewString("amd64"),
 			},
@@ -72,12 +72,12 @@ func Test_newNodeAffinity(t *testing.T) {
 		},
 		{
 			name: "target pod with az selector",
-			pod: st.MakePod().Label(LabelUserAccountId, "123456").Label(LabelQuotaID, "666").Label(LabelPodType, "aaa").
+			pod: st.MakePod().Label(LabelUserAccountId, "123456").Label(LabelQuotaID, "666").Label(LabelInstanceType, "aaa").
 				NodeSelector(map[string]string{corev1.LabelTopologyZone: "az-1"}).Obj(),
 			want: &nodeAffinity{
 				userID:         "123456",
 				quotaID:        "666",
-				podType:        "aaa",
+				instanceType:   "aaa",
 				affinityZones:  sets.NewString("az-1"),
 				affinityArches: sets.NewString("amd64"),
 			},
@@ -85,12 +85,12 @@ func Test_newNodeAffinity(t *testing.T) {
 		},
 		{
 			name: "target pod with az affinity",
-			pod: st.MakePod().Label(LabelUserAccountId, "123456").Label(LabelQuotaID, "666").Label(LabelPodType, "aaa").
+			pod: st.MakePod().Label(LabelUserAccountId, "123456").Label(LabelQuotaID, "666").Label(LabelInstanceType, "aaa").
 				NodeAffinityIn(corev1.LabelTopologyZone, []string{"az-1", "az-2"}).Obj(),
 			want: &nodeAffinity{
 				userID:         "123456",
 				quotaID:        "666",
-				podType:        "aaa",
+				instanceType:   "aaa",
 				affinityZones:  sets.NewString("az-1", "az-2"),
 				affinityArches: sets.NewString("amd64"),
 			},
@@ -98,12 +98,12 @@ func Test_newNodeAffinity(t *testing.T) {
 		},
 		{
 			name: "target pod with arch affinity",
-			pod: st.MakePod().Label(LabelUserAccountId, "123456").Label(LabelQuotaID, "666").Label(LabelPodType, "aaa").
+			pod: st.MakePod().Label(LabelUserAccountId, "123456").Label(LabelQuotaID, "666").Label(LabelInstanceType, "aaa").
 				NodeAffinityIn(corev1.LabelArchStable, []string{"arm64"}).Obj(),
 			want: &nodeAffinity{
 				userID:         "123456",
 				quotaID:        "666",
-				podType:        "aaa",
+				instanceType:   "aaa",
 				affinityZones:  sets.NewString(),
 				affinityArches: sets.NewString("arm64"),
 			},
@@ -126,7 +126,7 @@ func Test_nodAffinity_matchElasticQuotas(t *testing.T) {
 	affinity := &nodeAffinity{
 		userID:         "123",
 		quotaID:        "666",
-		podType:        "aaa",
+		instanceType:   "aaa",
 		affinityZones:  sets.NewString("az-1"),
 		affinityArches: sets.NewString("amd64"),
 	}
@@ -191,7 +191,7 @@ func Test_nodAffinity_matchElasticQuotas(t *testing.T) {
 							apiext.LabelQuotaParent:   "root-quota-a",
 							LabelQuotaID:              "666",
 							LabelUserAccountId:        "123",
-							LabelQuotaPodType:         "aaa",
+							LabelInstanceType:         "aaa",
 						},
 					},
 				},
@@ -213,7 +213,7 @@ func Test_nodAffinity_matchElasticQuotas(t *testing.T) {
 							apiext.LabelQuotaParent:   "root-quota-a",
 							LabelQuotaID:              "666",
 							LabelUserAccountId:        "123",
-							LabelQuotaPodType:         "aaa",
+							LabelInstanceType:         "aaa",
 						},
 					},
 				},
@@ -226,7 +226,7 @@ func Test_nodAffinity_matchElasticQuotas(t *testing.T) {
 							apiext.LabelQuotaParent:  "second-root-quota-a",
 							LabelQuotaID:             "666",
 							LabelUserAccountId:       "123",
-							LabelQuotaPodType:        "aaa",
+							LabelInstanceType:        "aaa",
 						},
 					},
 				},
@@ -242,7 +242,7 @@ func Test_nodAffinity_matchElasticQuotas(t *testing.T) {
 							apiext.LabelQuotaParent:  "second-root-quota-a",
 							LabelQuotaID:             "666",
 							LabelUserAccountId:       "123",
-							LabelQuotaPodType:        "aaa",
+							LabelInstanceType:        "aaa",
 						},
 					},
 				},
