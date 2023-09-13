@@ -39,7 +39,7 @@ import (
 type nodeAffinity struct {
 	userID         string
 	quotaID        string
-	podType        string
+	instanceType   string
 	affinityZones  sets.String
 	affinityArches sets.String
 }
@@ -53,8 +53,8 @@ func newNodeAffinity(pod *corev1.Pod) (*nodeAffinity, error) {
 	if quotaID == "" {
 		return nil, fmt.Errorf("missing quota id")
 	}
-	podType := pod.Labels[LabelPodType]
-	if podType == "" {
+	instanceType := pod.Labels[LabelInstanceType]
+	if instanceType == "" {
 		return nil, fmt.Errorf("missing pod type")
 	}
 
@@ -77,7 +77,7 @@ func newNodeAffinity(pod *corev1.Pod) (*nodeAffinity, error) {
 	return &nodeAffinity{
 		userID:         userID,
 		quotaID:        quotaID,
-		podType:        podType,
+		instanceType:   instanceType,
 		affinityZones:  affinityZones,
 		affinityArches: affinityArches,
 	}, nil
@@ -97,9 +97,9 @@ func (p *nodeAffinity) matchElasticQuotas(elasticQuotaLister schedlisters.Elasti
 				Values:   []string{p.quotaID},
 			},
 			{
-				Key:      LabelQuotaPodType,
+				Key:      LabelInstanceType,
 				Operator: metav1.LabelSelectorOpIn,
-				Values:   []string{p.podType},
+				Values:   []string{p.instanceType},
 			},
 			{
 				Key:      corev1.LabelArchStable,

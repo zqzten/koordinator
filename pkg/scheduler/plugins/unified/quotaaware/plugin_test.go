@@ -194,7 +194,7 @@ func Test_PreFilterWithMinFirst(t *testing.T) {
 					apiext.LabelQuotaParent:  "second-root-quota-a",
 					LabelQuotaID:             "666",
 					LabelUserAccountId:       "123",
-					LabelQuotaPodType:        "aaa",
+					LabelInstanceType:        "aaa",
 				},
 			},
 			Spec: schedv1alpha1.ElasticQuotaSpec{
@@ -217,7 +217,7 @@ func Test_PreFilterWithMinFirst(t *testing.T) {
 					apiext.LabelQuotaParent:  "second-root-quota-a",
 					LabelQuotaID:             "666",
 					LabelUserAccountId:       "123",
-					LabelQuotaPodType:        "aaa",
+					LabelInstanceType:        "aaa",
 				},
 			},
 			Spec: schedv1alpha1.ElasticQuotaSpec{
@@ -241,7 +241,7 @@ func Test_PreFilterWithMinFirst(t *testing.T) {
 	assert.NotNil(t, p)
 	pl := p.(*Plugin)
 	cycleState := framework.NewCycleState()
-	pod := st.MakePod().Name("test").Label(LabelQuotaID, "666").Label(LabelUserAccountId, "123").Label(LabelPodType, "aaa").
+	pod := st.MakePod().Name("test").Label(LabelQuotaID, "666").Label(LabelUserAccountId, "123").Label(LabelInstanceType, "aaa").
 		Req(map[corev1.ResourceName]string{corev1.ResourceCPU: "4", corev1.ResourceMemory: "8Gi"}).
 		NodeSelector(map[string]string{corev1.LabelArchStable: "amd64", corev1.LabelTopologyZone: "az-1"}).
 		Obj()
@@ -293,7 +293,7 @@ func Test_PreFilterWithMax(t *testing.T) {
 					apiext.LabelQuotaParent:  "second-root-quota-a",
 					LabelQuotaID:             "666",
 					LabelUserAccountId:       "123",
-					LabelQuotaPodType:        "aaa",
+					LabelInstanceType:        "aaa",
 				},
 			},
 			Spec: schedv1alpha1.ElasticQuotaSpec{
@@ -312,7 +312,7 @@ func Test_PreFilterWithMax(t *testing.T) {
 					apiext.LabelQuotaParent:  "second-root-quota-a",
 					LabelQuotaID:             "666",
 					LabelUserAccountId:       "123",
-					LabelQuotaPodType:        "aaa",
+					LabelInstanceType:        "aaa",
 				},
 			},
 			Spec: schedv1alpha1.ElasticQuotaSpec{
@@ -332,7 +332,7 @@ func Test_PreFilterWithMax(t *testing.T) {
 	assert.NotNil(t, p)
 	pl := p.(*Plugin)
 	cycleState := framework.NewCycleState()
-	pod := st.MakePod().Name("test").Label(LabelQuotaID, "666").Label(LabelUserAccountId, "123").Label(LabelPodType, "aaa").
+	pod := st.MakePod().Name("test").Label(LabelQuotaID, "666").Label(LabelUserAccountId, "123").Label(LabelInstanceType, "aaa").
 		Req(map[corev1.ResourceName]string{corev1.ResourceCPU: "4", corev1.ResourceMemory: "8Gi"}).
 		NodeSelector(map[string]string{corev1.LabelArchStable: "amd64", corev1.LabelTopologyZone: "az-1"}).
 		Obj()
@@ -384,7 +384,7 @@ func Test_PreFilterWithMaxAndFrozen(t *testing.T) {
 					apiext.LabelQuotaParent:  "second-root-quota-a",
 					LabelQuotaID:             "666",
 					LabelUserAccountId:       "123",
-					LabelQuotaPodType:        "aaa",
+					LabelInstanceType:        "aaa",
 				},
 			},
 			Spec: schedv1alpha1.ElasticQuotaSpec{
@@ -403,7 +403,7 @@ func Test_PreFilterWithMaxAndFrozen(t *testing.T) {
 					apiext.LabelQuotaParent:  "second-root-quota-a",
 					LabelQuotaID:             "666",
 					LabelUserAccountId:       "123",
-					LabelQuotaPodType:        "aaa",
+					LabelInstanceType:        "aaa",
 				},
 			},
 			Spec: schedv1alpha1.ElasticQuotaSpec{
@@ -422,7 +422,7 @@ func Test_PreFilterWithMaxAndFrozen(t *testing.T) {
 					apiext.LabelQuotaParent:  "second-root-quota-a",
 					LabelQuotaID:             "666",
 					LabelUserAccountId:       "123",
-					LabelQuotaPodType:        "aaa",
+					LabelInstanceType:        "aaa",
 				},
 			},
 			Spec: schedv1alpha1.ElasticQuotaSpec{
@@ -442,7 +442,7 @@ func Test_PreFilterWithMaxAndFrozen(t *testing.T) {
 	assert.NotNil(t, p)
 	pl := p.(*Plugin)
 	cycleState := framework.NewCycleState()
-	pod := st.MakePod().Name("test").Label(LabelQuotaID, "666").Label(LabelUserAccountId, "123").Label(LabelPodType, "aaa").
+	pod := st.MakePod().Name("test").Label(LabelQuotaID, "666").Label(LabelUserAccountId, "123").Label(LabelInstanceType, "aaa").
 		Req(map[corev1.ResourceName]string{corev1.ResourceCPU: "4", corev1.ResourceMemory: "8Gi"}).
 		NodeSelector(map[string]string{corev1.LabelArchStable: "amd64", corev1.LabelTopologyZone: "az-1"}).
 		Obj()
@@ -462,7 +462,7 @@ func Test_PreFilterWithNoQuotas(t *testing.T) {
 	assert.NotNil(t, p)
 	pl := p.(*Plugin)
 	cycleState := framework.NewCycleState()
-	pod := st.MakePod().Name("test").Label(LabelQuotaID, "666").Label(LabelUserAccountId, "123").Label(LabelPodType, "aaa").
+	pod := st.MakePod().Name("test").Label(LabelQuotaID, "666").Label(LabelUserAccountId, "123").Label(LabelInstanceType, "aaa").
 		Req(map[corev1.ResourceName]string{corev1.ResourceCPU: "4", corev1.ResourceMemory: "8Gi"}).
 		NodeSelector(map[string]string{corev1.LabelArchStable: "amd64", corev1.LabelTopologyZone: "az-1"}).
 		Obj()
@@ -485,7 +485,7 @@ func Test_PreFilterWithNoAvailableQuota(t *testing.T) {
 					apiext.LabelQuotaParent:  "second-root-quota-a",
 					LabelQuotaID:             "666",
 					LabelUserAccountId:       "123",
-					LabelQuotaPodType:        "aaa",
+					LabelInstanceType:        "aaa",
 				},
 			},
 			Spec: schedv1alpha1.ElasticQuotaSpec{
@@ -505,7 +505,7 @@ func Test_PreFilterWithNoAvailableQuota(t *testing.T) {
 	assert.NotNil(t, p)
 	pl := p.(*Plugin)
 	cycleState := framework.NewCycleState()
-	pod := st.MakePod().Name("test").Label(LabelQuotaID, "666").Label(LabelUserAccountId, "123").Label(LabelPodType, "aaa").
+	pod := st.MakePod().Name("test").Label(LabelQuotaID, "666").Label(LabelUserAccountId, "123").Label(LabelInstanceType, "aaa").
 		Req(map[corev1.ResourceName]string{corev1.ResourceCPU: "4", corev1.ResourceMemory: "8Gi"}).
 		NodeSelector(map[string]string{corev1.LabelArchStable: "amd64", corev1.LabelTopologyZone: "az-1"}).
 		Obj()
@@ -528,7 +528,7 @@ func Test_PreFilterWithNoAvailableNodes(t *testing.T) {
 					apiext.LabelQuotaParent:  "second-root-quota-a",
 					LabelQuotaID:             "666",
 					LabelUserAccountId:       "123",
-					LabelQuotaPodType:        "aaa",
+					LabelInstanceType:        "aaa",
 				},
 			},
 			Spec: schedv1alpha1.ElasticQuotaSpec{
@@ -548,7 +548,7 @@ func Test_PreFilterWithNoAvailableNodes(t *testing.T) {
 	assert.NotNil(t, p)
 	pl := p.(*Plugin)
 	cycleState := framework.NewCycleState()
-	pod := st.MakePod().Name("test").Label(LabelQuotaID, "666").Label(LabelUserAccountId, "123").Label(LabelPodType, "aaa").
+	pod := st.MakePod().Name("test").Label(LabelQuotaID, "666").Label(LabelUserAccountId, "123").Label(LabelInstanceType, "aaa").
 		Req(map[corev1.ResourceName]string{corev1.ResourceCPU: "4", corev1.ResourceMemory: "8Gi"}).
 		NodeSelector(map[string]string{corev1.LabelArchStable: "amd64", corev1.LabelTopologyZone: "az-1"}).
 		Obj()
@@ -568,7 +568,7 @@ func TestReserveAndUnreserve(t *testing.T) {
 				apiext.LabelQuotaParent:  "second-root-quota-a",
 				LabelQuotaID:             "666",
 				LabelUserAccountId:       "123",
-				LabelQuotaPodType:        "aaa",
+				LabelInstanceType:        "aaa",
 			},
 		},
 		Spec: schedv1alpha1.ElasticQuotaSpec{
