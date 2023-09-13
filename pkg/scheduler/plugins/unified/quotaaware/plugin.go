@@ -118,7 +118,7 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "waiting sync state")
 	}
 
-	podAffinity, err := newNodeAffinity(pod)
+	podNodeAffinity, err := newNodeAffinity(pod)
 	if err != nil {
 		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, err.Error())
 	}
@@ -128,7 +128,7 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 		return nil, nil
 	}
 
-	elasticQuotas, err := podAffinity.matchElasticQuotas(pl.elasticQuotaLister)
+	elasticQuotas, err := podNodeAffinity.matchElasticQuotas(pl.elasticQuotaLister)
 	if err != nil {
 		klog.ErrorS(err, "Failed to findMatchedElasticQuota", "pod", klog.KObj(pod))
 		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "No matching Quota objects")
@@ -165,7 +165,6 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 	pi.selectedQuotaName = candidateQuota.quotaObj.Name
 
 	cycleState.Write(Name, &stateData{
-		quotaName:   candidateQuota.quotaObj.Name,
 		podRequests: podRequests,
 	})
 
@@ -178,7 +177,6 @@ func (pl *Plugin) PreFilterExtensions() framework.PreFilterExtensions {
 
 type stateData struct {
 	skip        bool
-	quotaName   string
 	podRequests corev1.ResourceList
 }
 
@@ -216,7 +214,7 @@ func (pl *Plugin) Reserve(ctx context.Context, cycleState *framework.CycleState,
 		pi := pl.podInfoCache.getPendingPodInfo(pod.UID)
 		if pi != nil {
 			pl.Plugin.ReserveQuota(pod, pi.selectedQuotaName)
-			pl.quotaCache.assumePod(pod, sd.podRequests)
+			pl.quotaCache.assumePod(pod, pi.selectedQuotaName, sd.podRequests)
 		}
 	}
 	return nil
@@ -229,7 +227,7 @@ func (pl *Plugin) Unreserve(ctx context.Context, cycleState *framework.CycleStat
 		if pi != nil {
 			pi.processedQuotas.Insert(pi.selectedQuotaName)
 			pl.Plugin.UnreserveQuota(pod, pi.selectedQuotaName)
-			pl.quotaCache.forgetPod(pod, sd.podRequests)
+			pl.quotaCache.forgetPod(pod, pi.selectedQuotaName, sd.podRequests)
 		}
 	}
 }
