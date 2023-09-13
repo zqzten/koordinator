@@ -22,6 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
@@ -555,4 +556,90 @@ func Test_PreFilterWithNoAvailableNodes(t *testing.T) {
 	result, status := pl.PreFilter(context.TODO(), cycleState, pod)
 	assert.Equal(t, "No available nodes", status.Message())
 	assert.Nil(t, result)
+}
+
+func TestReserveAndUnreserve(t *testing.T) {
+	elasticQuota := &schedv1alpha1.ElasticQuota{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "quota-a",
+			Labels: map[string]string{
+				corev1.LabelTopologyZone: "az-1",
+				corev1.LabelArchStable:   "amd64",
+				apiext.LabelQuotaParent:  "second-root-quota-a",
+				LabelQuotaID:             "666",
+				LabelUserAccountId:       "123",
+				LabelQuotaPodType:        "aaa",
+			},
+		},
+		Spec: schedv1alpha1.ElasticQuotaSpec{
+			Max: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("40"),
+				corev1.ResourceMemory: resource.MustParse("80Gi"),
+			},
+		},
+	}
+	tests := []struct {
+		name          string
+		state         *stateData
+		quotaName     string
+		wantReserve   corev1.ResourceList
+		wantUnreserve corev1.ResourceList
+	}{
+		{
+			name: "no quota",
+			state: &stateData{
+				skip: true,
+			},
+			wantReserve: nil,
+		},
+		{
+			name: "reserve and unreserve 4C8Gi",
+			state: &stateData{
+				podRequests: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("4"),
+					corev1.ResourceMemory: resource.MustParse("8Gi"),
+				},
+			},
+			quotaName: elasticQuota.Name,
+			wantReserve: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("4"),
+				corev1.ResourceMemory: resource.MustParse("8Gi"),
+			},
+			wantUnreserve: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("0"),
+				corev1.ResourceMemory: resource.MustParse("0"),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			suit := newPluginTestSuit(t, nil)
+			_, err := suit.schedclient.SchedulingV1alpha1().ElasticQuotas("default").Create(context.TODO(), elasticQuota, metav1.CreateOptions{})
+			assert.NoError(t, err)
+			p, err := suit.proxyNew(nil, suit.Framework)
+			assert.NoError(t, err)
+			assert.NotNil(t, p)
+			pl := p.(*Plugin)
+			pod := st.MakePod().UID("123456").Obj()
+			pl.podInfoCache.updatePod(nil, pod)
+			pi := pl.podInfoCache.getPendingPodInfo(pod.UID)
+			pi.selectedQuotaName = tt.quotaName
+
+			cycleState := framework.NewCycleState()
+			cycleState.Write(Name, tt.state)
+			status := pl.Reserve(context.TODO(), cycleState, pod, "test-node")
+			assert.True(t, status.IsSuccess())
+
+			quotaObj := pl.quotaCache.getQuota(tt.quotaName)
+			if tt.quotaName == "" {
+				assert.Nil(t, quotaObj)
+				return
+			}
+			assert.True(t, equality.Semantic.DeepEqual(tt.wantReserve, quotaObj.used))
+
+			pl.Unreserve(context.TODO(), cycleState, pod, "test-node")
+			quotaObj = pl.quotaCache.getQuota(tt.quotaName)
+			assert.True(t, equality.Semantic.DeepEqual(tt.wantUnreserve, quotaObj.used))
+		})
+	}
 }
