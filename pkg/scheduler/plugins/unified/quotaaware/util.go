@@ -188,8 +188,7 @@ func filterReplicasSufficientQuotas(requests corev1.ResourceList, quotas []*Quot
 		if byMin {
 			upper = quotaObj.min
 		}
-		used := quotav1.Add(quotaObj.used, requests)
-		replicas := countReplicas(upper, used, minReplicas)
+		replicas := countReplicas(upper, quotaObj.used, requests, minReplicas)
 		if replicas > 0 {
 			if preferredQuotaName != "" && quotaObj.name == preferredQuotaName {
 				preferredQuota = quotaObj
@@ -234,14 +233,15 @@ func usedLessThan(used, max corev1.ResourceList) bool {
 	return satisfied
 }
 
-func countReplicas(remaining, requests corev1.ResourceList, minReplicas int) int {
+func countReplicas(remaining, used, requests corev1.ResourceList, minReplicas int) int {
 	replicas := 0
-	for usedLessThan(requests, remaining) {
+	used = quotav1.Add(used, requests)
+	for usedLessThan(used, remaining) {
 		replicas++
 		if minReplicas > 0 && replicas >= minReplicas {
 			break
 		}
-		remaining = quotav1.SubtractWithNonNegativeResult(remaining, requests)
+		used = quotav1.Add(used, requests)
 	}
 	return replicas
 }
