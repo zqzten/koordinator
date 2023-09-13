@@ -100,7 +100,7 @@ func (r *reservationReconciler) reconcile(ctx context.Context, lrn *schedulingv1
 	}
 
 	var qosGroup *terwayapis.ENIQosGroup
-	if reservation != nil && hasQoSGroup(reservation) {
+	if reservation != nil && hasQoSGroupAndEnabled(reservation) {
 		qosGroup, err = r.getQoSGroupForReservation(ctx, reservation)
 		if err != nil {
 			return ctrl.Result{}, err
@@ -189,7 +189,7 @@ func (r *reservationReconciler) reconcileWithReservation(ctx context.Context, lr
 		}
 
 		// Create or wait QoSGroup if needed
-		if hasQoSGroup(reservation) {
+		if hasQoSGroupAndEnabled(reservation) {
 			if qosGroup == nil {
 				qosGroup, err = generateENIQoSGroup(reservation)
 				if err != nil {
