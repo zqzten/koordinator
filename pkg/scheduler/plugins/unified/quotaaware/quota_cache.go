@@ -50,18 +50,14 @@ func (c *QuotaCache) getQuota(quotaName string) *QuotaObject {
 	return q.clone()
 }
 
-func (c *QuotaCache) assumePod(pod *corev1.Pod, podRequests corev1.ResourceList) {
-	quotaName := apiext.GetQuotaName(pod)
-
+func (c *QuotaCache) assumePod(pod *corev1.Pod, quotaName string, podRequests corev1.ResourceList) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
 	c.addPodUsedUnsafe(quotaName, pod, podRequests)
 }
 
-func (c *QuotaCache) forgetPod(pod *corev1.Pod, podRequests corev1.ResourceList) {
-	quotaName := apiext.GetQuotaName(pod)
-
+func (c *QuotaCache) forgetPod(pod *corev1.Pod, quotaName string, podRequests corev1.ResourceList) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
