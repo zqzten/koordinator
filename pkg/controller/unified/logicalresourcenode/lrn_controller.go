@@ -131,7 +131,7 @@ func Add(mgr ctrl.Manager) error {
 }
 
 func (r *LogicalResourceNodeReconciler) setup(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	builder := ctrl.NewControllerManagedBy(mgr).
 		For(&schedulingv1alpha1.LogicalResourceNode{}).
 		WithOptions(controller.Options{MaxConcurrentReconciles: *workerNumFlag}).
 		Watches(&source.Kind{Type: &schedulingv1alpha1.Reservation{}}, &handler.EnqueueRequestForOwner{
@@ -139,7 +139,9 @@ func (r *LogicalResourceNodeReconciler) setup(mgr ctrl.Manager) error {
 			IsController: true,
 		}).
 		Watches(&source.Kind{Type: &corev1.Node{}}, &nodeEventHandler{cache: mgr.GetCache()}).
-		Watches(&source.Kind{Type: &terwayapis.ENIQosGroup{}}, &qosGroupEventHandler{}).
-		Named("logicalresourcenode").
-		Complete(r)
+		Named("logicalresourcenode")
+	if isQoSGroupEnabled() {
+		builder.Watches(&source.Kind{Type: &terwayapis.ENIQosGroup{}}, &qosGroupEventHandler{})
+	}
+	return builder.Complete(r)
 }
