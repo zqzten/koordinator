@@ -65,7 +65,9 @@ var (
 	reservationExpectations = expectations.NewResourceVersionExpectation()
 	qosGroupExpectations    = expectations.NewResourceVersionExpectation()
 
-	workerNumFlag              = flag.Int("lrn-controller-workers", 3, "The workers number of LRN controller.")
+	workerNumFlag      = flag.Int("lrn-controller-workers", 3, "The workers number of LRN controller.")
+	enableQoSGroupFlag = flag.Bool("lrn-qos-group-enabled", false, "Whether to enable ENI QoS Group for LRN.")
+
 	syncNodeLabelsFlag         = flag.String("lrn-sync-node-labels", "node.koordinator.sh/asw-id,node.koordinator.sh/point-of-delivery,sigma.ali/user-id,alibabacloud.com/gpu-card-model,node.koordinator.sh/gpu-model,node.koordinator.sh/gpu-model-series", "Node label keys that should be synced to LRN.")
 	syncNodeConditionTypesFlag = flag.String("lrn-sync-node-condition-types", "Ready", "Node condition types that should be synced to LRN status.")
 
@@ -74,6 +76,10 @@ var (
 	skipSyncReservationLabels  = sets.NewString(labelReservationGeneration, schedulingv1alpha1.LabelNodeNameOfLogicalResourceNode)
 	syncReservationAnnotations = sets.NewString(apiext.SchedulingDomainPrefix+"/device-allocate-hint", schedulingv1alpha1.AnnotationVPCQoSThreshold)
 )
+
+func isQoSGroupEnabled() bool {
+	return enableQoSGroupFlag != nil && *enableQoSGroupFlag
+}
 
 func getsSyncNodeLabels(node *corev1.Node) (res map[string]string) {
 	if syncNodeLabelsFlag == nil || len(strings.TrimSpace(*syncNodeLabelsFlag)) == 0 || node == nil {
@@ -167,7 +173,7 @@ func generateNewReservation(lrn *schedulingv1alpha1.LogicalResourceNode, generat
 		}
 	}
 
-	if hasQoSGroup(lrn) {
+	if hasQoSGroupAndEnabled(lrn) {
 		reservation.Spec.Unschedulable = true
 	}
 
@@ -308,8 +314,8 @@ func getAlreadySyncedLabels(annotations map[string]string) sets.String {
 	return sets.NewString(strings.Split(val, ",")...)
 }
 
-func hasQoSGroup(obj metav1.Object) bool {
-	return obj.GetAnnotations()[schedulingv1alpha1.AnnotationVPCQoSThreshold] != ""
+func hasQoSGroupAndEnabled(obj metav1.Object) bool {
+	return isQoSGroupEnabled() && obj.GetAnnotations()[schedulingv1alpha1.AnnotationVPCQoSThreshold] != ""
 }
 
 func generateENIQoSGroup(reservation *schedulingv1alpha1.Reservation) (*terwayapis.ENIQosGroup, error) {
