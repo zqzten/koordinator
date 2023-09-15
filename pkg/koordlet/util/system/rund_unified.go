@@ -42,7 +42,8 @@ const (
 )
 
 func GetRundMemoryCgroupParentDir(sandboxID string) string {
-	// FIXME: currently the rund memory cgroup-v2 path is undefined
+	// https://aliyuque.antfin.com/sigmahost/bdrtdk/mq5buk#baiVb
+	// Instead, rund pod on cgroups-v2 should use the standard cgroup path.
 	return filepath.Join(RundMemoryCgroupSubdir, sandboxID)
 }
 

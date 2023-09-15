@@ -162,15 +162,22 @@ func (p *rundResourceCollector) collectRundPod(meta *statesinformer.PodMeta) (cp
 		return
 	}
 
-	// rund pod use a special memcg path
-	// https://aliyuque.antfin.com/sigmahost/bdrtdk/mq5buk#baiVb
-	rundMemoryCgroupDir := system.GetRundMemoryCgroupParentDir(sandboxID)
-
 	currentCPUUsage, err0 := p.cgroupReader.ReadCPUAcctUsage(podCgroupDir)
-	memStat, err1 := p.cgroupReader.ReadMemoryStat(rundMemoryCgroupDir)
+	memStat, err1 := p.cgroupReader.ReadMemoryStat(podCgroupDir)
+	isFallBack := false
+	if err1 != nil { // check the rund-specific memcg
+		isFallBack = true
+		klog.V(5).Infof("failed to collect rund pod %s memory usage with standard cgroup path, err: %s",
+			podKey, err1)
+
+		// rund pod in old versions uses a special memcg path according to the sandbox ID:
+		// https://aliyuque.antfin.com/sigmahost/bdrtdk/mq5buk#baiVb
+		rundMemoryCgroupDir := system.GetRundMemoryCgroupParentDir(sandboxID)
+		memStat, err1 = p.cgroupReader.ReadMemoryStat(rundMemoryCgroupDir)
+	}
 	if err0 != nil || err1 != nil {
-		klog.V(4).Infof("failed to collect rund pod usage for %s, CPU err: %s, Memory err: %s",
-			podKey, err0, err1)
+		klog.V(4).Infof("failed to collect rund pod usage for %s, fallBack %v, CPU err: %s, Memory err: %s",
+			podKey, isFallBack, err0, err1)
 		return
 	}
 
