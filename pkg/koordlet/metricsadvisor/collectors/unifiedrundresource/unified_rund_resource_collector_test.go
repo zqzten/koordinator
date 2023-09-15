@@ -86,7 +86,7 @@ func Test_collectRundPodsResUsed(t *testing.T) {
 	testPodMetaDir := "kubepods.slice/kubepods-podxxxxxxxx.slice"
 	testPodParentDir := "/kubepods.slice/kubepods-podxxxxxxxx.slice"
 	sandboxID := "8c000081"
-	testRundPodMemoryParentDir := "/kata/8c000081"
+	testRundPodSpecialMemoryParentDir := "/kata/8c000081"
 	testRundSandboxContainerParentDir := "/kubepods.slice/kubepods-podxxxxxxxx.slice/cri-containerd-8c000081.scope"
 	testRundPod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -167,6 +167,7 @@ func Test_collectRundPodsResUsed(t *testing.T) {
 		initContainerLastTick func(lastState *gocache.Cache)
 		SetSysUtil            func(helper *system.FileTestUtil)
 		NewRundExtendedStats  func(helper *system.FileTestUtil) *ttrpc.Server
+		useCgroupV2           bool
 	}
 	type wantFields struct {
 		checkPodResourceMetric       func(t *testing.T, metricCache metriccache.MetricCache)
@@ -209,7 +210,7 @@ func Test_collectRundPodsResUsed(t *testing.T) {
 1000000000
 `)
 					helper.WriteCgroupFileContents(testRundSandboxContainerParentDir, system.CPUSet, `0-31`)
-					helper.WriteCgroupFileContents(testRundPodMemoryParentDir, system.MemoryStat, `
+					helper.WriteCgroupFileContents(testRundPodSpecialMemoryParentDir, system.MemoryStat, `
 total_cache 104857600
 total_rss 104857600
 total_inactive_anon 104857600
@@ -269,12 +270,103 @@ total_unevictable 0
 				allMemory: 104857600,
 			},
 		},
-		// FIXME: currently rund pod collection does not support cgroups-v2
+		{
+			name: "cgroups v2",
+			fields: fields{
+				podFilterOption: framework.RundPodFilter,
+				getPodMetas: []*statesinformer.PodMeta{
+					{
+						CgroupDir: testPodMetaDir,
+						Pod:       testRundPod,
+					},
+					{
+						Pod: testRuncPod,
+					},
+				},
+				initPodLastStat: func(lastState *gocache.Cache) {
+					lastState.Set(string(testRundPod.UID), framework.CPUStat{
+						CPUUsage:  0,
+						Timestamp: testNow.Add(-time.Second),
+					}, gocache.DefaultExpiration)
+				},
+				initContainerLastTick: func(lastState *gocache.Cache) {
+					lastState.Set(testContainerID, framework.CPUStat{
+						CPUTick:   0,
+						Timestamp: testNow.Add(-time.Second),
+					}, gocache.DefaultExpiration)
+				},
+				SetSysUtil: func(helper *system.FileTestUtil) {
+					helper.WriteCgroupFileContents(testPodParentDir, system.CPUAcctUsageV2, `
+usage_usec 1000000
+`)
+					helper.WriteCgroupFileContents(testRundSandboxContainerParentDir, system.CPUSetV2, `0-31`)
+					helper.WriteCgroupFileContents(testPodParentDir, system.MemoryStatV2, `
+file 104857600
+anon 104857600
+inactive_anon 104857600
+active_anon 0
+inactive_file 104857600
+active_file 0
+unevictable 0
+`)
+				},
+				NewRundExtendedStats: func(helper *system.FileTestUtil) *ttrpc.Server {
+					expected := &grpc.ExtendedStatsResponse{
+						PodStats: &grpc.PodStats{},
+						ConStats: []*grpc.ContainerStats{
+							{
+								BaseStats: &grpc.ContainerBaseStats{
+									ContainerId: testContainerIDParsed,
+									CgroupCpu: &grpc.ContainerCgroupCpu{
+										User: 90,
+										Sys:  10,
+										Nice: 0,
+										Sirq: 0,
+										Hirq: 0,
+									},
+									CgroupMem: &grpc.ContainerCgroupMem{
+										Rss:   104857600,
+										Cache: 52428800,
+									},
+									CgroupMemx: &grpc.ContainerCgroupMemx{
+										Aanon: 52428800,
+										Ianon: 52428800,
+										Afile: 26214400,
+										Ifile: 26214400,
+									},
+								},
+							},
+						},
+					}
+
+					s, err := ttrpc.NewServer()
+					assert.NoError(t, err)
+					svc := &system.FakeExtendedStatusService{}
+					svc.FakeExtendedStats = func(ctx context.Context, req *grpc.ExtendedStatsRequest) (*grpc.ExtendedStatsResponse, error) {
+						return expected, nil
+					}
+					extends.RegisterExtendedStatusService(s, svc)
+					return s
+				},
+				useCgroupV2: true,
+			},
+			want: wantFields{
+				checkPodResourceMetric: func(t *testing.T, metricCache metriccache.MetricCache) {
+					testGetPodMetric(t, metricCache, "xxxxxxxx", testNow.Add(-time.Minute), testNow.Add(time.Minute))
+				},
+				checkContainerResourceMetric: func(t *testing.T, metricCache metriccache.MetricCache) {
+					testGetContainerMetric(t, metricCache, testContainerID, testNow.Add(-time.Minute), testNow.Add(time.Minute))
+				},
+				allCPU:    1,
+				allMemory: 104857600,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			helper := system.NewFileTestUtil(t)
 			defer helper.Cleanup()
+			helper.SetCgroupsV2(tt.fields.useCgroupV2)
 			system.SetupCgroupPathFormatter(system.Systemd)
 			if tt.fields.SetSysUtil != nil {
 				tt.fields.SetSysUtil(helper)
@@ -340,10 +432,10 @@ total_unevictable 0
 			podsCPUUsageByCollector, podsMemoryUsageByCollector := c.sharedState.GetPodsUsageByCollector()
 			podsCPUUsage, cpuExist := podsCPUUsageByCollector[CollectorName]
 			assert.True(t, cpuExist)
-			assert.Equal(t, podsCPUUsage.Value, tt.want.allCPU)
+			assert.Equal(t, tt.want.allCPU, podsCPUUsage.Value)
 			podsMemoryUsage, memoryExist := podsMemoryUsageByCollector[CollectorName]
 			assert.True(t, memoryExist)
-			assert.Equal(t, podsMemoryUsage.Value, tt.want.allMemory)
+			assert.Equal(t, tt.want.allMemory, podsMemoryUsage.Value)
 		})
 	}
 }
