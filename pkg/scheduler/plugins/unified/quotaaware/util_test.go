@@ -25,12 +25,14 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/kubernetes/pkg/scheduler/framework"
 	st "k8s.io/kubernetes/pkg/scheduler/testing"
 	schedv1alpha1 "sigs.k8s.io/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
 	schedfake "sigs.k8s.io/scheduler-plugins/pkg/generated/clientset/versioned/fake"
 	schedinformer "sigs.k8s.io/scheduler-plugins/pkg/generated/informers/externalversions"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
+	nodeaffinityhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/nodeaffinity"
 )
 
 func Test_newNodeAffinity(t *testing.T) {
@@ -365,4 +367,53 @@ func Test_filterAvailableQuotas(t *testing.T) {
 			assert.Equal(t, tt.want, gotQuotaNames)
 		})
 	}
+}
+
+func Test_addTemporaryNodeAffinity(t *testing.T) {
+	cycleState := framework.NewCycleState()
+	addTemporaryNodeAffinity(cycleState, []*schedv1alpha1.ElasticQuota{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{
+					corev1.LabelTopologyZone: "az-1",
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{
+					corev1.LabelTopologyZone: "az-2",
+				},
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{
+					corev1.LabelTopologyZone: "az-2",
+				},
+			},
+		},
+	})
+	affinity := nodeaffinityhelper.GetTemporaryNodeAffinity(cycleState)
+	assert.True(t, affinity.Match(&corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				corev1.LabelTopologyZone: "az-1",
+			},
+		},
+	}))
+	assert.True(t, affinity.Match(&corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				corev1.LabelTopologyZone: "az-2",
+			},
+		},
+	}))
+	assert.False(t, affinity.Match(&corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				corev1.LabelTopologyZone: "az-3",
+			},
+		},
+	}))
 }

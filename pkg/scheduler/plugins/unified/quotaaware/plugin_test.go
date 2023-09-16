@@ -43,6 +43,7 @@ import (
 	koordfake "github.com/koordinator-sh/koordinator/pkg/client/clientset/versioned/fake"
 	koordinatorinformers "github.com/koordinator-sh/koordinator/pkg/client/informers/externalversions"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
+	nodeaffinityhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/nodeaffinity"
 )
 
 var _ framework.SharedLister = &testSharedLister{}
@@ -265,6 +266,28 @@ func Test_PreFilter(t *testing.T) {
 		selectedQuotaName: "",
 	}
 	assert.Equal(t, expectedState, sd)
+	affinity := nodeaffinityhelper.GetTemporaryNodeAffinity(cycleState)
+	assert.True(t, affinity.Match(&corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				corev1.LabelTopologyZone: "az-1",
+			},
+		},
+	}))
+	assert.True(t, affinity.Match(&corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				corev1.LabelTopologyZone: "az-2",
+			},
+		},
+	}))
+	assert.False(t, affinity.Match(&corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				corev1.LabelTopologyZone: "az-3",
+			},
+		},
+	}))
 }
 
 func Test_PreFilterWithNoQuotas(t *testing.T) {

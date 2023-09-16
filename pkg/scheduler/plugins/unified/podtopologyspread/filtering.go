@@ -146,7 +146,7 @@ func (s *preFilterState) updateWithPod(updatedPod, preemptorPod *v1.Pod, node *v
 
 // PreFilter invoked at the prefilter extension point.
 func (pl *PodTopologySpread) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *v1.Pod) (*framework.PreFilterResult, *framework.Status) {
-	s, err := pl.calPreFilterState(pod)
+	s, err := pl.calPreFilterState(cycleState, pod)
 	if err != nil {
 		return nil, framework.AsStatus(err)
 	}
@@ -197,7 +197,7 @@ func getPreFilterState(cycleState *framework.CycleState) (*preFilterState, error
 }
 
 // calPreFilterState computes preFilterState describing how pods are spread on topologies.
-func (pl *PodTopologySpread) calPreFilterState(pod *v1.Pod) (*preFilterState, error) {
+func (pl *PodTopologySpread) calPreFilterState(cycleState *framework.CycleState, pod *v1.Pod) (*preFilterState, error) {
 	allNodes, err := pl.sharedLister.NodeInfos().List()
 	if err != nil {
 		return nil, fmt.Errorf("listing NodeInfos: %w", err)
@@ -225,6 +225,7 @@ func (pl *PodTopologySpread) calPreFilterState(pod *v1.Pod) (*preFilterState, er
 		TpKeyToCriticalPaths: make(map[string]*criticalPaths, len(constraints)),
 		TpPairToMatchNum:     make(map[topologyPair]*int32, sizeHeuristic(len(allNodes), constraints)),
 	}
+	temporaryNodeAffinity := nodeaffinityhelper.GetTemporaryNodeAffinity(cycleState)
 	requiredSchedulingTerm := nodeaffinityhelper.GetRequiredNodeAffinity(pod)
 	tolerationsToleratesNode := tolerationTolerateNodeFn(pod)
 	for _, n := range allNodes {
@@ -236,7 +237,8 @@ func (pl *PodTopologySpread) calPreFilterState(pod *v1.Pod) (*preFilterState, er
 		// In accordance to design, if NodeAffinity or NodeSelector is defined,
 		// spreading is applied to nodes that pass those filters.
 		// Ignore parsing errors for backwards compatibility.
-		if !requiredSchedulingTerm.Match(node) || !tolerationsToleratesNode(node) || !eci.FilterByECIAffinity(pod, node) || !nodeLabelsMatchSpreadConstraints(node.Labels, constraints) {
+		if !temporaryNodeAffinity.Match(node) || !requiredSchedulingTerm.Match(node) || !tolerationsToleratesNode(node) ||
+			!eci.FilterByECIAffinity(pod, node) || !nodeLabelsMatchSpreadConstraints(node.Labels, constraints) {
 			continue
 		}
 		for _, c := range constraints {

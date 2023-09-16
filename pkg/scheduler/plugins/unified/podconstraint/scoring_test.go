@@ -15,6 +15,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	nodeaffinityhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/nodeaffinity"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/podconstraint/cache"
 )
 
@@ -636,6 +637,160 @@ func TestScoreWithWeightedSpreadUnits(t *testing.T) {
 			suit.start()
 
 			cycleState := framework.NewCycleState()
+			status := plg.PreScore(context.TODO(), cycleState, tt.pod, tt.nodes)
+			assert.True(t, status.IsSuccess())
+			state, status := getPreScoreState(cycleState)
+			assert.True(t, status.IsSuccess())
+			assert.Equal(t, tt.expectPreScoreState.items[0].PreferredSpreadConstraints, state.items[0].PreferredSpreadConstraints)
+			assert.Equal(t, tt.expectPreScoreState.items[0].IgnoredNodes, state.items[0].IgnoredNodes)
+			assert.Equal(t, tt.expectPreScoreState.items[0].TpPairToMatchNum, state.items[0].TpPairToMatchNum)
+			var gotNodeScores framework.NodeScoreList
+			for i, v := range tt.testNodes {
+				score, status := plg.Score(context.TODO(), cycleState, tt.pod, v)
+				assert.True(t, status.IsSuccess())
+				assert.Equal(t, tt.expectNodeScore[i], score)
+				gotNodeScores = append(gotNodeScores, framework.NodeScore{
+					Name:  v,
+					Score: score,
+				})
+			}
+			status = plg.NormalizeScore(context.TODO(), cycleState, tt.pod, gotNodeScores)
+			assert.True(t, status.IsSuccess())
+			assert.Equal(t, tt.expectNormalizeScore, gotNodeScores)
+		})
+	}
+}
+
+func TestScoreWithTemporaryAffinity(t *testing.T) {
+	tests := []struct {
+		name                 string
+		podConstraint        *v1beta1.PodConstraint
+		existingPods         []*corev1.Pod
+		nodes                []*corev1.Node
+		pod                  *corev1.Pod
+		expectPreScoreState  *preScoreState
+		testNodes            []string
+		expectNodeScore      []int64
+		expectNormalizeScore framework.NodeScoreList
+	}{
+		{
+			//
+			// constructs topology: topology.kubernetes.io/zone
+			//  +-------+-------+-------+
+			//  | na610 | na620 | na630 |
+			//  |-------+-------+-------|
+			//  |  1    |  2    |  2    |
+			//  +-------+-------+-------+
+			//
+			name: "score with preferred podConstraint and temporary affinity",
+			podConstraint: &v1beta1.PodConstraint{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+					Name:      "test",
+				},
+				Spec: v1beta1.PodConstraintSpec{
+					SpreadRule: v1beta1.SpreadRule{
+						Requires: []v1beta1.SpreadRuleItem{
+							{
+								TopologyKey:        corev1.LabelTopologyZone,
+								MaxSkew:            1,
+								NodeAffinityPolicy: (*v1beta1.NodeInclusionPolicy)(pointer.String(string(v1beta1.NodeInclusionPolicyHonor))),
+							},
+						},
+					},
+				},
+			},
+			existingPods: []*corev1.Pod{
+				st.MakePod().Namespace("default").Name("pod-1").Node("test-node-1").Label(extunified.LabelPodConstraint, "test").Obj(),
+				st.MakePod().Namespace("default").Name("pod-2").Node("test-node-2").Label(extunified.LabelPodConstraint, "test").Obj(),
+				st.MakePod().Namespace("default").Name("pod-3").Node("test-node-2").Label(extunified.LabelPodConstraint, "test").Obj(),
+				st.MakePod().Namespace("default").Name("pod-4").Node("test-node-2").Label(extunified.LabelPodConstraint, "test").Obj(),
+				st.MakePod().Namespace("default").Name("pod-5").Node("test-node-2").Label(extunified.LabelPodConstraint, "test").Obj(),
+			},
+			nodes: []*corev1.Node{
+				st.MakeNode().Name("test-node-1").Label(corev1.LabelTopologyZone, "na610").Label(corev1.LabelHostname, "test-node-1").Obj(),
+				st.MakeNode().Name("test-node-2").Label(corev1.LabelTopologyZone, "na620").Label(corev1.LabelHostname, "test-node-2").Obj(),
+			},
+			pod: st.MakePod().Namespace("default").Name("test-pod").Label(extunified.LabelPodConstraint, "test").
+				NodeAffinityIn(corev1.LabelTopologyZone, []string{"na610", "na620"}).Obj(),
+			expectPreScoreState: &preScoreState{
+				items: []*preScoreStateItem{
+					{
+						PodConstraint: &v1beta1.PodConstraint{
+							ObjectMeta: metav1.ObjectMeta{
+								Namespace: "default",
+								Name:      "test",
+							},
+							Spec: v1beta1.PodConstraintSpec{
+								SpreadRule: v1beta1.SpreadRule{
+									Requires: []v1beta1.SpreadRuleItem{
+										{
+											TopologyKey:        corev1.LabelTopologyZone,
+											MaxSkew:            1,
+											NodeAffinityPolicy: (*v1beta1.NodeInclusionPolicy)(pointer.String(string(v1beta1.NodeInclusionPolicyHonor))),
+										},
+									},
+								},
+							},
+						},
+						PreferredSpreadConstraints: []*cache.TopologySpreadConstraint{
+							{
+								TopologyKey:        corev1.LabelTopologyZone,
+								MaxSkew:            1,
+								NodeAffinityPolicy: v1beta1.NodeInclusionPolicyHonor,
+								NodeTaintsPolicy:   v1beta1.NodeInclusionPolicyIgnore,
+							},
+						},
+						TpPairToMatchNum: map[cache.TopologyPair]*int32{
+							{TopologyKey: corev1.LabelTopologyZone, TopologyValue: "na610"}: pointer.Int32(1),
+							{TopologyKey: corev1.LabelTopologyZone, TopologyValue: "na620"}: pointer.Int32(4),
+						},
+						IgnoredNodes: sets.NewString(),
+					},
+				},
+			},
+			testNodes:       []string{"test-node-1", "test-node-2"},
+			expectNodeScore: []int64{693, 2772},
+			expectNormalizeScore: framework.NodeScoreList{
+				{
+					Name:  "test-node-1",
+					Score: 100,
+				},
+				{
+					Name:  "test-node-2",
+					Score: 25,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			suit := newPluginTestSuit(t, tt.nodes, tt.existingPods)
+			p, err := suit.proxyNew(suit.args, suit.Handle)
+			assert.NotNil(t, p)
+			assert.Nil(t, err)
+
+			plg := p.(*Plugin)
+			plg.enableNodeInclusionPolicyInPodConstraint = true
+			suit.start()
+
+			for _, node := range tt.nodes {
+				_, err := suit.Handle.ClientSet().CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
+				assert.NoError(t, err)
+			}
+			plg.podConstraintCache.SetPodConstraint(tt.podConstraint)
+
+			cycleState := framework.NewCycleState()
+			if tt.pod.Spec.Affinity != nil &&
+				tt.pod.Spec.Affinity.NodeAffinity != nil &&
+				tt.pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
+				affinity := &nodeaffinityhelper.TemporaryNodeAffinity{
+					NodeSelector: tt.pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution,
+				}
+				nodeaffinityhelper.SetTemporaryNodeAffinity(cycleState, affinity)
+				tt.pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution = nil
+			}
+
 			status := plg.PreScore(context.TODO(), cycleState, tt.pod, tt.nodes)
 			assert.True(t, status.IsSuccess())
 			state, status := getPreScoreState(cycleState)

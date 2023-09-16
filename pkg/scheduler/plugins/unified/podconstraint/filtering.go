@@ -125,7 +125,7 @@ func getPreFilterState(cycleState *framework.CycleState) (*preFilterState, *fram
 }
 
 func (p *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod) (*framework.PreFilterResult, *framework.Status) {
-	state, status := p.calPrefilterState(pod)
+	state, status := p.calPrefilterState(cycleState, pod)
 	if !status.IsSuccess() {
 		return nil, status
 	}
@@ -134,7 +134,7 @@ func (p *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState
 }
 
 // calPrefilterState constructs the full-topology with all nodes to re-calc the min match number of criticalPath
-func (p *Plugin) calPrefilterState(pod *corev1.Pod) (*preFilterState, *framework.Status) {
+func (p *Plugin) calPrefilterState(cycleState *framework.CycleState, pod *corev1.Pod) (*preFilterState, *framework.Status) {
 	state := &preFilterState{}
 	if weightedPodConstraints := extunified.GetWeightedPodConstraints(pod); len(weightedPodConstraints) != 0 {
 		for _, weightedPodConstraint := range weightedPodConstraints {
@@ -198,6 +198,8 @@ func (p *Plugin) calPrefilterState(pod *corev1.Pod) (*preFilterState, *framework
 			stateItem.TpKeyToTotalMatchNum[c.TopologyKey] = new(int32)
 		}
 	}
+	temporaryNodeAffinity := nodeaffinityhelper.GetTemporaryNodeAffinity(cycleState)
+
 	for _, n := range allNodes {
 		node := n.Node()
 		if node == nil {
@@ -214,7 +216,7 @@ func (p *Plugin) calPrefilterState(pod *corev1.Pod) (*preFilterState, *framework
 					if tpVal == "" {
 						continue
 					}
-					if p.enableNodeInclusionPolicyInPodConstraint && !c.MatchNodeInclusionPolicies(pod, node, requiredNodeAffinity) {
+					if p.enableNodeInclusionPolicyInPodConstraint && !c.MatchNodeInclusionPolicies(pod, node, requiredNodeAffinity, temporaryNodeAffinity) {
 						return
 					}
 					pair := cache.TopologyPair{TopologyKey: c.TopologyKey, TopologyValue: node.Labels[c.TopologyKey]}
