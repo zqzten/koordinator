@@ -112,6 +112,10 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 		availableQuotas: availableQuotas,
 	})
 
+	if podNodeAffinity.affinityZones.Len() == 0 {
+		addTemporaryNodeAffinity(cycleState, elasticQuotas)
+	}
+
 	return nil, nil
 }
 

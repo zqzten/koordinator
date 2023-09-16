@@ -34,6 +34,8 @@ import (
 	plugintesting "k8s.io/kubernetes/pkg/scheduler/framework/plugins/testing"
 	st "k8s.io/kubernetes/pkg/scheduler/testing"
 	"k8s.io/utils/pointer"
+
+	nodeaffinityhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/nodeaffinity"
 )
 
 // Snapshot is a snapshot of cache NodeInfo and NodeTree order. The scheduler takes a
@@ -1933,5 +1935,77 @@ func TestPreFilterDisabled(t *testing.T) {
 	wantStatus := framework.AsStatus(fmt.Errorf(`reading "PreFilterUnifiedPodTopologySpread" from cycleState: %w`, framework.ErrNotFound))
 	if !reflect.DeepEqual(gotStatus, wantStatus) {
 		t.Errorf("status does not match: %v, want: %v", gotStatus, wantStatus)
+	}
+}
+
+func TestSingleConstraintWithTemporaryAffinity(t *testing.T) {
+	tests := []struct {
+		name           string
+		pod            *v1.Pod
+		nodes          []*v1.Node
+		existingPods   []*v1.Pod
+		wantStatusCode map[string]framework.Code
+	}{
+		{
+			// only node-a and node-y are considered, so pods spread as 2/~1~/~0~/3
+			// ps: '~num~' is a markdown symbol to denote a crossline through 'num'
+			// but in this unit test, we don't run NodeAffinity Predicate, so node-b and node-x are
+			// still expected to be fits;
+			// the fact that node-a fits can prove the underlying logic works
+			name: "incoming pod has temporary nodeAffinity, pods spread as 2/~1~/~0~/3, hence node-a fits",
+			pod: st.MakePod().Name("p").Label("foo", "").
+				NodeAffinityIn("node", []string{"node-a", "node-y"}).
+				SpreadConstraint(1, "node", v1.DoNotSchedule, st.MakeLabelSelector().Exists("foo").Obj(), nil).
+				Obj(),
+			nodes: []*v1.Node{
+				st.MakeNode().Name("node-a").Label("zone", "zone1").Label("node", "node-a").Obj(),
+				st.MakeNode().Name("node-b").Label("zone", "zone1").Label("node", "node-b").Obj(),
+				st.MakeNode().Name("node-x").Label("zone", "zone2").Label("node", "node-x").Obj(),
+				st.MakeNode().Name("node-y").Label("zone", "zone2").Label("node", "node-y").Obj(),
+			},
+			existingPods: []*v1.Pod{
+				st.MakePod().Name("p-a1").Node("node-a").Label("foo", "").Obj(),
+				st.MakePod().Name("p-a2").Node("node-a").Label("foo", "").Obj(),
+				st.MakePod().Name("p-b1").Node("node-b").Label("foo", "").Obj(),
+				st.MakePod().Name("p-y1").Node("node-y").Label("foo", "").Obj(),
+				st.MakePod().Name("p-y2").Node("node-y").Label("foo", "").Obj(),
+				st.MakePod().Name("p-y3").Node("node-y").Label("foo", "").Obj(),
+			},
+			wantStatusCode: map[string]framework.Code{
+				"node-a": framework.Success,
+				"node-b": framework.Success, // in real case, it's false
+				"node-x": framework.Success, // in real case, it's false
+				"node-y": framework.Unschedulable,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			snapshot := NewSnapshot(tt.existingPods, tt.nodes)
+			pl := plugintesting.SetupPlugin(t, New, &config.PodTopologySpreadArgs{DefaultingType: config.ListDefaulting}, snapshot)
+			p := pl.(*PodTopologySpread)
+			state := framework.NewCycleState()
+			if tt.pod.Spec.Affinity != nil &&
+				tt.pod.Spec.Affinity.NodeAffinity != nil &&
+				tt.pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
+				affinity := &nodeaffinityhelper.TemporaryNodeAffinity{
+					NodeSelector: tt.pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution,
+				}
+				nodeaffinityhelper.SetTemporaryNodeAffinity(state, affinity)
+				tt.pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution = nil
+			}
+			_, preFilterStatus := p.PreFilter(context.Background(), state, tt.pod)
+			if !preFilterStatus.IsSuccess() {
+				t.Errorf("preFilter failed with status: %v", preFilterStatus)
+			}
+
+			for _, node := range tt.nodes {
+				nodeInfo, _ := snapshot.NodeInfos().Get(node.Name)
+				status := p.Filter(context.Background(), state, tt.pod, nodeInfo)
+				if len(tt.wantStatusCode) != 0 && status.Code() != tt.wantStatusCode[node.Name] {
+					t.Errorf("[%s]: expected status code %v got %v", node.Name, tt.wantStatusCode[node.Name], status.Code())
+				}
+			}
+		})
 	}
 }

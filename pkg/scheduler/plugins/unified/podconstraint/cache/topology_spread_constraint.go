@@ -49,10 +49,9 @@ type TopologySpreadConstraint struct {
 	NodeTaintsPolicy   unischeduling.NodeInclusionPolicy `json:"nodeTaintsPolicy,omitempty"`
 }
 
-func (tsc *TopologySpreadConstraint) MatchNodeInclusionPolicies(pod *corev1.Pod, node *corev1.Node, requiredNodeAffinity nodeaffinityhelper.RequiredNodeSelectorAndAffinity) bool {
+func (tsc *TopologySpreadConstraint) MatchNodeInclusionPolicies(pod *corev1.Pod, node *corev1.Node, requiredNodeAffinity, temporaryNodeAffinity nodeaffinityhelper.RequiredNodeSelectorAndAffinity) bool {
 	if tsc.NodeAffinityPolicy == unischeduling.NodeInclusionPolicyHonor {
-		isMatch := requiredNodeAffinity.Match(node)
-		if !isMatch {
+		if !requiredNodeAffinity.Match(node) || !temporaryNodeAffinity.Match(node) {
 			return false
 		}
 	}
