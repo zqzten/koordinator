@@ -150,6 +150,7 @@ func (p *Plugin) PreScore(ctx context.Context, cycleState *framework.CycleState,
 		return status
 	}
 	requiredNodeAffinity := nodeaffinityhelper.GetRequiredNodeAffinity(&corev1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: pod.Labels}, Spec: corev1.PodSpec{Affinity: affinity, NodeSelector: nodeSelector}})
+	temporaryNodeAffinity := nodeaffinityhelper.GetTemporaryNodeAffinity(cycleState)
 
 	processNode := func(i int) {
 		nodeInfo := allNodes[i]
@@ -174,7 +175,7 @@ func (p *Plugin) PreScore(ctx context.Context, cycleState *framework.CycleState,
 				if tpCount == nil {
 					continue
 				}
-				if p.enableNodeInclusionPolicyInPodConstraint && !c.MatchNodeInclusionPolicies(pod, node, requiredNodeAffinity) {
+				if p.enableNodeInclusionPolicyInPodConstraint && !c.MatchNodeInclusionPolicies(pod, node, requiredNodeAffinity, temporaryNodeAffinity) {
 					return
 				}
 				count := countPodsMatchConstraint(nodeInfo.Pods, stateItem.PodConstraint.Namespace, stateItem.PodConstraint.Name, c.Selector)

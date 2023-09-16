@@ -143,6 +143,7 @@ func (pl *PodTopologySpread) PreScore(
 	}
 
 	// Ignore parsing errors for backwards compatibility.
+	temporaryNodeAffinity := nodeaffinityhelper.GetTemporaryNodeAffinity(cycleState)
 	requiredNodeAffinity := nodeaffinityhelper.GetRequiredNodeAffinity(pod)
 	tolerationsToleratesNode := tolerationTolerateNodeFn(pod)
 	processAllNode := func(i int) {
@@ -153,7 +154,8 @@ func (pl *PodTopologySpread) PreScore(
 		}
 		// (1) `node` should satisfy incoming pod's NodeSelector/NodeAffinity
 		// (2) All topologyKeys need to be present in `node`
-		if !requiredNodeAffinity.Match(node) || !tolerationsToleratesNode(node) || !eci.FilterByECIAffinity(pod, node) || (requireAllTopologies && !nodeLabelsMatchSpreadConstraints(node.Labels, state.Constraints)) {
+		if !temporaryNodeAffinity.Match(node) || !requiredNodeAffinity.Match(node) || !tolerationsToleratesNode(node) ||
+			!eci.FilterByECIAffinity(pod, node) || (requireAllTopologies && !nodeLabelsMatchSpreadConstraints(node.Labels, state.Constraints)) {
 			return
 		}
 

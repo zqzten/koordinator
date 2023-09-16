@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	quotav1 "k8s.io/apiserver/pkg/quota/v1"
 	"k8s.io/klog/v2"
+	"k8s.io/kubernetes/pkg/scheduler/framework"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 	schedv1alpha1 "sigs.k8s.io/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
 	schedlisters "sigs.k8s.io/scheduler-plugins/pkg/generated/listers/scheduling/v1alpha1"
@@ -34,6 +35,7 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta2"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota"
 	elasticquotacore "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota/core"
+	nodeaffinityhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/nodeaffinity"
 )
 
 type nodeAffinity struct {
@@ -260,4 +262,30 @@ func getDefaultElasticQuotaArgs() (*schedulingconfig.ElasticQuotaArgs, error) {
 		return nil, err
 	}
 	return &elasticQuotaArgs, nil
+}
+
+func addTemporaryNodeAffinity(cycleState *framework.CycleState, elasticQuotas []*schedv1alpha1.ElasticQuota) {
+	zones := sets.NewString()
+	for _, eq := range elasticQuotas {
+		if zone := eq.Labels[corev1.LabelTopologyZone]; zone != "" {
+			zones.Insert(zone)
+		}
+	}
+	if zones.Len() > 0 {
+		nodeaffinityhelper.SetTemporaryNodeAffinity(cycleState, &nodeaffinityhelper.TemporaryNodeAffinity{
+			NodeSelector: &corev1.NodeSelector{
+				NodeSelectorTerms: []corev1.NodeSelectorTerm{
+					{
+						MatchExpressions: []corev1.NodeSelectorRequirement{
+							{
+								Key:      corev1.LabelTopologyZone,
+								Operator: corev1.NodeSelectorOpIn,
+								Values:   zones.List(),
+							},
+						},
+					},
+				},
+			},
+		})
+	}
 }
