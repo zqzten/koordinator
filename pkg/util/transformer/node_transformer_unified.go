@@ -35,28 +35,41 @@ func init() {
 }
 
 func TransformNodeAllocatableWithOverQuota(node *corev1.Node) {
-	originalResources := corev1.ResourceList{}
-	cpuOverQuotaRatio, memoryOverQuotaRatio, diskOverQuotaRatio := extunified.GetResourceOverQuotaSpec(node)
-	if cpuOverQuotaRatio > 0 && cpuOverQuotaRatio != 100 {
-		milliCPU := node.Status.Allocatable.Cpu().MilliValue()
-		milliCPU = milliCPU * cpuOverQuotaRatio / 100
-		originalResources[corev1.ResourceCPU] = node.Status.Allocatable[corev1.ResourceCPU]
-		node.Status.Allocatable[corev1.ResourceCPU] = *resource.NewMilliQuantity(milliCPU, resource.DecimalSI)
+	if _, ok := node.Annotations[apiext.AnnotationNodeResourceAmplificationRatio]; ok {
+		return
 	}
-	if memoryOverQuotaRatio > 0 && memoryOverQuotaRatio != 100 {
-		memoryBytes := node.Status.Allocatable.Memory().Value()
-		memoryBytes = memoryBytes * memoryOverQuotaRatio / 100
-		originalResources[corev1.ResourceMemory] = node.Status.Allocatable[corev1.ResourceMemory]
-		node.Status.Allocatable[corev1.ResourceMemory] = *resource.NewQuantity(memoryBytes, resource.BinarySI)
+
+	rawAllocatable, err := apiext.GetNodeRawAllocatable(node)
+	if err != nil {
+		klog.ErrorS(err, "Failed to GetNodeRawAllocatable", "node", node.Name)
+		return
 	}
-	if diskOverQuotaRatio > 0 && diskOverQuotaRatio != 100 {
-		diskBytes := node.Status.Allocatable.StorageEphemeral().Value()
-		diskBytes = diskBytes * diskOverQuotaRatio / 100
-		originalResources[corev1.ResourceEphemeralStorage] = node.Status.Allocatable[corev1.ResourceEphemeralStorage]
-		node.Status.Allocatable[corev1.ResourceEphemeralStorage] = *resource.NewQuantity(diskBytes, resource.BinarySI)
+	if rawAllocatable == nil {
+		rawAllocatable = corev1.ResourceList{}
 	}
-	if err := extunified.SetOriginalNodeAllocatable(node, originalResources); err != nil {
-		klog.ErrorS(err, "Failed to SetOriginalNodeAllocatable", "node", klog.KObj(node))
+
+	amplificationRatios := extunified.NewAmplificationRatiosByOverQuota(node.Labels)
+	for resourceName, ratio := range amplificationRatios {
+		if ratio == 1 {
+			delete(amplificationRatios, resourceName)
+			continue
+		}
+		if ratio > 1 {
+			quantity := node.Status.Allocatable[resourceName]
+			if quantity.IsZero() {
+				continue
+			}
+			if _, ok := rawAllocatable[resourceName]; !ok {
+				rawAllocatable[resourceName] = quantity
+			}
+			apiext.AmplifyResourceList(node.Status.Allocatable, amplificationRatios, resourceName)
+		}
+	}
+	if len(amplificationRatios) > 0 {
+		apiext.SetNodeResourceAmplificationRatios(node, amplificationRatios)
+	}
+	if len(rawAllocatable) > 0 {
+		apiext.SetNodeRawAllocatable(node, rawAllocatable)
 	}
 }
 

@@ -17,7 +17,6 @@ limitations under the License.
 package unified
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 
@@ -29,12 +28,11 @@ import (
 )
 
 const (
-	LabelEnableOverQuota              = "sigma.ali/is-over-quota"
-	LabelCPUOverQuota                 = "sigma.ali/cpu-over-quota"
-	LabelMemoryOverQuota              = "sigma.ali/memory-over-quota"
-	LabelDiskOverQuota                = "sigma.ali/disk-over-quota"
-	AnnotationDisableOverQuotaFilter  = "sigma.ali/disable-over-quota-filter"
-	AnnotationOriginalNodeAllocatable = apiext.NodeDomainPrefix + "/original-node-allocatable"
+	LabelEnableOverQuota             = "sigma.ali/is-over-quota"
+	LabelCPUOverQuota                = "sigma.ali/cpu-over-quota"
+	LabelMemoryOverQuota             = "sigma.ali/memory-over-quota"
+	LabelDiskOverQuota               = "sigma.ali/disk-over-quota"
+	AnnotationDisableOverQuotaFilter = "sigma.ali/disable-over-quota-filter"
 )
 
 func IsNodeEnableOverQuota(node *corev1.Node) bool {
@@ -120,39 +118,26 @@ func CPUMaxRefCount(node *corev1.Node) int {
 }
 
 func parseOverQuotaRatio(overQuota string) int64 {
+	f := parseOverQuotaRatioToFloat64(overQuota)
+	return int64(f * 100)
+}
+
+func parseOverQuotaRatioToFloat64(overQuota string) float64 {
 	if overQuota == "" {
-		return 100
+		return 1
 	}
 
 	f, err := strconv.ParseFloat(overQuota, 64)
 	if err != nil {
 		f = 1.0
 	}
-	return int64(f * 100)
+	return f
 }
 
-func GetOriginalNodeAllocatable(annotations map[string]string) (corev1.ResourceList, error) {
-	val := annotations[AnnotationOriginalNodeAllocatable]
-	if val == "" {
-		return nil, nil
+func NewAmplificationRatiosByOverQuota(labels map[string]string) map[corev1.ResourceName]apiext.Ratio {
+	return map[corev1.ResourceName]apiext.Ratio{
+		corev1.ResourceCPU:              apiext.Ratio(parseOverQuotaRatioToFloat64(labels[LabelCPUOverQuota])),
+		corev1.ResourceMemory:           apiext.Ratio(parseOverQuotaRatioToFloat64(labels[LabelMemoryOverQuota])),
+		corev1.ResourceEphemeralStorage: apiext.Ratio(parseOverQuotaRatioToFloat64(labels[LabelDiskOverQuota])),
 	}
-	allocatable := corev1.ResourceList{}
-	if err := json.Unmarshal([]byte(val), &allocatable); err != nil {
-		return nil, err
-	}
-	return allocatable, nil
-}
-
-func SetOriginalNodeAllocatable(node *corev1.Node, originalResources corev1.ResourceList) error {
-	if len(originalResources) > 0 {
-		if node.Annotations == nil {
-			node.Annotations = map[string]string{}
-		}
-		data, err := json.Marshal(originalResources)
-		if err != nil {
-			return err
-		}
-		node.Annotations[AnnotationOriginalNodeAllocatable] = string(data)
-	}
-	return nil
 }

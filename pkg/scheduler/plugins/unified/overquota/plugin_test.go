@@ -35,6 +35,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 	schedulertesting "k8s.io/kubernetes/pkg/scheduler/testing"
 
+	"github.com/koordinator-sh/koordinator/apis/extension"
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	"github.com/koordinator-sh/koordinator/pkg/util/transformer"
 )
@@ -341,14 +342,12 @@ func TestPlugin_PreFilter(t *testing.T) {
 }
 
 func TestPlugin_Filter(t *testing.T) {
-	type args struct {
-		ctx context.Context
-	}
 	tests := []struct {
 		name       string
 		cycleState *framework.CycleState
 		pod        *corev1.Pod
 		node       *corev1.Node
+		wantStatus *framework.Status
 	}{
 		{
 			name:       "normal pod",
@@ -489,6 +488,61 @@ func TestPlugin_Filter(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:       "pod requests exceeded node total cpus",
+			cycleState: framework.NewCycleState(),
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+					Name:      "test",
+				},
+				Spec: corev1.PodSpec{
+					Affinity: &corev1.Affinity{
+						NodeAffinity: &corev1.NodeAffinity{
+							RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+								NodeSelectorTerms: []corev1.NodeSelectorTerm{
+									{
+										MatchExpressions: []corev1.NodeSelectorRequirement{
+											{
+												Key:      extunified.LabelEnableOverQuota,
+												Operator: corev1.NodeSelectorOpIn,
+												Values:   []string{"true"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Containers: []corev1.Container{
+						{
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU: resource.MustParse("8"),
+								},
+							},
+						},
+					},
+				},
+			},
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test",
+					Labels: map[string]string{
+						extunified.LabelEnableOverQuota: "true",
+					},
+					Annotations: map[string]string{
+						extension.AnnotationNodeRawAllocatable: `{"cpu":"6"}`,
+					},
+				},
+				Status: corev1.NodeStatus{
+					Allocatable: corev1.ResourceList{
+						corev1.ResourceCPU: resource.MustParse("16"),
+					},
+				},
+			},
+			wantStatus: framework.NewStatus(framework.UnschedulableAndUnresolvable, ErrInsufficientTotalCPU),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -511,7 +565,7 @@ func TestPlugin_Filter(t *testing.T) {
 			_, status := plg.PreFilter(context.TODO(), tt.cycleState, tt.pod)
 			assert.True(t, status.IsSuccess())
 			status = plg.Filter(context.TODO(), tt.cycleState, tt.pod, nodeInfo)
-			assert.True(t, status.IsSuccess())
+			assert.Equal(t, tt.wantStatus, status)
 		})
 	}
 }
