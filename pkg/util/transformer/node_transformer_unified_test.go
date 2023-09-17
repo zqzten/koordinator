@@ -17,7 +17,6 @@ limitations under the License.
 package transformer
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,7 +24,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	quotav1 "k8s.io/apiserver/pkg/quota/v1"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
@@ -38,6 +36,7 @@ func TestTransformNodeAllocatableWithOverQuota(t *testing.T) {
 		nodeLabels                 map[string]string
 		nodeAllocatable            corev1.ResourceList
 		wantTransformedAllocatable corev1.ResourceList
+		wantRatios                 map[corev1.ResourceName]apiext.Ratio
 	}{
 		{
 			name: "cpu 1.5, and memory 2",
@@ -47,30 +46,38 @@ func TestTransformNodeAllocatableWithOverQuota(t *testing.T) {
 			},
 			nodeAllocatable: corev1.ResourceList{
 				corev1.ResourceCPU:    resource.MustParse("2"),
-				corev1.ResourceMemory: resource.MustParse("2"),
+				corev1.ResourceMemory: resource.MustParse("2Gi"),
 			},
 			wantTransformedAllocatable: corev1.ResourceList{
-				corev1.ResourceCPU:    resource.MustParse("3"),
-				corev1.ResourceMemory: resource.MustParse("4"),
+				corev1.ResourceCPU:    *resource.NewMilliQuantity(3000, resource.DecimalSI),
+				corev1.ResourceMemory: *resource.NewQuantity(4*1024*1024*1024, resource.BinarySI),
+			},
+			wantRatios: map[corev1.ResourceName]apiext.Ratio{
+				corev1.ResourceCPU:    1.5,
+				corev1.ResourceMemory: 2,
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			nodeAllocatable := tt.nodeAllocatable.DeepCopy()
 			node := &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:   "test-node",
 					Labels: tt.nodeLabels,
 				},
 				Status: corev1.NodeStatus{
-					Allocatable: tt.nodeAllocatable,
+					Allocatable: nodeAllocatable,
 				},
 			}
-			jsonData, err := json.Marshal(tt.nodeAllocatable)
-			assert.NoError(t, err)
 			TransformNodeAllocatableWithOverQuota(node)
-			assert.Equal(t, string(jsonData), node.Annotations[extunified.AnnotationOriginalNodeAllocatable])
-			assert.True(t, quotav1.Equals(tt.wantTransformedAllocatable, node.Status.Allocatable))
+			rawAllocatable, err := apiext.GetNodeRawAllocatable(node)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.nodeAllocatable, rawAllocatable)
+			assert.Equal(t, tt.wantTransformedAllocatable, node.Status.Allocatable)
+			ratios, err := apiext.GetNodeResourceAmplificationRatios(node.Annotations)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantRatios, ratios)
 		})
 	}
 }
