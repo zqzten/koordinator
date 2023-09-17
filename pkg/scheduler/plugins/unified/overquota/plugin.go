@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
+	"github.com/koordinator-sh/koordinator/apis/extension"
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	"github.com/koordinator-sh/koordinator/pkg/util"
 )
@@ -105,11 +106,20 @@ func (p *Plugin) Filter(ctx context.Context, cycleState *framework.CycleState, p
 	if !state.checkOverQuota {
 		return nil
 	}
-	if IsNodeEnableOverQuota(nodeInfo.Node()) != state.isPodRequireOverQuotaNode {
+	node := nodeInfo.Node()
+	if IsNodeEnableOverQuota(node) != state.isPodRequireOverQuotaNode {
 		return framework.NewStatus(framework.Unschedulable, ErrReasonNotMatch)
 	}
 	if state.isPodRequireOverQuotaNode {
-		if state.podRequestedResource.Cpu().MilliValue() > nodeInfo.Node().Status.Allocatable.Cpu().MilliValue() {
+		rawAllocatable, err := extension.GetNodeRawAllocatable(node)
+		if err != nil {
+			return framework.NewStatus(framework.UnschedulableAndUnresolvable, "node(s) invalid raw allocatable")
+		}
+		allocatableCPU := node.Status.Allocatable[corev1.ResourceCPU]
+		if quantity := rawAllocatable[corev1.ResourceCPU]; !quantity.IsZero() {
+			allocatableCPU = quantity
+		}
+		if state.podRequestedResource.Cpu().MilliValue() > allocatableCPU.MilliValue() {
 			return framework.NewStatus(framework.UnschedulableAndUnresolvable, ErrInsufficientTotalCPU)
 		}
 	}
