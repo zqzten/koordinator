@@ -47,7 +47,6 @@ const (
 
 var (
 	CollectRundInterval = 10 * time.Second // use a different interval considering the overhead of rund ExtendedStats
-	timeNow             = time.Now
 )
 
 type rundResourceCollector struct {
@@ -62,6 +61,7 @@ type rundResourceCollector struct {
 
 	deviceCollectors map[string]framework.DeviceCollector
 	sharedState      *framework.SharedState
+	timeNowFn        func() time.Time // for testing
 }
 
 func New(opt *framework.Options) framework.Collector {
@@ -79,6 +79,7 @@ func New(opt *framework.Options) framework.Collector {
 		podFilter:            podFilter,
 		lastPodCPUStat:       gocache.New(collectInterval*framework.ContextExpiredRatio, framework.CleanupInterval),
 		lastContainerCPUStat: gocache.New(collectInterval*framework.ContextExpiredRatio, framework.CleanupInterval),
+		timeNowFn:            time.Now,
 	}
 }
 
@@ -113,8 +114,8 @@ func (p *rundResourceCollector) FilterPod(meta *statesinformer.PodMeta) (bool, s
 func (p *rundResourceCollector) collectRundPodsResUsed() {
 	klog.V(6).Info("start collectRundPodResUsed")
 	podMetas := p.statesInformer.GetAllPods()
-	allCPUUsageCores := metriccache.Point{Timestamp: timeNow(), Value: 0}
-	allMemoryUsage := metriccache.Point{Timestamp: timeNow(), Value: 0}
+	allCPUUsageCores := metriccache.Point{Timestamp: p.timeNowFn(), Value: 0}
+	allMemoryUsage := metriccache.Point{Timestamp: p.timeNowFn(), Value: 0}
 	for _, meta := range podMetas {
 		if filtered, msg := p.FilterPod(meta); filtered {
 			klog.V(5).Infof("skip collect pod %s/%s since it is filtered, msg: %s",
@@ -135,7 +136,7 @@ func (p *rundResourceCollector) collectRundPodsResUsed() {
 func (p *rundResourceCollector) collectRundPod(meta *statesinformer.PodMeta) (cpuUsageCore, memoryUsageBytes float64) {
 	pod := meta.Pod
 	uid := string(pod.UID) // types.UID
-	collectTime := timeNow()
+	collectTime := p.timeNowFn()
 	podCgroupDir := meta.CgroupDir
 	podKey := util.GetPodKey(pod)
 
@@ -257,7 +258,7 @@ func (p *rundResourceCollector) collectRundContainersResUsed(meta *statesinforme
 	for i := range pod.Status.ContainerStatuses {
 		containerStat := &pod.Status.ContainerStatuses[i]
 		containerKey := fmt.Sprintf("%s/%s/%s", pod.Namespace, pod.Name, containerStat.Name)
-		collectTime := timeNow()
+		collectTime := p.timeNowFn()
 		if len(containerStat.ContainerID) <= 0 {
 			klog.V(5).Infof("rund container %s id is empty, maybe not ready, skip this round",
 				containerKey)
