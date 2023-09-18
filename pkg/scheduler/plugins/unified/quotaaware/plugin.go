@@ -18,18 +18,17 @@ package quotaaware
 
 import (
 	"context"
-	"sync/atomic"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/sets"
 	quotav1 "k8s.io/apiserver/pkg/quota/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/helper"
 	schedlisters "sigs.k8s.io/scheduler-plugins/pkg/generated/listers/scheduling/v1alpha1"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
-	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota"
 	elasticquotacore "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota/core"
 )
@@ -38,17 +37,19 @@ const (
 	Name = "QuotaAware"
 )
 
-var _ framework.EnqueueExtensions = &Plugin{}
-var _ framework.PreFilterPlugin = &Plugin{}
-var _ framework.PostFilterPlugin = &Plugin{}
-var _ framework.ReservePlugin = &Plugin{}
-var _ framework.PreBindPlugin = &Plugin{}
+var (
+	_ framework.EnqueueExtensions = &Plugin{}
+	_ framework.PreFilterPlugin   = &Plugin{}
+	_ framework.FilterPlugin      = &Plugin{}
+	_ framework.PreScorePlugin    = &Plugin{}
+	_ framework.ScorePlugin       = &Plugin{}
+	_ framework.ReservePlugin     = &Plugin{}
+	_ framework.PreBindPlugin     = &Plugin{}
+)
 
 type Plugin struct {
 	*elasticquota.Plugin
 	handle             framework.Handle
-	quotaCache         *QuotaCache
-	podInfoCache       *podInfoCache
 	elasticQuotaLister schedlisters.ElasticQuotaLister
 }
 
@@ -63,44 +64,13 @@ func New(obj runtime.Object, handle framework.Handle) (framework.Plugin, error) 
 	}
 	elasticQuotaPlugin := internalPlugin.(*elasticquota.Plugin)
 	elasticQuotaInformer := elasticQuotaPlugin.GetElasticQuotaInformer()
-
-	quotaCache := newQuotaCache()
-	registerElasticQuotaEventHandler(quotaCache, elasticQuotaInformer)
 	elasticQuotaLister := schedlisters.NewElasticQuotaLister(elasticQuotaInformer.GetIndexer())
-
-	podInfoCache := newPodInfoCache()
-	registerPodEventHandler(quotaCache, podInfoCache, handle.SharedInformerFactory())
 
 	pl := &Plugin{
 		Plugin:             elasticQuotaPlugin,
 		handle:             handle,
-		quotaCache:         quotaCache,
-		podInfoCache:       podInfoCache,
 		elasticQuotaLister: elasticQuotaLister,
 	}
-	extendedHandle := handle.(frameworkext.ExtendedHandle)
-	extendedHandle.RegisterErrorHandlerFilters(nil, func(info *framework.QueuedPodInfo, err error) bool {
-		if info.Pod.Labels[LabelQuotaID] == "" {
-			return false
-		}
-		pi := pl.podInfoCache.getPendingPodInfo(info.Pod.UID)
-		if pi == nil {
-			return false
-		}
-		extendedHandle.Scheduler().GetSchedulingQueue().MoveAllToActiveOrBackoffQueue(framework.ClusterEvent{Resource: framework.WildCard, ActionType: framework.All}, func(pod *corev1.Pod) bool {
-			if pod.UID != info.Pod.UID {
-				return false
-			}
-			if pi.processedQuotas.Len() > 0 && pi.pendingQuotas.Len() > 0 && pi.processedQuotas.Equal(pi.pendingQuotas) {
-				klog.V(4).InfoS("Pod has retried multiple available Quotas, but scheduling still failed.", "pod", klog.KObj(pod), "processedQuotas", pi.processedQuotas.List())
-				pi.resetTrackState()
-				return false
-			}
-			return true
-		})
-		return true
-	})
-
 	return pl, nil
 }
 
@@ -111,11 +81,6 @@ func (pl *Plugin) Name() string {
 func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod) (*framework.PreFilterResult, *framework.Status) {
 	if pod.Labels[LabelQuotaID] == "" {
 		return pl.Plugin.PreFilter(ctx, cycleState, pod)
-	}
-
-	pi := pl.podInfoCache.getPendingPodInfo(pod.UID)
-	if pi == nil {
-		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "waiting sync state")
 	}
 
 	podNodeAffinity, err := newNodeAffinity(pod)
@@ -137,38 +102,17 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "No matching Quota objects")
 	}
 
-	availableQuotas, frozenQuotas := filterAvailableQuotas(podRequests, pl.quotaCache, elasticQuotas, pi.frozenQuotas)
+	availableQuotas := filterGuaranteeAvailableQuotas(podRequests, pl.Plugin, elasticQuotas)
 	if len(availableQuotas) == 0 {
-		if len(frozenQuotas) == 0 {
-			return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "No available Quotas")
-		}
-		availableQuotas = frozenQuotas
-		pi.frozenQuotas = sets.NewString()
+		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "No available Quotas")
 	}
-
-	if pi.pendingQuotas.Len() == 0 {
-		for _, v := range availableQuotas {
-			pi.pendingQuotas.Insert(v.name)
-		}
-	}
-
-	minSufficientQuotas, minInsufficientQuotas := filterReplicasSufficientQuotas(podRequests, availableQuotas, pi.selectedQuotaName, true, 100, true)
-	candidateQuota, candidateNodes := pl.selectCandidateQuotaAndNodes(pod, podRequests, minSufficientQuotas)
-	if candidateQuota == nil {
-		minInsufficientQuotas, _ = filterReplicasSufficientQuotas(podRequests, minInsufficientQuotas, pi.selectedQuotaName, false, 100, false)
-		candidateQuota, candidateNodes = pl.selectCandidateQuotaAndNodes(pod, podRequests, minInsufficientQuotas)
-	}
-	if len(candidateNodes) == 0 {
-		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "No available nodes")
-	}
-
-	pi.selectedQuotaName = candidateQuota.quotaObj.Name
 
 	cycleState.Write(Name, &stateData{
-		podRequests: podRequests,
+		podRequests:     podRequests,
+		availableQuotas: availableQuotas,
 	})
 
-	return &framework.PreFilterResult{NodeNames: candidateNodes}, nil
+	return nil, nil
 }
 
 func (pl *Plugin) PreFilterExtensions() framework.PreFilterExtensions {
@@ -176,12 +120,27 @@ func (pl *Plugin) PreFilterExtensions() framework.PreFilterExtensions {
 }
 
 type stateData struct {
-	skip        bool
-	podRequests corev1.ResourceList
+	skip              bool
+	podRequests       corev1.ResourceList
+	availableQuotas   []*QuotaWrapper
+	maxReplicas       int
+	replicasWithMin   map[string]int
+	replicasWithMax   map[string]int
+	selectedQuotaName string
 }
 
 func (s *stateData) Clone() framework.StateData {
 	return s
+}
+
+func (s *stateData) getQuotaByNode(node *corev1.Node) *QuotaWrapper {
+	for _, quota := range s.availableQuotas {
+		if quota.Obj.Labels[corev1.LabelTopologyZone] == node.Labels[corev1.LabelTopologyZone] &&
+			quota.Obj.Labels[corev1.LabelArchStable] == node.Labels[corev1.LabelArchStable] {
+			return quota
+		}
+	}
+	return nil
 }
 
 func getStateData(cycleState *framework.CycleState) *stateData {
@@ -195,118 +154,125 @@ func getStateData(cycleState *framework.CycleState) *stateData {
 	return sd
 }
 
-func (pl *Plugin) PostFilter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, filteredNodeStatusMap framework.NodeToStatusMap) (*framework.PostFilterResult, *framework.Status) {
+func (pl *Plugin) Filter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
 	sd := getStateData(cycleState)
-	if !sd.skip {
-		pi := pl.podInfoCache.getPendingPodInfo(pod.UID)
-		if pi != nil {
-			pi.processedQuotas.Insert(pi.selectedQuotaName)
-			pi.frozenQuotas.Insert(pi.selectedQuotaName)
-			pi.selectedQuotaName = ""
-		}
-	}
-	return nil, framework.NewStatus(framework.Unschedulable)
-}
-
-func (pl *Plugin) Reserve(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
-	sd := getStateData(cycleState)
-	if !sd.skip {
-		pi := pl.podInfoCache.getPendingPodInfo(pod.UID)
-		if pi != nil {
-			pl.Plugin.ReserveQuota(pod, pi.selectedQuotaName)
-			pl.quotaCache.assumePod(pod, pi.selectedQuotaName, sd.podRequests)
-		}
+	if sd.skip {
 		return nil
 	}
-	return pl.Plugin.Reserve(ctx, cycleState, pod, nodeName)
-}
-
-func (pl *Plugin) Unreserve(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeName string) {
-	sd := getStateData(cycleState)
-	if !sd.skip {
-		pi := pl.podInfoCache.getPendingPodInfo(pod.UID)
-		if pi != nil {
-			pi.processedQuotas.Insert(pi.selectedQuotaName)
-			pl.Plugin.UnreserveQuota(pod, pi.selectedQuotaName)
-			pl.quotaCache.forgetPod(pod, pi.selectedQuotaName, sd.podRequests)
-		}
-		return
+	node := nodeInfo.Node()
+	quota := sd.getQuotaByNode(node)
+	if quota == nil {
+		return framework.NewStatus(framework.UnschedulableAndUnresolvable, "node(s) no corresponding available Quota")
 	}
-	pl.Plugin.Unreserve(ctx, cycleState, pod, nodeName)
+	return nil
 }
 
-func (pl *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
+func (pl *Plugin) PreScore(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodes []*corev1.Node) *framework.Status {
 	sd := getStateData(cycleState)
-	if !sd.skip {
-		pi := pl.podInfoCache.getPendingPodInfo(pod.UID)
-		if pi != nil {
-			if pod.Labels == nil {
-				pod.Labels = map[string]string{}
-			}
-			pod.Labels[apiext.LabelQuotaName] = pi.selectedQuotaName
+	if sd.skip {
+		return nil
+	}
+
+	sd.maxReplicas = 10
+	sd.replicasWithMin = map[string]int{}
+	sd.replicasWithMax = map[string]int{}
+	for _, quota := range sd.availableQuotas {
+		replicas := countReplicas(quota.Min, quota.Used, sd.podRequests, sd.maxReplicas)
+		if replicas > 0 {
+			sd.replicasWithMin[quota.Name] = replicas
+		} else {
+			replicas := countReplicas(quota.Max, quota.Used, sd.podRequests, sd.maxReplicas)
+			sd.replicasWithMax[quota.Name] = replicas
 		}
 	}
 	return nil
 }
 
-func (pl *Plugin) selectCandidateQuotaAndNodes(pod *corev1.Pod, podRequests corev1.ResourceList, quotas []*QuotaObject) (*QuotaObject, sets.String) {
-	var (
-		candidateQuota *QuotaObject
-		candidateNodes sets.String
-	)
-	for _, quota := range quotas {
-		pl.Plugin.TryAdd(pod, quota.name)
-		_, status := pl.Plugin.FitQuota(podRequests, quota.name)
-		if !status.IsSuccess() {
-			pl.Plugin.Forget(pod, quota.name)
-			if status.Code() == framework.Error {
-				klog.ErrorS(status.AsError(), "Failed to FitQuota", "pod", klog.KObj(pod), "quota", klog.KObj(quota.quotaObj))
-			} else {
-				klog.V(4).InfoS("Failed to FitQuota", "pod", klog.KObj(pod), "quota", klog.KObj(quota.quotaObj), "reason", status.Message())
-			}
-			continue
-		}
-
-		var err error
-		if candidateNodes, err = pl.filterNodeInfosByQuota(quota); err != nil {
-			pl.Plugin.Forget(pod, quota.name)
-			klog.ErrorS(err, "Failed to filterNodeInfosByQuota", "pod", klog.KObj(pod), "quota", klog.KObj(quota.quotaObj))
-			continue
-		}
-		if len(candidateNodes) > 0 {
-			klog.V(4).InfoS("Pod will schedule in nodes by quota",
-				"pod", klog.KObj(pod), "quota", klog.KObj(quota.quotaObj), "nodes", len(candidateNodes), "zone", quota.quotaObj.Labels[corev1.LabelTopologyZone])
-			candidateQuota = quota
-			break
-		}
-		pl.Plugin.Forget(pod, quota.name)
+func (pl *Plugin) Score(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeName string) (int64, *framework.Status) {
+	sd := getStateData(cycleState)
+	if sd.skip {
+		return 0, nil
 	}
-	return candidateQuota, candidateNodes
+
+	nodeInfo, err := pl.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
+	if err != nil {
+		return 0, framework.NewStatus(framework.Error, fmt.Sprintf("getting node %q from Snapshot: %v", nodeName, err))
+	}
+	node := nodeInfo.Node()
+
+	quota := sd.getQuotaByNode(node)
+	if quota == nil {
+		return 0, nil
+	}
+
+	baseScore := int64(sd.maxReplicas) * framework.MaxNodeScore
+	replicas, ok := sd.replicasWithMin[quota.Name]
+	if ok {
+		if replicas >= sd.maxReplicas {
+			return baseScore, nil
+		}
+		return int64(sd.maxReplicas-replicas) * baseScore, nil
+	}
+
+	replicas, ok = sd.replicasWithMax[quota.Name]
+	if ok {
+		return int64(replicas) * framework.MaxNodeScore / 2, nil
+	}
+	return 0, nil
 }
 
-func (pl *Plugin) filterNodeInfosByQuota(quota *QuotaObject) (sets.String, error) {
-	zone := quota.quotaObj.Labels[corev1.LabelTopologyZone]
-	arch := quota.quotaObj.Labels[corev1.LabelArchStable]
-	nodeInfos, err := pl.handle.SnapshotSharedLister().NodeInfos().List()
+func (pl *Plugin) ScoreExtensions() framework.ScoreExtensions {
+	return pl
+}
+
+func (pl *Plugin) NormalizeScore(ctx context.Context, cycleState *framework.CycleState, p *corev1.Pod, scores framework.NodeScoreList) *framework.Status {
+	return helper.DefaultNormalizeScore(framework.MaxNodeScore, false, scores)
+}
+
+func (pl *Plugin) Reserve(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
+	sd := getStateData(cycleState)
+	if sd.skip {
+		return pl.Plugin.Reserve(ctx, cycleState, pod, nodeName)
+	}
+
+	nodeInfo, err := pl.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
 	if err != nil {
-		return nil, err
+		return framework.AsStatus(err)
 	}
-	targetNodes := make([]*framework.NodeInfo, len(nodeInfos))
-	var index int32
-	pl.handle.Parallelizer().Until(context.TODO(), len(nodeInfos), func(piece int) {
-		nodeInfo := nodeInfos[piece]
-		node := nodeInfo.Node()
-		if node.Labels[corev1.LabelTopologyZone] == zone && node.Labels[corev1.LabelArchStable] == arch {
-			next := atomic.AddInt32(&index, 1)
-			targetNodes[next-1] = nodeInfo
+	node := nodeInfo.Node()
+
+	quota := sd.getQuotaByNode(node)
+	if quota == nil {
+		return framework.NewStatus(framework.Error, "No corresponding available Quota to reserve")
+	}
+	sd.selectedQuotaName = quota.Name
+	mgr := pl.Plugin.GetGroupQuotaManagerForQuota(sd.selectedQuotaName)
+	if mgr != nil {
+		mgr.OnPodAdd(sd.selectedQuotaName, pod)
+	}
+	return nil
+}
+
+func (pl *Plugin) Unreserve(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeName string) {
+	sd := getStateData(cycleState)
+	if sd.skip {
+		pl.Plugin.Unreserve(ctx, cycleState, pod, nodeName)
+		return
+	}
+	mgr := pl.Plugin.GetGroupQuotaManagerForQuota(sd.selectedQuotaName)
+	if mgr != nil {
+		mgr.OnPodDelete(sd.selectedQuotaName, pod)
+	}
+	return
+}
+
+func (pl *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
+	sd := getStateData(cycleState)
+	if !sd.skip {
+		if pod.Labels == nil {
+			pod.Labels = map[string]string{}
 		}
-	})
-	if len(targetNodes) == 0 {
-		return nil, nil
+		pod.Labels[apiext.LabelQuotaName] = sd.selectedQuotaName
 	}
-	nodes := sets.NewString()
-	for _, v := range targetNodes[:index] {
-		nodes.Insert(v.Node().Name)
-	}
-	return nodes, nil
+	return nil
 }

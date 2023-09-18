@@ -280,15 +280,12 @@ func Test_filterAvailableQuotas(t *testing.T) {
 		name     string
 		requests corev1.ResourceList
 		quotas   []*schedv1alpha1.ElasticQuota
-		frozen   sets.String
-		want1    []*QuotaObject
-		want2    []*QuotaObject
+		want     sets.String
 	}{
 		{
 			name:     "no quotas",
 			requests: defaultRequests,
-			want1:    nil,
-			want2:    nil,
+			want:     sets.NewString(),
 		},
 		{
 			name:     "no satisfied quotas",
@@ -306,65 +303,10 @@ func Test_filterAvailableQuotas(t *testing.T) {
 					},
 				},
 			},
-			want1: nil,
-			want2: nil,
+			want: sets.NewString(),
 		},
 		{
-			name:     "has one satisfied quotas",
-			requests: defaultRequests,
-			quotas: []*schedv1alpha1.ElasticQuota{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "quota-a",
-					},
-					Spec: schedv1alpha1.ElasticQuotaSpec{
-						Max: corev1.ResourceList{
-							corev1.ResourceCPU:    resource.MustParse("1"),
-							corev1.ResourceMemory: resource.MustParse("1Gi"),
-						},
-					},
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "quota-b",
-					},
-					Spec: schedv1alpha1.ElasticQuotaSpec{
-						Max: corev1.ResourceList{
-							corev1.ResourceCPU:    resource.MustParse("4"),
-							corev1.ResourceMemory: resource.MustParse("4Gi"),
-						},
-					},
-				},
-			},
-			want1: []*QuotaObject{
-				{
-					name: "quota-b",
-					quotaObj: &schedv1alpha1.ElasticQuota{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "quota-b",
-						},
-						Spec: schedv1alpha1.ElasticQuotaSpec{
-							Max: corev1.ResourceList{
-								corev1.ResourceCPU:    resource.MustParse("4"),
-								corev1.ResourceMemory: resource.MustParse("4Gi"),
-							},
-						},
-					},
-					min: nil,
-					max: corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("4"),
-						corev1.ResourceMemory: resource.MustParse("4Gi"),
-					},
-					runtime: nil,
-
-					pods: sets.NewString(),
-					used: nil,
-				},
-			},
-			want2: nil,
-		},
-		{
-			name:     "has one satisfied and frozen quotas",
+			name:     "has satisfied quotas",
 			requests: defaultRequests,
 			quotas: []*schedv1alpha1.ElasticQuota{
 				{
@@ -401,286 +343,26 @@ func Test_filterAvailableQuotas(t *testing.T) {
 					},
 				},
 			},
-			frozen: sets.NewString("quota-c"),
-			want1: []*QuotaObject{
-				{
-					name: "quota-b",
-					quotaObj: &schedv1alpha1.ElasticQuota{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "quota-b",
-						},
-						Spec: schedv1alpha1.ElasticQuotaSpec{
-							Max: corev1.ResourceList{
-								corev1.ResourceCPU:    resource.MustParse("4"),
-								corev1.ResourceMemory: resource.MustParse("4Gi"),
-							},
-						},
-					},
-					min: nil,
-					max: corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("4"),
-						corev1.ResourceMemory: resource.MustParse("4Gi"),
-					},
-					runtime: nil,
-
-					pods: sets.NewString(),
-					used: nil,
-				},
-			},
-			want2: []*QuotaObject{
-				{
-					name: "quota-c",
-					quotaObj: &schedv1alpha1.ElasticQuota{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "quota-c",
-						},
-						Spec: schedv1alpha1.ElasticQuotaSpec{
-							Max: corev1.ResourceList{
-								corev1.ResourceCPU:    resource.MustParse("4"),
-								corev1.ResourceMemory: resource.MustParse("4Gi"),
-							},
-						},
-					},
-					min: nil,
-					max: corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("4"),
-						corev1.ResourceMemory: resource.MustParse("4Gi"),
-					},
-					runtime: nil,
-
-					pods: sets.NewString(),
-					used: nil,
-				},
-			},
-		},
-		{
-			name:     "has one unsatisfied and frozen quotas",
-			requests: defaultRequests,
-			quotas: []*schedv1alpha1.ElasticQuota{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "quota-a",
-					},
-					Spec: schedv1alpha1.ElasticQuotaSpec{
-						Max: corev1.ResourceList{
-							corev1.ResourceCPU:    resource.MustParse("1"),
-							corev1.ResourceMemory: resource.MustParse("1Gi"),
-						},
-					},
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "quota-b",
-					},
-					Spec: schedv1alpha1.ElasticQuotaSpec{
-						Max: corev1.ResourceList{
-							corev1.ResourceCPU:    resource.MustParse("4"),
-							corev1.ResourceMemory: resource.MustParse("4Gi"),
-						},
-					},
-				},
-			},
-			frozen: sets.NewString("quota-a"),
-			want1: []*QuotaObject{
-				{
-					name: "quota-b",
-					quotaObj: &schedv1alpha1.ElasticQuota{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "quota-b",
-						},
-						Spec: schedv1alpha1.ElasticQuotaSpec{
-							Max: corev1.ResourceList{
-								corev1.ResourceCPU:    resource.MustParse("4"),
-								corev1.ResourceMemory: resource.MustParse("4Gi"),
-							},
-						},
-					},
-					min: nil,
-					max: corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("4"),
-						corev1.ResourceMemory: resource.MustParse("4Gi"),
-					},
-					runtime: nil,
-
-					pods: sets.NewString(),
-					used: nil,
-				},
-			},
-			want2: nil,
+			want: sets.NewString("quota-b", "quota-c"),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cache := newQuotaCache()
+			suit := newPluginTestSuit(t, nil)
 			for _, v := range tt.quotas {
-				cache.updateQuota(nil, v)
+				v.Namespace = "default"
+				_, err := suit.schedclient.SchedulingV1alpha1().ElasticQuotas(v.Namespace).Create(context.TODO(), v, metav1.CreateOptions{})
+				assert.NoError(t, err)
 			}
-			got1, got2 := filterAvailableQuotas(tt.requests, cache, tt.quotas, tt.frozen)
-			assert.Equal(t, tt.want1, got1)
-			assert.Equal(t, tt.want2, got2)
-		})
-	}
-}
-
-func Test_filterReplicasSufficientQuotas(t *testing.T) {
-	defaultRequests := corev1.ResourceList{
-		corev1.ResourceCPU:    resource.MustParse("4"),
-		corev1.ResourceMemory: resource.MustParse("4Gi"),
-	}
-	tests := []struct {
-		name                   string
-		requests               corev1.ResourceList
-		quotas                 []*QuotaObject
-		preferredQuotaName     string
-		byMin                  bool
-		minReplicas            int
-		ascending              bool
-		wantSufficientQuotas   []*QuotaObject
-		wantInsufficientQuotas []*QuotaObject
-	}{
-		{
-			name:     "filter and sort by min",
-			requests: defaultRequests,
-			quotas: []*QuotaObject{
-				{
-					name: "quota-a",
-					min: corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("8"),
-						corev1.ResourceMemory: resource.MustParse("8Gi"),
-					},
-					max: corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("8"),
-						corev1.ResourceMemory: resource.MustParse("8Gi"),
-					},
-				},
-				{
-					name: "quota-b",
-					min:  defaultRequests,
-					max:  defaultRequests,
-				},
-			},
-			byMin:       true,
-			minReplicas: 100,
-			ascending:   true,
-			wantSufficientQuotas: []*QuotaObject{
-				{
-					name: "quota-b",
-					min:  defaultRequests,
-					max:  defaultRequests,
-				},
-				{
-					name: "quota-a",
-					min: corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("8"),
-						corev1.ResourceMemory: resource.MustParse("8Gi"),
-					},
-					max: corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("8"),
-						corev1.ResourceMemory: resource.MustParse("8Gi"),
-					},
-				},
-			},
-		},
-		{
-			name:     "filter min insufficient quotas",
-			requests: defaultRequests,
-			quotas: []*QuotaObject{
-				{
-					name: "quota-a",
-					min: corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("1"),
-						corev1.ResourceMemory: resource.MustParse("1Gi"),
-					},
-					max: corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("8"),
-						corev1.ResourceMemory: resource.MustParse("8Gi"),
-					},
-				},
-				{
-					name: "quota-b",
-					min:  defaultRequests,
-					max:  defaultRequests,
-				},
-			},
-			byMin:       true,
-			minReplicas: 100,
-			ascending:   true,
-			wantSufficientQuotas: []*QuotaObject{
-				{
-					name: "quota-b",
-					min:  defaultRequests,
-					max:  defaultRequests,
-				},
-			},
-			wantInsufficientQuotas: []*QuotaObject{
-				{
-					name: "quota-a",
-					min: corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("1"),
-						corev1.ResourceMemory: resource.MustParse("1Gi"),
-					},
-					max: corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("8"),
-						corev1.ResourceMemory: resource.MustParse("8Gi"),
-					},
-				},
-			},
-		},
-		{
-			name:     "filter min insufficient but max sufficient quotas",
-			requests: defaultRequests,
-			quotas: []*QuotaObject{
-				{
-					name: "quota-a",
-					min: corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("1"),
-						corev1.ResourceMemory: resource.MustParse("1Gi"),
-					},
-					max: corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("8"),
-						corev1.ResourceMemory: resource.MustParse("8Gi"),
-					},
-				},
-				{
-					name: "quota-b",
-					min:  defaultRequests,
-					max: corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("16"),
-						corev1.ResourceMemory: resource.MustParse("16Gi"),
-					},
-				},
-			},
-			byMin:       false,
-			minReplicas: 100,
-			ascending:   false,
-			wantSufficientQuotas: []*QuotaObject{
-				{
-					name: "quota-b",
-					min:  defaultRequests,
-					max: corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("16"),
-						corev1.ResourceMemory: resource.MustParse("16Gi"),
-					},
-				},
-				{
-					name: "quota-a",
-					min: corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("1"),
-						corev1.ResourceMemory: resource.MustParse("1Gi"),
-					},
-					max: corev1.ResourceList{
-						corev1.ResourceCPU:    resource.MustParse("8"),
-						corev1.ResourceMemory: resource.MustParse("8Gi"),
-					},
-				},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gotSufficientQuotas, gotInsufficientQuotas := filterReplicasSufficientQuotas(tt.requests, tt.quotas, tt.preferredQuotaName, tt.byMin, tt.minReplicas, tt.ascending)
-			assert.Equalf(t, tt.wantSufficientQuotas, gotSufficientQuotas, "filterReplicasSufficientQuotas(%v, %v, %v, %v, %v, %v)", tt.requests, tt.quotas, tt.preferredQuotaName, tt.byMin, tt.minReplicas, tt.ascending)
-			assert.Equalf(t, tt.wantInsufficientQuotas, gotInsufficientQuotas, "filterReplicasSufficientQuotas(%v, %v, %v, %v, %v, %v)", tt.requests, tt.quotas, tt.preferredQuotaName, tt.byMin, tt.minReplicas, tt.ascending)
+			p, err := suit.proxyNew(nil, suit.Framework)
+			assert.NoError(t, err)
+			pl := p.(*Plugin)
+			got := filterGuaranteeAvailableQuotas(tt.requests, pl.Plugin, tt.quotas)
+			gotQuotaNames := sets.NewString()
+			for _, v := range got {
+				gotQuotaNames.Insert(v.Name)
+			}
+			assert.Equal(t, tt.want, gotQuotaNames)
 		})
 	}
 }
