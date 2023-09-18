@@ -17,16 +17,14 @@ limitations under the License.
 package quotaaware
 
 import (
-	"encoding/json"
 	"fmt"
-	"sort"
-	"strconv"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	quotav1 "k8s.io/apiserver/pkg/quota/v1"
+	"k8s.io/klog/v2"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 	schedv1alpha1 "sigs.k8s.io/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
 	schedlisters "sigs.k8s.io/scheduler-plugins/pkg/generated/listers/scheduling/v1alpha1"
@@ -34,6 +32,8 @@ import (
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	schedulingconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta2"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota"
+	elasticquotacore "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota/core"
 )
 
 type nodeAffinity struct {
@@ -146,128 +146,87 @@ func parseNodeAffinity(pod *corev1.Pod, fn func(key string, operator corev1.Node
 	}
 }
 
-func filterAvailableQuotas(requests corev1.ResourceList, cache *QuotaCache, quotas []*schedv1alpha1.ElasticQuota, frozen sets.String) ([]*QuotaObject, []*QuotaObject) {
-	//
-	// NOTE: 关于 Frozen
-	// 只有 Filter 失败后才会冻结选中的 Quota 对象；如果在 Unreserve 阶段，则不冻结 Quota 对象。
-	// 原因是 Unreserve 证明之前一定是 Filter 成功，Quota 满足，资源满足，但中途 Reserve/PreBind 失败了，但这些失败
-	// 可能是因为外部链路有异常，比如 webhook 拦截、APIServer 不可用、云盘挂载异常等等，
-	// 因此不但不能冻结，还需要重新调度时优先使用这个 Quota 对象。
-	// 另外即使在 Filter 阶段失败了，还有几种情况需要考虑：
-	// 1. 选中的 Quota 对象的 min 是足够的，但还是 Filter 失败了；
-	// 2. 选中的 Quota 对象的 min 是不够的，runtime 满足，但现在可能变成 min 又满足了，或者 runtime 又不够了。
-	// 站在用户的角度，从成本角度考虑肯定是希望优先使用 min 满足 Quota 对象，但当有多个 min 满足时，一个 min 足够的Quota 对象
-	// 却调度失败了，最好是尝试换个 min 满足的 Quota 对象；但如果只有一个 min 满足Quota时，同时还有可以使用弹性 Quota 的对象，
-	// 就很纠结了，从资源交付角度看，我们应该尽可能的满足用户的Pod诉求，选择弹性 Quota 充足的对象，
-	// 但用户在收到账单时，一定有个疑问：为什么 min 有剩余但没有使用呢？
-	// 现在这一期先按照完全冻结的角度考虑，后面再进行优化，尽可能的使用用户的min。
-	//
-	var availableQuotas []*QuotaObject
-	var filteredByFrozen []*QuotaObject
+type QuotaWrapper struct {
+	Name string
+	Used corev1.ResourceList
+	Min  corev1.ResourceList
+	Max  corev1.ResourceList
+	Obj  *schedv1alpha1.ElasticQuota
+}
+
+func filterGuaranteeAvailableQuotas(requests corev1.ResourceList, cache *elasticquota.Plugin, quotas []*schedv1alpha1.ElasticQuota) []*QuotaWrapper {
+	var availableQuotas []*QuotaWrapper
 	for _, v := range quotas {
-		quotaObj := cache.getQuota(v.Name)
-		if quotaObj != nil {
-			used := quotav1.Add(requests, quotaObj.used)
-			if usedLessThan(used, quotaObj.max) {
-				if frozen.Has(v.Name) {
-					filteredByFrozen = append(filteredByFrozen, quotaObj)
-					continue
-				}
-				availableQuotas = append(availableQuotas, quotaObj)
+		qm := cache.GetGroupQuotaManagerForQuota(v.Name)
+		if qm == nil {
+			continue
+		}
+		quotaInfo := qm.GetQuotaInfoByName(v.Name)
+		if quotaInfo != nil {
+			if !checkGuarantee(qm, quotaInfo, requests) {
+				klog.V(4).InfoS("Quota is unavailable", "quota", quotaInfo.Name)
+				continue
 			}
+
+			availableQuotas = append(availableQuotas, &QuotaWrapper{
+				Name: quotaInfo.Name,
+				Used: quotaInfo.GetUsed(),
+				Min:  quotaInfo.GetMin(),
+				Max:  quotaInfo.GetMax(),
+				Obj:  v,
+			})
 		}
 	}
-	return availableQuotas, filteredByFrozen
+	return availableQuotas
 }
 
-func filterReplicasSufficientQuotas(requests corev1.ResourceList, quotas []*QuotaObject, preferredQuotaName string, byMin bool, minReplicas int, ascending bool) (sufficientQuotas, insufficientQuotas []*QuotaObject) {
-	quotaReplicas := map[string]int{}
-	var preferredQuota *QuotaObject
-	for _, quotaObj := range quotas {
-		upper := quotaObj.max
-		if byMin {
-			upper = quotaObj.min
-		}
-		replicas := countReplicas(upper, quotaObj.used, requests, minReplicas)
-		if replicas > 0 {
-			if preferredQuotaName != "" && quotaObj.name == preferredQuotaName {
-				preferredQuota = quotaObj
-			} else {
-				sufficientQuotas = append(sufficientQuotas, quotaObj)
-			}
-		} else {
-			insufficientQuotas = append(insufficientQuotas, quotaObj)
-		}
-		quotaReplicas[quotaObj.name] = replicas
+func checkGuarantee(qm *elasticquotacore.GroupQuotaManager, quotaInfo *elasticquotacore.QuotaInfo, requests corev1.ResourceList) bool {
+	if quotaInfo.Name == apiext.RootQuotaName {
+		return true
 	}
-	sortQuotas(sufficientQuotas, quotaReplicas, ascending)
-	if preferredQuota != nil {
-		if len(sufficientQuotas) == 0 {
-			sufficientQuotas = []*QuotaObject{preferredQuota}
-		} else {
-			sufficientQuotas = append([]*QuotaObject{preferredQuota}, sufficientQuotas...)
-		}
-	}
-	return
-}
 
-func sortQuotas(quotaObjects []*QuotaObject, quotaReplicas map[string]int, ascending bool) {
-	sort.Slice(quotaObjects, func(i, j int) bool {
-		iQuotaReplicas := quotaReplicas[quotaObjects[i].name]
-		jQuotaReplicas := quotaReplicas[quotaObjects[j].name]
-		if iQuotaReplicas != jQuotaReplicas {
-			if ascending {
-				return iQuotaReplicas < jQuotaReplicas
-			} else {
-				return iQuotaReplicas > jQuotaReplicas
-			}
+	if quotaInfo.IsParent && (quotaInfo.ParentName == "" || quotaInfo.ParentName == apiext.RootQuotaName) {
+		totalResource := qm.GetClusterTotalResource()
+		used := quotav1.Add(requests, quotaInfo.GetAllocated())
+		return usedLessThan(used, totalResource)
+	} else {
+		allocated := quotaInfo.GetAllocated()
+		used := quotav1.Add(requests, allocated)
+		if !usedLessThan(used, quotaInfo.GetMax()) {
+			return false
 		}
-		iQuotaZone := quotaObjects[i].quotaObj.Labels[corev1.LabelTopologyZone]
-		jQuotaZone := quotaObjects[j].quotaObj.Labels[corev1.LabelTopologyZone]
-		return iQuotaZone < jQuotaZone
-	})
+		if usedLessThan(used, quotaInfo.GetGuaranteed()) {
+			return true
+		}
+		requests = quotav1.SubtractWithNonNegativeResult(used, allocated)
+	}
+
+	parent := qm.GetQuotaInfoByName(quotaInfo.ParentName)
+	if parent == nil {
+		return false
+	}
+	return checkGuarantee(qm, parent, requests)
 }
 
 func usedLessThan(used, max corev1.ResourceList) bool {
+	if !quotav1.IsZero(used) && quotav1.IsZero(max) {
+		return false
+	}
 	satisfied, _ := quotav1.LessThanOrEqual(used, max)
 	return satisfied
 }
 
-func countReplicas(remaining, used, requests corev1.ResourceList, minReplicas int) int {
+func countReplicas(remaining, used, requests corev1.ResourceList, maxReplicas int) int {
 	replicas := 0
 	used = quotav1.Add(used, requests)
 	for usedLessThan(used, remaining) {
 		replicas++
-		if minReplicas > 0 && replicas >= minReplicas {
+		if maxReplicas > 0 && replicas >= maxReplicas {
 			break
 		}
 		used = quotav1.Add(used, requests)
 	}
 	return replicas
-}
-
-func isParentQuota(quota *schedv1alpha1.ElasticQuota) bool {
-	if val, exist := quota.Labels[apiext.LabelQuotaIsParent]; exist {
-		isParent, err := strconv.ParseBool(val)
-		if err == nil {
-			return isParent
-		}
-	}
-
-	return false
-}
-
-func getQuotaRuntime(quota *schedv1alpha1.ElasticQuota) (corev1.ResourceList, error) {
-	runtimeAnnotation, ok := quota.Annotations[apiext.AnnotationRuntime]
-	if ok {
-		resourceList := make(corev1.ResourceList)
-		err := json.Unmarshal([]byte(runtimeAnnotation), &resourceList)
-		if err != nil {
-			return nil, err
-		}
-		return resourceList, nil
-	}
-	return nil, nil
 }
 
 func getElasticQuotaArgs(obj runtime.Object) (*schedulingconfig.ElasticQuotaArgs, error) {

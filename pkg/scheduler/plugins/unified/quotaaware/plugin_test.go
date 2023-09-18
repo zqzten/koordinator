@@ -18,6 +18,7 @@ package quotaaware
 
 import (
 	"context"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -152,46 +153,18 @@ func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
 	}
 }
 
-func Test_PreFilterWithMinFirst(t *testing.T) {
-	nodes := []*corev1.Node{
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "node-1",
-				Labels: map[string]string{
-					corev1.LabelTopologyZone: "az-1",
-					corev1.LabelArchStable:   "amd64",
-				},
-			},
-		},
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "node-2",
-				Labels: map[string]string{
-					corev1.LabelTopologyZone: "az-1",
-					corev1.LabelArchStable:   "amd64",
-				},
-			},
-		},
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "node-3",
-				Labels: map[string]string{
-					corev1.LabelTopologyZone: "az-2",
-					corev1.LabelArchStable:   "amd64",
-				},
-			},
-		},
-	}
-	suit := newPluginTestSuit(t, nodes)
+func Test_PreFilter(t *testing.T) {
+	suit := newPluginTestSuit(t, nil)
 
 	quotas := []*schedv1alpha1.ElasticQuota{
 		{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "quota-a",
+				Name:      "quota-a",
+				Namespace: "default",
 				Labels: map[string]string{
 					corev1.LabelTopologyZone: "az-1",
 					corev1.LabelArchStable:   "amd64",
-					apiext.LabelQuotaParent:  "second-root-quota-a",
+					apiext.LabelQuotaParent:  "",
 					LabelQuotaID:             "666",
 					LabelUserAccountId:       "123",
 					LabelInstanceType:        "aaa",
@@ -210,11 +183,12 @@ func Test_PreFilterWithMinFirst(t *testing.T) {
 		},
 		{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "quota-b",
+				Name:      "quota-b",
+				Namespace: "default",
 				Labels: map[string]string{
 					corev1.LabelTopologyZone: "az-2",
 					corev1.LabelArchStable:   "amd64",
-					apiext.LabelQuotaParent:  "second-root-quota-a",
+					apiext.LabelQuotaParent:  "",
 					LabelQuotaID:             "666",
 					LabelUserAccountId:       "123",
 					LabelInstanceType:        "aaa",
@@ -243,215 +217,54 @@ func Test_PreFilterWithMinFirst(t *testing.T) {
 	cycleState := framework.NewCycleState()
 	pod := st.MakePod().Name("test").Label(LabelQuotaID, "666").Label(LabelUserAccountId, "123").Label(LabelInstanceType, "aaa").
 		Req(map[corev1.ResourceName]string{corev1.ResourceCPU: "4", corev1.ResourceMemory: "8Gi"}).
-		NodeSelector(map[string]string{corev1.LabelArchStable: "amd64", corev1.LabelTopologyZone: "az-1"}).
+		NodeSelector(map[string]string{corev1.LabelArchStable: "amd64"}).
 		Obj()
-	pl.podInfoCache.updatePod(nil, pod)
 	result, status := pl.PreFilter(context.TODO(), cycleState, pod)
 	assert.True(t, status.IsSuccess())
-	assert.Equal(t, []string{"node-1", "node-2"}, result.NodeNames.List())
-}
-
-func Test_PreFilterWithMax(t *testing.T) {
-	nodes := []*corev1.Node{
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "node-1",
-				Labels: map[string]string{
-					corev1.LabelTopologyZone: "az-1",
-					corev1.LabelArchStable:   "amd64",
-				},
-			},
+	assert.Nil(t, result)
+	sd := getStateData(cycleState)
+	sort.Slice(sd.availableQuotas, func(i, j int) bool {
+		return sd.availableQuotas[i].Name < sd.availableQuotas[j].Name
+	})
+	expectedState := &stateData{
+		skip: false,
+		podRequests: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("4"),
+			corev1.ResourceMemory: resource.MustParse("8Gi"),
 		},
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "node-2",
-				Labels: map[string]string{
-					corev1.LabelTopologyZone: "az-1",
-					corev1.LabelArchStable:   "amd64",
-				},
-			},
-		},
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "node-3",
-				Labels: map[string]string{
-					corev1.LabelTopologyZone: "az-2",
-					corev1.LabelArchStable:   "amd64",
-				},
-			},
-		},
-	}
-	suit := newPluginTestSuit(t, nodes)
-
-	quotas := []*schedv1alpha1.ElasticQuota{
-		{
-			ObjectMeta: metav1.ObjectMeta{
+		availableQuotas: []*QuotaWrapper{
+			{
 				Name: "quota-a",
-				Labels: map[string]string{
-					corev1.LabelTopologyZone: "az-1",
-					corev1.LabelArchStable:   "amd64",
-					apiext.LabelQuotaParent:  "second-root-quota-a",
-					LabelQuotaID:             "666",
-					LabelUserAccountId:       "123",
-					LabelInstanceType:        "aaa",
-				},
-			},
-			Spec: schedv1alpha1.ElasticQuotaSpec{
+				Used: corev1.ResourceList{},
 				Max: corev1.ResourceList{
 					corev1.ResourceCPU:    resource.MustParse("40"),
 					corev1.ResourceMemory: resource.MustParse("80Gi"),
 				},
+				Min: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("4"),
+					corev1.ResourceMemory: resource.MustParse("8Gi"),
+				},
+				Obj: quotas[0],
 			},
-		},
-		{
-			ObjectMeta: metav1.ObjectMeta{
+			{
 				Name: "quota-b",
-				Labels: map[string]string{
-					corev1.LabelTopologyZone: "az-2",
-					corev1.LabelArchStable:   "amd64",
-					apiext.LabelQuotaParent:  "second-root-quota-a",
-					LabelQuotaID:             "666",
-					LabelUserAccountId:       "123",
-					LabelInstanceType:        "aaa",
-				},
-			},
-			Spec: schedv1alpha1.ElasticQuotaSpec{
+				Used: corev1.ResourceList{},
 				Max: corev1.ResourceList{
 					corev1.ResourceCPU:    resource.MustParse("40"),
 					corev1.ResourceMemory: resource.MustParse("80Gi"),
 				},
+				Min: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("4"),
+					corev1.ResourceMemory: resource.MustParse("8Gi"),
+				},
+				Obj: quotas[1],
 			},
 		},
+		replicasWithMin:   nil,
+		replicasWithMax:   nil,
+		selectedQuotaName: "",
 	}
-	for _, v := range quotas {
-		_, err := suit.schedclient.SchedulingV1alpha1().ElasticQuotas("default").Create(context.TODO(), v, metav1.CreateOptions{})
-		assert.NoError(t, err)
-	}
-	p, err := suit.proxyNew(nil, suit.Framework)
-	assert.NoError(t, err)
-	assert.NotNil(t, p)
-	pl := p.(*Plugin)
-	cycleState := framework.NewCycleState()
-	pod := st.MakePod().Name("test").Label(LabelQuotaID, "666").Label(LabelUserAccountId, "123").Label(LabelInstanceType, "aaa").
-		Req(map[corev1.ResourceName]string{corev1.ResourceCPU: "4", corev1.ResourceMemory: "8Gi"}).
-		NodeSelector(map[string]string{corev1.LabelArchStable: "amd64", corev1.LabelTopologyZone: "az-1"}).
-		Obj()
-	pl.podInfoCache.updatePod(nil, pod)
-	result, status := pl.PreFilter(context.TODO(), cycleState, pod)
-	assert.True(t, status.IsSuccess())
-	assert.Equal(t, []string{"node-1", "node-2"}, result.NodeNames.List())
-}
-
-func Test_PreFilterWithMaxAndFrozen(t *testing.T) {
-	nodes := []*corev1.Node{
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "node-1",
-				Labels: map[string]string{
-					corev1.LabelTopologyZone: "az-1",
-					corev1.LabelArchStable:   "amd64",
-				},
-			},
-		},
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "node-2",
-				Labels: map[string]string{
-					corev1.LabelTopologyZone: "az-1",
-					corev1.LabelArchStable:   "amd64",
-				},
-			},
-		},
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "node-3",
-				Labels: map[string]string{
-					corev1.LabelTopologyZone: "az-2",
-					corev1.LabelArchStable:   "amd64",
-				},
-			},
-		},
-	}
-	suit := newPluginTestSuit(t, nodes)
-
-	quotas := []*schedv1alpha1.ElasticQuota{
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "quota-a",
-				Labels: map[string]string{
-					corev1.LabelTopologyZone: "az-1",
-					corev1.LabelArchStable:   "amd64",
-					apiext.LabelQuotaParent:  "second-root-quota-a",
-					LabelQuotaID:             "666",
-					LabelUserAccountId:       "123",
-					LabelInstanceType:        "aaa",
-				},
-			},
-			Spec: schedv1alpha1.ElasticQuotaSpec{
-				Max: corev1.ResourceList{
-					corev1.ResourceCPU:    resource.MustParse("40"),
-					corev1.ResourceMemory: resource.MustParse("80Gi"),
-				},
-			},
-		},
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "quota-a-1",
-				Labels: map[string]string{
-					corev1.LabelTopologyZone: "az-1",
-					corev1.LabelArchStable:   "amd64",
-					apiext.LabelQuotaParent:  "second-root-quota-a",
-					LabelQuotaID:             "666",
-					LabelUserAccountId:       "123",
-					LabelInstanceType:        "aaa",
-				},
-			},
-			Spec: schedv1alpha1.ElasticQuotaSpec{
-				Max: corev1.ResourceList{
-					corev1.ResourceCPU:    resource.MustParse("40"),
-					corev1.ResourceMemory: resource.MustParse("80Gi"),
-				},
-			},
-		},
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "quota-b",
-				Labels: map[string]string{
-					corev1.LabelTopologyZone: "az-2",
-					corev1.LabelArchStable:   "amd64",
-					apiext.LabelQuotaParent:  "second-root-quota-a",
-					LabelQuotaID:             "666",
-					LabelUserAccountId:       "123",
-					LabelInstanceType:        "aaa",
-				},
-			},
-			Spec: schedv1alpha1.ElasticQuotaSpec{
-				Max: corev1.ResourceList{
-					corev1.ResourceCPU:    resource.MustParse("40"),
-					corev1.ResourceMemory: resource.MustParse("80Gi"),
-				},
-			},
-		},
-	}
-	for _, v := range quotas {
-		_, err := suit.schedclient.SchedulingV1alpha1().ElasticQuotas("default").Create(context.TODO(), v, metav1.CreateOptions{})
-		assert.NoError(t, err)
-	}
-	p, err := suit.proxyNew(nil, suit.Framework)
-	assert.NoError(t, err)
-	assert.NotNil(t, p)
-	pl := p.(*Plugin)
-	cycleState := framework.NewCycleState()
-	pod := st.MakePod().Name("test").Label(LabelQuotaID, "666").Label(LabelUserAccountId, "123").Label(LabelInstanceType, "aaa").
-		Req(map[corev1.ResourceName]string{corev1.ResourceCPU: "4", corev1.ResourceMemory: "8Gi"}).
-		NodeSelector(map[string]string{corev1.LabelArchStable: "amd64", corev1.LabelTopologyZone: "az-1"}).
-		Obj()
-	pl.podInfoCache.updatePod(nil, pod)
-	pi := pl.podInfoCache.getPendingPodInfo(pod.UID)
-	pi.frozenQuotas.Insert("quota-a-1")
-	result, status := pl.PreFilter(context.TODO(), cycleState, pod)
-	assert.True(t, status.IsSuccess())
-	assert.Equal(t, []string{"node-1", "node-2"}, result.NodeNames.List())
+	assert.Equal(t, expectedState, sd)
 }
 
 func Test_PreFilterWithNoQuotas(t *testing.T) {
@@ -466,7 +279,6 @@ func Test_PreFilterWithNoQuotas(t *testing.T) {
 		Req(map[corev1.ResourceName]string{corev1.ResourceCPU: "4", corev1.ResourceMemory: "8Gi"}).
 		NodeSelector(map[string]string{corev1.LabelArchStable: "amd64", corev1.LabelTopologyZone: "az-1"}).
 		Obj()
-	pl.podInfoCache.updatePod(nil, pod)
 	result, status := pl.PreFilter(context.TODO(), cycleState, pod)
 	assert.Equal(t, "No matching Quota objects", status.Message())
 	assert.Nil(t, result)
@@ -509,52 +321,8 @@ func Test_PreFilterWithNoAvailableQuota(t *testing.T) {
 		Req(map[corev1.ResourceName]string{corev1.ResourceCPU: "4", corev1.ResourceMemory: "8Gi"}).
 		NodeSelector(map[string]string{corev1.LabelArchStable: "amd64", corev1.LabelTopologyZone: "az-1"}).
 		Obj()
-	pl.podInfoCache.updatePod(nil, pod)
 	result, status := pl.PreFilter(context.TODO(), cycleState, pod)
 	assert.Equal(t, "No available Quotas", status.Message())
-	assert.Nil(t, result)
-}
-
-func Test_PreFilterWithNoAvailableNodes(t *testing.T) {
-	suit := newPluginTestSuit(t, nil)
-
-	quotas := []*schedv1alpha1.ElasticQuota{
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "quota-a",
-				Labels: map[string]string{
-					corev1.LabelTopologyZone: "az-1",
-					corev1.LabelArchStable:   "amd64",
-					apiext.LabelQuotaParent:  "second-root-quota-a",
-					LabelQuotaID:             "666",
-					LabelUserAccountId:       "123",
-					LabelInstanceType:        "aaa",
-				},
-			},
-			Spec: schedv1alpha1.ElasticQuotaSpec{
-				Max: corev1.ResourceList{
-					corev1.ResourceCPU:    resource.MustParse("40"),
-					corev1.ResourceMemory: resource.MustParse("80Gi"),
-				},
-			},
-		},
-	}
-	for _, v := range quotas {
-		_, err := suit.schedclient.SchedulingV1alpha1().ElasticQuotas("default").Create(context.TODO(), v, metav1.CreateOptions{})
-		assert.NoError(t, err)
-	}
-	p, err := suit.proxyNew(nil, suit.Framework)
-	assert.NoError(t, err)
-	assert.NotNil(t, p)
-	pl := p.(*Plugin)
-	cycleState := framework.NewCycleState()
-	pod := st.MakePod().Name("test").Label(LabelQuotaID, "666").Label(LabelUserAccountId, "123").Label(LabelInstanceType, "aaa").
-		Req(map[corev1.ResourceName]string{corev1.ResourceCPU: "4", corev1.ResourceMemory: "8Gi"}).
-		NodeSelector(map[string]string{corev1.LabelArchStable: "amd64", corev1.LabelTopologyZone: "az-1"}).
-		Obj()
-	pl.podInfoCache.updatePod(nil, pod)
-	result, status := pl.PreFilter(context.TODO(), cycleState, pod)
-	assert.Equal(t, "No available nodes", status.Message())
 	assert.Nil(t, result)
 }
 
@@ -578,10 +346,19 @@ func TestReserveAndUnreserve(t *testing.T) {
 			},
 		},
 	}
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+			Labels: map[string]string{
+				corev1.LabelTopologyZone: "az-1",
+				corev1.LabelArchStable:   "amd64",
+			},
+		},
+	}
+
 	tests := []struct {
 		name          string
 		state         *stateData
-		quotaName     string
 		wantReserve   corev1.ResourceList
 		wantUnreserve corev1.ResourceList
 	}{
@@ -599,8 +376,14 @@ func TestReserveAndUnreserve(t *testing.T) {
 					corev1.ResourceCPU:    resource.MustParse("4"),
 					corev1.ResourceMemory: resource.MustParse("8Gi"),
 				},
+				availableQuotas: []*QuotaWrapper{
+					{
+						Name: elasticQuota.Name,
+						Obj:  elasticQuota,
+					},
+				},
+				selectedQuotaName: elasticQuota.Name,
 			},
-			quotaName: elasticQuota.Name,
 			wantReserve: corev1.ResourceList{
 				corev1.ResourceCPU:    resource.MustParse("4"),
 				corev1.ResourceMemory: resource.MustParse("8Gi"),
@@ -613,33 +396,313 @@ func TestReserveAndUnreserve(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			suit := newPluginTestSuit(t, nil)
+			suit := newPluginTestSuit(t, []*corev1.Node{node})
 			_, err := suit.schedclient.SchedulingV1alpha1().ElasticQuotas("default").Create(context.TODO(), elasticQuota, metav1.CreateOptions{})
 			assert.NoError(t, err)
 			p, err := suit.proxyNew(nil, suit.Framework)
 			assert.NoError(t, err)
 			assert.NotNil(t, p)
 			pl := p.(*Plugin)
-			pod := st.MakePod().UID("123456").Obj()
-			pl.podInfoCache.updatePod(nil, pod)
-			pi := pl.podInfoCache.getPendingPodInfo(pod.UID)
-			pi.selectedQuotaName = tt.quotaName
+			pod := st.MakePod().UID("123456").Node("test-node").Obj()
+			pod.Spec.Containers = []corev1.Container{
+				{
+					Resources: corev1.ResourceRequirements{
+						Requests: tt.state.podRequests,
+					},
+				},
+			}
 
 			cycleState := framework.NewCycleState()
 			cycleState.Write(Name, tt.state)
 			status := pl.Reserve(context.TODO(), cycleState, pod, "test-node")
 			assert.True(t, status.IsSuccess())
 
-			quotaObj := pl.quotaCache.getQuota(tt.quotaName)
-			if tt.quotaName == "" {
+			quotaObj := pl.Plugin.GetGroupQuotaManagerForQuota(tt.state.selectedQuotaName).GetQuotaInfoByName(tt.state.selectedQuotaName)
+			if tt.state.selectedQuotaName == "" {
 				assert.Nil(t, quotaObj)
 				return
 			}
-			assert.True(t, equality.Semantic.DeepEqual(tt.wantReserve, quotaObj.used))
+			assert.True(t, equality.Semantic.DeepEqual(tt.wantReserve, quotaObj.GetUsed()))
 
 			pl.Unreserve(context.TODO(), cycleState, pod, "test-node")
-			quotaObj = pl.quotaCache.getQuota(tt.quotaName)
-			assert.True(t, equality.Semantic.DeepEqual(tt.wantUnreserve, quotaObj.used))
+			quotaObj = pl.Plugin.GetGroupQuotaManagerForQuota(tt.state.selectedQuotaName).GetQuotaInfoByName(tt.state.selectedQuotaName)
+			assert.True(t, equality.Semantic.DeepEqual(tt.wantUnreserve, quotaObj.GetUsed()))
+		})
+	}
+}
+
+func TestPluginPreScore(t *testing.T) {
+	tests := []struct {
+		name                string
+		quotas              []*schedv1alpha1.ElasticQuota
+		wantReplicasWithMin map[string]int
+		wantReplicasWithMax map[string]int
+	}{
+		{
+			name: "the most allocated min, the high score",
+			quotas: []*schedv1alpha1.ElasticQuota{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "quota-a",
+						Namespace: "default",
+						Labels: map[string]string{
+							corev1.LabelTopologyZone: "az-1",
+							corev1.LabelArchStable:   "amd64",
+							apiext.LabelQuotaParent:  "",
+							LabelQuotaID:             "666",
+							LabelUserAccountId:       "123",
+							LabelInstanceType:        "aaa",
+						},
+					},
+					Spec: schedv1alpha1.ElasticQuotaSpec{
+						Max: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("40"),
+							corev1.ResourceMemory: resource.MustParse("80Gi"),
+						},
+						Min: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("4"),
+							corev1.ResourceMemory: resource.MustParse("8Gi"),
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "quota-b",
+						Namespace: "default",
+						Labels: map[string]string{
+							corev1.LabelTopologyZone: "az-2",
+							corev1.LabelArchStable:   "amd64",
+							apiext.LabelQuotaParent:  "",
+							LabelQuotaID:             "666",
+							LabelUserAccountId:       "123",
+							LabelInstanceType:        "aaa",
+						},
+					},
+					Spec: schedv1alpha1.ElasticQuotaSpec{
+						Max: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("40"),
+							corev1.ResourceMemory: resource.MustParse("80Gi"),
+						},
+						Min: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("8"),
+							corev1.ResourceMemory: resource.MustParse("16Gi"),
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "quota-c",
+						Namespace: "default",
+						Labels: map[string]string{
+							corev1.LabelTopologyZone: "az-3",
+							corev1.LabelArchStable:   "amd64",
+							apiext.LabelQuotaParent:  "",
+							LabelQuotaID:             "666",
+							LabelUserAccountId:       "123",
+							LabelInstanceType:        "aaa",
+						},
+					},
+					Spec: schedv1alpha1.ElasticQuotaSpec{
+						Max: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("40"),
+							corev1.ResourceMemory: resource.MustParse("80Gi"),
+						},
+					},
+				},
+			},
+			wantReplicasWithMin: map[string]int{
+				"quota-a": 1,
+				"quota-b": 2,
+			},
+			wantReplicasWithMax: map[string]int{
+				"quota-c": 10,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nodes := []*corev1.Node{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-node",
+					},
+				},
+			}
+			suit := newPluginTestSuit(t, nodes)
+			for _, v := range tt.quotas {
+				_, err := suit.schedclient.SchedulingV1alpha1().ElasticQuotas("default").Create(context.TODO(), v, metav1.CreateOptions{})
+				assert.NoError(t, err)
+			}
+			p, err := suit.proxyNew(nil, suit.Framework)
+			assert.NoError(t, err)
+			assert.NotNil(t, p)
+			pl := p.(*Plugin)
+			cycleState := framework.NewCycleState()
+			pod := st.MakePod().Name("test").Label(LabelQuotaID, "666").Label(LabelUserAccountId, "123").Label(LabelInstanceType, "aaa").
+				Req(map[corev1.ResourceName]string{corev1.ResourceCPU: "4", corev1.ResourceMemory: "8Gi"}).
+				NodeSelector(map[string]string{corev1.LabelArchStable: "amd64"}).
+				Obj()
+			result, status := pl.PreFilter(context.TODO(), cycleState, pod)
+			assert.True(t, status.IsSuccess())
+			assert.Nil(t, result)
+			status = pl.PreScore(context.TODO(), cycleState, pod, nodes)
+			assert.True(t, status.IsSuccess())
+			sd := getStateData(cycleState)
+			assert.Equal(t, tt.wantReplicasWithMin, sd.replicasWithMin)
+			assert.Equal(t, tt.wantReplicasWithMax, sd.replicasWithMax)
+		})
+	}
+}
+
+func TestPluginScore(t *testing.T) {
+	tests := []struct {
+		name                       string
+		quotas                     []*schedv1alpha1.ElasticQuota
+		nodes                      []*corev1.Node
+		wantNodeScoreList          framework.NodeScoreList
+		wantNormalizeNodeScoreList framework.NodeScoreList
+	}{
+		{
+			name: "the most allocated min, the high score",
+			quotas: []*schedv1alpha1.ElasticQuota{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "quota-a",
+						Namespace: "default",
+						Labels: map[string]string{
+							corev1.LabelTopologyZone: "az-1",
+							corev1.LabelArchStable:   "amd64",
+							apiext.LabelQuotaParent:  "",
+							LabelQuotaID:             "666",
+							LabelUserAccountId:       "123",
+							LabelInstanceType:        "aaa",
+						},
+					},
+					Spec: schedv1alpha1.ElasticQuotaSpec{
+						Max: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("40"),
+							corev1.ResourceMemory: resource.MustParse("80Gi"),
+						},
+						Min: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("4"),
+							corev1.ResourceMemory: resource.MustParse("8Gi"),
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "quota-b",
+						Namespace: "default",
+						Labels: map[string]string{
+							corev1.LabelTopologyZone: "az-2",
+							corev1.LabelArchStable:   "amd64",
+							apiext.LabelQuotaParent:  "",
+							LabelQuotaID:             "666",
+							LabelUserAccountId:       "123",
+							LabelInstanceType:        "aaa",
+						},
+					},
+					Spec: schedv1alpha1.ElasticQuotaSpec{
+						Max: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("40"),
+							corev1.ResourceMemory: resource.MustParse("80Gi"),
+						},
+						Min: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("8"),
+							corev1.ResourceMemory: resource.MustParse("16Gi"),
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "quota-c",
+						Namespace: "default",
+						Labels: map[string]string{
+							corev1.LabelTopologyZone: "az-3",
+							corev1.LabelArchStable:   "amd64",
+							apiext.LabelQuotaParent:  "",
+							LabelQuotaID:             "666",
+							LabelUserAccountId:       "123",
+							LabelInstanceType:        "aaa",
+						},
+					},
+					Spec: schedv1alpha1.ElasticQuotaSpec{
+						Max: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("40"),
+							corev1.ResourceMemory: resource.MustParse("80Gi"),
+						},
+					},
+				},
+			},
+			nodes: []*corev1.Node{
+				st.MakeNode().Name("node-1").Label(corev1.LabelTopologyZone, "az-1").Label(corev1.LabelArchStable, "amd64").Obj(),
+				st.MakeNode().Name("node-2").Label(corev1.LabelTopologyZone, "az-2").Label(corev1.LabelArchStable, "amd64").Obj(),
+				st.MakeNode().Name("node-3").Label(corev1.LabelTopologyZone, "az-3").Label(corev1.LabelArchStable, "amd64").Obj(),
+			},
+			wantNodeScoreList: framework.NodeScoreList{
+				{
+					Name:  "node-1",
+					Score: 9000,
+				},
+				{
+					Name:  "node-2",
+					Score: 8000,
+				},
+				{
+					Name:  "node-3",
+					Score: 500,
+				},
+			},
+			wantNormalizeNodeScoreList: framework.NodeScoreList{
+				{
+					Name:  "node-1",
+					Score: 100,
+				},
+				{
+					Name:  "node-2",
+					Score: 88,
+				},
+				{
+					Name:  "node-3",
+					Score: 5,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			suit := newPluginTestSuit(t, tt.nodes)
+			for _, v := range tt.quotas {
+				_, err := suit.schedclient.SchedulingV1alpha1().ElasticQuotas("default").Create(context.TODO(), v, metav1.CreateOptions{})
+				assert.NoError(t, err)
+			}
+			p, err := suit.proxyNew(nil, suit.Framework)
+			assert.NoError(t, err)
+			assert.NotNil(t, p)
+			pl := p.(*Plugin)
+			cycleState := framework.NewCycleState()
+			pod := st.MakePod().Name("test").Label(LabelQuotaID, "666").Label(LabelUserAccountId, "123").Label(LabelInstanceType, "aaa").
+				Req(map[corev1.ResourceName]string{corev1.ResourceCPU: "4", corev1.ResourceMemory: "8Gi"}).
+				NodeSelector(map[string]string{corev1.LabelArchStable: "amd64"}).
+				Obj()
+			result, status := pl.PreFilter(context.TODO(), cycleState, pod)
+			assert.True(t, status.IsSuccess())
+			assert.Nil(t, result)
+			status = pl.PreScore(context.TODO(), cycleState, pod, tt.nodes)
+			assert.True(t, status.IsSuccess())
+			var nodeScores framework.NodeScoreList
+			for _, v := range tt.nodes {
+				score, status := pl.Score(context.TODO(), cycleState, pod, v.Name)
+				assert.True(t, status.IsSuccess())
+				nodeScores = append(nodeScores, framework.NodeScore{
+					Name:  v.Name,
+					Score: score,
+				})
+			}
+			assert.Equal(t, tt.wantNodeScoreList, nodeScores)
+			status = pl.ScoreExtensions().NormalizeScore(context.TODO(), cycleState, pod, nodeScores)
+			assert.True(t, status.IsSuccess())
+			assert.Equal(t, tt.wantNormalizeNodeScoreList, nodeScores)
 		})
 	}
 }
