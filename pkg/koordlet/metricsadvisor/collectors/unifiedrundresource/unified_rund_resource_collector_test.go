@@ -78,9 +78,6 @@ func Test_rundResourceCollector_Run(t *testing.T) {
 
 func Test_collectRundPodsResUsed(t *testing.T) {
 	testNow := time.Now()
-	timeNow = func() time.Time {
-		return testNow
-	}
 	testContainerID := "containerd://123abc"
 	testContainerIDParsed := "123abc"
 	testPodMetaDir := "kubepods.slice/kubepods-podxxxxxxxx.slice"
@@ -414,6 +411,9 @@ unevictable 0
 				State: framework.NewSharedState(),
 			})
 			c := collector.(*rundResourceCollector)
+			c.timeNowFn = func() time.Time {
+				return testNow
+			}
 			tt.fields.initPodLastStat(c.lastPodCPUStat)
 			tt.fields.initContainerLastTick(c.lastContainerCPUStat)
 
