@@ -23,28 +23,17 @@ import (
 	uniexternalversions "gitlab.alibaba-inc.com/unischeduler/api/client/informers/externalversions"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
-	schedclientset "sigs.k8s.io/scheduler-plugins/pkg/generated/clientset/versioned"
-	schedlister "sigs.k8s.io/scheduler-plugins/pkg/generated/listers/scheduling/v1alpha1"
 
 	frameworkexthelper "github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/helper"
 )
 
 type asiQuotaEventHandler struct {
-	cache              *ASIQuotaCache
-	schedClient        schedclientset.Interface
-	elasticQuotaLister schedlister.ElasticQuotaLister
+	cache *ASIQuotaCache
 }
 
-func registerASIQuotaEventHandler(
-	cache *ASIQuotaCache,
-	schedClient schedclientset.Interface,
-	elasticQuotaLister schedlister.ElasticQuotaLister,
-	asiQuotaInformerFactory uniexternalversions.SharedInformerFactory,
-) {
+func registerASIQuotaEventHandler(cache *ASIQuotaCache, asiQuotaInformerFactory uniexternalversions.SharedInformerFactory) {
 	handler := &asiQuotaEventHandler{
-		cache:              cache,
-		schedClient:        schedClient,
-		elasticQuotaLister: elasticQuotaLister,
+		cache: cache,
 	}
 	asiQuotaInformer := asiQuotaInformerFactory.Quotas().V1().Quotas().Informer()
 	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), asiQuotaInformerFactory, asiQuotaInformer, handler)
@@ -57,14 +46,6 @@ func (h *asiQuotaEventHandler) OnAdd(obj interface{}) {
 	}
 
 	h.cache.updateQuota(nil, asiQuota)
-
-	// TODO: we should sync the states asynchronously
-	if enableSyncASIQuota && isLeader {
-		if err := createElasticQuota(h.elasticQuotaLister, h.schedClient, asiQuota); err != nil {
-			klog.ErrorS(err, "Failed to create ElasticQuota from ASIQuota", "asiQuota", klog.KObj(asiQuota))
-			return
-		}
-	}
 }
 
 func (h *asiQuotaEventHandler) OnUpdate(obj, newObj interface{}) {
@@ -78,11 +59,6 @@ func (h *asiQuotaEventHandler) OnUpdate(obj, newObj interface{}) {
 	}
 
 	h.cache.updateQuota(oldASIQuota, asiQuota)
-
-	// TODO: we should sync the states asynchronously
-	if enableSyncASIQuota && isLeader {
-		updateElasticQuota(h.elasticQuotaLister, h.schedClient, asiQuota)
-	}
 }
 
 func (h *asiQuotaEventHandler) OnDelete(obj interface{}) {
@@ -92,11 +68,6 @@ func (h *asiQuotaEventHandler) OnDelete(obj interface{}) {
 	}
 
 	h.cache.deleteQuota(asiQuota)
-
-	// TODO: we should sync the states asynchronously
-	if enableSyncASIQuota && isLeader {
-		deleteElasticQuota(h.schedClient, asiQuota)
-	}
 }
 
 func toASIQuota(obj interface{}) *asiquotav1.Quota {

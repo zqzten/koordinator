@@ -22,8 +22,8 @@ import (
 
 	"github.com/spf13/pflag"
 	asiquotav1 "gitlab.alibaba-inc.com/unischeduler/api/apis/quotas/v1"
-	uniclientset "gitlab.alibaba-inc.com/unischeduler/api/client/clientset/versioned"
-	uniexternalversions "gitlab.alibaba-inc.com/unischeduler/api/client/informers/externalversions"
+	unifiedclientset "gitlab.alibaba-inc.com/unischeduler/api/client/clientset/versioned"
+	unifiedinformer "gitlab.alibaba-inc.com/unischeduler/api/client/informers/externalversions"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	quotav1 "k8s.io/apiserver/pkg/quota/v1"
@@ -51,16 +51,15 @@ const (
 )
 
 var (
-	asiQuotaNamespace            = "asi-quota"
-	enableSyncASIQuota           = true
+	asiQuotaNamespace            = "kube-system"
+	enableSyncASIQuota           = false
 	enableCompatibleWithASIQuota = false
-	isLeader                     = false
 )
 
 func init() {
 	pflag.BoolVar(&enableCompatibleWithASIQuota, "enable-compatible-with-asi-quota", enableCompatibleWithASIQuota, "Enable compatible with ASIQuota")
 	pflag.BoolVar(&enableSyncASIQuota, "enable-sync-asi-quota", enableSyncASIQuota, "Enable sync from ASIQuota to ElasticQuota")
-	pflag.StringVar(&asiQuotaNamespace, "asi-quota-namespace", "asi-quota", "The namespace of the elasticQuota created by ASIQuota")
+	pflag.StringVar(&asiQuotaNamespace, "asi-quota-namespace", asiQuotaNamespace, "The namespace of the elasticQuota created by ASIQuota")
 }
 
 var _ framework.PreFilterPlugin = &Plugin{}
@@ -71,7 +70,8 @@ type Plugin struct {
 	args             *schedulerconfig.ASIQuotaAdaptorArgs
 	preemptionConfig *PreemptionConfig
 	cache            *ASIQuotaCache
-	unifiedClient    uniclientset.Interface
+	unifiedClient    unifiedclientset.Interface
+	syncController   *QuotaSyncController
 }
 
 func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error) {
@@ -83,14 +83,21 @@ func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error)
 		return nil, err
 	}
 
-	unifiedClient, ok := handle.(uniclientset.Interface)
+	unifiedClient, ok := handle.(unifiedclientset.Interface)
 	if !ok {
 		kubeConfig := handle.KubeConfig()
 		kubeConfig.ContentType = runtime.ContentTypeJSON
 		kubeConfig.AcceptContentTypes = runtime.ContentTypeJSON
-		unifiedClient = uniclientset.NewForConfigOrDie(kubeConfig)
+		unifiedClient = unifiedclientset.NewForConfigOrDie(kubeConfig)
 	}
-	asiQuotaInformerFactory := uniexternalversions.NewSharedInformerFactory(unifiedClient, 0)
+	asiQuotaInformerFactory := unifiedinformer.NewSharedInformerFactory(unifiedClient, 0)
+
+	preemptionConfig := NewPreemptionConfig(pluginArgs)
+	cache := newASIQuotaCache(withPreemptionConfig(preemptionConfig))
+	if enableCompatibleWithASIQuota {
+		registerASIQuotaEventHandler(cache, asiQuotaInformerFactory)
+		registerPodEventHandler(cache, handle.SharedInformerFactory())
+	}
 
 	schedClient, ok := handle.(schedclientset.Interface)
 	if !ok {
@@ -101,22 +108,6 @@ func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error)
 	}
 	schedInformFactory := schedinformer.NewSharedInformerFactory(schedClient, 0)
 	elasticQuotaLister := schedInformFactory.Scheduling().V1alpha1().ElasticQuotas().Lister()
-
-	preemptionConfig := NewPreemptionConfig(pluginArgs)
-	cache := newASIQuotaCache(withPreemptionConfig(preemptionConfig))
-	pl := &Plugin{
-		handle:           handle,
-		args:             pluginArgs,
-		preemptionConfig: preemptionConfig,
-		cache:            cache,
-		unifiedClient:    unifiedClient,
-	}
-
-	if enableCompatibleWithASIQuota {
-		registerASIQuotaEventHandler(cache, schedClient, elasticQuotaLister, asiQuotaInformerFactory)
-		registerPodEventHandler(cache, handle.SharedInformerFactory())
-	}
-
 	if enableSyncASIQuota {
 		if err := createASIQuotaNamespace(handle.ClientSet(), asiQuotaNamespace); err != nil {
 			klog.ErrorS(err, "Failed to create ASIQuotaNamespace")
@@ -125,6 +116,16 @@ func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error)
 		ctx := context.TODO()
 		schedInformFactory.Start(ctx.Done())
 		schedInformFactory.WaitForCacheSync(ctx.Done())
+	}
+	syncController := NewQuotaSyncController(schedClient, elasticQuotaLister, asiQuotaInformerFactory)
+
+	pl := &Plugin{
+		handle:           handle,
+		args:             pluginArgs,
+		preemptionConfig: preemptionConfig,
+		cache:            cache,
+		unifiedClient:    unifiedClient,
+		syncController:   syncController,
 	}
 
 	return pl, nil
@@ -135,11 +136,10 @@ func (pl *Plugin) Name() string {
 }
 
 func (pl *Plugin) NewControllers() ([]frameworkext.Controller, error) {
-	return []frameworkext.Controller{pl}, nil
+	return []frameworkext.Controller{pl, pl.syncController}, nil
 }
 
 func (pl *Plugin) Start() {
-	isLeader = true
 	pl.startSyncTaskQuota()
 }
 

@@ -33,7 +33,6 @@ import (
 	"k8s.io/klog/v2"
 	schedulerv1alpha1 "sigs.k8s.io/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
 	schedclientset "sigs.k8s.io/scheduler-plugins/pkg/generated/clientset/versioned"
-	schedlister "sigs.k8s.io/scheduler-plugins/pkg/generated/listers/scheduling/v1alpha1"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	"github.com/koordinator-sh/koordinator/pkg/util"
@@ -80,13 +79,7 @@ func getMinQuota(quota *asiquotav1.Quota) corev1.ResourceList {
 	return resList
 }
 
-func createElasticQuota(elasticQuotaLister schedlister.ElasticQuotaLister, schedClient schedclientset.Interface, asiQuota *asiquotav1.Quota) error {
-	eq, _ := elasticQuotaLister.ElasticQuotas(asiQuotaNamespace).Get(asiQuota.Name)
-	if eq != nil {
-		klog.Infof("elastic quota exist when asiQuota create, namespace:%v, name:%v", asiQuotaNamespace, asiQuota.Name)
-		return nil
-	}
-
+func createElasticQuota(schedClient schedclientset.Interface, asiQuota *asiquotav1.Quota) error {
 	elasticQuota := &schedulerv1alpha1.ElasticQuota{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        asiQuota.Name,
@@ -101,15 +94,12 @@ func createElasticQuota(elasticQuotaLister schedlister.ElasticQuotaLister, sched
 	}
 	generateLabelsAndAnnotations(elasticQuota, asiQuota)
 	err := util.RetryOnConflictOrTooManyRequests(func() error {
-		eq, err := schedClient.SchedulingV1alpha1().ElasticQuotas(elasticQuota.Namespace).
-			Create(context.TODO(), elasticQuota, metav1.CreateOptions{})
+		_, err := schedClient.SchedulingV1alpha1().ElasticQuotas(elasticQuota.Namespace).Create(context.TODO(), elasticQuota, metav1.CreateOptions{})
 		if err != nil {
-			klog.V(4).ErrorS(err, "create elastic quota fail when asiQuota create, namespace:%v, name:%v",
-				elasticQuota.Namespace, elasticQuota.Name)
+			klog.V(4).ErrorS(err, "Failed to create ElasticQuota by ASIQuota", "quota", klog.KObj(elasticQuota))
 			return err
 		}
-		klog.V(5).Infof("create elastic quota success when asiQuota create, namespace:%v, name:%v, quota:%v",
-			elasticQuota.Namespace, elasticQuota.Name, eq)
+		klog.V(4).InfoS("Successfully create ElasticQuota by ASIQuota", "quota", klog.KObj(elasticQuota))
 		return nil
 	})
 	return err
@@ -117,8 +107,11 @@ func createElasticQuota(elasticQuotaLister schedlister.ElasticQuotaLister, sched
 
 func generateLabelsAndAnnotations(elasticQuota *schedulerv1alpha1.ElasticQuota, asiQuota *asiquotav1.Quota) {
 	parentName := asiQuota.Labels[asiquotav1.LabelQuotaParent]
-	if parentName == apiext.SystemQuotaName {
+	if parentName == "system" {
 		parentName = apiext.RootQuotaName
+	}
+	if elasticQuota.Labels == nil {
+		elasticQuota.Labels = map[string]string{}
 	}
 	elasticQuota.Labels[apiext.LabelQuotaIsParent] = asiQuota.Labels[asiquotav1.LabelQuotaIsParent]
 	elasticQuota.Labels[apiext.LabelQuotaParent] = parentName
@@ -129,33 +122,14 @@ func generateLabelsAndAnnotations(elasticQuota *schedulerv1alpha1.ElasticQuota, 
 		}
 	}
 	if !v1.IsZero(sharedWeight) {
+		if elasticQuota.Annotations == nil {
+			elasticQuota.Annotations = map[string]string{}
+		}
 		elasticQuota.Annotations[apiext.AnnotationSharedWeight] = asiQuota.Annotations[asiquotav1.AnnotationScaleRatio]
 	}
 }
 
-func deleteElasticQuota(schedClient schedclientset.Interface, asiQuota *asiquotav1.Quota) {
-	err := util.RetryOnConflictOrTooManyRequests(func() error {
-		err := schedClient.SchedulingV1alpha1().ElasticQuotas(asiQuotaNamespace).Delete(context.TODO(), asiQuota.Name, metav1.DeleteOptions{})
-		if err != nil {
-			klog.V(4).ErrorS(err, "Delete quota fail, namespace:%v, name:%v", asiQuotaNamespace, asiQuota.Name)
-			return err
-		}
-		return nil
-	})
-	if err != nil {
-		klog.Errorf("Delete quota fail, namespace:%v, name:%v, err:%v", asiQuotaNamespace, asiQuota.Name, err.Error())
-		return
-	}
-	klog.Infof("elastic quota deleted when asiQuota deleted, namespace:%v, name:%v", asiQuotaNamespace, asiQuota.Name)
-}
-
-func updateElasticQuota(elasticQuotaLister schedlister.ElasticQuotaLister, schedClient schedclientset.Interface, asiQuota *asiquotav1.Quota) {
-	oldElasticQuota, _ := elasticQuotaLister.ElasticQuotas(asiQuotaNamespace).Get(asiQuota.Name)
-	if oldElasticQuota == nil {
-		klog.Infof("elastic quota not exist when asiQuota update, namespace:%v, name:%v", asiQuotaNamespace, asiQuota.Name)
-		return
-	}
-
+func updateElasticQuota(oldElasticQuota *schedulerv1alpha1.ElasticQuota, schedClient schedclientset.Interface, asiQuota *asiquotav1.Quota) error {
 	newElasticQuota := oldElasticQuota.DeepCopy()
 	newElasticQuota.Spec.Max = asiQuota.Spec.Hard
 	newElasticQuota.Spec.Min = getMinQuota(asiQuota)
@@ -165,27 +139,26 @@ func updateElasticQuota(elasticQuotaLister schedlister.ElasticQuotaLister, sched
 	newData, _ := json.Marshal(newElasticQuota)
 	patchBytes, _ := jsonpatch.CreateMergePatch(oldData, newData)
 
+	if string(patchBytes) == "{}" {
+		return nil
+	}
+
 	err := util.RetryOnConflictOrTooManyRequests(func() error {
-		eq, err := schedClient.SchedulingV1alpha1().ElasticQuotas(newElasticQuota.Namespace).
+		_, err := schedClient.SchedulingV1alpha1().ElasticQuotas(newElasticQuota.Namespace).
 			Patch(context.TODO(), newElasticQuota.Name, apimachinerytypes.MergePatchType, patchBytes, metav1.PatchOptions{})
 		if err != nil {
-			klog.V(4).ErrorS(err, "update elastic quota fail when asiQuota update, namespace:%v, name:%v",
-				newElasticQuota.Namespace, newElasticQuota.Name)
+			klog.V(4).ErrorS(err, "Failed to update ElasticQuota by ASIQuota", "quota", klog.KObj(newElasticQuota))
 			return err
 		}
-		klog.V(5).Infof("update elastic quota success when asiQuota update, namespace:%v, name:%v, quota:%+v",
-			newElasticQuota.Namespace, newElasticQuota.Name, eq)
+		klog.V(4).InfoS("Successfully update ElasticQuota by ASIQuota", "quota", klog.KObj(newElasticQuota))
 		return nil
 	})
-	if err != nil {
-		klog.Errorf("update elastic quota fail when asiQuota update, namespace:%v, name:%v, err:%v",
-			newElasticQuota.Namespace, newElasticQuota.Name, err.Error())
-	}
+	return err
 }
 
 func createASIQuotaNamespace(client clientset.Interface, namespace string) error {
 	if ns, err := client.CoreV1().Namespaces().Get(context.TODO(), namespace, metav1.GetOptions{}); err == nil {
-		klog.Infof("get ASIQuota namespace success, namespace:%v", ns.Name)
+		klog.V(4).InfoS("ASIQuota namespace already exists, skip create it.", "namespace", ns.Name)
 		return nil
 	}
 	err := util.RetryOnConflictOrTooManyRequests(
@@ -197,15 +170,14 @@ func createASIQuotaNamespace(client clientset.Interface, namespace string) error
 			}
 			_, err := client.CoreV1().Namespaces().Create(context.TODO(), namespaceObj, metav1.CreateOptions{})
 			if err != nil {
-				klog.V(4).ErrorS(err, "create ASIQuota namespace fail, namespace:%v", asiQuotaNamespace)
+				klog.V(4).ErrorS(err, "Failed to create ASIQuota namespace", "namespace", asiQuotaNamespace)
 				return err
 			}
-			klog.Infof("create ASIQuota namespace success, namespace:%v", asiQuotaNamespace)
+			klog.V(4).InfoS("Successfully create ASIQuota namespace", "namespace", asiQuotaNamespace)
 			return nil
 		})
 	if err != nil {
 		if !errors.IsAlreadyExists(err) {
-			klog.ErrorS(err, "Failed to create ASIQuota namespace", "namespace", asiQuotaNamespace)
 			return err
 		}
 	}
