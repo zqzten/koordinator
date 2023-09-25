@@ -22,10 +22,9 @@ package util
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/stretchr/testify/assert"
 
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/util/system"
 
@@ -107,7 +106,7 @@ func TestGetPodCgroupParentDirUnified(t *testing.T) {
 					},
 				},
 			},
-			want: "/kubepods/pod2",
+			want: "kubepods/pod2",
 		},
 		{
 			name:         "custom cgroup pod 1",
@@ -129,7 +128,7 @@ func TestGetPodCgroupParentDirUnified(t *testing.T) {
 					},
 				},
 			},
-			want: "/system/pod2",
+			want: "system/pod2",
 		},
 	}
 	for _, tt := range tests {

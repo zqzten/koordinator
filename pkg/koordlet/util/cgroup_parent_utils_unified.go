@@ -36,7 +36,8 @@ func GetPodCgroupParentDir(pod *corev1.Pod) string {
 	if customCgroupPath, ok := GetUnifiedCustomPodCgroupPath(pod.Annotations); ok {
 		klog.V(6).Infof("use unified custom pod cgroup path for pod %s/%s, custom path: %s",
 			pod.Namespace, pod.Name, customCgroupPath)
-		return customCgroupPath
+		// NOTE: Eliminate the prefix `/` for a relative path and keep consistent with cgroup driver generated path.
+		return strings.TrimPrefix(customCgroupPath, "/")
 	}
 
 	qosClass := util.GetKubeQosClass(pod)

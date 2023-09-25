@@ -21,6 +21,7 @@ package metricsadvisor
 
 import (
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/metricsadvisor/collectors/podresource"
+	"github.com/koordinator-sh/koordinator/pkg/koordlet/metricsadvisor/collectors/podthrottled"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/metricsadvisor/collectors/unifiedrundresource"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/metricsadvisor/framework"
 )
@@ -29,5 +30,7 @@ func init() {
 	collectorPlugins[unifiedrundresource.CollectorName] = unifiedrundresource.New
 
 	podFilters[podresource.CollectorName] = framework.DefaultRuntimePodFilter
+	// TODO: add pod throttled filter for rund
+	podFilters[podthrottled.CollectorName] = framework.DefaultRuntimePodFilter
 	podFilters[unifiedrundresource.CollectorName] = framework.RundPodFilter
 }
