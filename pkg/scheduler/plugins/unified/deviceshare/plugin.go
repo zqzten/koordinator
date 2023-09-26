@@ -199,21 +199,31 @@ func (pl *Plugin) Filter(ctx context.Context, cycleState *framework.CycleState, 
 		return nil
 	}
 
-	if status := pl.checkDriverVersionIfNeed(state, pod, node.Name); !status.IsSuccess() {
+	if status := pl.checkDriverVersionIfNeed(state, pod, node); !status.IsSuccess() {
 		return status
 	}
 
 	return pl.Plugin.Filter(ctx, cycleState, pod, nodeInfo)
 }
 
-func (pl *Plugin) checkDriverVersionIfNeed(state *preFilterState, pod *corev1.Pod, nodeName string) *framework.Status {
-	deviceObj, err := pl.deviceLister.Get(nodeName)
-	if err != nil {
-		return framework.NewStatus(framework.UnschedulableAndUnresolvable, deviceshare.ErrMissingDevice)
-	}
-
+func (pl *Plugin) checkDriverVersionIfNeed(state *preFilterState, pod *corev1.Pod, node *corev1.Node) *framework.Status {
 	if pod.Spec.RuntimeClassName != nil && *pod.Spec.RuntimeClassName == "rund" && deviceshare.HasDeviceResource(state.podRequests, schedulingv1alpha1.GPU) {
-		matchedVersion, err := MatchDriverVersions(pod, deviceObj)
+		var matchedVersion string
+		var err error
+		if isGPUSharedPod(state.podRequests) {
+			hostDriverVersion := node.Labels[apiext.LabelGPUDriverVersion]
+			if hostDriverVersion == "" {
+				return framework.NewStatus(framework.UnschedulableAndUnresolvable, ErrInvalidDriverVersion)
+			}
+			matchedVersion, err = matchDriverVersions(pod, extunified.NVIDIADriverVersions{hostDriverVersion})
+		} else {
+			var deviceObj *schedulingv1alpha1.Device
+			deviceObj, err = pl.deviceLister.Get(node.Name)
+			if err != nil {
+				return framework.NewStatus(framework.UnschedulableAndUnresolvable, deviceshare.ErrMissingDevice)
+			}
+			matchedVersion, err = MatchSupportedVMDriverVersions(pod, deviceObj)
+		}
 		if err != nil {
 			return framework.NewStatus(framework.UnschedulableAndUnresolvable, ErrInvalidDriverVersion)
 		}
@@ -649,6 +659,10 @@ func appendRundResult(pod *corev1.Pod, allocResult apiext.DeviceAllocations, pl 
 	if pod.Spec.RuntimeClassName == nil || *pod.Spec.RuntimeClassName != "rund" {
 		return nil
 	}
+	gpuAllocations := allocResult[schedulingv1alpha1.GPU]
+	if len(gpuAllocations) == 0 || isGPUSharedPod(gpuAllocations[0].Resources) {
+		return nil
+	}
 	extendedHandle, ok := pl.handle.(frameworkext.ExtendedHandle)
 	if !ok {
 		return fmt.Errorf("expect handle to be type frameworkext.ExtendedHandle, got %T", pl.handle)
@@ -693,7 +707,7 @@ func appendRundResult(pod *corev1.Pod, allocResult apiext.DeviceAllocations, pl 
 		if err != nil {
 			return err
 		}
-		matchedVersion, err := MatchDriverVersions(pod, device)
+		matchedVersion, err := MatchSupportedVMDriverVersions(pod, device)
 		if err != nil {
 			return nil
 		}
@@ -705,13 +719,28 @@ func appendRundResult(pod *corev1.Pod, allocResult apiext.DeviceAllocations, pl 
 	return nil
 }
 
-func MatchDriverVersions(pod *corev1.Pod, device *schedulingv1alpha1.Device) (string, error) {
+func isGPUSharedPod(resourceList corev1.ResourceList) bool {
+	if !deviceshare.HasDeviceResource(resourceList, schedulingv1alpha1.GPU) {
+		return false
+	}
+	quantity := resourceList[apiext.ResourceGPUMemoryRatio]
+	memRatioAlloc := quantity.Value()
+	quantity = resourceList[apiext.ResourceGPUCore]
+	utilAlloc := quantity.Value()
+	return memRatioAlloc < 100 || utilAlloc < 100
+}
+
+func MatchSupportedVMDriverVersions(pod *corev1.Pod, device *schedulingv1alpha1.Device) (string, error) {
 	driverVersions, err := extunified.GetDriverVersions(device.Annotations)
 	if err != nil {
 		return "", err
 	}
+	return matchDriverVersions(pod, driverVersions)
+}
+
+func matchDriverVersions(pod *corev1.Pod, driverVersions extunified.NVIDIADriverVersions) (string, error) {
 	if len(driverVersions) == 0 {
-		return "", err
+		return "", nil
 	}
 	sort.Strings(driverVersions)
 	selector, err := extunified.GetGPUSelector(pod.Annotations)
