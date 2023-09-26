@@ -356,7 +356,7 @@ func Test_appendRundResult(t *testing.T) {
 			},
 		},
 		{
-			name: "rund pod",
+			name: "rund passThrough pod",
 			pod: &corev1.Pod{
 				Spec: corev1.PodSpec{
 					RuntimeClassName: pointer.String("rund"),
@@ -367,9 +367,17 @@ func Test_appendRundResult(t *testing.T) {
 				schedulingv1alpha1.GPU: []*apiext.DeviceAllocation{
 					{
 						Minor: 1,
+						Resources: corev1.ResourceList{
+							apiext.ResourceGPUCore:        resource.MustParse("100"),
+							apiext.ResourceGPUMemoryRatio: resource.MustParse("100"),
+						},
 					},
 					{
 						Minor: 2,
+						Resources: corev1.ResourceList{
+							apiext.ResourceGPUCore:        resource.MustParse("100"),
+							apiext.ResourceGPUMemoryRatio: resource.MustParse("100"),
+						},
 					},
 				},
 				unified.NVSwitchDeviceType: []*apiext.DeviceAllocation{
@@ -389,6 +397,48 @@ func Test_appendRundResult(t *testing.T) {
 						unified.AnnotationRundNvidiaDriverVersion: "2.2.2",
 					},
 				},
+				Spec: corev1.PodSpec{
+					RuntimeClassName: pointer.String("rund"),
+					NodeName:         "test-node-1",
+				},
+			},
+		},
+		{
+			name: "rund gpu shared pod",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					RuntimeClassName: pointer.String("rund"),
+					NodeName:         "test-node-1",
+				},
+			},
+			allocResult: apiext.DeviceAllocations{
+				schedulingv1alpha1.GPU: []*apiext.DeviceAllocation{
+					{
+						Minor: 1,
+						Resources: corev1.ResourceList{
+							apiext.ResourceGPUCore:        resource.MustParse("50"),
+							apiext.ResourceGPUMemoryRatio: resource.MustParse("100"),
+						},
+					},
+					{
+						Minor: 2,
+						Resources: corev1.ResourceList{
+							apiext.ResourceGPUCore:        resource.MustParse("50"),
+							apiext.ResourceGPUMemoryRatio: resource.MustParse("100"),
+						},
+					},
+				},
+				unified.NVSwitchDeviceType: []*apiext.DeviceAllocation{
+					{
+						Minor: 3,
+					},
+					{
+						Minor: 4,
+					},
+				},
+			},
+			want: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{},
 				Spec: corev1.PodSpec{
 					RuntimeClassName: pointer.String("rund"),
 					NodeName:         "test-node-1",
@@ -725,11 +775,13 @@ func Test_getDeviceShareArgs(t *testing.T) {
 
 func TestMatchDriverVersions(t *testing.T) {
 	tests := []struct {
-		name           string
-		runc           bool
-		selector       *unified.GPUSelector
-		driverVersions unified.NVIDIADriverVersions
-		wantErr        bool
+		name              string
+		runc              bool
+		selector          *unified.GPUSelector
+		driverVersions    unified.NVIDIADriverVersions
+		hostDriverVersion string
+		shared            bool
+		wantErr           bool
 	}{
 		{
 			name:           "no selector and have driver version",
@@ -753,12 +805,21 @@ func TestMatchDriverVersions(t *testing.T) {
 			driverVersions: unified.NVIDIADriverVersions{"2.2.2", "3.3.3"},
 		},
 		{
-			name: "selector and unmatched",
+			name:   "shared gpu, selector and matched",
+			shared: true,
 			selector: &unified.GPUSelector{
 				DriverVersions: []string{"1.1.1", "2.2.2"},
 			},
-			driverVersions: unified.NVIDIADriverVersions{"3.3.3"},
-			wantErr:        true,
+			hostDriverVersion: "2.2.2",
+		},
+		{
+			name: "shared gpu, selector and unmatched",
+			selector: &unified.GPUSelector{
+				DriverVersions: []string{"1.1.1", "2.2.2"},
+			},
+			shared:            true,
+			hostDriverVersion: "3.3.3",
+			wantErr:           true,
 		},
 	}
 
@@ -778,6 +839,9 @@ func TestMatchDriverVersions(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "test-node-1",
+						Labels: map[string]string{
+							apiext.LabelGPUDriverVersion: tt.hostDriverVersion,
+						},
 					},
 				},
 			})
@@ -800,6 +864,12 @@ func TestMatchDriverVersions(t *testing.T) {
 
 			podRequest := corev1.ResourceList{
 				apiext.ResourceNvidiaGPU: *resource.NewQuantity(int64(1), resource.DecimalSI),
+			}
+			if tt.shared {
+				podRequest = corev1.ResourceList{
+					apiext.ResourceGPUCore:        resource.MustParse("50"),
+					apiext.ResourceGPUMemoryRatio: resource.MustParse("100"),
+				}
 			}
 
 			pod := &corev1.Pod{
