@@ -71,7 +71,7 @@ func TestTransformNodeAllocatableWithOverQuota(t *testing.T) {
 				},
 			}
 			TransformNodeAllocatableWithOverQuota(node)
-			rawAllocatable, err := apiext.GetNodeRawAllocatable(node)
+			rawAllocatable, err := apiext.GetNodeRawAllocatable(node.Annotations)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.nodeAllocatable, rawAllocatable)
 			assert.Equal(t, tt.wantTransformedAllocatable, node.Status.Allocatable)

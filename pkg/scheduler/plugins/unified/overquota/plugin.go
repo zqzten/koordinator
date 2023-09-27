@@ -111,7 +111,7 @@ func (p *Plugin) Filter(ctx context.Context, cycleState *framework.CycleState, p
 		return framework.NewStatus(framework.Unschedulable, ErrReasonNotMatch)
 	}
 	if state.isPodRequireOverQuotaNode {
-		rawAllocatable, err := extension.GetNodeRawAllocatable(node)
+		rawAllocatable, err := extension.GetNodeRawAllocatable(node.Annotations)
 		if err != nil {
 			return framework.NewStatus(framework.UnschedulableAndUnresolvable, "node(s) invalid raw allocatable")
 		}
