@@ -102,7 +102,7 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "No matching Quota objects")
 	}
 
-	availableQuotas := filterGuaranteeAvailableQuotas(podRequests, pl.Plugin, elasticQuotas)
+	availableQuotas := filterGuaranteeAvailableQuotas(pod, podRequests, pl.Plugin, elasticQuotas)
 	if len(availableQuotas) == 0 {
 		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "No available Quotas")
 	}
@@ -181,7 +181,12 @@ func (pl *Plugin) PreScore(ctx context.Context, cycleState *framework.CycleState
 	sd.replicasWithMin = map[string]int{}
 	sd.replicasWithMax = map[string]int{}
 	for _, quota := range sd.availableQuotas {
-		replicas := countReplicas(quota.Min, quota.Used, sd.podRequests, sd.maxReplicas)
+		min := quotav1.Max(quota.Min, quota.Guaranteed)
+		used := quota.Used
+		if quota.Allocated != nil {
+			used = quota.Allocated
+		}
+		replicas := countReplicas(min, used, sd.podRequests, sd.maxReplicas)
 		if replicas > 0 {
 			sd.replicasWithMin[quota.Name] = replicas
 		} else {
