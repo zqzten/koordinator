@@ -18,6 +18,8 @@ package quotaaware
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -149,14 +151,16 @@ func parseNodeAffinity(pod *corev1.Pod, fn func(key string, operator corev1.Node
 }
 
 type QuotaWrapper struct {
-	Name string
-	Used corev1.ResourceList
-	Min  corev1.ResourceList
-	Max  corev1.ResourceList
-	Obj  *schedv1alpha1.ElasticQuota
+	Name       string
+	Used       corev1.ResourceList
+	Min        corev1.ResourceList
+	Max        corev1.ResourceList
+	Guaranteed corev1.ResourceList
+	Allocated  corev1.ResourceList
+	Obj        *schedv1alpha1.ElasticQuota
 }
 
-func filterGuaranteeAvailableQuotas(requests corev1.ResourceList, cache *elasticquota.Plugin, quotas []*schedv1alpha1.ElasticQuota) []*QuotaWrapper {
+func filterGuaranteeAvailableQuotas(pod *corev1.Pod, requests corev1.ResourceList, cache *elasticquota.Plugin, quotas []*schedv1alpha1.ElasticQuota) []*QuotaWrapper {
 	var availableQuotas []*QuotaWrapper
 	for _, v := range quotas {
 		qm := cache.GetGroupQuotaManagerForQuota(v.Name)
@@ -165,47 +169,59 @@ func filterGuaranteeAvailableQuotas(requests corev1.ResourceList, cache *elastic
 		}
 		quotaInfo := qm.GetQuotaInfoByName(v.Name)
 		if quotaInfo != nil {
-			if !checkGuarantee(qm, quotaInfo, requests) {
-				klog.V(4).InfoS("Quota is unavailable", "quota", quotaInfo.Name)
+			enough, guaranteed, allocated := checkGuarantee(qm, quotaInfo, requests)
+			if !enough {
+				klog.V(4).InfoS("Insufficient quotas", "pod", klog.KObj(pod), "quota", quotaInfo.Name, "requests", sprintResourceList(requests))
 				continue
 			}
 
 			availableQuotas = append(availableQuotas, &QuotaWrapper{
-				Name: quotaInfo.Name,
-				Used: quotaInfo.GetUsed(),
-				Min:  quotaInfo.GetMin(),
-				Max:  quotaInfo.GetMax(),
-				Obj:  v,
+				Name:       quotaInfo.Name,
+				Used:       quotaInfo.GetUsed(),
+				Min:        quotaInfo.GetMin(),
+				Max:        quotaInfo.GetMax(),
+				Guaranteed: guaranteed,
+				Allocated:  allocated,
+				Obj:        v,
 			})
 		}
 	}
 	return availableQuotas
 }
 
-func checkGuarantee(qm *elasticquotacore.GroupQuotaManager, quotaInfo *elasticquotacore.QuotaInfo, requests corev1.ResourceList) bool {
+func checkGuarantee(qm *elasticquotacore.GroupQuotaManager, quotaInfo *elasticquotacore.QuotaInfo, requests corev1.ResourceList) (bool, corev1.ResourceList, corev1.ResourceList) {
 	if quotaInfo.Name == apiext.RootQuotaName {
-		return true
+		return true, nil, nil
 	}
 
 	if quotaInfo.IsParent && (quotaInfo.ParentName == "" || quotaInfo.ParentName == apiext.RootQuotaName) {
 		totalResource := qm.GetClusterTotalResource()
-		used := quotav1.Add(requests, quotaInfo.GetAllocated())
-		return usedLessThan(used, totalResource)
-	} else {
 		allocated := quotaInfo.GetAllocated()
 		used := quotav1.Add(requests, allocated)
-		if !usedLessThan(used, quotaInfo.GetMax()) {
-			return false
+		enough := usedLessThan(used, totalResource)
+		if !enough {
+			klog.Warningf("Insufficient inventory capacity, quota: %s, allocated: %s, total: %s",
+				quotaInfo.Name, sprintResourceList(allocated), sprintResourceList(totalResource))
 		}
-		if usedLessThan(used, quotaInfo.GetGuaranteed()) {
-			return true
+		return enough, nil, nil
+	} else {
+		allocated := quotaInfo.GetAllocated()
+		max := quotaInfo.GetMax()
+		used := quotav1.Add(requests, allocated)
+		if !usedLessThan(used, max) {
+			klog.V(4).InfoS("Quota allocated exceeded max", "quota", quotaInfo.Name, "allocated", sprintResourceList(allocated), "max", sprintResourceList(max))
+			return false, nil, nil
+		}
+		guaranteed := quotaInfo.GetGuaranteed()
+		if usedLessThan(used, guaranteed) {
+			return true, guaranteed, allocated
 		}
 		requests = quotav1.SubtractWithNonNegativeResult(used, allocated)
 	}
 
 	parent := qm.GetQuotaInfoByName(quotaInfo.ParentName)
 	if parent == nil {
-		return false
+		return false, nil, nil
 	}
 	return checkGuarantee(qm, parent, requests)
 }
@@ -288,4 +304,16 @@ func addTemporaryNodeAffinity(cycleState *framework.CycleState, elasticQuotas []
 			},
 		})
 	}
+}
+
+func sprintResourceList(resourceList corev1.ResourceList) string {
+	res := make([]string, 0)
+	for k, v := range resourceList {
+		tmp := string(k) + ":" + v.String()
+		res = append(res, tmp)
+	}
+	sort.Slice(res, func(i, j int) bool {
+		return res[i] < res[j]
+	})
+	return strings.Join(res, ",")
 }
