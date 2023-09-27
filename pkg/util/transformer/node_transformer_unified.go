@@ -39,7 +39,7 @@ func TransformNodeAllocatableWithOverQuota(node *corev1.Node) {
 		return
 	}
 
-	rawAllocatable, err := apiext.GetNodeRawAllocatable(node)
+	rawAllocatable, err := apiext.GetNodeRawAllocatable(node.Annotations)
 	if err != nil {
 		klog.ErrorS(err, "Failed to GetNodeRawAllocatable", "node", node.Name)
 		return
