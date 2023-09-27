@@ -359,7 +359,7 @@ func Test_filterAvailableQuotas(t *testing.T) {
 			p, err := suit.proxyNew(nil, suit.Framework)
 			assert.NoError(t, err)
 			pl := p.(*Plugin)
-			got := filterGuaranteeAvailableQuotas(tt.requests, pl.Plugin, tt.quotas)
+			got := filterGuaranteeAvailableQuotas(&corev1.Pod{}, tt.requests, pl.Plugin, tt.quotas)
 			gotQuotaNames := sets.NewString()
 			for _, v := range got {
 				gotQuotaNames.Insert(v.Name)
