@@ -287,7 +287,7 @@ replace (
 	k8s.io/apimachinery => k8s.io/apimachinery v0.24.15
 	k8s.io/apiserver => k8s.io/apiserver v0.24.15
 	k8s.io/cli-runtime => k8s.io/cli-runtime v0.24.15
-	k8s.io/client-go => k8s.io/client-go v0.24.15
+	k8s.io/client-go => gitlab.alibaba-inc.com/koordinator-sh/client-go v0.24.15-internal
 	k8s.io/cloud-provider => k8s.io/cloud-provider v0.24.15
 	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.24.15
 	k8s.io/code-generator => k8s.io/code-generator v0.24.15
@@ -305,7 +305,7 @@ replace (
 	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.24.15
 	k8s.io/kubectl => k8s.io/kubectl v0.24.15
 	k8s.io/kubelet => k8s.io/kubelet v0.24.15
-	k8s.io/kubernetes => k8s.io/kubernetes v1.24.15
+	k8s.io/kubernetes => gitlab.alibaba-inc.com/koordinator-sh/kubernetes v1.24.15-internal
 	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.24.15
 	k8s.io/metrics => k8s.io/metrics v0.24.15
 	k8s.io/mount-utils => k8s.io/mount-utils v0.24.15
