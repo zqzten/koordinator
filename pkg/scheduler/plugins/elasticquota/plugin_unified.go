@@ -17,9 +17,37 @@ limitations under the License.
 package elasticquota
 
 import (
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/tools/cache"
+	"sigs.k8s.io/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
+
+	"github.com/koordinator-sh/koordinator/apis/extension"
+	"github.com/koordinator-sh/koordinator/pkg/util/transformer"
 )
 
 func (g *Plugin) GetElasticQuotaInformer() cache.SharedIndexInformer {
 	return g.quotaInformer
+}
+
+func init() {
+	resourceDecorators = append(resourceDecorators, decorateResourceForACSQuota)
+}
+
+// convert batch resource to normal resource
+func decorateResourceForACSQuota(quota *v1alpha1.ElasticQuota, res corev1.ResourceList) {
+	// TODO: import acs vendor.
+	switch quota.Labels[transformer.LabelInstanceType] {
+	case transformer.BestEffortInstanceType:
+		quantity, ok := res[extension.BatchCPU]
+		if ok {
+			res[corev1.ResourceCPU] = *resource.NewMilliQuantity(quantity.Value(), resource.DecimalSI)
+			delete(res, extension.BatchCPU)
+		}
+		quantity, ok = res[extension.BatchMemory]
+		if ok {
+			res[corev1.ResourceMemory] = quantity
+			delete(res, extension.BatchMemory)
+		}
+	}
 }
