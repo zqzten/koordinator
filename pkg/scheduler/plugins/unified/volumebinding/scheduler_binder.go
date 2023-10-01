@@ -726,6 +726,10 @@ func (b *volumeBinder) checkBindings(pod *v1.Pod, bindings []*BindingInfo, claim
 			return false, fmt.Errorf("failed to check provisioning pvc: %w", err)
 		}
 
+		if pvc.Annotations[unified.AnnotationProvisionDenied] == "true" {
+			continue
+		}
+
 		// Because we updated PVC in apiserver, skip if API object is older
 		// and wait for new API object propagated from apiserver.
 		if versioner.CompareResourceVersion(claim, pvc) > 0 {
