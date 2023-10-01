@@ -107,6 +107,8 @@ const (
 
 	AnnotationUltronDiskUseCapabilities = "alibabacloud.com/ultron-disk-use-capabilities"
 	UltronDiskCategory                  = "category"
+
+	AnnotationProvisionDenied = "csi.alibabacloud.com/provision-denied"
 )
 
 type LocalStorageInfo struct {

@@ -308,6 +308,7 @@ func (pl *VolumeBinding) Reserve(ctx context.Context, cs *framework.CycleState, 
 	podVolumes, ok := state.podVolumesByNode[nodeName]
 	if ok {
 		pl.replaceStorageClassNameIfNeeded(podVolumes, pod, nodeName)
+		pl.setProvisionDeniedIfNeed(podVolumes, nodeName)
 		allBound, err := pl.Binder.AssumePodVolumes(pod, nodeName, podVolumes)
 		if err != nil {
 			return framework.AsStatus(err)

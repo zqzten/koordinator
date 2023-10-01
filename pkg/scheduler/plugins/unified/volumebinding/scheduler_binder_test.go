@@ -50,6 +50,7 @@ import (
 	pvtesting "k8s.io/kubernetes/pkg/controller/volume/persistentvolume/testing"
 	"k8s.io/kubernetes/pkg/features"
 
+	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/eci"
 )
 
@@ -79,6 +80,8 @@ var (
 	topoMismatchPVC             = makeTestPVC("topo-mismatch-pvc", "1Gi", "", pvcUnbound, "", "1", &topoMismatchClass)
 
 	selectedNodePVC = makeTestPVC("provisioned-pvc", "1Gi", nodeLabelValue, pvcSelectedNode, "", "1", &waitClassWithProvisioner)
+
+	selectedACSNodePVC = makeTestProvisionDeniedPVC("unbound-pvc-denied", "1G", "v-acs-node-1", pvcSelectedNode, "", "1", &waitClassWithProvisioner)
 
 	// PVCs for CSI migration
 	boundMigrationPVC     = makeTestPVC("pvc-migration-bound", "1G", "", pvcBound, "pv-migration-bound", "1", &waitClass)
@@ -629,6 +632,47 @@ func makeTestPVC(name, size, node string, pvcBoundState int, pvName, resourceVer
 			UID:             types.UID("pvc-uid"),
 			ResourceVersion: resourceVersion,
 			SelfLink:        "/api/v1/namespaces/testns/persistentvolumeclaims/" + name,
+		},
+		Spec: v1.PersistentVolumeClaimSpec{
+			Resources: v1.ResourceRequirements{
+				Requests: v1.ResourceList{
+					v1.ResourceStorage: resource.MustParse(size),
+				},
+			},
+			StorageClassName: className,
+			VolumeMode:       &fs,
+		},
+	}
+
+	switch pvcBoundState {
+	case pvcSelectedNode:
+		metav1.SetMetaDataAnnotation(&pvc.ObjectMeta, storagehelpers.AnnSelectedNode, node)
+		// don't fallthrough
+	case pvcBound:
+		metav1.SetMetaDataAnnotation(&pvc.ObjectMeta, storagehelpers.AnnBindCompleted, "yes")
+		fallthrough
+	case pvcPrebound:
+		pvc.Spec.VolumeName = pvName
+	}
+	return pvc
+}
+
+func makeTestProvisionDeniedPVC(name, size, node string, pvcBoundState int, pvName, resourceVersion string, className *string) *v1.PersistentVolumeClaim {
+	fs := v1.PersistentVolumeFilesystem
+	pvc := &v1.PersistentVolumeClaim{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "PersistentVolumeClaim",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            name,
+			Namespace:       "testns",
+			UID:             types.UID("pvc-uid"),
+			ResourceVersion: resourceVersion,
+			SelfLink:        "/api/v1/namespaces/testns/persistentvolumeclaims/" + name,
+			Annotations: map[string]string{
+				unified.AnnotationProvisionDenied: "true",
+			},
 		},
 		Spec: v1.PersistentVolumeClaimSpec{
 			Resources: v1.ResourceRequirements{
@@ -1788,6 +1832,13 @@ func TestCheckBindings(t *testing.T) {
 			provisionedPVCs: []*v1.PersistentVolumeClaim{addProvisionAnn(provisionedPVC)},
 			apiPVCs:         []*v1.PersistentVolumeClaim{addProvisionAnn(provisionedPVCBound)},
 			deletePVs:       true,
+		},
+		"provision-denied-pvc": {
+			bindings:        []*BindingInfo{},
+			provisionedPVCs: []*v1.PersistentVolumeClaim{selectedACSNodePVC},
+			initPVs:         []*v1.PersistentVolume{},
+			initPVCs:        []*v1.PersistentVolumeClaim{selectedACSNodePVC},
+			expectedBound:   true,
 		},
 	}
 

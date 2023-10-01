@@ -119,6 +119,25 @@ func (pl *VolumeBinding) replaceStorageClassNameIfNeeded(podVolumes *PodVolumes,
 	return
 }
 
+func (pl *VolumeBinding) setProvisionDeniedIfNeed(podVolumes *PodVolumes, nodeName string) {
+	nodeInfo, err := pl.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
+	if err != nil {
+		return
+	}
+	node := nodeInfo.Node()
+	if !unified.IsACSVirtualNode(node.Labels) {
+		return
+	}
+	for i, claim := range podVolumes.DynamicProvisions {
+		claim = claim.DeepCopy()
+		if claim.Annotations == nil {
+			claim.Annotations = map[string]string{}
+		}
+		claim.Annotations[unified.AnnotationProvisionDenied] = "true"
+		podVolumes.DynamicProvisions[i] = claim
+	}
+}
+
 func (pl *VolumeBinding) assumeLocalPVCAllocs(podVolumes *PodVolumes, nodeName string, pod *v1.Pod) error {
 	nodeStorageInfo := pl.nodeStorageCache.GetNodeStorageInfo(nodeName)
 	if nodeStorageInfo == nil {

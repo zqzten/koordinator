@@ -2375,3 +2375,56 @@ func TestVolumeBinding_replaceStorageClassNameIfNeeded(t *testing.T) {
 		})
 	}
 }
+
+func TestVolumeBinding_setProvisionDeniedIfNeed(t *testing.T) {
+	tests := []struct {
+		name string
+		node *v1.Node
+		pvc  *v1.PersistentVolumeClaim
+		want map[string]string
+	}{
+		{
+			name: "Node is not ACS virtual node, pvc is the same as origin",
+			node: &v1.Node{},
+			pvc:  makePVC("test-pvc", "", lvmSC.Name),
+			want: nil,
+		},
+		{
+			name: "Node is ACS virtual, pvc changed",
+			node: &v1.Node{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"type": unified.ACSType}}},
+			pvc:  makePVC("test-pvc", "", lvmSC.Name),
+			want: map[string]string{
+				unified.AnnotationProvisionDenied: "true",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &fake.Clientset{}
+			informerFactory := informers.NewSharedInformerFactory(client, controller.NoResyncPeriodFunc())
+			classInformer := informerFactory.Storage().V1().StorageClasses()
+			opts := []runtime.Option{
+				runtime.WithClientSet(client),
+				runtime.WithInformerFactory(informerFactory),
+				runtime.WithSnapshotSharedLister(newTestSharedLister(nil, []*v1.Node{tt.node})),
+			}
+			fh, err := runtime.NewFramework(nil, nil, opts...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			pl := &VolumeBinding{
+				handle:      fh,
+				classLister: classInformer.Lister(),
+			}
+
+			podVolumes := &PodVolumes{
+				DynamicProvisions: []*v1.PersistentVolumeClaim{tt.pvc},
+			}
+
+			pl.setProvisionDeniedIfNeed(podVolumes, tt.node.Name)
+			for _, pvc := range podVolumes.DynamicProvisions {
+				assert.Equal(t, tt.want, pvc.Annotations)
+			}
+		})
+	}
+}
