@@ -50,6 +50,7 @@ const (
 	DisableCPUSetOversold                       featuregate.Feature = "DisableCPUSetOversold"
 	EnableACKGPUShareScheduling                 featuregate.Feature = "EnableACKGPUShareScheduling"
 	DisableInterPodAffinityByNamespaces         featuregate.Feature = "DisableInterPodAffinityByNamespaces"
+	EnableHugePageAsMemory                      featuregate.Feature = "EnableHugePageAsMemory"
 )
 
 const (
@@ -84,6 +85,7 @@ var defaultUnifiedSchedulerFeatureGates = map[featuregate.Feature]featuregate.Fe
 	DisableCPUSetOversold:                       {Default: false, PreRelease: featuregate.Beta},
 	EnableACKGPUShareScheduling:                 {Default: false, PreRelease: featuregate.Beta},
 	DisableInterPodAffinityByNamespaces:         {Default: false, PreRelease: featuregate.Beta},
+	EnableHugePageAsMemory:                      {Default: false, PreRelease: featuregate.Beta},
 }
 
 var defaultUnifiedKoordletFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
