@@ -26,12 +26,15 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	quotav1 "k8s.io/apiserver/pkg/quota/v1"
+	k8sfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
+	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
 	syncerconsts "sigs.k8s.io/cluster-api-provider-nested/virtualcluster/pkg/syncer/constants"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
 	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
+	"github.com/koordinator-sh/koordinator/pkg/features"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/deviceshare"
 )
 
@@ -49,6 +52,7 @@ func init() {
 		TransformResourceStatus,
 		TransformPodGPUResourcesToCardRatio,
 		TransformPodACKPodTopologyAware,
+		TransformHugePageToMemory,
 	)
 }
 
@@ -325,4 +329,48 @@ func TransformPodACKPodTopologyAware(pod *corev1.Pod) {
 	if val := pod.Annotations["alibabacloud.com/topology-aware-constraint"]; val != "" {
 		pod.Annotations[extension.AnnotationTopologyAwareConstraint] = val
 	}
+}
+
+func TransformHugePageToMemory(pod *corev1.Pod) {
+	if !k8sfeature.DefaultFeatureGate.Enabled(features.EnableHugePageAsMemory) {
+		return
+	}
+
+	for i := range pod.Spec.Containers {
+		container := &pod.Spec.Containers[i]
+		if err := convertHugePageToMemory(container.Resources.Requests); err != nil {
+			klog.ErrorS(err, "Failed to convertHugePageToMemory", "pod", klog.KObj(pod), "container", container.Name)
+			continue
+		}
+		if err := convertHugePageToMemory(container.Resources.Limits); err != nil {
+			klog.ErrorS(err, "Failed to convertHugePageToMemory", "pod", klog.KObj(pod), "container", container.Name)
+			continue
+		}
+	}
+
+	for i := range pod.Spec.InitContainers {
+		container := &pod.Spec.InitContainers[i]
+		if err := convertHugePageToMemory(container.Resources.Requests); err != nil {
+			klog.ErrorS(err, "Failed to convertHugePageToMemory", "pod", klog.KObj(pod), "initContainer", container.Name)
+			continue
+		}
+		if err := convertHugePageToMemory(container.Resources.Limits); err != nil {
+			klog.ErrorS(err, "Failed to convertHugePageToMemory", "pod", klog.KObj(pod), "initContainer", container.Name)
+			continue
+		}
+	}
+}
+
+func convertHugePageToMemory(resourceList corev1.ResourceList) error {
+	memory := resourceList[corev1.ResourceMemory]
+	for resourceName, value := range resourceList {
+		if v1helper.IsHugePageResourceName(resourceName) {
+			memory.Add(value)
+			delete(resourceList, resourceName)
+		}
+	}
+	if !memory.IsZero() {
+		resourceList[corev1.ResourceMemory] = memory
+	}
+	return nil
 }
