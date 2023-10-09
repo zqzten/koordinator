@@ -71,7 +71,7 @@ require (
 	k8s.io/kubernetes v1.24.15
 	k8s.io/utils v0.0.0-20230406110748-d93618cff8a2
 	sigs.k8s.io/cluster-api-provider-nested/virtualcluster v0.0.0-20230516005714-aeecf1fa30fb
-    sigs.k8s.io/controller-runtime v0.13.1
+	sigs.k8s.io/controller-runtime v0.13.1
 	sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20231005234617-5771399a8ce5
 	sigs.k8s.io/descheduler v0.26.0
 	sigs.k8s.io/scheduler-plugins v0.22.6
@@ -227,7 +227,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.10.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	go.uber.org/goleak v1.2.0 // indirect
-	go.uber.org/zap v1.21.0 // indirect
+	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/arch v0.0.0-20210923205945-b76863e36670 // indirect
 	golang.org/x/mod v0.12.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20220909003341-f21342109be1 // indirect
