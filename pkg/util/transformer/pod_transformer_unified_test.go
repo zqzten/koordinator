@@ -18,6 +18,7 @@ package transformer
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,11 +27,15 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	quotav1 "k8s.io/apiserver/pkg/quota/v1"
+	k8sfeature "k8s.io/apiserver/pkg/util/feature"
+	apiresource "k8s.io/kubernetes/pkg/api/v1/resource"
 	"k8s.io/utils/pointer"
 	syncerconsts "sigs.k8s.io/cluster-api-provider-nested/virtualcluster/pkg/syncer/constants"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
 	"github.com/koordinator-sh/koordinator/apis/extension/unified"
+	koordfeatures "github.com/koordinator-sh/koordinator/pkg/features"
+	utilfeature "github.com/koordinator-sh/koordinator/pkg/util/feature"
 )
 
 func TestTransformSigmaIgnoreResourceContainers(t *testing.T) {
@@ -556,6 +561,121 @@ func TestTransformPodGPUResourcesToCardRatio(t *testing.T) {
 					t.Errorf("error")
 				}
 			}
+		})
+	}
+}
+
+func TestTransformHugePageToMemory(t *testing.T) {
+	defer utilfeature.SetFeatureGateDuringTest(t, k8sfeature.DefaultMutableFeatureGate, koordfeatures.EnableHugePageAsMemory, true)()
+
+	tests := []struct {
+		name          string
+		pod           *corev1.Pod
+		wantResources corev1.ResourceRequirements
+	}{
+		{
+			name: "normal pod",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Resources: corev1.ResourceRequirements{
+								Limits: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("4"),
+									corev1.ResourceMemory: resource.MustParse("8Gi"),
+								},
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("4"),
+									corev1.ResourceMemory: resource.MustParse("8Gi"),
+								},
+							},
+						},
+					},
+				},
+			},
+			wantResources: corev1.ResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("4"),
+					corev1.ResourceMemory: resource.MustParse("8Gi"),
+				},
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("4"),
+					corev1.ResourceMemory: resource.MustParse("8Gi"),
+				},
+			},
+		},
+		{
+			name: "huge-page 2Mi pod",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Resources: corev1.ResourceRequirements{
+								Limits: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("4"),
+									corev1.ResourceMemory: resource.MustParse("8Gi"),
+									corev1.ResourceName(fmt.Sprintf("%s2Mi", corev1.ResourceHugePagesPrefix)): resource.MustParse("2Gi"),
+								},
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("4"),
+									corev1.ResourceMemory: resource.MustParse("8Gi"),
+									corev1.ResourceName(fmt.Sprintf("%s2Mi", corev1.ResourceHugePagesPrefix)): resource.MustParse("2Gi"),
+								},
+							},
+						},
+					},
+				},
+			},
+			wantResources: corev1.ResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("4"),
+					corev1.ResourceMemory: *resource.NewQuantity(10*1024*1024*1024, resource.BinarySI),
+				},
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("4"),
+					corev1.ResourceMemory: *resource.NewQuantity(10*1024*1024*1024, resource.BinarySI),
+				},
+			},
+		},
+		{
+			name: "huge-page 1Gi pod",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Resources: corev1.ResourceRequirements{
+								Limits: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("4"),
+									corev1.ResourceMemory: resource.MustParse("8Gi"),
+									corev1.ResourceName(fmt.Sprintf("%s1Gi", corev1.ResourceHugePagesPrefix)): resource.MustParse("2Gi"),
+								},
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("4"),
+									corev1.ResourceMemory: resource.MustParse("8Gi"),
+									corev1.ResourceName(fmt.Sprintf("%s1Gi", corev1.ResourceHugePagesPrefix)): resource.MustParse("2Gi"),
+								},
+							},
+						},
+					},
+				},
+			},
+			wantResources: corev1.ResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("4"),
+					corev1.ResourceMemory: *resource.NewQuantity(10*1024*1024*1024, resource.BinarySI),
+				},
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("4"),
+					corev1.ResourceMemory: *resource.NewQuantity(10*1024*1024*1024, resource.BinarySI),
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			TransformHugePageToMemory(tt.pod)
+			requests, limits := apiresource.PodRequestsAndLimits(tt.pod)
+			assert.Equal(t, tt.wantResources, corev1.ResourceRequirements{Limits: limits, Requests: requests})
 		})
 	}
 }
