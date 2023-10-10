@@ -23,13 +23,14 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 
 	"github.com/koordinator-sh/koordinator/apis/configuration"
 	"github.com/koordinator-sh/koordinator/apis/extension"
@@ -110,16 +111,37 @@ func TestPluginNeedSyncMeta(t *testing.T) {
 			},
 		},
 	}
+	testNode3 := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+			Labels: map[string]string{
+				extunified.LabelCPUOverQuota:           "1.5",
+				extunified.LabelMemoryOverQuota:        "1.35",
+				extunified.LabelAlibabaCPUOverQuota:    "1.5",
+				extunified.LabelAlibabaMemoryOverQuota: "1.35",
+			},
+		},
+		Status: corev1.NodeStatus{
+			Allocatable: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceCPU:    resource.MustParse("100"),
+				corev1.ResourceMemory: resource.MustParse("200Gi"),
+			},
+		},
+	}
+	type fields struct {
+		prepareFn func() (cleanupFn func())
+	}
 	type args struct {
 		strategy *configuration.ColocationStrategy
 		oldNode  *corev1.Node
 		newNode  *corev1.Node
 	}
 	tests := []struct {
-		name  string
-		args  args
-		want  bool
-		want1 string
+		name   string
+		fields fields
+		args   args
+		want   bool
+		want1  string
 	}{
 		{
 			name: "not sync when failed to parse strategy",
@@ -243,10 +265,62 @@ func TestPluginNeedSyncMeta(t *testing.T) {
 			want:  false,
 			want1: "",
 		},
+		{
+			name: "need update when alibaba over-quota label changes",
+			fields: fields{
+				prepareFn: func() (cleanupFn func()) {
+					return testEnableOverQuotaLabels(true, true)
+				},
+			},
+			args: args{
+				strategy: &configuration.ColocationStrategy{
+					ResourceDiffThreshold: pointer.Float64(0.05),
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
+						Extensions: map[string]interface{}{
+							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
+								ProdOvercommitPolicy: getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyAuto),
+							},
+						},
+					},
+				},
+				oldNode: testNode,
+				newNode: testNode3,
+			},
+			want:  true,
+			want1: "prod cpu over-quota resource diff is big than threshold",
+		},
+		{
+			name: "need update when no over-quota label enabled",
+			fields: fields{
+				prepareFn: func() (cleanupFn func()) {
+					return testEnableOverQuotaLabels(false, false)
+				},
+			},
+			args: args{
+				strategy: &configuration.ColocationStrategy{
+					ResourceDiffThreshold: pointer.Float64(0.05),
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
+						Extensions: map[string]interface{}{
+							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
+								ProdOvercommitPolicy: getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyAuto),
+							},
+						},
+					},
+				},
+				oldNode: testNode,
+				newNode: testNode3,
+			},
+			want:  false,
+			want1: "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := &Plugin{}
+			if tt.fields.prepareFn != nil {
+				cleanupFn := tt.fields.prepareFn()
+				defer cleanupFn()
+			}
 			got, got1 := p.NeedSyncMeta(tt.args.strategy, tt.args.oldNode, tt.args.newNode)
 			assert.Equal(t, tt.want, got)
 			assert.Equal(t, tt.want1, got1)
@@ -355,6 +429,52 @@ func TestPluginExecute(t *testing.T) {
 			},
 		},
 	}
+	testNode5 := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+			Labels: map[string]string{
+				extunified.LabelCPUOverQuota:           "1.5",
+				extunified.LabelMemoryOverQuota:        "1.35",
+				extunified.LabelAlibabaCPUOverQuota:    "1.5",
+				extunified.LabelAlibabaMemoryOverQuota: "1.35",
+			},
+		},
+		Status: corev1.NodeStatus{
+			Allocatable: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceCPU:    resource.MustParse("100"),
+				corev1.ResourceMemory: resource.MustParse("200Gi"),
+			},
+		},
+	}
+	testNode6 := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+		},
+		Status: corev1.NodeStatus{
+			Allocatable: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceCPU:    resource.MustParse("100"),
+				corev1.ResourceMemory: resource.MustParse("200Gi"),
+			},
+		},
+	}
+	testNode7 := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+			Labels: map[string]string{
+				extunified.LabelAlibabaCPUOverQuota:    "1.5",
+				extunified.LabelAlibabaMemoryOverQuota: "1.35",
+			},
+		},
+		Status: corev1.NodeStatus{
+			Allocatable: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceCPU:    resource.MustParse("100"),
+				corev1.ResourceMemory: resource.MustParse("200Gi"),
+			},
+		},
+	}
+	type fields struct {
+		prepareFn func() (cleanupFn func())
+	}
 	type args struct {
 		strategy *configuration.ColocationStrategy
 		node     *corev1.Node
@@ -362,6 +482,7 @@ func TestPluginExecute(t *testing.T) {
 	}
 	tests := []struct {
 		name      string
+		fields    fields
 		args      args
 		wantErr   bool
 		wantField *corev1.Node
@@ -553,6 +674,89 @@ func TestPluginExecute(t *testing.T) {
 			wantErr:   false,
 			wantField: testNode4,
 		},
+		{
+			name: "prepare node labels with both sigma and alibaba over quota apis",
+			fields: fields{
+				prepareFn: func() (cleanupFn func()) {
+					return testEnableOverQuotaLabels(true, true)
+				},
+			},
+			args: args{
+				strategy: &configuration.ColocationStrategy{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
+						Extensions: map[string]interface{}{
+							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
+								ProdOvercommitPolicy: getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyAuto),
+							},
+						},
+					},
+				},
+				node: testNode,
+				nr: &framework.NodeResource{
+					Labels: map[string]string{
+						extunified.LabelCPUOverQuota:           "1.5",
+						extunified.LabelMemoryOverQuota:        "1.35",
+						extunified.LabelAlibabaCPUOverQuota:    "1.5",
+						extunified.LabelAlibabaMemoryOverQuota: "1.35",
+					},
+				},
+			},
+			wantErr:   false,
+			wantField: testNode5,
+		},
+		{
+			name: "prepare node labels with alibaba over quota api",
+			fields: fields{
+				prepareFn: func() (cleanupFn func()) {
+					return testEnableOverQuotaLabels(false, true)
+				},
+			},
+			args: args{
+				strategy: &configuration.ColocationStrategy{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
+						Extensions: map[string]interface{}{
+							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
+								ProdOvercommitPolicy: getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyAuto),
+							},
+						},
+					},
+				},
+				node: testNode6,
+				nr: &framework.NodeResource{
+					Labels: map[string]string{
+						extunified.LabelAlibabaCPUOverQuota:    "1.5",
+						extunified.LabelAlibabaMemoryOverQuota: "1.35",
+					},
+				},
+			},
+			wantErr:   false,
+			wantField: testNode7,
+		},
+		{
+			name: "prepare node labels with no over quota api enabled",
+			fields: fields{
+				prepareFn: func() (cleanupFn func()) {
+					return testEnableOverQuotaLabels(false, false)
+				},
+			},
+			args: args{
+				strategy: &configuration.ColocationStrategy{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
+						Extensions: map[string]interface{}{
+							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
+								ProdOvercommitPolicy: getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyAuto),
+							},
+						},
+					},
+				},
+				node: testNode6,
+				nr: &framework.NodeResource{
+					Labels: map[string]string{},
+				},
+			},
+			wantErr:   false,
+			wantField: testNode6,
+		},
 	}
 	oldClient := Client
 	defer func() {
@@ -561,7 +765,7 @@ func TestPluginExecute(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := &Plugin{}
-			Client = &fakeCtrlClient{
+			c := &fakeCtrlClient{
 				cachedObj: &unified.Machine{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "machine-" + tt.args.node.Name,
@@ -575,6 +779,14 @@ func TestPluginExecute(t *testing.T) {
 					},
 				},
 			}
+			if tt.fields.prepareFn != nil {
+				cleanupFn := tt.fields.prepareFn()
+				defer cleanupFn()
+			}
+			err := p.Setup(&framework.Option{
+				Client: c,
+			})
+			assert.NoError(t, err)
 			gotErr := p.Execute(tt.args.strategy, tt.args.node, tt.args.nr)
 			assert.Equal(t, tt.wantErr, gotErr != nil)
 			assert.Equal(t, tt.wantField, tt.args.node)
@@ -630,6 +842,9 @@ func TestPluginCalculate(t *testing.T) {
 			},
 		},
 	}
+	type fields struct {
+		prepareFn func() (cleanupFn func())
+	}
 	type args struct {
 		strategy *configuration.ColocationStrategy
 		node     *corev1.Node
@@ -638,6 +853,7 @@ func TestPluginCalculate(t *testing.T) {
 	}
 	tests := []struct {
 		name    string
+		fields  fields
 		args    args
 		want    []framework.ResourceItem
 		wantErr bool
@@ -691,6 +907,7 @@ func TestPluginCalculate(t *testing.T) {
 			},
 			want: []framework.ResourceItem{
 				{
+					Name: PluginName,
 					Labels: map[string]string{
 						extunified.LabelCPUOverQuota:    "1.5",
 						extunified.LabelMemoryOverQuota: "1.35",
@@ -740,6 +957,40 @@ func TestPluginCalculate(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "calculate when policy=static with both sigma and alibaba over quota apis",
+			fields: fields{
+				prepareFn: func() (cleanupFn func()) {
+					return testEnableOverQuotaLabels(true, true)
+				},
+			},
+			args: args{
+				strategy: &configuration.ColocationStrategy{
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
+						Extensions: map[string]interface{}{
+							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
+								ProdOvercommitPolicy:               getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyStatic),
+								ProdCPUOvercommitDefaultPercent:    pointer.Int64(150),
+								ProdMemoryOvercommitDefaultPercent: pointer.Int64(135),
+							},
+						},
+					},
+				},
+				node: testNode,
+			},
+			want: []framework.ResourceItem{
+				{
+					Name: PluginName,
+					Labels: map[string]string{
+						extunified.LabelCPUOverQuota:           "1.5",
+						extunified.LabelMemoryOverQuota:        "1.35",
+						extunified.LabelAlibabaCPUOverQuota:    "1.5",
+						extunified.LabelAlibabaMemoryOverQuota: "1.35",
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
 			name: "calculate when policy=dryRun",
 			args: args{
 				strategy: &configuration.ColocationStrategy{
@@ -761,6 +1012,7 @@ func TestPluginCalculate(t *testing.T) {
 			},
 			want: []framework.ResourceItem{
 				{
+					Name: PluginName,
 					Labels: map[string]string{
 						extunified.LabelCPUOverQuota:    "1.2",
 						extunified.LabelMemoryOverQuota: "1.2",
@@ -798,6 +1050,7 @@ func TestPluginCalculate(t *testing.T) {
 			},
 			want: []framework.ResourceItem{
 				{
+					Name: PluginName,
 					Labels: map[string]string{
 						extunified.LabelCPUOverQuota:    "1.5",
 						extunified.LabelMemoryOverQuota: "1.35",
@@ -828,6 +1081,7 @@ func TestPluginCalculate(t *testing.T) {
 			},
 			want: []framework.ResourceItem{
 				{
+					Name: PluginName,
 					Labels: map[string]string{
 						extunified.LabelCPUOverQuota:    "1.2",
 						extunified.LabelMemoryOverQuota: "1.2",
@@ -862,9 +1116,46 @@ func TestPluginCalculate(t *testing.T) {
 			},
 			want: []framework.ResourceItem{
 				{
+					Name: PluginName,
 					Labels: map[string]string{
 						extunified.LabelCPUOverQuota:    "1.5",
 						extunified.LabelMemoryOverQuota: "1.1",
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "calculate when policy=auto with alibaba over quota api",
+			fields: fields{
+				prepareFn: func() (cleanupFn func()) {
+					return testEnableOverQuotaLabels(false, true)
+				},
+			},
+			args: args{
+				strategy: &configuration.ColocationStrategy{
+					DegradeTimeMinutes: pointer.Int64(10),
+					ColocationStrategyExtender: configuration.ColocationStrategyExtender{
+						Extensions: map[string]interface{}{
+							config.DynamicProdResourceExtKey: &extunified.DynamicProdResourceConfig{
+								ProdOvercommitPolicy:               getProdOvercommitPolicyPointer(extunified.ProdOvercommitPolicyAuto),
+								ProdCPUOvercommitDefaultPercent:    pointer.Int64(150),
+								ProdMemoryOvercommitDefaultPercent: pointer.Int64(135),
+							},
+						},
+					},
+				},
+				node: testNode,
+				metrics: &framework.ResourceMetrics{
+					NodeMetric: testNodeMetric,
+				},
+			},
+			want: []framework.ResourceItem{
+				{
+					Name: PluginName,
+					Labels: map[string]string{
+						extunified.LabelAlibabaCPUOverQuota:    "1.2",
+						extunified.LabelAlibabaMemoryOverQuota: "1.2",
 					},
 				},
 			},
@@ -897,6 +1188,10 @@ func TestPluginCalculate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := &Plugin{}
+			if tt.fields.prepareFn != nil {
+				cleanupFn := tt.fields.prepareFn()
+				defer cleanupFn()
+			}
 			got, gotErr := p.Calculate(tt.args.strategy, tt.args.node, tt.args.podList, tt.args.metrics)
 			assert.Equal(t, tt.want, got)
 			assert.Equal(t, tt.wantErr, gotErr != nil, gotErr)
@@ -1201,6 +1496,17 @@ func TestPlugin_isDegradeNeeded(t *testing.T) {
 			p := &Plugin{}
 			assert.Equal(t, tt.want, p.isDegradeNeeded(tt.args.strategy, tt.args.nodeMetric))
 		})
+	}
+}
+
+func testEnableOverQuotaLabels(enableSigmaOverQuota, enableAlibabaOverQuota bool) (resetFn func()) {
+	oldEnableSigma := *EnableSigmaOverQuotaLabel
+	oldEnableAlibaba := *EnableAlibabaOverQuotaLabel
+	*EnableSigmaOverQuotaLabel = enableSigmaOverQuota
+	*EnableAlibabaOverQuotaLabel = enableAlibabaOverQuota
+	return func() {
+		*EnableSigmaOverQuotaLabel = oldEnableSigma
+		*EnableAlibabaOverQuotaLabel = oldEnableAlibaba
 	}
 }
 
