@@ -660,7 +660,8 @@ func appendRundResult(pod *corev1.Pod, allocResult apiext.DeviceAllocations, pl 
 		return nil
 	}
 	gpuAllocations := allocResult[schedulingv1alpha1.GPU]
-	if len(gpuAllocations) == 0 || isGPUSharedPod(gpuAllocations[0].Resources) {
+	nvSwitchAllocations := allocResult[extunified.NVSwitchDeviceType]
+	if len(gpuAllocations) != 0 && isGPUSharedPod(gpuAllocations[0].Resources) && len(nvSwitchAllocations) == 0 {
 		return nil
 	}
 	extendedHandle, ok := pl.handle.(frameworkext.ExtendedHandle)

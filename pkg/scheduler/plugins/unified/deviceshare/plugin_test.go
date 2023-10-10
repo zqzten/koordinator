@@ -428,6 +428,24 @@ func Test_appendRundResult(t *testing.T) {
 						},
 					},
 				},
+			},
+			want: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{},
+				Spec: corev1.PodSpec{
+					RuntimeClassName: pointer.String("rund"),
+					NodeName:         "test-node-1",
+				},
+			},
+		},
+		{
+			name: "rund serviceVM pod",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					RuntimeClassName: pointer.String("rund"),
+					NodeName:         "test-node-1",
+				},
+			},
+			allocResult: apiext.DeviceAllocations{
 				unified.NVSwitchDeviceType: []*apiext.DeviceAllocation{
 					{
 						Minor: 3,
@@ -438,7 +456,12 @@ func Test_appendRundResult(t *testing.T) {
 				},
 			},
 			want: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{},
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						unified.AnnotationRundPassthoughPCI: "0000:90:00.3,0000:90:00.4",
+						unified.AnnotationRundNVSwitchOrder: "3,4",
+					},
+				},
 				Spec: corev1.PodSpec{
 					RuntimeClassName: pointer.String("rund"),
 					NodeName:         "test-node-1",
