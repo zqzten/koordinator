@@ -18,11 +18,11 @@ package dynamicprodresource
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"strconv"
 	"time"
 
-	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -31,6 +31,8 @@ import (
 	"k8s.io/klog/v2"
 	clocks "k8s.io/utils/clock"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 
 	"github.com/koordinator-sh/koordinator/apis/configuration"
 	"github.com/koordinator-sh/koordinator/apis/extension"
@@ -43,17 +45,31 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/util"
 )
 
+var (
+	EnableSigmaOverQuotaLabel   = flag.Bool("enable-sigma-over-quota-label", true, "Enable to update 'sigma.ali/xxx-over-quota' labels in DynamicProdResource plugin.")
+	EnableAlibabaOverQuotaLabel = flag.Bool("enable-alibaba-over-quota-label", false, "Enable to update 'alibabacloud.com/xxx-over-quota labels in DynamicProdResource plugin.")
+)
+
 const PluginName = "DynamicProdResource"
 
 var (
 	// ResourceNames are the resource names which the plugin need to check.
 	ResourceNames = []corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory}
-	// Labels are the node labels which the plugin need to check and update.
-	// TBD: May support individual labels when the prod allocatable is scaled with webhook.
-	Labels = []string{
+
+	// SigmaOverQuotaLabels are the node labels of the sigma protocol.
+	// DEPRECATED: This protocol will be replaced by the alibaba protocol.
+	SigmaOverQuotaLabels = []string{
 		extunified.LabelCPUOverQuota,
 		extunified.LabelMemoryOverQuota,
 	}
+	// AlibabaOverQuotaLabels are the node labels of the alibaba protocol.
+	AlibabaOverQuotaLabels = []string{
+		extunified.LabelAlibabaCPUOverQuota,
+		extunified.LabelAlibabaMemoryOverQuota,
+	}
+	// Labels are the node labels which the plugin need to check and update.
+	// TBD: May support individual labels when the prod allocatable is scaled with webhook.
+	Labels []string
 )
 
 var Clock clocks.WithTickerAndDelayedExecution = clocks.RealClock{} // for testing
@@ -68,6 +84,7 @@ func (p *Plugin) Name() string {
 
 func (p *Plugin) Setup(opt *framework.Option) error {
 	Client = opt.Client
+	Labels = getOverQuotaLabels()
 	return nil
 }
 
@@ -155,8 +172,8 @@ func (p *Plugin) Prepare(strategy *configuration.ColocationStrategy, node *corev
 			return err
 		}
 
-		klog.V(5).Infof("prod overcommit policy of node %s is %s, cpu is [%s], memory is [%s]",
-			node.Name, policy, nr.Labels[extunified.LabelCPUOverQuota], nr.Labels[extunified.LabelMemoryOverQuota])
+		klog.V(5).Infof("prod overcommit policy of node %s is %s, over-quota ratio [cpu:%s, memory:%s]",
+			node.Name, policy, cpuRatio, memRatio)
 
 		err = p.disableKubeNodeLabelManagement(node)
 		if err != nil {
@@ -306,7 +323,13 @@ func (p *Plugin) setDefault(cfg *extunified.DynamicProdResourceConfig, node *cor
 			return nil, fmt.Errorf("invalid cpu default percent %v", *cfg.ProdCPUOvercommitDefaultPercent)
 		}
 
-		overQuotaLabels[extunified.LabelCPUOverQuota] = percentToOverQuotaRatio(*cfg.ProdCPUOvercommitDefaultPercent)
+		ratioStr := percentToOverQuotaRatio(*cfg.ProdCPUOvercommitDefaultPercent)
+		if *EnableSigmaOverQuotaLabel {
+			overQuotaLabels[extunified.LabelCPUOverQuota] = ratioStr
+		}
+		if *EnableAlibabaOverQuotaLabel {
+			overQuotaLabels[extunified.LabelAlibabaCPUOverQuota] = ratioStr
+		}
 	}
 
 	if cfg.ProdMemoryOvercommitDefaultPercent != nil {
@@ -316,7 +339,14 @@ func (p *Plugin) setDefault(cfg *extunified.DynamicProdResourceConfig, node *cor
 				valueOfInt64PtrOrNil(cfg.ProdMemoryOvercommitMinPercent), valueOfInt64PtrOrNil(cfg.ProdMemoryOvercommitMaxPercent))
 			return nil, fmt.Errorf("invalid memory default percent %v", *cfg.ProdMemoryOvercommitDefaultPercent)
 		}
-		overQuotaLabels[extunified.LabelMemoryOverQuota] = percentToOverQuotaRatio(*cfg.ProdMemoryOvercommitDefaultPercent)
+
+		ratioStr := percentToOverQuotaRatio(*cfg.ProdMemoryOvercommitDefaultPercent)
+		if *EnableSigmaOverQuotaLabel {
+			overQuotaLabels[extunified.LabelMemoryOverQuota] = ratioStr
+		}
+		if *EnableAlibabaOverQuotaLabel {
+			overQuotaLabels[extunified.LabelAlibabaMemoryOverQuota] = ratioStr
+		}
 	}
 
 	if len(overQuotaLabels) <= 0 {
@@ -325,6 +355,7 @@ func (p *Plugin) setDefault(cfg *extunified.DynamicProdResourceConfig, node *cor
 
 	return []framework.ResourceItem{
 		{
+			Name:   PluginName,
 			Labels: overQuotaLabels,
 		},
 	}, nil
@@ -347,10 +378,18 @@ func (p *Plugin) calculate(cfg *extunified.DynamicProdResourceConfig, node *core
 	prodAllocatable := quotav1.Max(minResourceIgnoreNotExist(prodAllocatableEstimated, maxAllocatable), minAllocatable)
 
 	// generate results
-	overQuotaLabels := map[string]string{
-		extunified.LabelCPUOverQuota:    percentToOverQuotaRatio(prodAllocatable.Cpu().MilliValue() * 100 / nodeAllocatable.Cpu().MilliValue()),
-		extunified.LabelMemoryOverQuota: percentToOverQuotaRatio(prodAllocatable.Memory().Value() * 100 / nodeAllocatable.Memory().Value()),
+	overQuotaLabels := map[string]string{}
+	cpuRatioStr := percentToOverQuotaRatio(prodAllocatable.Cpu().MilliValue() * 100 / nodeAllocatable.Cpu().MilliValue())
+	memRatioStr := percentToOverQuotaRatio(prodAllocatable.Memory().Value() * 100 / nodeAllocatable.Memory().Value())
+	if *EnableSigmaOverQuotaLabel {
+		overQuotaLabels[extunified.LabelCPUOverQuota] = cpuRatioStr
+		overQuotaLabels[extunified.LabelMemoryOverQuota] = memRatioStr
 	}
+	if *EnableAlibabaOverQuotaLabel {
+		overQuotaLabels[extunified.LabelAlibabaCPUOverQuota] = cpuRatioStr
+		overQuotaLabels[extunified.LabelAlibabaMemoryOverQuota] = memRatioStr
+	}
+
 	cpuMsg := fmt.Sprintf("prodAllocatable[CPU(Milli-Core)]:%v = max(min(NodeAllocatable:%v + ProdReclaimable:%v, maxAllocatable:%v), minAllocatable:%v)",
 		prodAllocatable.Cpu().MilliValue(), nodeAllocatable.Cpu().MilliValue(), prodReclaimable.Cpu().MilliValue(),
 		maxAllocatable.Cpu().MilliValue(), minAllocatable.Cpu().MilliValue())
@@ -363,11 +402,11 @@ func (p *Plugin) calculate(cfg *extunified.DynamicProdResourceConfig, node *core
 	metrics.RecordNodeProdResourceEstimatedAllocatable(node, string(corev1.ResourceCPU), metrics.UnitCore, float64(prodAllocatable.Cpu().MilliValue())/1000)
 	metrics.RecordNodeProdResourceEstimatedAllocatable(node, string(corev1.ResourceMemory), metrics.UnitByte, float64(prodAllocatable.Memory().Value()))
 	klog.V(5).InfoS("calculate prod overcommit resource for node", "node", node.Name,
-		"cpu ratio", overQuotaLabels[extunified.LabelCPUOverQuota], "cpu msg", cpuMsg,
-		"memory ratio", overQuotaLabels[extunified.LabelMemoryOverQuota], "memory msg", memMsg)
+		"cpu ratio", cpuRatioStr, "cpu msg", cpuMsg, "memory ratio", memRatioStr, "memory msg", memMsg)
 
 	return []framework.ResourceItem{
 		{
+			Name:   PluginName,
 			Labels: overQuotaLabels,
 		},
 	}, nil
@@ -396,6 +435,17 @@ func getNodeDynamicProdResourceConfig(cfg *extunified.DynamicProdResourceConfig,
 	return mergedIf.(*extunified.DynamicProdResourceConfig)
 }
 
+func getOverQuotaLabels() []string {
+	var labels []string
+	if *EnableSigmaOverQuotaLabel {
+		labels = append(labels, SigmaOverQuotaLabels...)
+	}
+	if *EnableAlibabaOverQuotaLabel {
+		labels = append(labels, AlibabaOverQuotaLabels...)
+	}
+	return labels
+}
+
 func getAllocatableWithOverQuota(node *corev1.Node) corev1.ResourceList {
 	if node == nil || node.Status.Allocatable == nil {
 		return nil
@@ -404,8 +454,18 @@ func getAllocatableWithOverQuota(node *corev1.Node) corev1.ResourceList {
 		return node.Status.Allocatable
 	}
 
+	if !*EnableAlibabaOverQuotaLabel && !*EnableSigmaOverQuotaLabel {
+		return node.Status.Allocatable
+	}
+
 	allocatable := node.Status.Allocatable.DeepCopy()
-	cpuOverQuotaPercent, memoryOverQuotaPercent, _ := extunified.GetResourceOverQuotaSpec(node)
+
+	var cpuOverQuotaPercent, memoryOverQuotaPercent int64
+	if *EnableAlibabaOverQuotaLabel {
+		cpuOverQuotaPercent, memoryOverQuotaPercent, _ = extunified.GetAlibabaResourceOverQuotaSpec(node)
+	} else if *EnableSigmaOverQuotaLabel {
+		cpuOverQuotaPercent, memoryOverQuotaPercent, _ = extunified.GetResourceOverQuotaSpec(node)
+	}
 	if cpu, ok := allocatable[corev1.ResourceCPU]; ok {
 		allocatable[corev1.ResourceCPU] = *resource.NewMilliQuantity(cpu.MilliValue()*cpuOverQuotaPercent/100, resource.DecimalSI)
 	}
@@ -428,7 +488,14 @@ func getOverQuotaFromNodeResource(nr *framework.NodeResource) (cpuRatio, memRati
 	if nr == nil || nr.Labels == nil {
 		return "", ""
 	}
-	return nr.Labels[extunified.LabelCPUOverQuota], nr.Labels[extunified.LabelMemoryOverQuota]
+	// firstly try the alibaba protocol which is newer
+	if *EnableAlibabaOverQuotaLabel {
+		return nr.Labels[extunified.LabelAlibabaCPUOverQuota], nr.Labels[extunified.LabelAlibabaMemoryOverQuota]
+	}
+	if *EnableSigmaOverQuotaLabel {
+		return nr.Labels[extunified.LabelCPUOverQuota], nr.Labels[extunified.LabelMemoryOverQuota]
+	}
+	return "", ""
 }
 
 func strToFloat64(s string) float64 {
@@ -442,15 +509,31 @@ func strToFloat64(s string) float64 {
 func prepareNodeOverQuota(node *corev1.Node, cpuOverQuota, memOverQuota string) error {
 	if len(cpuOverQuota) > 0 {
 		if err := isValidOverQuotaRatio(cpuOverQuota); err != nil {
-			return fmt.Errorf("%s is not valid %s, err: %v", cpuOverQuota, extunified.LabelCPUOverQuota, err)
+			return fmt.Errorf("%s is not valid cpu over quota, err: %v", cpuOverQuota, err)
 		}
-		node.Labels[extunified.LabelCPUOverQuota] = cpuOverQuota
+		if node.Labels == nil {
+			node.Labels = map[string]string{}
+		}
+		if *EnableSigmaOverQuotaLabel {
+			node.Labels[extunified.LabelCPUOverQuota] = cpuOverQuota
+		}
+		if *EnableAlibabaOverQuotaLabel {
+			node.Labels[extunified.LabelAlibabaCPUOverQuota] = cpuOverQuota
+		}
 	}
 	if len(memOverQuota) > 0 {
 		if err := isValidOverQuotaRatio(memOverQuota); err != nil {
-			return fmt.Errorf("%s is not valid %s, err: %v", memOverQuota, extunified.LabelMemoryOverQuota, err)
+			return fmt.Errorf("%s is not valid memory over quota, err: %v", memOverQuota, err)
 		}
-		node.Labels[extunified.LabelMemoryOverQuota] = memOverQuota
+		if node.Labels == nil {
+			node.Labels = map[string]string{}
+		}
+		if *EnableSigmaOverQuotaLabel {
+			node.Labels[extunified.LabelMemoryOverQuota] = memOverQuota
+		}
+		if *EnableAlibabaOverQuotaLabel {
+			node.Labels[extunified.LabelAlibabaMemoryOverQuota] = memOverQuota
+		}
 	}
 
 	return nil
