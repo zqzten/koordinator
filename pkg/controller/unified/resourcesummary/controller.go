@@ -39,6 +39,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
+	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/controller/unified/resourcesummary/metrics"
 	"github.com/koordinator-sh/koordinator/pkg/features"
@@ -404,7 +405,7 @@ func statisticsNodeRelated(candidateNodes *corev1.NodeList,
 
 func statisticsNodeResource(node *corev1.Node, ownPods []*corev1.Pod, ownedReservations []*schedulingv1alpha1.Reservation, gpuCapacity corev1.ResourceList) (capacity, requested, free, reservationCapacity, reservationRequested, reservationFree map[uniext.PriorityClass]corev1.ResourceList) {
 	capacity = map[uniext.PriorityClass]corev1.ResourceList{}
-	nodeAllocatable := GetAllocatableByOverQuota(node)
+	nodeAllocatable := unified.GetAllocatableByOverQuota(node)
 	addGPUCapacityToNodeAllocatable(nodeAllocatable, gpuCapacity)
 	for _, priorityClass := range priorityClassTypes {
 		capacity[priorityClass] = quotav1.Add(capacity[priorityClass], GetNodePriorityResource(nodeAllocatable, priorityClass, node))
