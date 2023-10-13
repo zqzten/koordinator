@@ -29,24 +29,6 @@ import (
 	utilfeature "github.com/koordinator-sh/koordinator/pkg/util/feature"
 )
 
-func GetAllocatableByOverQuota(node *corev1.Node) corev1.ResourceList {
-	allocatable := node.Status.Allocatable.DeepCopy()
-	cpuOverQuotaRatioSpec, memoryOverQuotaRatioSpec, diskOverQuotaRatioSpec := extunified.GetResourceOverQuotaSpec(node)
-	if cpu, found := allocatable[corev1.ResourceCPU]; found {
-		allocatable[corev1.ResourceCPU] = *resource.NewMilliQuantity(cpu.MilliValue()*cpuOverQuotaRatioSpec/100, resource.DecimalSI)
-	}
-	if acu, found := allocatable[uniext.ResourceACU]; found {
-		allocatable[uniext.ResourceACU] = *resource.NewMilliQuantity(acu.MilliValue()*cpuOverQuotaRatioSpec/100, resource.DecimalSI)
-	}
-	if memory, found := allocatable[corev1.ResourceMemory]; found {
-		allocatable[corev1.ResourceMemory] = *resource.NewQuantity(memory.Value()*memoryOverQuotaRatioSpec/100, resource.BinarySI)
-	}
-	if ephemeralStorage, found := allocatable[corev1.ResourceEphemeralStorage]; found {
-		allocatable[corev1.ResourceEphemeralStorage] = *resource.NewQuantity(ephemeralStorage.Value()*diskOverQuotaRatioSpec/100, resource.BinarySI)
-	}
-	return allocatable
-}
-
 func GetPodPriorityUsed(pod *corev1.Pod, node *corev1.Node, gpuCapacity corev1.ResourceList, resourceNames ...corev1.ResourceName) v1beta1.PodPriorityUsed {
 	requested := corev1.ResourceList{}
 	for _, container := range pod.Spec.Containers {
