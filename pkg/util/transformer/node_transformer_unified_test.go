@@ -57,6 +57,25 @@ func TestTransformNodeAllocatableWithOverQuota(t *testing.T) {
 				corev1.ResourceMemory: 2,
 			},
 		},
+		{
+			name: "cpu 1.5, and memory 2 with new api",
+			nodeLabels: map[string]string{
+				extunified.LabelAlibabaCPUOverQuota:    "1.5",
+				extunified.LabelAlibabaMemoryOverQuota: "2",
+			},
+			nodeAllocatable: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("2"),
+				corev1.ResourceMemory: resource.MustParse("2Gi"),
+			},
+			wantTransformedAllocatable: corev1.ResourceList{
+				corev1.ResourceCPU:    *resource.NewMilliQuantity(3000, resource.DecimalSI),
+				corev1.ResourceMemory: *resource.NewQuantity(4*1024*1024*1024, resource.BinarySI),
+			},
+			wantRatios: map[corev1.ResourceName]apiext.Ratio{
+				corev1.ResourceCPU:    1.5,
+				corev1.ResourceMemory: 2,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
