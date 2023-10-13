@@ -1,5 +1,5 @@
-//go:build github
-// +build github
+//go:build !github
+// +build !github
 
 /*
 Copyright 2022 The Koordinator Authors.
@@ -21,8 +21,10 @@ package profile
 
 import (
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 )
 
 func GetNodeAllocatable(node corev1.Node) corev1.ResourceList {
-	return node.Status.Allocatable.DeepCopy()
+	return unified.GetAllocatableByOverQuota(&node)
 }
