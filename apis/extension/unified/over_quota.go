@@ -20,9 +20,7 @@ import (
 	"fmt"
 	"strconv"
 
-	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 
@@ -35,6 +33,13 @@ const (
 	LabelMemoryOverQuota             = "sigma.ali/memory-over-quota"
 	LabelDiskOverQuota               = "sigma.ali/disk-over-quota"
 	AnnotationDisableOverQuotaFilter = "sigma.ali/disable-over-quota-filter"
+)
+
+// The following new over-quota APIs defined by ACS
+const (
+	LabelAlibabaCPUOverQuota    = "alibabacloud.com/cpu-over-quota"
+	LabelAlibabaMemoryOverQuota = "alibabacloud.com/memory-over-quota"
+	LabelAlibabaDiskOverQuota   = "alibabacloud.com/disk-over-quota"
 )
 
 func IsNodeEnableOverQuota(node *corev1.Node) bool {
@@ -108,56 +113,74 @@ func nodeSelectorRequirementsAsSelector(nsm []corev1.NodeSelectorRequirement) (l
 }
 
 func GetResourceOverQuotaSpec(node *corev1.Node) (cpuOverQuotaRatio, memoryOverQuotaRatio, diskOverQuotaRatio int64) {
-	cpuOverQuotaRatio = parseOverQuotaRatio(node.Labels[LabelCPUOverQuota])
-	memoryOverQuotaRatio = parseOverQuotaRatio(node.Labels[LabelMemoryOverQuota])
-	diskOverQuotaRatio = parseOverQuotaRatio(node.Labels[LabelDiskOverQuota])
+	cpuOverQuotaRatio = parseOverQuotaRatio(node.Labels[LabelAlibabaCPUOverQuota], node.Labels[LabelCPUOverQuota])
+	memoryOverQuotaRatio = parseOverQuotaRatio(node.Labels[LabelAlibabaMemoryOverQuota], node.Labels[LabelMemoryOverQuota])
+	diskOverQuotaRatio = parseOverQuotaRatio(node.Labels[LabelAlibabaDiskOverQuota], node.Labels[LabelDiskOverQuota])
+	return
+}
+
+func GetSigmaResourceOverQuotaSpec(node *corev1.Node) (cpuOverQuotaRatio, memoryOverQuotaRatio, diskOverQuotaRatio int64) {
+	cpuOverQuotaRatio = parseOverQuotaRatio(node.Labels[LabelCPUOverQuota], "")
+	memoryOverQuotaRatio = parseOverQuotaRatio(node.Labels[LabelMemoryOverQuota], "")
+	diskOverQuotaRatio = parseOverQuotaRatio(node.Labels[LabelDiskOverQuota], "")
+	return
+}
+
+func GetAlibabaResourceOverQuotaSpec(node *corev1.Node) (cpuOverQuotaRatio, memoryOverQuotaRatio, diskOverQuotaRatio int64) {
+	cpuOverQuotaRatio = parseOverQuotaRatio(node.Labels[LabelAlibabaCPUOverQuota], "")
+	memoryOverQuotaRatio = parseOverQuotaRatio(node.Labels[LabelAlibabaMemoryOverQuota], "")
+	diskOverQuotaRatio = parseOverQuotaRatio(node.Labels[LabelAlibabaDiskOverQuota], "")
 	return
 }
 
 func CPUMaxRefCount(node *corev1.Node) int {
-	cpuOverQuotaRatio, _, _ := GetResourceOverQuotaSpec(node)
+	cpuOverQuotaRatio := parseOverQuotaRatio(node.Labels[LabelCPUOverQuota], node.Labels[LabelAlibabaCPUOverQuota])
 	return int((cpuOverQuotaRatio + 99) / 100)
 }
 
-func parseOverQuotaRatio(overQuota string) int64 {
-	f := parseOverQuotaRatioToFloat64(overQuota)
+func parseOverQuotaRatio(overQuota string, alternative string) int64 {
+	f := parseOverQuotaRatioToFloat64(overQuota, alternative)
 	return int64(f * 100)
 }
 
-func parseOverQuotaRatioToFloat64(overQuota string) float64 {
-	if overQuota == "" {
-		return 1
+func parseOverQuotaRatioToFloat64(overQuota, alternative string) float64 {
+	if overQuota != "" {
+		f, err := strconv.ParseFloat(overQuota, 64)
+		if err == nil {
+			return f
+		}
 	}
 
-	f, err := strconv.ParseFloat(overQuota, 64)
-	if err != nil {
-		f = 1.0
+	if alternative != "" {
+		f, err := strconv.ParseFloat(alternative, 64)
+		if err == nil {
+			return f
+		}
 	}
-	return f
+
+	return 1.0
 }
 
 func NewAmplificationRatiosByOverQuota(labels map[string]string) map[corev1.ResourceName]apiext.Ratio {
 	return map[corev1.ResourceName]apiext.Ratio{
-		corev1.ResourceCPU:              apiext.Ratio(parseOverQuotaRatioToFloat64(labels[LabelCPUOverQuota])),
-		corev1.ResourceMemory:           apiext.Ratio(parseOverQuotaRatioToFloat64(labels[LabelMemoryOverQuota])),
-		corev1.ResourceEphemeralStorage: apiext.Ratio(parseOverQuotaRatioToFloat64(labels[LabelDiskOverQuota])),
+		corev1.ResourceCPU:              apiext.Ratio(parseOverQuotaRatioToFloat64(labels[LabelAlibabaCPUOverQuota], labels[LabelCPUOverQuota])),
+		corev1.ResourceMemory:           apiext.Ratio(parseOverQuotaRatioToFloat64(labels[LabelAlibabaMemoryOverQuota], labels[LabelMemoryOverQuota])),
+		corev1.ResourceEphemeralStorage: apiext.Ratio(parseOverQuotaRatioToFloat64(labels[LabelAlibabaDiskOverQuota], labels[LabelDiskOverQuota])),
 	}
 }
 
 func GetAllocatableByOverQuota(node *corev1.Node) corev1.ResourceList {
 	allocatable := node.Status.Allocatable.DeepCopy()
-	cpuOverQuotaRatioSpec, memoryOverQuotaRatioSpec, diskOverQuotaRatioSpec := GetResourceOverQuotaSpec(node)
-	if cpu, found := allocatable[corev1.ResourceCPU]; found {
-		allocatable[corev1.ResourceCPU] = *resource.NewMilliQuantity(cpu.MilliValue()*cpuOverQuotaRatioSpec/100, resource.DecimalSI)
+	if allocatable == nil {
+		return nil
 	}
-	if acu, found := allocatable[uniext.ResourceACU]; found {
-		allocatable[uniext.ResourceACU] = *resource.NewMilliQuantity(acu.MilliValue()*cpuOverQuotaRatioSpec/100, resource.DecimalSI)
-	}
-	if memory, found := allocatable[corev1.ResourceMemory]; found {
-		allocatable[corev1.ResourceMemory] = *resource.NewQuantity(memory.Value()*memoryOverQuotaRatioSpec/100, resource.BinarySI)
-	}
-	if ephemeralStorage, found := allocatable[corev1.ResourceEphemeralStorage]; found {
-		allocatable[corev1.ResourceEphemeralStorage] = *resource.NewQuantity(ephemeralStorage.Value()*diskOverQuotaRatioSpec/100, resource.BinarySI)
+	amplificationRatios := NewAmplificationRatiosByOverQuota(node.Labels)
+	for resourceName, ratio := range amplificationRatios {
+		if ratio > 1 {
+			if quantity := allocatable[resourceName]; !quantity.IsZero() {
+				apiext.AmplifyResourceList(allocatable, amplificationRatios, resourceName)
+			}
+		}
 	}
 	return allocatable
 }

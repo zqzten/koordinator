@@ -464,7 +464,7 @@ func getAllocatableWithOverQuota(node *corev1.Node) corev1.ResourceList {
 	if *EnableAlibabaOverQuotaLabel {
 		cpuOverQuotaPercent, memoryOverQuotaPercent, _ = extunified.GetAlibabaResourceOverQuotaSpec(node)
 	} else if *EnableSigmaOverQuotaLabel {
-		cpuOverQuotaPercent, memoryOverQuotaPercent, _ = extunified.GetResourceOverQuotaSpec(node)
+		cpuOverQuotaPercent, memoryOverQuotaPercent, _ = extunified.GetSigmaResourceOverQuotaSpec(node)
 	}
 	if cpu, ok := allocatable[corev1.ResourceCPU]; ok {
 		allocatable[corev1.ResourceCPU] = *resource.NewMilliQuantity(cpu.MilliValue()*cpuOverQuotaPercent/100, resource.DecimalSI)
