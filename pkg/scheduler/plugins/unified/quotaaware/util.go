@@ -198,6 +198,7 @@ func checkGuarantee(qm *elasticquotacore.GroupQuotaManager, quotaInfo *elasticqu
 		totalResource := qm.GetClusterTotalResource()
 		allocated := quotaInfo.GetAllocated()
 		used := quotav1.Add(requests, allocated)
+		used = quotav1.Mask(used, quotav1.ResourceNames(quotaInfo.GetMax()))
 		enough := usedLessThan(used, totalResource)
 		if !enough {
 			klog.Warningf("Insufficient inventory capacity, quota: %s, allocated: %s, total: %s",
@@ -208,6 +209,7 @@ func checkGuarantee(qm *elasticquotacore.GroupQuotaManager, quotaInfo *elasticqu
 		allocated := quotaInfo.GetAllocated()
 		max := quotaInfo.GetMax()
 		used := quotav1.Add(requests, allocated)
+		used = quotav1.Mask(used, quotav1.ResourceNames(quotaInfo.GetMax()))
 		if !usedLessThan(used, max) {
 			klog.V(4).InfoS("Quota allocated exceeded max", "quota", quotaInfo.Name, "allocated", sprintResourceList(allocated), "max", sprintResourceList(max))
 			return false, nil, nil
