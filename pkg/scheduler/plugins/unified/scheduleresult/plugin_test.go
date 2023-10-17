@@ -183,6 +183,7 @@ func TestPlugin_PreBind(t *testing.T) {
 			assert.Nil(t, status)
 
 			assert.Equal(t, tt.nodeName, tt.pod.Labels[extunified.K8sLabelScheduleNodeName])
+			assert.Equal(t, tt.zone, tt.pod.Labels[corev1.LabelTopologyZone])
 			assert.Equal(t, tt.zone, tt.pod.Annotations[corev1.LabelTopologyZone])
 			assert.NotNil(t, tt.pod.Annotations[extunified.AnnotationSchedulerUpdateTime])
 			assert.NotNil(t, tt.pod.Annotations[extunified.AnnotationSchedulerBindTime])
