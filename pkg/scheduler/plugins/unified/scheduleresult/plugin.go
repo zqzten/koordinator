@@ -61,11 +61,18 @@ func (p *Plugin) PreBindReservation(ctx context.Context, cycleState *framework.C
 }
 
 func (p *Plugin) preBindObject(ctx context.Context, cycleState *framework.CycleState, obj metav1.Object, nodeName string) *framework.Status {
+	nodeInfo, err := p.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
+	if err != nil {
+		return framework.AsStatus(fmt.Errorf("getting node %q from Snapshot: %w", nodeName, err))
+	}
+	node := nodeInfo.Node()
+
 	labels := obj.GetLabels()
 	if labels == nil {
 		labels = map[string]string{}
 	}
 	labels[extunified.K8sLabelScheduleNodeName] = nodeName
+	labels[corev1.LabelTopologyZone] = node.Labels[corev1.LabelTopologyZone]
 	obj.SetLabels(labels)
 
 	annotations := obj.GetAnnotations()
@@ -75,11 +82,6 @@ func (p *Plugin) preBindObject(ctx context.Context, cycleState *framework.CycleS
 	updateTime := time.Now().In(time.FixedZone("CST", 8*3600)).Format(time.RFC3339Nano)
 	annotations[extunified.AnnotationSchedulerUpdateTime] = updateTime
 	annotations[extunified.AnnotationSchedulerBindTime] = updateTime
-	nodeInfo, err := p.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
-	if err != nil {
-		return framework.AsStatus(fmt.Errorf("getting node %q from Snapshot: %w", nodeName, err))
-	}
-	node := nodeInfo.Node()
 	annotations[corev1.LabelTopologyZone] = node.Labels[corev1.LabelTopologyZone]
 	obj.SetAnnotations(annotations)
 
