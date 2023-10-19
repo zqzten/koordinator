@@ -40,9 +40,10 @@ func init() {
 func addPlugins(filter framework.FilterFn) {
 	// NOTE: plugins run in order of the registration.
 	framework.RegisterSetupExtender(filter, setupPlugins...)
+	framework.RegisterNodePreUpdateExtender(filter, nodePreUpdatePlugins...)
 	framework.RegisterNodePrepareExtender(filter, nodePreparePlugins...)
-	framework.RegisterNodeSyncExtender(filter, nodeSyncPlugins...)
-	framework.RegisterNodeMetaSyncExtender(filter, nodeMetaSyncPlugins...)
+	framework.RegisterNodeStatusCheckExtender(filter, nodeStatusCheckPlugins...)
+	framework.RegisterNodeMetaCheckExtender(filter, nodeMetaCheckPlugins...)
 	framework.RegisterResourceCalculateExtender(filter, resourceCalculatePlugins...)
 }
 
@@ -53,6 +54,10 @@ var (
 		&batchresource.Plugin{},
 		&dynamicprodresource.Plugin{},
 	}
+	// NodePreUpdatePlugin implements node resource pre-updating.
+	nodePreUpdatePlugins = []framework.NodePreUpdatePlugin{
+		&batchresource.Plugin{},
+	}
 	// NodePreparePlugin implements node resource preparing for the calculated results.
 	nodePreparePlugins = []framework.NodePreparePlugin{
 		&cpunormalization.Plugin{},
@@ -60,13 +65,13 @@ var (
 		&batchresource.Plugin{},
 		&dynamicprodresource.Plugin{},
 	}
-	// NodeSyncPlugin implements the check of resource updating.
-	nodeSyncPlugins = []framework.NodeSyncPlugin{
+	// nodeStatusCheckPlugins implements the check of node status updating.
+	nodeStatusCheckPlugins = []framework.NodeStatusCheckPlugin{
 		&midresource.Plugin{},
 		&batchresource.Plugin{},
 	}
-	// NodeMetaSyncPlugin implements the check of node meta updating.
-	nodeMetaSyncPlugins = []framework.NodeMetaSyncPlugin{
+	// nodeMetaCheckPlugins implements the check of node meta updating.
+	nodeMetaCheckPlugins = []framework.NodeMetaCheckPlugin{
 		&cpunormalization.Plugin{},
 		&dynamicprodresource.Plugin{},
 	}
