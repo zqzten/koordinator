@@ -160,7 +160,7 @@ func generateNewReservation(lrn *schedulingv1alpha1.LogicalResourceNode, generat
 		},
 	}
 
-	syncedLabels := getAlreadySyncedLabels(lrn.Annotations)
+	syncedLabels := getLabelsSyncedFromNode(lrn.Annotations)
 	for k, v := range lrn.Labels {
 		if !syncedLabels.Has(k) && !skipSyncReservationLabels.Has(k) {
 			reservation.Labels[k] = v
@@ -306,7 +306,7 @@ func compareMap(original map[string]string, patch map[string]interface{}) bool {
 	return true
 }
 
-func getAlreadySyncedLabels(annotations map[string]string) sets.String {
+func getLabelsSyncedFromNode(annotations map[string]string) sets.String {
 	val, ok := annotations[annotationSyncNodeLabels]
 	if !ok || len(val) == 0 {
 		return nil
