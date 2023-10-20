@@ -39,6 +39,10 @@ const (
 
 	// LabelVPCQoSGroupID is the vpc qos group id for the LRN.
 	LabelVPCQoSGroupID = "lrn.koordinator.sh/vpc-qos-group-id"
+
+	// AnnotationForceSyncLabelRegex is the regular expressions that indicates which label keys should be
+	// force synced and deleted from LRN to Reservation.
+	AnnotationForceSyncLabelRegex = "lrn.koordinator.sh/force-sync-label-regex"
 )
 
 type LRNVPCQoSThreshold struct {
