@@ -1018,6 +1018,185 @@ func TestUpdateReservation(t *testing.T) {
 				},
 			},
 		},
+		{
+			lrn: &schedulingv1alpha1.LogicalResourceNode{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "lrn-test",
+					Finalizers: []string{finalizerInternalGC},
+					Labels: map[string]string{
+						"fake-label":   "val",
+						"fake-label-1": "aaa",
+						"fake-label-2": "aaa",
+					},
+					Annotations: map[string]string{
+						schedulingv1alpha1.AnnotationLogicalResourceNodePodLabelSelector: `{"tenant":"t12345"}`,
+					},
+				},
+				Spec: schedulingv1alpha1.LogicalResourceNodeSpec{},
+			},
+			reservation: &schedulingv1alpha1.Reservation{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "lrn-test-gen-0",
+					Finalizers: []string{finalizerInternalGC},
+					Labels: map[string]string{
+						"fake-label":    "val",
+						"fake-label-2":  "bbb",
+						"fake-label-3":  "ccc",
+						labelOwnedByLRN: "lrn-test",
+					},
+					Annotations: map[string]string{},
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion:         "scheduling.koordinator.sh/v1alpha1",
+							Kind:               "LogicalResourceNode",
+							Name:               "lrn-test",
+							Controller:         utilpointer.Bool(true),
+							BlockOwnerDeletion: utilpointer.Bool(true),
+						},
+					},
+				},
+				Spec: schedulingv1alpha1.ReservationSpec{
+					Owners: []schedulingv1alpha1.ReservationOwner{
+						{
+							LabelSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{"tenant": "t12345"},
+							},
+						},
+					},
+				},
+				Status: schedulingv1alpha1.ReservationStatus{},
+			},
+			expectedReservation: &schedulingv1alpha1.Reservation{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: schedulingv1alpha1.GroupVersion.String(),
+					Kind:       "Reservation",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "lrn-test-gen-0",
+					Finalizers:      []string{finalizerInternalGC},
+					ResourceVersion: "1000",
+					Labels: map[string]string{
+						"fake-label":    "val",
+						"fake-label-1":  "aaa",
+						"fake-label-2":  "bbb",
+						"fake-label-3":  "ccc",
+						labelOwnedByLRN: "lrn-test",
+					},
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion:         "scheduling.koordinator.sh/v1alpha1",
+							Kind:               "LogicalResourceNode",
+							Name:               "lrn-test",
+							Controller:         utilpointer.Bool(true),
+							BlockOwnerDeletion: utilpointer.Bool(true),
+						},
+					},
+				},
+				Spec: schedulingv1alpha1.ReservationSpec{
+					Owners: []schedulingv1alpha1.ReservationOwner{
+						{
+							LabelSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{"tenant": "t12345"},
+							},
+						},
+					},
+				},
+				Status: schedulingv1alpha1.ReservationStatus{},
+			},
+		},
+		{
+			lrn: &schedulingv1alpha1.LogicalResourceNode{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "lrn-test",
+					Finalizers: []string{finalizerInternalGC},
+					Labels: map[string]string{
+						"fake-label":        "val",
+						"fake-label-1":      "aaa",
+						"fake-label-2":      "aaa",
+						"fake-sync-label-1": "aaa",
+						"fake-sync-label-2": "aaa",
+					},
+					Annotations: map[string]string{
+						schedulingv1alpha1.AnnotationLogicalResourceNodePodLabelSelector: `{"tenant":"t12345"}`,
+						schedulingv1alpha1.AnnotationForceSyncLabelRegex:                 `fake-sync-label-[0-9]`,
+					},
+				},
+				Spec: schedulingv1alpha1.LogicalResourceNodeSpec{},
+			},
+			reservation: &schedulingv1alpha1.Reservation{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "lrn-test-gen-0",
+					Finalizers: []string{finalizerInternalGC},
+					Labels: map[string]string{
+						"fake-label":        "val",
+						"fake-label-2":      "bbb",
+						"fake-label-3":      "ccc",
+						"fake-sync-label-2": "bbb",
+						"fake-sync-label-3": "ccc",
+						labelOwnedByLRN:     "lrn-test",
+					},
+					Annotations: map[string]string{},
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion:         "scheduling.koordinator.sh/v1alpha1",
+							Kind:               "LogicalResourceNode",
+							Name:               "lrn-test",
+							Controller:         utilpointer.Bool(true),
+							BlockOwnerDeletion: utilpointer.Bool(true),
+						},
+					},
+				},
+				Spec: schedulingv1alpha1.ReservationSpec{
+					Owners: []schedulingv1alpha1.ReservationOwner{
+						{
+							LabelSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{"tenant": "t12345"},
+							},
+						},
+					},
+				},
+				Status: schedulingv1alpha1.ReservationStatus{},
+			},
+			expectedReservation: &schedulingv1alpha1.Reservation{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: schedulingv1alpha1.GroupVersion.String(),
+					Kind:       "Reservation",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "lrn-test-gen-0",
+					Finalizers:      []string{finalizerInternalGC},
+					ResourceVersion: "1000",
+					Labels: map[string]string{
+						"fake-label":        "val",
+						"fake-label-1":      "aaa",
+						"fake-label-2":      "bbb",
+						"fake-label-3":      "ccc",
+						"fake-sync-label-1": "aaa",
+						"fake-sync-label-2": "aaa",
+						labelOwnedByLRN:     "lrn-test",
+					},
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion:         "scheduling.koordinator.sh/v1alpha1",
+							Kind:               "LogicalResourceNode",
+							Name:               "lrn-test",
+							Controller:         utilpointer.Bool(true),
+							BlockOwnerDeletion: utilpointer.Bool(true),
+						},
+					},
+				},
+				Spec: schedulingv1alpha1.ReservationSpec{
+					Owners: []schedulingv1alpha1.ReservationOwner{
+						{
+							LabelSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{"tenant": "t12345"},
+							},
+						},
+					},
+				},
+				Status: schedulingv1alpha1.ReservationStatus{},
+			},
+		},
 	}
 
 	for i, testCase := range cases {

@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -284,12 +285,30 @@ func (r *reservationReconciler) updateReservation(ctx context.Context, lrn *sche
 		}
 	}
 
-	syncedLabels := getAlreadySyncedLabels(lrn.GetAnnotations())
+	var forceSyncLabelRegex *regexp.Regexp
+	if exp := lrn.Annotations[schedulingv1alpha1.AnnotationForceSyncLabelRegex]; exp != "" {
+		forceSyncLabelRegex, err = regexp.Compile(exp)
+		if err != nil {
+			return fmt.Errorf("compile invalid force sync regex %s error: %s", exp, err)
+		}
+	}
+
+	labelsSyncedFromNode := getLabelsSyncedFromNode(lrn.GetAnnotations())
 	for k, v := range lrn.Labels {
-		if syncedLabels.Has(k) || skipSyncReservationLabels.Has(k) || reservation.Labels[k] != "" {
+		rVal := reservation.Labels[k]
+		if labelsSyncedFromNode.Has(k) || skipSyncReservationLabels.Has(k) || rVal == v {
+			continue
+		}
+		if rVal != "" && (forceSyncLabelRegex == nil || !forceSyncLabelRegex.MatchString(k)) {
 			continue
 		}
 		patchBody.Metadata.Labels[k] = v
+	}
+
+	for k := range reservation.Labels {
+		if _, exists := lrn.Labels[k]; !exists && forceSyncLabelRegex != nil && forceSyncLabelRegex.MatchString(k) {
+			patchBody.Metadata.Labels[k] = nil
+		}
 	}
 
 	if patchBody.isEmpty() {
@@ -414,7 +433,7 @@ func generateLRNPatch(lrnMeta metav1.Object, generation int64, reservation *sche
 	}
 
 	// first, remove all synced labels before
-	alreadySyncedLabels := getAlreadySyncedLabels(lrnMeta.GetAnnotations())
+	alreadySyncedLabels := getLabelsSyncedFromNode(lrnMeta.GetAnnotations())
 	for _, k := range alreadySyncedLabels.UnsortedList() {
 		patchBody.Labels[k] = nil
 	}
