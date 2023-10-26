@@ -1319,6 +1319,8 @@ gitlab.alibaba-inc.com/koordinator-sh/scheduler-plugins v0.0.0-20231011062721-18
 gitlab.alibaba-inc.com/protoss/golibs v0.0.0-20210326074649-8445f4703bdf h1:/K4iEFujLAWoRCBkTItGiEM9w0BfnJ5kGHunMZGw5lU=
 gitlab.alibaba-inc.com/protoss/golibs v0.0.0-20210326074649-8445f4703bdf/go.mod h1:WIM/2rSZnayanVDaGvbmW3Dst3ZQGWvU9H0xMcVi440=
 gitlab.alibaba-inc.com/protoss/turbine v0.0.0-20200323024151-0c4c4f7cd791/go.mod h1:fZbzaPIEeer/eRf/tFEiGbRLfp0xRLf0jaBRhNLccBA=
+gitlab.alibaba-inc.com/serverlessinfra/dummy-workload v1.0.1 h1:+dEqvQtBTbnmqVOD3R1rIM06vZsul3C3VQPUS4vAkg0=
+gitlab.alibaba-inc.com/serverlessinfra/dummy-workload v1.0.1/go.mod h1:OjitLmfiedmV0GNNN2f9BwcAw61jWI4YfzbnxqQ95SI=
 gitlab.alibaba-inc.com/sigma/sigma-k8s-api v1.1.3 h1:+fLCR4JzY9eYOMNtNh88J05Pnz9HMkWH1xKyM5EGG48=
 gitlab.alibaba-inc.com/sigma/sigma-k8s-api v1.1.3/go.mod h1:ukAnlhtfYakSMC8RAvnZ0ptq8oJWDfBCQsgKWOJOWew=
 gitlab.alibaba-inc.com/unischeduler/api v0.0.3-0.20230531131212-1fe095f7694b h1:ghjy9aU3PEHCKdMRUom3Qu9dfmSIDet2Ysu8lf/qGMg=

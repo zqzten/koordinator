@@ -17,10 +17,15 @@ limitations under the License.
 package podtopologyspread
 
 import (
+	"context"
 	"fmt"
 
+	dummyworkloadclientset "gitlab.alibaba-inc.com/serverlessinfra/dummy-workload/pkg/client/clientset/versioned"
+	dummyworkloadinformers "gitlab.alibaba-inc.com/serverlessinfra/dummy-workload/pkg/client/informers/externalversions"
+	dummyworkloadlister "gitlab.alibaba-inc.com/serverlessinfra/dummy-workload/pkg/client/listers/acs/v1alpha1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	k8sfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/informers"
 	appslisters "k8s.io/client-go/listers/apps/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
@@ -30,6 +35,8 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/apis/config/validation"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
+
+	"github.com/koordinator-sh/koordinator/pkg/features"
 )
 
 const (
@@ -54,14 +61,15 @@ var systemDefaultConstraints = []v1.TopologySpreadConstraint{
 
 // PodTopologySpread is a plugin that ensures pod's topologySpreadConstraints is satisfied.
 type PodTopologySpread struct {
-	systemDefaulted    bool
-	handle             framework.Handle
-	defaultConstraints []v1.TopologySpreadConstraint
-	sharedLister       framework.SharedLister
-	services           corelisters.ServiceLister
-	replicationCtrls   corelisters.ReplicationControllerLister
-	replicaSets        appslisters.ReplicaSetLister
-	statefulSets       appslisters.StatefulSetLister
+	systemDefaulted     bool
+	handle              framework.Handle
+	defaultConstraints  []v1.TopologySpreadConstraint
+	dummyWorkloadLister dummyworkloadlister.DummyWorkloadLister
+	sharedLister        framework.SharedLister
+	services            corelisters.ServiceLister
+	replicationCtrls    corelisters.ReplicationControllerLister
+	replicaSets         appslisters.ReplicaSetLister
+	statefulSets        appslisters.StatefulSetLister
 }
 
 var _ framework.PreFilterPlugin = &PodTopologySpread{}
@@ -106,6 +114,20 @@ func New(obj runtime.Object, h framework.Handle) (framework.Plugin, error) {
 			return nil, fmt.Errorf("SharedInformerFactory is nil")
 		}
 		pl.setListers(h.SharedInformerFactory())
+	}
+	if k8sfeature.DefaultFeatureGate.Enabled(features.EnableACSDefaultSpread) {
+		kubeConfig := *h.KubeConfig()
+		kubeConfig.ContentType = runtime.ContentTypeJSON
+		kubeConfig.AcceptContentTypes = runtime.ContentTypeJSON
+		client, err := dummyworkloadclientset.NewForConfig(&kubeConfig)
+		if err != nil {
+			return nil, err
+		}
+		informerFactory := dummyworkloadinformers.NewSharedInformerFactory(client, 0)
+		dummyWorkloadLister := informerFactory.Acs().V1alpha1().DummyWorkloads().Lister()
+		informerFactory.Start(context.Background().Done())
+		informerFactory.WaitForCacheSync(context.Background().Done())
+		pl.dummyWorkloadLister = dummyWorkloadLister
 	}
 	return pl, nil
 }

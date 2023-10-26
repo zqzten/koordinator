@@ -17,11 +17,16 @@ limitations under the License.
 package podtopologyspread
 
 import (
+	"fmt"
+	"strings"
+
+	"gitlab.alibaba-inc.com/serverlessinfra/dummy-workload/pkg/client/listers/acs/v1alpha1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	k8sfeature "k8s.io/apiserver/pkg/util/feature"
 	v1helper "k8s.io/component-helpers/scheduling/corev1"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/helper"
 
@@ -52,14 +57,56 @@ func (pl *PodTopologySpread) buildDefaultConstraints(p *v1.Pod, action v1.Unsati
 	if err != nil || len(constraints) == 0 {
 		return nil, err
 	}
-	selector := helper.DefaultSelector(p, pl.services, pl.replicationCtrls, pl.replicaSets, pl.statefulSets)
-	if selector.Empty() {
+	var selector labels.Selector
+	if k8sfeature.DefaultFeatureGate.Enabled(features.EnableACSDefaultSpread) {
+		selector = defaultSelectorFromDummyWorkload(p, pl.dummyWorkloadLister)
+	} else {
+		selector = helper.DefaultSelector(p, pl.services, pl.replicationCtrls, pl.replicaSets, pl.statefulSets)
+	}
+	if selector == nil || selector.Empty() {
 		return nil, nil
 	}
 	for i := range constraints {
 		constraints[i].Selector = selector
 	}
 	return constraints, nil
+}
+
+func defaultSelectorFromDummyWorkload(pod *v1.Pod, lister v1alpha1.DummyWorkloadLister) labels.Selector {
+	ownerReferences, err := extunified.GetTenancyOwnerReferences(pod.Annotations)
+	if err != nil {
+		klog.ErrorS(err, "Failed to unmarshal ownerReferences from Pod", "pod", klog.KObj(pod))
+		return nil
+	}
+	if len(ownerReferences) == 0 {
+		return nil
+	}
+	var workloadName string
+	for _, ref := range ownerReferences {
+		if ref.Controller != nil && *ref.Controller == true {
+			workloadName = fmt.Sprintf("%s-%s", ref.Name, strings.ToLower(ref.Kind))
+			break
+		}
+	}
+	if workloadName == "" {
+		return nil
+	}
+	dummyWorkload, err := lister.DummyWorkloads(pod.Namespace).Get(workloadName)
+	if err != nil {
+		if klog.V(5).Enabled() {
+			klog.ErrorS(err, "Failed to get dummyWorkload", "name", workloadName)
+		}
+		return nil
+	}
+	if dummyWorkload.Status.LabelSelector == "" {
+		return nil
+	}
+	selector, err := labels.Parse(dummyWorkload.Status.LabelSelector)
+	if err != nil {
+		klog.ErrorS(err, "Failed to parse labelSelector", "dummyWorkload", workloadName)
+		return nil
+	}
+	return selector
 }
 
 // nodeLabelsMatchSpreadConstraints checks if ALL topology keys in spread Constraints are present in node labels.

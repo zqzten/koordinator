@@ -51,6 +51,7 @@ const (
 	EnableACKGPUShareScheduling                 featuregate.Feature = "EnableACKGPUShareScheduling"
 	DisableInterPodAffinityByNamespaces         featuregate.Feature = "DisableInterPodAffinityByNamespaces"
 	EnableHugePageAsMemory                      featuregate.Feature = "EnableHugePageAsMemory"
+	EnableACSDefaultSpread                      featuregate.Feature = "EnableACSDefaultSpread"
 )
 
 const (
@@ -86,6 +87,7 @@ var defaultUnifiedSchedulerFeatureGates = map[featuregate.Feature]featuregate.Fe
 	EnableACKGPUShareScheduling:                 {Default: false, PreRelease: featuregate.Beta},
 	DisableInterPodAffinityByNamespaces:         {Default: false, PreRelease: featuregate.Beta},
 	EnableHugePageAsMemory:                      {Default: false, PreRelease: featuregate.Beta},
+	EnableACSDefaultSpread:                      {Default: false, PreRelease: featuregate.Beta},
 }
 
 var defaultUnifiedKoordletFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
