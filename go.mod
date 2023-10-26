@@ -43,6 +43,7 @@ require (
 	gitlab.alibaba-inc.com/cos/scheduling-api v0.0.0-20210630080232-14abe8ce6989
 	gitlab.alibaba-inc.com/cos/unified-resource-api v1.22.3-7.0.20230421031529-1e703e9aca00
 	gitlab.alibaba-inc.com/dbpaas/Inventory/inventory-sdk-go v0.0.0-20230621090011-d38b24c293da
+	gitlab.alibaba-inc.com/serverlessinfra/dummy-workload v1.0.1
 	gitlab.alibaba-inc.com/sigma/sigma-k8s-api v1.1.3
 	gitlab.alibaba-inc.com/unischeduler/api v0.0.3-0.20230531131212-1fe095f7694b
 	gitlab.alibaba-inc.com/virtcontainers/agent-protocols v0.0.0-20220721084534-024f320ba5e1
