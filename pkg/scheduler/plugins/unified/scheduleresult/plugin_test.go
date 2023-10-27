@@ -145,6 +145,7 @@ func TestPlugin_PreBind(t *testing.T) {
 		pod      *corev1.Pod
 		nodeName string
 		zone     string
+		region   string
 		want     *framework.Status
 	}{
 		{
@@ -157,6 +158,7 @@ func TestPlugin_PreBind(t *testing.T) {
 			},
 			nodeName: "test-node",
 			zone:     "test-zone",
+			region:   "test-region",
 		},
 	}
 	for _, tt := range tests {
@@ -164,8 +166,11 @@ func TestPlugin_PreBind(t *testing.T) {
 			suit := newPluginTestSuit(t, []*corev1.Node{{
 				TypeMeta: metav1.TypeMeta{},
 				ObjectMeta: metav1.ObjectMeta{
-					Name:   tt.nodeName,
-					Labels: map[string]string{corev1.LabelTopologyZone: tt.zone},
+					Name: tt.nodeName,
+					Labels: map[string]string{
+						corev1.LabelTopologyZone:   tt.zone,
+						corev1.LabelTopologyRegion: tt.region,
+					},
 				},
 				Spec:   corev1.NodeSpec{},
 				Status: corev1.NodeStatus{},
@@ -184,6 +189,7 @@ func TestPlugin_PreBind(t *testing.T) {
 
 			assert.Equal(t, tt.nodeName, tt.pod.Labels[extunified.K8sLabelScheduleNodeName])
 			assert.Equal(t, tt.zone, tt.pod.Labels[corev1.LabelTopologyZone])
+			assert.Equal(t, tt.region, tt.pod.Labels[corev1.LabelTopologyRegion])
 			assert.Equal(t, tt.zone, tt.pod.Annotations[corev1.LabelTopologyZone])
 			assert.NotNil(t, tt.pod.Annotations[extunified.AnnotationSchedulerUpdateTime])
 			assert.NotNil(t, tt.pod.Annotations[extunified.AnnotationSchedulerBindTime])

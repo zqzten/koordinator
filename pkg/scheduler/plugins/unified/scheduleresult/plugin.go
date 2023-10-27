@@ -73,6 +73,7 @@ func (p *Plugin) preBindObject(ctx context.Context, cycleState *framework.CycleS
 	}
 	labels[extunified.K8sLabelScheduleNodeName] = nodeName
 	labels[corev1.LabelTopologyZone] = node.Labels[corev1.LabelTopologyZone]
+	labels[corev1.LabelTopologyRegion] = node.Labels[corev1.LabelTopologyRegion]
 	obj.SetLabels(labels)
 
 	annotations := obj.GetAnnotations()
