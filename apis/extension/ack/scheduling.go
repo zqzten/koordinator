@@ -85,8 +85,8 @@ func AppendAckAnnotationsIfHasGPUCompute(pod *corev1.Pod, device *schedulingv1al
 }
 
 func AppendAckAnnotationsIfHasGPUMemory(pod *corev1.Pod, allocations extension.DeviceAllocations) error {
-	requests, _ := k8sresource.PodRequestsAndLimits(pod)
-	if quantity := requests[ResourceAliyunGPUMemory]; quantity.IsZero() {
+	containerIndex := getContainerIndexWithGPUResource(pod, ResourceAliyunGPUMemory)
+	if containerIndex < 0 {
 		return nil
 	}
 	m := map[string]int64{}
@@ -107,7 +107,7 @@ func AppendAckAnnotationsIfHasGPUMemory(pod *corev1.Pod, allocations extension.D
 		m[minor] = quantity / 1024 / 1024 / 1024
 	}
 	ackResult := map[string]map[string]int64{
-		"0": m,
+		strconv.Itoa(containerIndex): m,
 	}
 	data, err := json.Marshal(ackResult)
 	if err != nil {
@@ -123,8 +123,8 @@ func AppendAckAnnotationsIfHasGPUMemory(pod *corev1.Pod, allocations extension.D
 }
 
 func AppendAckAnnotationsIfHasGPUCore(pod *corev1.Pod, allocations extension.DeviceAllocations) error {
-	requests, _ := k8sresource.PodRequestsAndLimits(pod)
-	if quantity := requests[ResourceALiyunGPUCorePercentage]; quantity.IsZero() {
+	containerIndex := getContainerIndexWithGPUResource(pod, ResourceALiyunGPUCorePercentage)
+	if containerIndex < 0 {
 		return nil
 	}
 	m := map[string]int64{}
@@ -145,7 +145,7 @@ func AppendAckAnnotationsIfHasGPUCore(pod *corev1.Pod, allocations extension.Dev
 		m[minor] = quantity
 	}
 	ackResult := map[string]map[string]int64{
-		"0": m,
+		strconv.Itoa(containerIndex): m,
 	}
 	data, err := json.Marshal(ackResult)
 	if err != nil {
@@ -158,6 +158,16 @@ func AppendAckAnnotationsIfHasGPUCore(pod *corev1.Pod, allocations extension.Dev
 	pod.Annotations[AnnotationACKGPUShareAssumeTime] = fmt.Sprintf("%d", NowFn().UnixNano())
 	pod.Annotations[AnnotationACKGPUShareAssigned] = "false" // ACK DP will update the annotation to true
 	return nil
+}
+
+func getContainerIndexWithGPUResource(pod *corev1.Pod, resourceName corev1.ResourceName) int {
+	for i := range pod.Spec.Containers {
+		container := &pod.Spec.Containers[i]
+		if quantity := container.Resources.Requests[resourceName]; !quantity.IsZero() {
+			return i
+		}
+	}
+	return -1
 }
 
 func GetPodResourceFromV1(pod *corev1.Pod) map[int]map[string]int64 {
