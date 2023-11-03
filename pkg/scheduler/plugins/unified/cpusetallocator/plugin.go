@@ -69,12 +69,12 @@ func New(obj runtime.Object, handle framework.Handle) (framework.Plugin, error) 
 	defaultNUMAAllocateStrategy := nodenumaresource.GetDefaultNUMAAllocateStrategy(args)
 
 	topologyManager := nodenumaresource.NewTopologyOptionsManager()
-	cpuManager := nodenumaresource.NewResourceManager(handle, defaultNUMAAllocateStrategy, topologyManager)
-	updater := newCPUSharePoolUpdater(handle, cpuManager)
-	cpuManager = newCPUManagerAdapter(cpuManager, updater)
+	resourceManager := nodenumaresource.NewResourceManager(handle, defaultNUMAAllocateStrategy, topologyManager)
+	updater := newCPUSharePoolUpdater(handle, resourceManager)
+	resourceManager = newResourceManagerAdapter(resourceManager, updater)
 	internalPlugin, err := nodenumaresource.NewWithOptions(args, handle,
 		nodenumaresource.WithTopologyOptionsManager(topologyManager),
-		nodenumaresource.WithResourceManager(cpuManager),
+		nodenumaresource.WithResourceManager(resourceManager),
 	)
 	if err != nil {
 		return nil, err
