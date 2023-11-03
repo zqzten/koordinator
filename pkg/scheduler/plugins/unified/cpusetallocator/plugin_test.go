@@ -917,6 +917,19 @@ func Test_getNodeNUMAResourceArgs(t *testing.T) {
 						},
 					},
 				},
+				NUMAScoringStrategy: &schedulingconfig.ScoringStrategy{
+					Type: schedulingconfig.LeastAllocated,
+					Resources: []schedconfig.ResourceSpec{
+						{
+							Name:   "cpu",
+							Weight: 1,
+						},
+						{
+							Name:   "memory",
+							Weight: 1,
+						},
+					},
+				},
 			},
 			wantErr: false,
 		},

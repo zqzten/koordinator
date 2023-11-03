@@ -22,24 +22,24 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/nodenumaresource"
 )
 
-type cpuManagerAdapter struct {
+type resourceManagerAdapter struct {
 	nodenumaresource.ResourceManager
 	updater *cpuSharePoolUpdater
 }
 
-func newCPUManagerAdapter(resourceManager nodenumaresource.ResourceManager, updater *cpuSharePoolUpdater) nodenumaresource.ResourceManager {
-	return &cpuManagerAdapter{
+func newResourceManagerAdapter(resourceManager nodenumaresource.ResourceManager, updater *cpuSharePoolUpdater) nodenumaresource.ResourceManager {
+	return &resourceManagerAdapter{
 		ResourceManager: resourceManager,
 		updater:         updater,
 	}
 }
 
-func (m *cpuManagerAdapter) Update(nodeName string, allocation *nodenumaresource.PodAllocation) {
+func (m *resourceManagerAdapter) Update(nodeName string, allocation *nodenumaresource.PodAllocation) {
 	m.ResourceManager.Update(nodeName, allocation)
 	m.updater.asyncUpdate(nodeName)
 }
 
-func (m *cpuManagerAdapter) Release(nodeName string, podUID types.UID) {
+func (m *resourceManagerAdapter) Release(nodeName string, podUID types.UID) {
 	m.ResourceManager.Release(nodeName, podUID)
 	m.updater.asyncUpdate(nodeName)
 }
