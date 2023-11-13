@@ -56,6 +56,8 @@ type LRNVPCQoSThreshold struct {
 type LogicalResourceNodeSpec struct {
 	// Requirements defines the requirements of LRN scheduling
 	Requirements LogicalResourceNodeRequirements `json:"requirements"`
+	// Unschedulable controls LRN schedulability of new pods. By default, LRN is schedulable.
+	Unschedulable bool `json:"unschedulable,omitempty"`
 }
 
 // LogicalResourceNodeRequirements defines the requirements of LogicalResourceNode
@@ -78,11 +80,10 @@ type LogicalResourceNodeRequirements struct {
 type LogicalResourceNodePhase string
 
 const (
-	LogicalResourceNodePending   LogicalResourceNodePhase = "Pending"
-	LogicalResourceNodeAvailable LogicalResourceNodePhase = "Available"
-	LogicalResourceNodeUnknown   LogicalResourceNodePhase = "Unknown"
-
-	LogicalResourceNodeScheduled corev1.NodeConditionType = "Scheduled"
+	LogicalResourceNodePending       LogicalResourceNodePhase = "Pending"
+	LogicalResourceNodeAvailable     LogicalResourceNodePhase = "Available"
+	LogicalResourceNodeUnschedulable LogicalResourceNodePhase = "Unschedulable"
+	LogicalResourceNodeUnknown       LogicalResourceNodePhase = "Unknown"
 )
 
 // LogicalResourceNodeStatus defines the observed state of LogicalResourceNode

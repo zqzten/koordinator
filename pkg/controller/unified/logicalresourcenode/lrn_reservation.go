@@ -223,11 +223,14 @@ func (r *reservationReconciler) reconcileWithReservation(ctx context.Context, lr
 		status.Allocatable = reservation.Status.Allocatable
 		syncNodeStatus(status, node)
 
+		if lrn.Spec.Unschedulable {
+			status.Phase = schedulingv1alpha1.LogicalResourceNodeUnschedulable
+		}
+
 	default:
 		return nil, fmt.Errorf("unexpected Reservation %s phase %s", reservation.Name, reservation.Status.Phase)
 	}
 
-	// TODO: temporarily help users to update pod-label-selector on LRN. Should be removed later.
 	if err := r.updateReservation(ctx, lrn, reservation, qosGroup); err != nil {
 		return nil, fmt.Errorf("failed to update reservation: %v", err)
 	}
@@ -262,6 +265,7 @@ func (r *reservationReconciler) getQoSGroupForReservation(ctx context.Context, r
 func (r *reservationReconciler) updateReservation(ctx context.Context, lrn *schedulingv1alpha1.LogicalResourceNode,
 	reservation *schedulingv1alpha1.Reservation, qosGroup *terwayapis.ENIQosGroup) error {
 
+	// TODO: temporarily help users to update pod-label-selector on LRN. Should be removed later.
 	if len(reservation.Spec.Owners) != 1 || reservation.Spec.Owners[0].LabelSelector == nil || reservation.Spec.Owners[0].LabelSelector.MatchLabels == nil {
 		return fmt.Errorf("invalid reservation %s with owner %v", reservation.Name, util.DumpJSON(reservation.Spec.Owners))
 	}
@@ -276,12 +280,23 @@ func (r *reservationReconciler) updateReservation(ctx context.Context, lrn *sche
 		patchBody.Spec["owners"] = []schedulingv1alpha1.ReservationOwner{{LabelSelector: &metav1.LabelSelector{MatchLabels: podLabelSelector}}}
 	}
 
-	if qosGroup != nil && qosGroup.Status.Phase == terwayapis.QosGroupPhaseReady {
-		if reservation.Labels[schedulingv1alpha1.LabelVPCQoSGroupID] != qosGroup.Status.AutoCreatedID {
-			patchBody.Metadata.Labels[schedulingv1alpha1.LabelVPCQoSGroupID] = qosGroup.Status.AutoCreatedID
+	var qosGroupNotReady bool
+	if qosGroup != nil {
+		if qosGroup.Status.Phase == terwayapis.QosGroupPhaseReady {
+			if reservation.Labels[schedulingv1alpha1.LabelVPCQoSGroupID] != qosGroup.Status.AutoCreatedID {
+				patchBody.Metadata.Labels[schedulingv1alpha1.LabelVPCQoSGroupID] = qosGroup.Status.AutoCreatedID
+			}
+		} else {
+			qosGroupNotReady = true
 		}
-		if reservation.Spec.Unschedulable {
-			patchBody.Spec["unschedulable"] = false
+	}
+
+	expectedUnschedulable := lrn.Spec.Unschedulable || qosGroupNotReady
+	if expectedUnschedulable != reservation.Spec.Unschedulable {
+		if expectedUnschedulable {
+			patchBody.Spec["unschedulable"] = true
+		} else {
+			patchBody.Spec["unschedulable"] = nil
 		}
 	}
 

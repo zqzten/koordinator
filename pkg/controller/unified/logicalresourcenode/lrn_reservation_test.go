@@ -700,6 +700,174 @@ func TestUpdateReservation(t *testing.T) {
 							"node.koordinator.sh/gpu-model-series": "A800",
 						},
 					},
+					Unschedulable: true,
+				},
+			},
+			reservation: &schedulingv1alpha1.Reservation{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "lrn-test-gen-0",
+					Finalizers: []string{finalizerInternalGC},
+					Labels: map[string]string{
+						"fake-label":    "val",
+						labelOwnedByLRN: "lrn-test",
+					},
+					Annotations: map[string]string{
+						apiext.AnnotationDeviceAllocated: `{"gpu":[{"minor":2,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":3,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":4,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":5,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":6,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":7,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":0,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":1,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}}]}`,
+					},
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion:         "scheduling.koordinator.sh/v1alpha1",
+							Kind:               "LogicalResourceNode",
+							Name:               "lrn-test",
+							Controller:         utilpointer.Bool(true),
+							BlockOwnerDeletion: utilpointer.Bool(true),
+						},
+					},
+				},
+				Spec: schedulingv1alpha1.ReservationSpec{
+					Template: &corev1.PodTemplateSpec{
+						Spec: corev1.PodSpec{
+							NodeSelector: map[string]string{
+								"node.koordinator.sh/gpu-model-series": "A800",
+							},
+							Containers: []corev1.Container{
+								{
+									Name:            "mock",
+									Image:           "mock",
+									ImagePullPolicy: corev1.PullIfNotPresent,
+									Resources: corev1.ResourceRequirements{
+										Requests: map[corev1.ResourceName]resource.Quantity{
+											"cpu":            resource.MustParse("64"),
+											"memory":         resource.MustParse("512Gi"),
+											"nvidia.com/gpu": resource.MustParse("8"),
+										},
+										Limits: map[corev1.ResourceName]resource.Quantity{
+											"cpu":            resource.MustParse("64"),
+											"memory":         resource.MustParse("512Gi"),
+											"nvidia.com/gpu": resource.MustParse("8"),
+										},
+									},
+									TerminationMessagePolicy: corev1.TerminationMessageReadFile,
+								},
+							},
+							RestartPolicy: corev1.RestartPolicyAlways,
+							DNSPolicy:     corev1.DNSClusterFirst,
+						},
+					},
+					Owners: []schedulingv1alpha1.ReservationOwner{
+						{
+							LabelSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{"tenant": "t12345"},
+							},
+						},
+					},
+					TTL:            &metav1.Duration{Duration: 0},
+					AllocateOnce:   utilpointer.Bool(false),
+					AllocatePolicy: schedulingv1alpha1.ReservationAllocatePolicyRestricted,
+				},
+				Status: schedulingv1alpha1.ReservationStatus{
+					NodeName: "fake-node01",
+					Phase:    schedulingv1alpha1.ReservationAvailable,
+				},
+			},
+			expectedReservation: &schedulingv1alpha1.Reservation{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: schedulingv1alpha1.GroupVersion.String(),
+					Kind:       "Reservation",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "lrn-test-gen-0",
+					Finalizers:      []string{finalizerInternalGC},
+					ResourceVersion: "1000",
+					Labels: map[string]string{
+						"fake-label":    "val",
+						labelOwnedByLRN: "lrn-test",
+					},
+					Annotations: map[string]string{
+						apiext.AnnotationDeviceAllocated: `{"gpu":[{"minor":2,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":3,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":4,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":5,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":6,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":7,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":0,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":1,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}}]}`,
+					},
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion:         "scheduling.koordinator.sh/v1alpha1",
+							Kind:               "LogicalResourceNode",
+							Name:               "lrn-test",
+							Controller:         utilpointer.Bool(true),
+							BlockOwnerDeletion: utilpointer.Bool(true),
+						},
+					},
+				},
+				Spec: schedulingv1alpha1.ReservationSpec{
+					Unschedulable: true,
+					Template: &corev1.PodTemplateSpec{
+						Spec: corev1.PodSpec{
+							NodeSelector: map[string]string{
+								"node.koordinator.sh/gpu-model-series": "A800",
+							},
+							Containers: []corev1.Container{
+								{
+									Name:            "mock",
+									Image:           "mock",
+									ImagePullPolicy: corev1.PullIfNotPresent,
+									Resources: corev1.ResourceRequirements{
+										Requests: map[corev1.ResourceName]resource.Quantity{
+											"cpu":            resource.MustParse("64"),
+											"memory":         resource.MustParse("512Gi"),
+											"nvidia.com/gpu": resource.MustParse("8"),
+										},
+										Limits: map[corev1.ResourceName]resource.Quantity{
+											"cpu":            resource.MustParse("64"),
+											"memory":         resource.MustParse("512Gi"),
+											"nvidia.com/gpu": resource.MustParse("8"),
+										},
+									},
+									TerminationMessagePolicy: corev1.TerminationMessageReadFile,
+								},
+							},
+							RestartPolicy: corev1.RestartPolicyAlways,
+							DNSPolicy:     corev1.DNSClusterFirst,
+						},
+					},
+					Owners: []schedulingv1alpha1.ReservationOwner{
+						{
+							LabelSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{"tenant": "t12345"},
+							},
+						},
+					},
+					TTL:            &metav1.Duration{Duration: 0},
+					AllocateOnce:   utilpointer.Bool(false),
+					AllocatePolicy: schedulingv1alpha1.ReservationAllocatePolicyRestricted,
+				},
+				Status: schedulingv1alpha1.ReservationStatus{
+					NodeName: "fake-node01",
+					Phase:    schedulingv1alpha1.ReservationAvailable,
+				},
+			},
+		},
+		{
+			lrn: &schedulingv1alpha1.LogicalResourceNode{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "lrn-test",
+					Finalizers: []string{finalizerInternalGC},
+					Labels: map[string]string{
+						"fake-label": "val",
+					},
+					Annotations: map[string]string{
+						schedulingv1alpha1.AnnotationLogicalResourceNodePodLabelSelector: `{"tenant":"t12345"}`,
+					},
+				},
+				Spec: schedulingv1alpha1.LogicalResourceNodeSpec{
+					Requirements: schedulingv1alpha1.LogicalResourceNodeRequirements{
+						Resources: map[corev1.ResourceName]resource.Quantity{
+							"cpu":            resource.MustParse("64"),
+							"memory":         resource.MustParse("512Gi"),
+							"nvidia.com/gpu": resource.MustParse("8"),
+						},
+						NodeSelector: map[string]string{
+							"node.koordinator.sh/gpu-model-series": "A800",
+						},
+					},
+					Unschedulable: true,
 				},
 			},
 			reservation: &schedulingv1alpha1.Reservation{
@@ -798,6 +966,172 @@ func TestUpdateReservation(t *testing.T) {
 				},
 				Spec: schedulingv1alpha1.ReservationSpec{
 					Unschedulable: true,
+					Template: &corev1.PodTemplateSpec{
+						Spec: corev1.PodSpec{
+							NodeSelector: map[string]string{
+								"node.koordinator.sh/gpu-model-series": "A800",
+							},
+							Containers: []corev1.Container{
+								{
+									Name:            "mock",
+									Image:           "mock",
+									ImagePullPolicy: corev1.PullIfNotPresent,
+									Resources: corev1.ResourceRequirements{
+										Requests: map[corev1.ResourceName]resource.Quantity{
+											"cpu":            resource.MustParse("64"),
+											"memory":         resource.MustParse("512Gi"),
+											"nvidia.com/gpu": resource.MustParse("8"),
+										},
+										Limits: map[corev1.ResourceName]resource.Quantity{
+											"cpu":            resource.MustParse("64"),
+											"memory":         resource.MustParse("512Gi"),
+											"nvidia.com/gpu": resource.MustParse("8"),
+										},
+									},
+									TerminationMessagePolicy: corev1.TerminationMessageReadFile,
+								},
+							},
+							RestartPolicy: corev1.RestartPolicyAlways,
+							DNSPolicy:     corev1.DNSClusterFirst,
+						},
+					},
+					Owners: []schedulingv1alpha1.ReservationOwner{
+						{
+							LabelSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{"tenant": "t12345"},
+							},
+						},
+					},
+					TTL:            &metav1.Duration{Duration: 0},
+					AllocateOnce:   utilpointer.Bool(false),
+					AllocatePolicy: schedulingv1alpha1.ReservationAllocatePolicyRestricted,
+				},
+				Status: schedulingv1alpha1.ReservationStatus{
+					NodeName: "fake-node01",
+					Phase:    schedulingv1alpha1.ReservationAvailable,
+				},
+			},
+		},
+		{
+			lrn: &schedulingv1alpha1.LogicalResourceNode{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "lrn-test",
+					Finalizers: []string{finalizerInternalGC},
+					Labels: map[string]string{
+						"fake-label": "val",
+					},
+					Annotations: map[string]string{
+						schedulingv1alpha1.AnnotationLogicalResourceNodePodLabelSelector: `{"tenant":"t12345"}`,
+					},
+				},
+				Spec: schedulingv1alpha1.LogicalResourceNodeSpec{
+					Requirements: schedulingv1alpha1.LogicalResourceNodeRequirements{
+						Resources: map[corev1.ResourceName]resource.Quantity{
+							"cpu":            resource.MustParse("64"),
+							"memory":         resource.MustParse("512Gi"),
+							"nvidia.com/gpu": resource.MustParse("8"),
+						},
+						NodeSelector: map[string]string{
+							"node.koordinator.sh/gpu-model-series": "A800",
+						},
+					},
+				},
+			},
+			reservation: &schedulingv1alpha1.Reservation{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "lrn-test-gen-0",
+					Finalizers: []string{finalizerInternalGC},
+					Labels: map[string]string{
+						"fake-label":    "val",
+						labelOwnedByLRN: "lrn-test",
+					},
+					Annotations: map[string]string{
+						apiext.AnnotationDeviceAllocated: `{"gpu":[{"minor":2,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":3,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":4,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":5,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":6,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":7,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":0,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":1,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}}]}`,
+					},
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion:         "scheduling.koordinator.sh/v1alpha1",
+							Kind:               "LogicalResourceNode",
+							Name:               "lrn-test",
+							Controller:         utilpointer.Bool(true),
+							BlockOwnerDeletion: utilpointer.Bool(true),
+						},
+					},
+				},
+				Spec: schedulingv1alpha1.ReservationSpec{
+					Unschedulable: true,
+					Template: &corev1.PodTemplateSpec{
+						Spec: corev1.PodSpec{
+							NodeSelector: map[string]string{
+								"node.koordinator.sh/gpu-model-series": "A800",
+							},
+							Containers: []corev1.Container{
+								{
+									Name:            "mock",
+									Image:           "mock",
+									ImagePullPolicy: corev1.PullIfNotPresent,
+									Resources: corev1.ResourceRequirements{
+										Requests: map[corev1.ResourceName]resource.Quantity{
+											"cpu":            resource.MustParse("64"),
+											"memory":         resource.MustParse("512Gi"),
+											"nvidia.com/gpu": resource.MustParse("8"),
+										},
+										Limits: map[corev1.ResourceName]resource.Quantity{
+											"cpu":            resource.MustParse("64"),
+											"memory":         resource.MustParse("512Gi"),
+											"nvidia.com/gpu": resource.MustParse("8"),
+										},
+									},
+									TerminationMessagePolicy: corev1.TerminationMessageReadFile,
+								},
+							},
+							RestartPolicy: corev1.RestartPolicyAlways,
+							DNSPolicy:     corev1.DNSClusterFirst,
+						},
+					},
+					Owners: []schedulingv1alpha1.ReservationOwner{
+						{
+							LabelSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{"tenant": "t12345"},
+							},
+						},
+					},
+					TTL:            &metav1.Duration{Duration: 0},
+					AllocateOnce:   utilpointer.Bool(false),
+					AllocatePolicy: schedulingv1alpha1.ReservationAllocatePolicyRestricted,
+				},
+				Status: schedulingv1alpha1.ReservationStatus{
+					NodeName: "fake-node01",
+					Phase:    schedulingv1alpha1.ReservationAvailable,
+				},
+			},
+			expectedReservation: &schedulingv1alpha1.Reservation{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: schedulingv1alpha1.GroupVersion.String(),
+					Kind:       "Reservation",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "lrn-test-gen-0",
+					Finalizers:      []string{finalizerInternalGC},
+					ResourceVersion: "1000",
+					Labels: map[string]string{
+						"fake-label":    "val",
+						labelOwnedByLRN: "lrn-test",
+					},
+					Annotations: map[string]string{
+						apiext.AnnotationDeviceAllocated: `{"gpu":[{"minor":2,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":3,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":4,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":5,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":6,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":7,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":0,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}},{"minor":1,"resources":{"koordinator.sh/gpu-core":"100","koordinator.sh/gpu-memory":"85197848576","koordinator.sh/gpu-memory-ratio":"100"}}]}`,
+					},
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion:         "scheduling.koordinator.sh/v1alpha1",
+							Kind:               "LogicalResourceNode",
+							Name:               "lrn-test",
+							Controller:         utilpointer.Bool(true),
+							BlockOwnerDeletion: utilpointer.Bool(true),
+						},
+					},
+				},
+				Spec: schedulingv1alpha1.ReservationSpec{
 					Template: &corev1.PodTemplateSpec{
 						Spec: corev1.PodSpec{
 							NodeSelector: map[string]string{

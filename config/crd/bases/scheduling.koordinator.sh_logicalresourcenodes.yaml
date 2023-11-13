@@ -975,6 +975,10 @@ spec:
                 required:
                 - resources
                 type: object
+              unschedulable:
+                description: Unschedulable controls LRN schedulability of new pods.
+                  By default, LRN is schedulable.
+                type: boolean
             required:
             - requirements
             type: object
