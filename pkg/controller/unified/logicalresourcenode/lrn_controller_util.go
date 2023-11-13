@@ -173,7 +173,7 @@ func generateNewReservation(lrn *schedulingv1alpha1.LogicalResourceNode, generat
 		}
 	}
 
-	if hasQoSGroupAndEnabled(lrn) {
+	if lrn.Spec.Unschedulable || hasQoSGroupAndEnabled(lrn) {
 		reservation.Spec.Unschedulable = true
 	}
 

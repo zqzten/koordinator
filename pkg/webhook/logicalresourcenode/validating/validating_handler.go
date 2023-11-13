@@ -69,8 +69,8 @@ func (h *LogicalResourceNodeValidatingHandler) Handle(ctx context.Context, req a
 			return admission.Errored(http.StatusUnprocessableEntity, err)
 		}
 
-		if !apiequality.Semantic.DeepEqual(obj.Spec, oldObj.Spec) {
-			return admission.Errored(http.StatusBadRequest, fmt.Errorf("spec of LogicalResourceNode can not be changed"))
+		if !apiequality.Semantic.DeepEqual(obj.Spec.Requirements, oldObj.Spec.Requirements) {
+			return admission.Errored(http.StatusBadRequest, fmt.Errorf("spec.requirements of LogicalResourceNode can not be changed"))
 		}
 	}
 

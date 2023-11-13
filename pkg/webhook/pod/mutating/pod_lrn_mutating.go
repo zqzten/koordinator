@@ -21,19 +21,20 @@ import (
 	"encoding/json"
 	"fmt"
 
+	terwaytypes "github.com/AliyunContainerService/terway-apis/types"
+	admissionv1 "k8s.io/api/admission/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/util"
 	utilclient "github.com/koordinator-sh/koordinator/pkg/util/client"
 	lrnutil "github.com/koordinator-sh/koordinator/pkg/util/logicalresourcenode"
-
-	terwaytypes "github.com/AliyunContainerService/terway-apis/types"
-	admissionv1 "k8s.io/api/admission/v1"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/klog/v2"
-	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 func (h *PodMutatingHandler) mutatingLRNPodCreate(ctx context.Context, req admission.Request, pod *corev1.Pod) error {
@@ -99,8 +100,17 @@ func (h *PodMutatingHandler) mutatingLRNPodCreate(ctx context.Context, req admis
 	}
 
 	// append LRN tolerations into pod
-	for _, taint := range lrn.Spec.Requirements.Tolerations {
-		pod.Spec.Tolerations = append(pod.Spec.Tolerations, taint)
+	for _, toleration := range lrn.Spec.Requirements.Tolerations {
+		var exists bool
+		for _, existingToleration := range pod.Spec.Tolerations {
+			if equality.Semantic.DeepEqual(existingToleration, toleration) {
+				exists = true
+			}
+		}
+		if !exists {
+			klog.Infof("Adding toleration %s from LRN %s to Pod %s/%s", toleration.Key, lrn.Name, pod.Namespace, pod.Name)
+			pod.Spec.Tolerations = append(pod.Spec.Tolerations, toleration)
+		}
 	}
 
 	return nil
