@@ -364,7 +364,7 @@ func (pl *Plugin) appendInternalAnnotations(obj metav1.Object, allocResult apiex
 func appendKoordGPUMemoryRatioIfNeeded(pod *corev1.Pod, deviceAllocations apiext.DeviceAllocations, node *corev1.Node) error {
 	// Pod 如果声明了 ack gpu share 协议，又调度到了只有koordinator dp的节点，
 	// 这个时候需要追加 koordinator.sh/gpu-memory-ratio 触发kubelet DP链路
-	if node.Labels["__internal_gpu-compatible__"] != "ack-gpu-share" {
+	if node.Labels["__internal_gpu-compatible__"] != "koordinator-gpu-as-ack-gpu" {
 		return nil
 	}
 

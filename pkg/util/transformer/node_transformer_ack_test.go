@@ -15,7 +15,7 @@ import (
 	utilfeature "github.com/koordinator-sh/koordinator/pkg/util/feature"
 )
 
-func TestTransformNodeAllocatableWithACKGPUMemory(t *testing.T) {
+func TestTransformNodeAllocatableWithACKShareResources(t *testing.T) {
 	defer utilfeature.SetFeatureGateDuringTest(t, k8sfeature.DefaultMutableFeatureGate, koordfeatures.EnableACKGPUShareScheduling, true)()
 
 	tests := []struct {
@@ -24,34 +24,38 @@ func TestTransformNodeAllocatableWithACKGPUMemory(t *testing.T) {
 		want *corev1.Node
 	}{
 		{
-			name: "missing ack gpu share memory",
+			name: "only has koordinator gpu resources",
 			node: &corev1.Node{
 				Status: corev1.NodeStatus{
 					Allocatable: corev1.ResourceList{
 						apiext.ResourceGPUMemory: *resource.NewQuantity(100*1024*1024*1024, resource.BinarySI),
+						apiext.ResourceGPUCore:   *resource.NewQuantity(100, resource.DecimalSI),
 					},
 				},
 			},
 			want: &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						"__internal_gpu-compatible__": "ack-gpu-share",
+						"__internal_gpu-compatible__": "koordinator-gpu-as-ack-gpu",
 					},
 				},
 				Status: corev1.NodeStatus{
 					Allocatable: corev1.ResourceList{
-						ack.ResourceAliyunGPUMemory: *resource.NewQuantity(100, resource.DecimalSI),
-						apiext.ResourceGPUMemory:    *resource.NewQuantity(100*1024*1024*1024, resource.BinarySI),
+						ack.ResourceAliyunGPUMemory:         *resource.NewQuantity(100, resource.DecimalSI),
+						ack.ResourceALiyunGPUCorePercentage: *resource.NewQuantity(100, resource.DecimalSI),
+						apiext.ResourceGPUMemory:            *resource.NewQuantity(100*1024*1024*1024, resource.BinarySI),
+						apiext.ResourceGPUCore:              *resource.NewQuantity(100, resource.DecimalSI),
 					},
 				},
 			},
 		},
 		{
-			name: "has ack gpu share memory",
+			name: "only has ack gpu share memory",
 			node: &corev1.Node{
 				Status: corev1.NodeStatus{
 					Allocatable: corev1.ResourceList{
 						apiext.ResourceGPUMemory:    *resource.NewQuantity(100*1024*1024*1024, resource.BinarySI),
+						apiext.ResourceGPUCore:      *resource.NewQuantity(100, resource.DecimalSI),
 						ack.ResourceAliyunGPUMemory: *resource.NewQuantity(100, resource.DecimalSI),
 					},
 				},
@@ -59,14 +63,32 @@ func TestTransformNodeAllocatableWithACKGPUMemory(t *testing.T) {
 			want: &corev1.Node{
 				Status: corev1.NodeStatus{
 					Allocatable: corev1.ResourceList{
-						ack.ResourceAliyunGPUMemory: *resource.NewQuantity(100, resource.DecimalSI),
 						apiext.ResourceGPUMemory:    *resource.NewQuantity(100*1024*1024*1024, resource.BinarySI),
+						apiext.ResourceGPUCore:      *resource.NewQuantity(100, resource.DecimalSI),
+						ack.ResourceAliyunGPUMemory: *resource.NewQuantity(100, resource.DecimalSI),
 					},
 				},
 			},
 		},
 		{
-			name: "missing koordinator gpu memory",
+			name: "only has ack gpu core -- this scenario is actually illegal",
+			node: &corev1.Node{
+				Status: corev1.NodeStatus{
+					Allocatable: corev1.ResourceList{
+						ack.ResourceALiyunGPUCorePercentage: *resource.NewQuantity(100, resource.DecimalSI),
+					},
+				},
+			},
+			want: &corev1.Node{
+				Status: corev1.NodeStatus{
+					Allocatable: corev1.ResourceList{
+						ack.ResourceALiyunGPUCorePercentage: *resource.NewQuantity(100, resource.DecimalSI),
+					},
+				},
+			},
+		},
+		{
+			name: "no koordinator gpu resources",
 			node: &corev1.Node{
 				Status: corev1.NodeStatus{
 					Allocatable: corev1.ResourceList{
@@ -85,83 +107,8 @@ func TestTransformNodeAllocatableWithACKGPUMemory(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			TransformNodeAllocatableWithACKGPUMemory(tt.node)
+			TransformNodeAllocatableWithACKShareResources(tt.node)
 			assert.Equal(t, tt.want, tt.node)
-		})
-	}
-}
-
-func TestTransformNodeAllocatableWithACKGPUCorePercentage(t *testing.T) {
-	defer utilfeature.SetFeatureGateDuringTest(t, k8sfeature.DefaultMutableFeatureGate, koordfeatures.EnableACKGPUShareScheduling, true)()
-
-	tests := []struct {
-		name string
-		node *corev1.Node
-		want *corev1.Node
-	}{
-		{
-			name: "missing ack gpu core",
-			node: &corev1.Node{
-				Status: corev1.NodeStatus{
-					Allocatable: corev1.ResourceList{
-						apiext.ResourceGPUCore: *resource.NewQuantity(100, resource.DecimalSI),
-					},
-				},
-			},
-			want: &corev1.Node{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{
-						"__internal_gpu-compatible__": "ack-gpu-share",
-					},
-				},
-				Status: corev1.NodeStatus{
-					Allocatable: corev1.ResourceList{
-						ack.ResourceALiyunGPUCorePercentage: *resource.NewQuantity(100, resource.DecimalSI),
-						apiext.ResourceGPUCore:              *resource.NewQuantity(100, resource.DecimalSI),
-					},
-				},
-			},
-		},
-		{
-			name: "has ack gpu core",
-			node: &corev1.Node{
-				Status: corev1.NodeStatus{
-					Allocatable: corev1.ResourceList{
-						ack.ResourceALiyunGPUCorePercentage: *resource.NewQuantity(100, resource.DecimalSI),
-						apiext.ResourceGPUCore:              *resource.NewQuantity(100, resource.DecimalSI),
-					},
-				},
-			},
-			want: &corev1.Node{
-				Status: corev1.NodeStatus{
-					Allocatable: corev1.ResourceList{
-						ack.ResourceALiyunGPUCorePercentage: *resource.NewQuantity(100, resource.DecimalSI),
-						apiext.ResourceGPUCore:              *resource.NewQuantity(100, resource.DecimalSI),
-					},
-				},
-			},
-		},
-		{
-			name: "missing koordinator gpu core",
-			node: &corev1.Node{
-				Status: corev1.NodeStatus{
-					Allocatable: corev1.ResourceList{
-						corev1.ResourceCPU: *resource.NewMilliQuantity(32*1000, resource.DecimalSI),
-					},
-				},
-			},
-			want: &corev1.Node{
-				Status: corev1.NodeStatus{
-					Allocatable: corev1.ResourceList{
-						corev1.ResourceCPU: *resource.NewMilliQuantity(32*1000, resource.DecimalSI),
-					},
-				},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			TransformNodeAllocatableWithACKGPUCorePercentage(tt.node)
 		})
 	}
 }
