@@ -28,51 +28,52 @@ import (
 
 func init() {
 	nodeTransformers = append(nodeTransformers,
-		TransformNodeAllocatableWithACKGPUMemory,
-		TransformNodeAllocatableWithACKGPUCorePercentage,
+		TransformNodeAllocatableWithACKShareResources,
 	)
 }
 
-func TransformNodeAllocatableWithACKGPUMemory(node *corev1.Node) {
+func TransformNodeAllocatableWithACKShareResources(node *corev1.Node) {
 	if !k8sfeature.DefaultFeatureGate.Enabled(features.EnableACKGPUShareScheduling) {
 		return
 	}
+
+	if transformACKGPUMemory(node) {
+		transformACKGPUCorePercentage(node)
+		if node.Labels == nil {
+			node.Labels = map[string]string{}
+		}
+		node.Labels["__internal_gpu-compatible__"] = "koordinator-gpu-as-ack-gpu"
+	}
+}
+
+func transformACKGPUMemory(node *corev1.Node) bool {
 	gpuMemory, ok := node.Status.Allocatable[apiext.ResourceGPUMemory]
 	if !ok {
-		return
+		return false
 	}
 	if gpuMemory.Value() == 0 {
-		return
+		return false
 	}
 	_, ok = node.Status.Allocatable[ack.ResourceAliyunGPUMemory]
 	if ok {
-		return
+		return false
 	}
 	node.Status.Allocatable[ack.ResourceAliyunGPUMemory] = *resource.NewQuantity(gpuMemory.Value()/1024/1024/1024, resource.DecimalSI)
-	if node.Labels == nil {
-		node.Labels = map[string]string{}
-	}
-	node.Labels["__internal_gpu-compatible__"] = "ack-gpu-share"
+	return true
 }
 
-func TransformNodeAllocatableWithACKGPUCorePercentage(node *corev1.Node) {
-	if !k8sfeature.DefaultFeatureGate.Enabled(features.EnableACKGPUShareScheduling) {
-		return
-	}
+func transformACKGPUCorePercentage(node *corev1.Node) bool {
 	gpuCore, ok := node.Status.Allocatable[apiext.ResourceGPUCore]
 	if !ok {
-		return
+		return false
 	}
 	if gpuCore.Value() == 0 {
-		return
+		return false
 	}
 	_, ok = node.Status.Allocatable[ack.ResourceALiyunGPUCorePercentage]
 	if ok {
-		return
+		return false
 	}
 	node.Status.Allocatable[ack.ResourceALiyunGPUCorePercentage] = gpuCore.DeepCopy()
-	if node.Labels == nil {
-		node.Labels = map[string]string{}
-	}
-	node.Labels["__internal_gpu-compatible__"] = "ack-gpu-share"
+	return true
 }
