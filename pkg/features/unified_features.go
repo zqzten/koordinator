@@ -40,6 +40,7 @@ const (
 	EnableLocalVolumeIOLimit                    featuregate.Feature = "EnableLocalVolumeIOLimit"
 	EnableQuotaPathCapacity                     featuregate.Feature = "EnableQuotaPathCapacity"
 	EnableDefaultECIProfile                     featuregate.Feature = "EnableDefaultECIProfile"
+	EnableEnhanceECIAffinity                    featuregate.Feature = "EnableEnhanceECIAffinity"
 	EnableNodeInclusionPolicyInPodConstraint    featuregate.Feature = "EnableNodeInclusionPolicyInPodConstraint"
 	DefaultHonorTaintTolerationInPodConstraint  featuregate.Feature = "DefaultHonorTaintTolerationInPodConstraint"
 	DefaultHonorTaintTolerationInTopologySpread featuregate.Feature = "DefaultHonorTaintTolerationInTopologySpread"
@@ -78,6 +79,7 @@ var defaultUnifiedSchedulerFeatureGates = map[featuregate.Feature]featuregate.Fe
 	EnableLocalVolumeIOLimit:                    {Default: false, PreRelease: featuregate.Beta},
 	EnableQuotaPathCapacity:                     {Default: true, PreRelease: featuregate.Beta},
 	EnableDefaultECIProfile:                     {Default: false, PreRelease: featuregate.Beta},
+	EnableEnhanceECIAffinity:                    {Default: true, PreRelease: featuregate.Beta},
 	EnableNodeInclusionPolicyInPodConstraint:    {Default: true, PreRelease: featuregate.Beta},
 	DefaultHonorTaintTolerationInPodConstraint:  {Default: false, PreRelease: featuregate.Beta},
 	DefaultHonorTaintTolerationInTopologySpread: {Default: false, PreRelease: featuregate.Beta},
