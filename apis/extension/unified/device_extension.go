@@ -43,7 +43,7 @@ const (
 
 	NVSwitchDeviceType                     = schedulingv1alpha1.DeviceType("nvswitch")
 	NVSwitchResource                       = "koordinator.sh/nvswitch"
-	ResourcePPU        corev1.ResourceName = "aliyun.com/ppu"
+	ResourcePPU        corev1.ResourceName = "alibabacloud.com/ppu"
 
 	LabelGPUModelSeries string = extension.NodeDomainPrefix + "/gpu-model-series"
 )
