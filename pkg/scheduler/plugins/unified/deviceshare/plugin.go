@@ -716,6 +716,7 @@ func appendRundResult(pod *corev1.Pod, allocResult apiext.DeviceAllocations, pl 
 			return fmt.Errorf("unmatched driver versions")
 		}
 		pod.Annotations[extunified.AnnotationRundNvidiaDriverVersion] = matchedVersion
+		pod.Annotations[extunified.AnnotationRundGPUDriverVersion] = matchedVersion
 	}
 	return nil
 }

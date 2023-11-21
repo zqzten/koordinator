@@ -40,6 +40,7 @@ const (
 	AnnotationRundPassthoughPCI       = "io.alibaba.pouch.vm.passthru.pci"
 	AnnotationRundNVSwitchOrder       = "io.katacontainers.prestart.gpu.nvswitch"
 	AnnotationRundNvidiaDriverVersion = "io.katacontainers.prestart.gpu.nvidia-driver-version"
+	AnnotationRundGPUDriverVersion    = "io.katacontainers.prestart.gpu.driver-version"
 
 	NVSwitchDeviceType                     = schedulingv1alpha1.DeviceType("nvswitch")
 	NVSwitchResource                       = "koordinator.sh/nvswitch"
