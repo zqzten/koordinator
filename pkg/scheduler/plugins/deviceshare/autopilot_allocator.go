@@ -714,6 +714,8 @@ func (a *AutopilotAllocator) allocateNVSwitches(
 		wantedNumNVSwitches = 12
 	} else if numGPU == 8 {
 		wantedNumNVSwitches = 6
+	} else if numGPU == 7 {
+		wantedNumNVSwitches = 5
 	} else {
 		wantedNumNVSwitches = numGPU - 1
 	}
