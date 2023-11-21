@@ -395,6 +395,7 @@ func Test_appendRundResult(t *testing.T) {
 						unified.AnnotationRundPassthoughPCI:       "0000:80:00.1,0000:80:00.2,0000:90:00.3,0000:90:00.4",
 						unified.AnnotationRundNVSwitchOrder:       "3,4",
 						unified.AnnotationRundNvidiaDriverVersion: "2.2.2",
+						unified.AnnotationRundGPUDriverVersion:    "2.2.2",
 					},
 				},
 				Spec: corev1.PodSpec{
