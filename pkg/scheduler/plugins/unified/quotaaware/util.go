@@ -162,6 +162,7 @@ type QuotaWrapper struct {
 
 func filterGuaranteeAvailableQuotas(pod *corev1.Pod, requests corev1.ResourceList, cache *elasticquota.Plugin, quotas []*schedv1alpha1.ElasticQuota) []*QuotaWrapper {
 	var availableQuotas []*QuotaWrapper
+	requestsNames := quotav1.ResourceNames(requests)
 	for _, v := range quotas {
 		qm := cache.GetGroupQuotaManagerForQuota(v.Name)
 		if qm == nil {
@@ -169,9 +170,9 @@ func filterGuaranteeAvailableQuotas(pod *corev1.Pod, requests corev1.ResourceLis
 		}
 		quotaInfo := qm.GetQuotaInfoByName(v.Name)
 		if quotaInfo != nil {
-			enough, guaranteed, allocated := checkGuarantee(qm, quotaInfo, requests)
+			enough, guaranteed, allocated := checkGuarantee(qm, quotaInfo, requests, requestsNames)
 			if !enough {
-				klog.V(4).InfoS("Insufficient quotas", "pod", klog.KObj(pod), "quota", quotaInfo.Name, "requests", sprintResourceList(requests))
+				klog.V(4).InfoS("Insufficient quotas", "pod", klog.KObj(pod), "quota", quotaInfo.Name, "requests", sprintResourceList(requests, nil))
 				continue
 			}
 
@@ -189,7 +190,7 @@ func filterGuaranteeAvailableQuotas(pod *corev1.Pod, requests corev1.ResourceLis
 	return availableQuotas
 }
 
-func checkGuarantee(qm *elasticquotacore.GroupQuotaManager, quotaInfo *elasticquotacore.QuotaInfo, requests corev1.ResourceList) (bool, corev1.ResourceList, corev1.ResourceList) {
+func checkGuarantee(qm *elasticquotacore.GroupQuotaManager, quotaInfo *elasticquotacore.QuotaInfo, requests corev1.ResourceList, requestsNames []corev1.ResourceName) (bool, corev1.ResourceList, corev1.ResourceList) {
 	if quotaInfo.Name == apiext.RootQuotaName {
 		return true, nil, nil
 	}
@@ -198,20 +199,20 @@ func checkGuarantee(qm *elasticquotacore.GroupQuotaManager, quotaInfo *elasticqu
 		totalResource := qm.GetClusterTotalResource()
 		allocated := quotaInfo.GetAllocated()
 		used := quotav1.Add(requests, allocated)
-		used = quotav1.Mask(used, quotav1.ResourceNames(quotaInfo.GetMax()))
+		used = quotav1.Mask(used, requestsNames)
 		enough := usedLessThan(used, totalResource)
 		if !enough {
 			klog.Warningf("Insufficient inventory capacity, quota: %s, allocated: %s, total: %s",
-				quotaInfo.Name, sprintResourceList(allocated), sprintResourceList(totalResource))
+				quotaInfo.Name, sprintResourceList(allocated, requestsNames), sprintResourceList(totalResource, requestsNames))
 		}
 		return enough, nil, nil
 	} else {
 		allocated := quotaInfo.GetAllocated()
 		max := quotaInfo.GetMax()
 		used := quotav1.Add(requests, allocated)
-		used = quotav1.Mask(used, quotav1.ResourceNames(quotaInfo.GetMax()))
+		used = quotav1.Mask(used, requestsNames)
 		if !usedLessThan(used, max) {
-			klog.V(4).InfoS("Quota allocated exceeded max", "quota", quotaInfo.Name, "allocated", sprintResourceList(allocated), "max", sprintResourceList(max))
+			klog.V(4).InfoS("Quota allocated exceeded max", "quota", quotaInfo.Name, "allocated", sprintResourceList(allocated, requestsNames), "max", sprintResourceList(max, requestsNames))
 			return false, nil, nil
 		}
 		guaranteed := quotaInfo.GetGuaranteed()
@@ -225,7 +226,7 @@ func checkGuarantee(qm *elasticquotacore.GroupQuotaManager, quotaInfo *elasticqu
 	if parent == nil {
 		return false, nil, nil
 	}
-	return checkGuarantee(qm, parent, requests)
+	return checkGuarantee(qm, parent, requests, requestsNames)
 }
 
 func usedLessThan(used, max corev1.ResourceList) bool {
@@ -308,7 +309,10 @@ func addTemporaryNodeAffinity(cycleState *framework.CycleState, elasticQuotas []
 	}
 }
 
-func sprintResourceList(resourceList corev1.ResourceList) string {
+func sprintResourceList(resourceList corev1.ResourceList, resourceNames []corev1.ResourceName) string {
+	if len(resourceNames) > 0 {
+		resourceList = quotav1.Mask(resourceList, resourceNames)
+	}
 	res := make([]string, 0)
 	for k, v := range resourceList {
 		tmp := string(k) + ":" + v.String()
