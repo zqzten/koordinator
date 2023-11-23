@@ -180,12 +180,14 @@ func (pl *Plugin) PreScore(ctx context.Context, cycleState *framework.CycleState
 	sd.maxReplicas = 10
 	sd.replicasWithMin = map[string]int{}
 	sd.replicasWithMax = map[string]int{}
+	resourceNames := quotav1.ResourceNames(sd.podRequests)
 	for _, quota := range sd.availableQuotas {
 		min := quotav1.Max(quota.Min, quota.Guaranteed)
 		used := quota.Used
 		if quota.Allocated != nil {
 			used = quota.Allocated
 		}
+		used = quotav1.Mask(used, resourceNames)
 		replicas := countReplicas(min, used, sd.podRequests, sd.maxReplicas)
 		if replicas > 0 {
 			sd.replicasWithMin[quota.Name] = replicas

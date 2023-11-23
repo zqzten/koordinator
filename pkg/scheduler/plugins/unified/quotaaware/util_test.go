@@ -18,6 +18,7 @@ package quotaaware
 
 import (
 	"context"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	quotav1 "k8s.io/apiserver/pkg/quota/v1"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	st "k8s.io/kubernetes/pkg/scheduler/testing"
 	schedv1alpha1 "sigs.k8s.io/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
@@ -32,6 +34,7 @@ import (
 	schedinformer "sigs.k8s.io/scheduler-plugins/pkg/generated/informers/externalversions"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
+	elasticquotacore "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota/core"
 	nodeaffinityhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/nodeaffinity"
 )
 
@@ -367,6 +370,85 @@ func Test_filterAvailableQuotas(t *testing.T) {
 			assert.Equal(t, tt.want, gotQuotaNames)
 		})
 	}
+}
+
+func Test_checkGuarantee_different_requests_and_used(t *testing.T) {
+	defaultSystemQuotaGroupMax := corev1.ResourceList{
+		corev1.ResourceCPU:    *resource.NewQuantity(math.MaxInt64/5, resource.DecimalSI),
+		corev1.ResourceMemory: *resource.NewQuantity(math.MaxInt64/5, resource.BinarySI),
+	}
+	qm := elasticquotacore.NewGroupQuotaManager("", defaultSystemQuotaGroupMax, defaultSystemQuotaGroupMax)
+	err := qm.UpdateQuota(&schedv1alpha1.ElasticQuota{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "quota-1",
+			Labels: map[string]string{
+				apiext.LabelQuotaIsParent: "true",
+			},
+		},
+		Spec: schedv1alpha1.ElasticQuotaSpec{
+			Max: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("10"),
+				corev1.ResourceMemory: resource.MustParse("10Gi"),
+				"fakeResource":        resource.MustParse("10"),
+			},
+		},
+	}, false)
+	assert.NoError(t, err)
+
+	err = qm.UpdateQuota(&schedv1alpha1.ElasticQuota{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-quota",
+			Labels: map[string]string{
+				apiext.LabelQuotaIsParent: "false",
+				apiext.LabelQuotaParent:   "quota-1",
+			},
+		},
+		Spec: schedv1alpha1.ElasticQuotaSpec{
+			Max: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("10"),
+				corev1.ResourceMemory: resource.MustParse("10Gi"),
+				"fakeResource":        resource.MustParse("10"),
+			},
+		},
+	}, false)
+	assert.NoError(t, err)
+
+	quotaInfo := qm.GetQuotaInfoByName("test-quota")
+	quotaInfo.CalculateInfo = elasticquotacore.QuotaCalculateInfo{
+		Max: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("10"),
+			corev1.ResourceMemory: resource.MustParse("10Gi"),
+			"fakeResource":        resource.MustParse("10"),
+		},
+		Used: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("2"),
+			corev1.ResourceMemory: resource.MustParse("2Gi"),
+			"fakeResource":        resource.MustParse("12"),
+		},
+		Allocated: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("2"),
+			corev1.ResourceMemory: resource.MustParse("2Gi"),
+			"fakeResource":        resource.MustParse("12"),
+		},
+		Guaranteed: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("2"),
+			corev1.ResourceMemory: resource.MustParse("2Gi"),
+			"fakeResource":        resource.MustParse("12"),
+		},
+	}
+
+	qm.SetTotalResourceForTree(corev1.ResourceList{
+		corev1.ResourceCPU:    resource.MustParse("100"),
+		corev1.ResourceMemory: resource.MustParse("100Gi"),
+		"fakeResource":        resource.MustParse("100"),
+	})
+
+	requests := corev1.ResourceList{
+		corev1.ResourceCPU:    resource.MustParse("1"),
+		corev1.ResourceMemory: resource.MustParse("1Gi"),
+	}
+	passed, _, _ := checkGuarantee(qm, quotaInfo, requests, quotav1.ResourceNames(requests))
+	assert.True(t, passed)
 }
 
 func Test_addTemporaryNodeAffinity(t *testing.T) {
