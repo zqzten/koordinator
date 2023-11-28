@@ -61,6 +61,11 @@ func (h *PodValidatingHandler) validatingPodFn(ctx context.Context, req admissio
 		return false, reason, err
 	}
 
+	allowed, reason, err = h.gpuResourceValidatingPod(ctx, req)
+	if !allowed {
+		return
+	}
+
 	allowed, reason, err = h.clusterColocationProfileValidatingPod(ctx, req)
 	if err == nil {
 		plugin := elasticquota.NewPlugin(h.Decoder, h.Client)
