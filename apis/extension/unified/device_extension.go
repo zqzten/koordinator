@@ -110,6 +110,7 @@ const (
 type VFDeviceType string
 
 const (
+	VFDeviceTypeGeneral VFDeviceType = "vf_general"
 	VFDeviceTypeGPU     VFDeviceType = "vf_gpu"
 	VFDeviceTypeCPU     VFDeviceType = "vf_cpu"
 	VFDeviceTypeStorage VFDeviceType = "vf_storage"
@@ -141,8 +142,7 @@ type DeviceAllocationExtension struct {
 }
 
 type RDMAAllocatedExtension struct {
-	VFs        []*VF    `json:"vfs,omitempty"`
-	BondSlaves []string `json:"bondSlaves,omitempty"`
+	VFs []*VF `json:"vfs,omitempty"`
 }
 
 type VFMeta struct {
@@ -261,4 +261,15 @@ var H800PartitionTables = map[int][]GPUPartition{
 
 var PartitionTables = map[string]map[int][]GPUPartition{
 	"H800": H800PartitionTables,
+}
+
+func MustAllocateGPUByPartition(node *corev1.Node) bool {
+	model := node.Labels[extension.LabelGPUModel]
+	_, ok := PartitionTables[model]
+	return ok
+}
+
+func GetGPUPartitionTable(node *corev1.Node) map[int][]GPUPartition {
+	model := node.Labels[extension.LabelGPUModel]
+	return PartitionTables[model]
 }

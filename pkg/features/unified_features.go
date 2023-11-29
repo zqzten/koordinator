@@ -52,6 +52,7 @@ const (
 	DisableInterPodAffinityByNamespaces         featuregate.Feature = "DisableInterPodAffinityByNamespaces"
 	EnableHugePageAsMemory                      featuregate.Feature = "EnableHugePageAsMemory"
 	EnableACSDefaultSpread                      featuregate.Feature = "EnableACSDefaultSpread"
+	EnableTransformerDeviceTopology             featuregate.Feature = "EnableTransformerDeviceTopology"
 )
 
 const (
@@ -88,6 +89,7 @@ var defaultUnifiedSchedulerFeatureGates = map[featuregate.Feature]featuregate.Fe
 	DisableInterPodAffinityByNamespaces:         {Default: false, PreRelease: featuregate.Beta},
 	EnableHugePageAsMemory:                      {Default: false, PreRelease: featuregate.Beta},
 	EnableACSDefaultSpread:                      {Default: false, PreRelease: featuregate.Beta},
+	EnableTransformerDeviceTopology:             {Default: true, PreRelease: featuregate.Beta},
 }
 
 var defaultUnifiedKoordletFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
