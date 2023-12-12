@@ -27,7 +27,6 @@ import (
 	unifiedresourceext "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/extension"
 	unifiedschedulingv1beta1 "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/scheduling/v1beta1"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apiresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -184,12 +183,6 @@ func (pl *Plugin) Filter(ctx context.Context, cycleState *framework.CycleState, 
 	if extunified.IsVirtualKubeletNode(nodeInfo.Node()) {
 		return nil
 	}
-	if _, err := pl.deviceLister.Get(node.Name); err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil
-		}
-		return framework.NewStatus(framework.UnschedulableAndUnresolvable, err.Error())
-	}
 
 	state, status := getPreFilterState(cycleState)
 	if !status.IsSuccess() {
@@ -334,13 +327,17 @@ func (pl *Plugin) appendInternalAnnotations(obj metav1.Object, allocResult apiex
 	}
 
 	nodeName := node.Name
-	device, err := pl.deviceLister.Get(nodeName)
-	if err != nil {
-		klog.ErrorS(err, "Failed to get Device", "pod", klog.KObj(pod), "node", nodeName)
-		return err
+
+	if !deviceshare.EnableUnifiedDevice {
+		device, err := pl.deviceLister.Get(nodeName)
+		if err != nil {
+			klog.ErrorS(err, "Failed to get Device", "pod", klog.KObj(pod), "node", nodeName)
+			return err
+		}
+
+		ack.AppendAckAnnotationsIfHasGPUCompute(pod, device, allocResult)
 	}
 
-	ack.AppendAckAnnotationsIfHasGPUCompute(pod, device, allocResult)
 	if k8sfeature.DefaultFeatureGate.Enabled(features.EnableACKGPUShareScheduling) {
 		if err := ack.AppendAckAnnotationsIfHasGPUMemory(pod, allocResult); err != nil {
 			klog.ErrorS(err, "Failed to append ACK Annotation with GPU Memory", "pod", klog.KObj(pod))
