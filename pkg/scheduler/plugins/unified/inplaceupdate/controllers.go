@@ -26,6 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
+	quotav1 "k8s.io/apiserver/pkg/quota/v1"
 	clientv1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
@@ -201,7 +202,35 @@ func makeInplaceUpdatePod(pod *corev1.Pod, resourceUpdateSpec *uniext.ResourceUp
 		// 1. 当 InplaceUpdate Complete 之后，InplaceUpdate 插件会从 Cache 中 Forget InplaceUpdatePod，这样其实会把 TargetPod使用的端口 从 Cache 的 NodeInfo.UsedPorts 中错误去掉
 		// 2. 原地升级不会变动端口，涉及端口的更改就毫无必要了
 		containerToUpdate.Ports = nil
-		containerToUpdate.Resources = containerUpdateSpec.Resources
+		if !quotav1.Equals(containerToUpdate.Resources.Requests, containerUpdateSpec.Resources.Requests) {
+			if containerToUpdate.Resources.Requests == nil {
+				containerToUpdate.Resources.Requests = containerUpdateSpec.Resources.Requests.DeepCopy()
+			} else {
+				for resourceName, quantity := range containerUpdateSpec.Resources.Requests {
+					if resourceName == corev1.ResourceCPU {
+						klog.V(5).Infof("[Inplace Update] pod: %s/%s, request resource name: %v, value: %v", pod.Namespace, pod.Name, resourceName, quantity.MilliValue())
+					} else {
+						klog.V(5).Infof("[Inplace Update] pod: %s/%s, request resource name: %v, value: %v", pod.Namespace, pod.Name, resourceName, quantity.Value())
+					}
+					containerToUpdate.Resources.Requests[resourceName] = quantity
+				}
+			}
+		}
+		if !quotav1.Equals(containerToUpdate.Resources.Limits, containerUpdateSpec.Resources.Limits) {
+			if containerToUpdate.Resources.Limits == nil {
+				containerToUpdate.Resources.Limits = containerUpdateSpec.Resources.Limits.DeepCopy()
+			} else {
+				for resourceName, quantity := range containerUpdateSpec.Resources.Limits {
+					if resourceName == corev1.ResourceCPU {
+						klog.V(5).Infof("[Inplace Update] pod: %s/%s, limit resource name: %v, value: %v", pod.Namespace, pod.Name, resourceName, quantity.MilliValue())
+					} else {
+						klog.V(5).Infof("[Inplace Update] pod: %s/%s, limit resource name: %v, value: %v", pod.Namespace, pod.Name, resourceName, quantity.Value())
+					}
+					containerToUpdate.Resources.Limits[resourceName] = quantity
+				}
+			}
+		}
+
 	}
 	return inplaceUpdatePod
 }
