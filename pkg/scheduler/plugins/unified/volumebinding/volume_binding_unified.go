@@ -67,7 +67,8 @@ func (pl *VolumeBinding) filterWithoutPVC(state *stateData, pod *v1.Pod, nodeInf
 	if nodeStorageInfo != nil {
 		nodeStorageInfo.lock.RLock()
 		defer nodeStorageInfo.lock.RUnlock()
-		return HasEnoughStorageCapacity(nodeStorageInfo, pod, 0, nil, pl.classLister)
+		preemptivePodUsedStorage := state.preemptiveUsedStorage[nodeInfo.Node().Name]
+		return HasEnoughStorageCapacity(nodeStorageInfo, pod, 0, nil, pl.classLister, preemptivePodUsedStorage)
 	}
 	return nil
 }
@@ -240,4 +241,75 @@ func (pl *VolumeBinding) revertLocalPVCAllocs(nodeName string, podVolumes *PodVo
 			}
 		}
 	}
+}
+
+func (pl *VolumeBinding) AddPod(ctx context.Context, cycleState *framework.CycleState, podToSchedule *v1.Pod, podInfoToAdd *framework.PodInfo, nodeInfo *framework.NodeInfo) *framework.Status {
+	node := nodeInfo.Node()
+	if node == nil {
+		return framework.NewStatus(framework.Error, "node not found")
+	}
+	if unified.IsVirtualKubeletNode(node) {
+		// VK 节点不支持被抢占
+		return nil
+	}
+	state, err := getStateData(cycleState)
+	if err != nil {
+		return framework.AsStatus(err)
+	}
+	if !state.skip {
+		// 不支持使用了 PVC 的 Pod 抢占别的 Pod
+		return nil
+	}
+	if hasPVC, _ := pl.podHasPVCs(podInfoToAdd.Pod); hasPVC {
+		// 不支持带有 PVC 的同时使用了本地盘的 Pod 被抢占
+		return nil
+	}
+	nodePreemptiveUsedStorage := state.preemptiveUsedStorage[node.Name]
+	if len(nodePreemptiveUsedStorage) == 0 {
+		return nil
+	}
+	delete(nodePreemptiveUsedStorage, getPodName(podInfoToAdd.Pod))
+	if len(nodePreemptiveUsedStorage) == 0 {
+		delete(state.preemptiveUsedStorage, node.Name)
+	}
+	if len(state.preemptiveUsedStorage) == 0 {
+		state.preemptiveUsedStorage = nil
+	}
+	return nil
+}
+
+func (pl *VolumeBinding) RemovePod(ctx context.Context, cycleState *framework.CycleState, podToSchedule *v1.Pod, podInfoToRemove *framework.PodInfo, nodeInfo *framework.NodeInfo) *framework.Status {
+	node := nodeInfo.Node()
+	if node == nil {
+		return framework.NewStatus(framework.Error, "node not found")
+	}
+	if unified.IsVirtualKubeletNode(node) {
+		// VK 节点不支持被抢占
+		return nil
+	}
+	state, err := getStateData(cycleState)
+	if err != nil {
+		return framework.AsStatus(err)
+	}
+	if !state.skip {
+		// 不支持使用了 PVC 的同时使用了本地盘的 Pod 抢占别的 Pod
+		return nil
+	}
+	if hasPVC, _ := pl.podHasPVCs(podInfoToRemove.Pod); hasPVC {
+		// 不支持带有 PVC 的 Pod 被抢占
+		return nil
+	}
+	requiredStorageInBytes := GetRequestedStorageInBytes(podInfoToRemove.Pod, pl.classLister)
+	if requiredStorageInBytes == 0 {
+		return nil
+	}
+
+	if state.preemptiveUsedStorage == nil {
+		state.preemptiveUsedStorage = map[string]map[string]int64{}
+	}
+	if state.preemptiveUsedStorage[node.Name] == nil {
+		state.preemptiveUsedStorage[node.Name] = map[string]int64{}
+	}
+	state.preemptiveUsedStorage[node.Name][getPodName(podInfoToRemove.Pod)] = requiredStorageInBytes
+	return nil
 }

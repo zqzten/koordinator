@@ -72,19 +72,15 @@ func ReplaceStorageClassIfVirtualKubelet(node *corev1.Node, pod *corev1.Pod, cla
 	return claim
 }
 
-func HasEnoughStorageCapacity(
-	nodeStorageInfo *NodeStorageInfo,
-	pod *v1.Pod,
-	systemDiskInBytes int64,
-	localVolumesInBytes map[string]int64,
-	storageClassLister storagelisters.StorageClassLister,
-) *framework.Status {
-	requests, _ := resource.PodRequestsAndLimits(pod)
+func HasEnoughStorageCapacity(nodeStorageInfo *NodeStorageInfo, pod *v1.Pod, systemDiskInBytes int64, localVolumesInBytes map[string]int64, storageClassLister storagelisters.StorageClassLister, preemptivePodUsedStorage map[string]int64) *framework.Status {
+	requiredStorageInBytes := systemDiskInBytes + GetRequestedStorageInBytes(pod, storageClassLister)
 
-	q := requests[v1.ResourceEphemeralStorage]
-	requiredStorageInBytes := q.Value()
-	requiredStorageInBytes += unified.CalcLocalInlineVolumeSize(pod.Spec.Volumes, storageClassLister)
-	requiredStorageInBytes += systemDiskInBytes
+	preemptiveUsedStorage := int64(0)
+	for podName, podUsedStorage := range preemptivePodUsedStorage {
+		if _, ok := nodeStorageInfo.allocSet[podName]; ok {
+			preemptiveUsedStorage += podUsedStorage
+		}
+	}
 
 	localVolumeFree := nodeStorageInfo.GetFree()
 	if requiredStorageInBytes > 0 {
@@ -92,7 +88,7 @@ func HasEnoughStorageCapacity(
 		if graphDiskPath == "" {
 			return framework.NewStatus(framework.Unschedulable, ErrInvalidDiskInfos)
 		}
-		graphDiskFree := localVolumeFree.VolumeSize[graphDiskPath]
+		graphDiskFree := localVolumeFree.VolumeSize[graphDiskPath] + preemptiveUsedStorage
 		if requiredStorageInBytes > graphDiskFree {
 			return framework.NewStatus(framework.Unschedulable, ErrInsufficientEphemeralStorage)
 		}
@@ -228,4 +224,12 @@ func GetPVCIOLimitInfo(pvc *corev1.PersistentVolumeClaim) (*unified.LocalStorage
 		return nil, err
 	}
 	return pvcIOLimitInfo, nil
+}
+
+func GetRequestedStorageInBytes(pod *corev1.Pod, classLister storagelisters.StorageClassLister) int64 {
+	requests, _ := resource.PodRequestsAndLimits(pod)
+	q := requests[v1.ResourceEphemeralStorage]
+	requiredStorageInBytes := q.Value()
+	requiredStorageInBytes += unified.CalcLocalInlineVolumeSize(pod.Spec.Volumes, classLister)
+	return requiredStorageInBytes
 }
