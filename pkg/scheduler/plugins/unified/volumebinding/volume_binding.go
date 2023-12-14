@@ -60,11 +60,29 @@ type stateData struct {
 	// podVolumesByNode holds the pod's volume information found in the Filter
 	// phase for each node
 	// it's initialized in the PreFilter phase
-	podVolumesByNode map[string]*PodVolumes
+	podVolumesByNode      map[string]*PodVolumes
+	preemptiveUsedStorage map[string]map[string]int64
 	sync.Mutex
 }
 
 func (d *stateData) Clone() framework.StateData {
+	if len(d.preemptiveUsedStorage) == 0 {
+		return d
+	}
+	clonedPreemptivePodUsedStorage := map[string]map[string]int64{}
+	for nodeName, nodePreemptiveStorage := range d.preemptiveUsedStorage {
+		if len(nodePreemptiveStorage) == 0 {
+			continue
+		}
+		clonedNodePreemptiveStorage := clonedPreemptivePodUsedStorage[nodeName]
+		if clonedNodePreemptiveStorage == nil {
+			clonedNodePreemptiveStorage = map[string]int64{}
+			clonedPreemptivePodUsedStorage[nodeName] = clonedNodePreemptiveStorage
+		}
+		for podKey, podPreemptiveStorage := range nodePreemptiveStorage {
+			clonedNodePreemptiveStorage[podKey] = podPreemptiveStorage
+		}
+	}
 	return d
 }
 
@@ -83,6 +101,7 @@ type VolumeBinding struct {
 }
 
 var _ framework.PreFilterPlugin = &VolumeBinding{}
+var _ framework.PreFilterExtensions = &VolumeBinding{}
 var _ framework.FilterPlugin = &VolumeBinding{}
 var _ framework.ReservePlugin = &VolumeBinding{}
 var _ framework.PreBindPlugin = &VolumeBinding{}
@@ -191,7 +210,7 @@ func (pl *VolumeBinding) PreFilter(ctx context.Context, state *framework.CycleSt
 
 // PreFilterExtensions returns prefilter extensions, pod add and remove.
 func (pl *VolumeBinding) PreFilterExtensions() framework.PreFilterExtensions {
-	return nil
+	return pl
 }
 
 func getStateData(cs *framework.CycleState) (*stateData, error) {

@@ -690,7 +690,8 @@ func TestVolumeBindingWithLocalPV(t *testing.T) {
 				claimsToBind: []*v1.PersistentVolumeClaim{
 					makePVCWithStorageSize("pvc-a", "1", "", localPVSC.Name, "60Gi"),
 				},
-				podVolumesByNode: map[string]*PodVolumes{},
+				preemptiveUsedStorage: nil,
+				podVolumesByNode:      map[string]*PodVolumes{},
 			},
 			wantFilterStatus: framework.NewStatus(framework.UnschedulableAndUnresolvable, string(ErrReasonBindConflict), string(ErrReasonNotEnoughSpace)),
 		},
@@ -729,7 +730,8 @@ func TestVolumeBindingWithLocalPV(t *testing.T) {
 				claimsToBind: []*v1.PersistentVolumeClaim{
 					makePVCWithStorageSize("pvc-a", "1", "", localPVSC.Name, "60Gi"),
 				},
-				podVolumesByNode: map[string]*PodVolumes{},
+				preemptiveUsedStorage: nil,
+				podVolumesByNode:      map[string]*PodVolumes{},
 			},
 			wantFilterStatus: framework.NewStatus(framework.UnschedulableAndUnresolvable, string(ErrReasonBindConflict), string(ErrReasonNotEnoughSpace)),
 		},
@@ -849,6 +851,268 @@ func TestVolumeBindingWithLocalPV(t *testing.T) {
 			if item.wantStateAfterFilter != nil && !reflect.DeepEqual(stateData, item.wantStateAfterFilter) {
 				t.Errorf("state got after filter does not match: %v, want: %v", stateData, item.wantStateAfterFilter)
 			}
+		})
+	}
+}
+
+func TestVolumeBindingWithLocalPVPreemption(t *testing.T) {
+	table := []struct {
+		name                                 string
+		existingPod                          *v1.Pod
+		ephemeralStorage                     string
+		ephemeralStorageSize                 int64
+		localInlineVolumeSize                int64
+		pod                                  *v1.Pod
+		node                                 *v1.Node
+		localInfo                            *extension.LocalInfo
+		wantPreFilterStatus                  *framework.Status
+		wantStateAfterPreFilter              *stateData
+		wantFilterStatus                     *framework.Status
+		wantStateAfterFilter                 *stateData
+		wantStateAfterPreFilterRemove        *stateData
+		wantFilterStatusAfterPreFilterRemove *framework.Status
+		wantStateAfterPreFilterAdd           *stateData
+		wantFilterStatusAfterPreFilterAdd    *framework.Status
+	}{
+		{
+			name:                 "preempt ephemeralStorage pods",
+			existingPod:          makePodForBindingTest("pod-0", nil),
+			pod:                  makePodForBindingTest("pod-a", nil),
+			ephemeralStorage:     "80Gi",
+			ephemeralStorageSize: 80 * 1024 * 1024 * 1024,
+			node: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-node-1",
+				},
+				Status: v1.NodeStatus{
+					Allocatable: v1.ResourceList{
+						v1.ResourceEphemeralStorage: resource.MustParse("128Gi"),
+					},
+				},
+			},
+			localInfo: &extension.LocalInfo{
+				DiskInfos: []extension.DiskInfo{
+					{
+						Device:         "/dev/sda1",
+						FileSystemType: "ext4",
+						Size:           128 * 1024 * 1024 * 1024, // 128GB
+						MountPoint:     "/home/t4",
+						DiskType:       extension.DiskTypeSSD,
+						IsGraphDisk:    true,
+					},
+				},
+			},
+			wantPreFilterStatus: nil,
+			wantStateAfterPreFilter: &stateData{
+				skip: true,
+			},
+			wantFilterStatus: framework.NewStatus(framework.Unschedulable, ErrInsufficientEphemeralStorage),
+			wantStateAfterPreFilterRemove: &stateData{
+				skip: true,
+				preemptiveUsedStorage: map[string]map[string]int64{
+					"test-node-1": {"default/pod-0": 80 * 1024 * 1024 * 1024},
+				},
+			},
+			wantFilterStatusAfterPreFilterRemove: nil,
+			wantStateAfterPreFilterAdd: &stateData{
+				skip: true,
+			},
+			wantFilterStatusAfterPreFilterAdd: framework.NewStatus(framework.Unschedulable, ErrInsufficientEphemeralStorage),
+		},
+		{
+			name:                  "preempt inline volume pods",
+			existingPod:           makePodWithInlineVolumeForBindingTest("pod-0", localPVSC.Name, "80Gi"),
+			pod:                   makePodWithInlineVolumeForBindingTest("pod-0", localPVSC.Name, "80Gi"),
+			localInlineVolumeSize: 80 * 1024 * 1024 * 1024,
+			node: &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-node-1",
+				},
+				Status: v1.NodeStatus{
+					Allocatable: v1.ResourceList{
+						v1.ResourceEphemeralStorage: resource.MustParse("128Gi"),
+					},
+				},
+			},
+			localInfo: &extension.LocalInfo{
+				DiskInfos: []extension.DiskInfo{
+					{
+						Device:         "/dev/sda1",
+						FileSystemType: "ext4",
+						Size:           128 * 1024 * 1024 * 1024, // 128GB
+						MountPoint:     "/home/t4",
+						DiskType:       extension.DiskTypeSSD,
+						IsGraphDisk:    true,
+					},
+				},
+			},
+			wantPreFilterStatus: nil,
+			wantStateAfterPreFilter: &stateData{
+				skip: true,
+			},
+			wantFilterStatus: framework.NewStatus(framework.Unschedulable, ErrInsufficientEphemeralStorage),
+			wantStateAfterPreFilterRemove: &stateData{
+				skip: true,
+				preemptiveUsedStorage: map[string]map[string]int64{
+					"test-node-1": {"default/pod-0": 80 * 1024 * 1024 * 1024},
+				},
+			},
+			wantFilterStatusAfterPreFilterRemove: nil,
+			wantStateAfterPreFilterAdd: &stateData{
+				skip: true,
+			},
+			wantFilterStatusAfterPreFilterAdd: framework.NewStatus(framework.Unschedulable, ErrInsufficientEphemeralStorage),
+		},
+	}
+
+	for _, item := range table {
+		t.Run(item.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			client := fake.NewSimpleClientset()
+			informerFactory := informers.NewSharedInformerFactory(client, 0)
+			opts := []runtime.Option{
+				runtime.WithClientSet(client),
+				runtime.WithInformerFactory(informerFactory),
+			}
+			fh, err := runtime.NewFramework(nil, nil, opts...)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			t.Log("Feed testing data and wait for them to be synced")
+			client.StorageV1().StorageClasses().Create(context.Background(), immediateSC, metav1.CreateOptions{})
+			client.StorageV1().StorageClasses().Create(context.Background(), waitSC, metav1.CreateOptions{})
+			client.StorageV1().StorageClasses().Create(context.Background(), localPVSC, metav1.CreateOptions{})
+			client.StorageV1().StorageClasses().Create(context.Background(), lvmSC, metav1.CreateOptions{})
+			client.StorageV1().StorageClasses().Create(context.Background(), quotaPathSC, metav1.CreateOptions{})
+			client.StorageV1().StorageClasses().Create(context.Background(), multiVolumeLocalPVSC, metav1.CreateOptions{})
+			if item.node != nil {
+				client.CoreV1().Nodes().Create(context.Background(), item.node, metav1.CreateOptions{})
+			}
+			if item.ephemeralStorage != "" {
+				item.existingPod.Spec.Containers = append(item.existingPod.Spec.Containers, v1.Container{
+					Name: "test-local-pv-ephemeral-storage",
+					Resources: v1.ResourceRequirements{
+						Requests: v1.ResourceList{
+							v1.ResourceEphemeralStorage: resource.MustParse(item.ephemeralStorage),
+						},
+					},
+				})
+				item.pod.Spec.Containers = append(item.pod.Spec.Containers, v1.Container{
+					Name: "test-local-pv-ephemeral-storage",
+					Resources: v1.ResourceRequirements{
+						Requests: v1.ResourceList{
+							v1.ResourceEphemeralStorage: resource.MustParse(item.ephemeralStorage),
+						},
+					},
+				})
+			}
+
+			t.Log("Start informer factory after initialization")
+			informerFactory.Start(ctx.Done())
+
+			t.Log("Wait for all started informers' cache were synced")
+			informerFactory.WaitForCacheSync(ctx.Done())
+
+			args := &config.VolumeBindingArgs{
+				BindTimeoutSeconds: 300,
+			}
+
+			pl, err := New(args, fh)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			t.Log("Verify")
+
+			if item.localInfo != nil {
+				data, err := json.Marshal(item.localInfo)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if item.node.Annotations == nil {
+					item.node.Annotations = make(map[string]string)
+				}
+				item.node.Annotations[extension.AnnotationLocalInfo] = string(data)
+			}
+
+			nodeLocalVolumeInfo, err := newNodeLocalVolumeInfo(item.node)
+			assert.NoError(t, err)
+			pl.(*VolumeBinding).nodeStorageCache.UpdateOnNode(item.node.Name, func(info *NodeStorageInfo) {
+				info.UpdateNodeLocalVolumeInfo(nodeLocalVolumeInfo)
+				info.AddLocalVolumeAlloc(item.existingPod, item.ephemeralStorageSize, item.localInlineVolumeSize)
+			})
+
+			t.Logf("Verify: call PreFilter and check status")
+			state := framework.NewCycleState()
+			_, gotPreFilterStatus := pl.(framework.PreFilterPlugin).PreFilter(ctx, state, item.pod)
+			if !reflect.DeepEqual(gotPreFilterStatus, item.wantPreFilterStatus) {
+				t.Errorf("filter prefilter status does not match: %v, want: %v", gotPreFilterStatus, item.wantPreFilterStatus)
+			}
+			if !gotPreFilterStatus.IsSuccess() {
+				// scheduler framework will skip Filter if PreFilter fails
+				return
+			}
+
+			t.Logf("Verify: check state after prefilter phase")
+			stateData, err := getStateData(state)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(stateData, item.wantStateAfterPreFilter) {
+				t.Errorf("state got after prefilter does not match: %v, want: %v", stateData, item.wantStateAfterPreFilter)
+			}
+
+			t.Logf("Verify: call Filter and check status")
+			nodeInfo := framework.NewNodeInfo()
+			nodeInfo.SetNode(item.node)
+			gotStatus := pl.(framework.FilterPlugin).Filter(ctx, state, item.pod, nodeInfo)
+			if !reflect.DeepEqual(gotStatus, item.wantFilterStatus) {
+				t.Errorf("filter status does not match: %v, want: %v", gotStatus, item.wantFilterStatus)
+			}
+			if item.wantStateAfterFilter != nil && !reflect.DeepEqual(stateData, item.wantStateAfterFilter) {
+				t.Errorf("state got after filter does not match: %v, want: %v", stateData, item.wantStateAfterFilter)
+			}
+
+			pl.(*VolumeBinding).RemovePod(ctx, state, item.pod, framework.NewPodInfo(item.existingPod), nodeInfo)
+
+			t.Logf("Verify: check state after prefilterRemove phase")
+			stateData, err = getStateData(state)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(stateData, item.wantStateAfterPreFilterRemove) {
+				t.Errorf("state got after prefilter remove does not match: %v, want: %v", stateData, item.wantStateAfterPreFilterRemove)
+			}
+
+			t.Logf("Verify: call Filter and check status")
+			nodeInfo = framework.NewNodeInfo()
+			nodeInfo.SetNode(item.node)
+			gotStatus = pl.(framework.FilterPlugin).Filter(ctx, state, item.pod, nodeInfo)
+			if !reflect.DeepEqual(gotStatus, item.wantFilterStatusAfterPreFilterRemove) {
+				t.Errorf("filter status does not match: %v, want: %v", gotStatus, item.wantFilterStatusAfterPreFilterRemove)
+			}
+
+			pl.(*VolumeBinding).AddPod(ctx, state, item.pod, framework.NewPodInfo(item.existingPod), nodeInfo)
+
+			t.Logf("Verify: check state after prefilterAdd phase")
+			stateData, err = getStateData(state)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(stateData, item.wantStateAfterPreFilterAdd) {
+				t.Errorf("state got after prefilter add does not match: %v, want: %v", stateData, item.wantStateAfterPreFilterAdd)
+			}
+
+			t.Logf("Verify: call Filter and check status")
+			nodeInfo = framework.NewNodeInfo()
+			nodeInfo.SetNode(item.node)
+			gotStatus = pl.(framework.FilterPlugin).Filter(ctx, state, item.pod, nodeInfo)
+			if !reflect.DeepEqual(gotStatus, item.wantFilterStatusAfterPreFilterAdd) {
+				t.Errorf("filter status does not match: %v, want: %v", gotStatus, item.wantFilterStatusAfterPreFilterAdd)
+			}
+
 		})
 	}
 }
