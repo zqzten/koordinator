@@ -141,7 +141,7 @@ func (pl *Plugin) Name() string {
 
 type preFilterState struct {
 	skip        bool
-	podRequests corev1.ResourceList
+	podRequests map[schedulingv1alpha1.DeviceType]corev1.ResourceList
 }
 
 func (s *preFilterState) Clone() framework.StateData {
@@ -163,15 +163,14 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 		return nil, status
 	}
 
-	state := &preFilterState{
-		skip: true,
+	requests, err := deviceshare.GetPodDeviceRequests(pod)
+	if err != nil {
+		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, err.Error())
 	}
-
-	state.skip, state.podRequests, status = deviceshare.PreparePod(pod)
-	if !status.IsSuccess() {
-		return nil, status
-	}
-	cycleState.Write(stateKey, state)
+	cycleState.Write(stateKey, &preFilterState{
+		skip:        len(requests) == 0,
+		podRequests: requests,
+	})
 	return result, nil
 }
 
@@ -200,10 +199,11 @@ func (pl *Plugin) Filter(ctx context.Context, cycleState *framework.CycleState, 
 }
 
 func (pl *Plugin) checkDriverVersionIfNeed(state *preFilterState, pod *corev1.Pod, node *corev1.Node) *framework.Status {
-	if pod.Spec.RuntimeClassName != nil && *pod.Spec.RuntimeClassName == "rund" && deviceshare.HasDeviceResource(state.podRequests, schedulingv1alpha1.GPU) {
+	gpuResources := state.podRequests[schedulingv1alpha1.GPU]
+	if pod.Spec.RuntimeClassName != nil && *pod.Spec.RuntimeClassName == "rund" && !quotav1.IsZero(gpuResources) {
 		var matchedVersion string
 		var err error
-		if isGPUSharedPod(state.podRequests) {
+		if isGPUSharedPod(state.podRequests[schedulingv1alpha1.GPU]) {
 			hostDriverVersion := node.Labels[apiext.LabelGPUDriverVersion]
 			if hostDriverVersion == "" {
 				return framework.NewStatus(framework.UnschedulableAndUnresolvable, ErrInvalidDriverVersion)
@@ -392,7 +392,7 @@ func appendKoordGPUMemoryRatioIfNeeded(pod *corev1.Pod, deviceAllocations apiext
 		}
 		for i := range pod.Spec.Containers {
 			container := &pod.Spec.Containers[i]
-			if !deviceshare.HasDeviceResource(container.Resources.Requests, schedulingv1alpha1.GPU) {
+			if !HasDeviceResource(container.Resources.Requests, schedulingv1alpha1.GPU) {
 				continue
 			}
 			combination, err := deviceshare.ValidateDeviceRequest(container.Resources.Requests)
@@ -489,7 +489,7 @@ func appendUnifiedDeviceAllocStatus(pod *corev1.Pod, deviceAllocations apiext.De
 		}
 		for i := range pod.Spec.Containers {
 			container := &pod.Spec.Containers[i]
-			if !deviceshare.HasDeviceResource(container.Resources.Requests, schedulingv1alpha1.GPU) {
+			if !HasDeviceResource(container.Resources.Requests, schedulingv1alpha1.GPU) {
 				continue
 			}
 			combination, err := deviceshare.ValidateDeviceRequest(container.Resources.Requests)
@@ -719,7 +719,7 @@ func appendRundResult(pod *corev1.Pod, allocResult apiext.DeviceAllocations, pl 
 }
 
 func isGPUSharedPod(resourceList corev1.ResourceList) bool {
-	if !deviceshare.HasDeviceResource(resourceList, schedulingv1alpha1.GPU) {
+	if !HasDeviceResource(resourceList, schedulingv1alpha1.GPU) {
 		return false
 	}
 	quantity := resourceList[apiext.ResourceGPUMemoryRatio]
@@ -759,4 +759,18 @@ func matchDriverVersions(pod *corev1.Pod, driverVersions extunified.NVIDIADriver
 		}
 	}
 	return matchedVersion, nil
+}
+
+func HasDeviceResource(podRequest corev1.ResourceList, deviceType schedulingv1alpha1.DeviceType) bool {
+	if podRequest == nil || len(podRequest) == 0 {
+		klog.V(5).Infof("skip checking HasDeviceResource, because pod request is empty")
+		return false
+	}
+	for _, resourceName := range deviceshare.DeviceResourceNames[deviceType] {
+		if quantity := podRequest[resourceName]; !quantity.IsZero() {
+			return true
+		}
+	}
+	klog.V(5).Infof("pod does not request %v resource", deviceType)
+	return false
 }

@@ -417,7 +417,6 @@ func (p *Plugin) Reserve(ctx context.Context, cycleState *framework.CycleState, 
 	if !status.IsSuccess() {
 		return status
 	}
-	var err error
 	if len(result) == 0 {
 		preemptible = appendAllocated(preemptible, restoreState.mergedMatchedAllocatable)
 		result, status = allocator.Allocate(nil, nil, nil, preemptible)
