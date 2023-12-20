@@ -850,6 +850,17 @@ func TestMatchDriverVersions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fakeDevice := fakeDeviceCR.DeepCopy()
+			for i := 0; i < 6; i++ {
+				fakeDevice.Spec.Devices = append(fakeDevice.Spec.Devices, schedulingv1alpha1.DeviceInfo{
+					Minor:  pointer.Int32(int32(i)),
+					UUID:   fmt.Sprintf("0000:90:00.%d", i),
+					Type:   unified.NVSwitchDeviceType,
+					Health: true,
+					Resources: corev1.ResourceList{
+						unified.NVSwitchResource: *resource.NewQuantity(100, resource.DecimalSI),
+					},
+				})
+			}
 			if tt.driverVersions != nil {
 				data, err := json.Marshal(tt.driverVersions)
 				assert.NoError(t, err)

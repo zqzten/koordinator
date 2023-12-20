@@ -54,6 +54,7 @@ const (
 	EnableHugePageAsMemory                      featuregate.Feature = "EnableHugePageAsMemory"
 	EnableACSDefaultSpread                      featuregate.Feature = "EnableACSDefaultSpread"
 	EnableTransformerDeviceTopology             featuregate.Feature = "EnableTransformerDeviceTopology"
+	EnableDefaultDeviceAllocateHint             featuregate.Feature = "EnableDefaultDeviceAllocateHint"
 )
 
 const (
@@ -92,6 +93,7 @@ var defaultUnifiedSchedulerFeatureGates = map[featuregate.Feature]featuregate.Fe
 	EnableHugePageAsMemory:                      {Default: false, PreRelease: featuregate.Beta},
 	EnableACSDefaultSpread:                      {Default: false, PreRelease: featuregate.Beta},
 	EnableTransformerDeviceTopology:             {Default: true, PreRelease: featuregate.Beta},
+	EnableDefaultDeviceAllocateHint:             {Default: false, PreRelease: featuregate.Beta},
 }
 
 var defaultUnifiedKoordletFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{

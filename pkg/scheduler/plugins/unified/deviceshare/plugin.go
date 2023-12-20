@@ -158,6 +158,12 @@ func getPreFilterState(cycleState *framework.CycleState) (*preFilterState, *fram
 }
 
 func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod) (*framework.PreFilterResult, *framework.Status) {
+	newPod, err := fillDefaultDeviceAllocateHint(pod)
+	if err != nil {
+		return nil, framework.AsStatus(err)
+	}
+	pod = newPod
+
 	result, status := pl.Plugin.PreFilter(ctx, cycleState, pod)
 	if !status.IsSuccess() {
 		return nil, status
@@ -718,13 +724,13 @@ func appendRundResult(pod *corev1.Pod, allocResult apiext.DeviceAllocations, pl 
 	return nil
 }
 
-func isGPUSharedPod(resourceList corev1.ResourceList) bool {
-	if !HasDeviceResource(resourceList, schedulingv1alpha1.GPU) {
+func isGPUSharedPod(gpuResources corev1.ResourceList) bool {
+	if quotav1.IsZero(gpuResources) {
 		return false
 	}
-	quantity := resourceList[apiext.ResourceGPUMemoryRatio]
+	quantity := gpuResources[apiext.ResourceGPUMemoryRatio]
 	memRatioAlloc := quantity.Value()
-	quantity = resourceList[apiext.ResourceGPUCore]
+	quantity = gpuResources[apiext.ResourceGPUCore]
 	utilAlloc := quantity.Value()
 	return memRatioAlloc < 100 || utilAlloc < 100
 }
