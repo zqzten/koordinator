@@ -15,6 +15,7 @@ import (
 
 type podEventHandler struct {
 	updateReqHandler *controller
+	profileName      string
 }
 
 func registersPodEventHandler(handle framework.Handle, inplaceUpdateController *controller) {
@@ -35,6 +36,7 @@ func registersPodEventHandler(handle framework.Handle, inplaceUpdateController *
 		},
 		Handler: &podEventHandler{
 			updateReqHandler: inplaceUpdateController,
+			profileName:      handle.(framework.Framework).ProfileName(),
 		},
 	}
 	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), handle.SharedInformerFactory(), podInformer, eventHandler)
@@ -47,6 +49,9 @@ func assignedPod(pod *corev1.Pod) bool {
 func (p *podEventHandler) OnAdd(obj interface{}) {
 	pod, ok := obj.(*corev1.Pod)
 	if !ok {
+		return
+	}
+	if pod.Spec.SchedulerName != p.profileName {
 		return
 	}
 	if util.IsPodTerminated(pod) {
@@ -88,6 +93,9 @@ func (p *podEventHandler) OnUpdate(oldObj, newObj interface{}) {
 	}
 	newPod, ok := newObj.(*corev1.Pod)
 	if !ok {
+		return
+	}
+	if newPod.Spec.SchedulerName != p.profileName {
 		return
 	}
 	if util.IsPodTerminated(newPod) {
