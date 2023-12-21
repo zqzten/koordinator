@@ -1456,3 +1456,336 @@ func TestSpreadConstraintWithVK(t *testing.T) {
 		})
 	}
 }
+
+func TestPreFilterStateAddPod(t *testing.T) {
+	tests := []struct {
+		name                      string
+		podConstraint             *v1beta1.PodConstraint
+		existingPods              []*corev1.Pod
+		nodes                     []*corev1.Node
+		pod                       *corev1.Pod
+		expectPrefilterState      *preFilterState
+		testNodes                 []string
+		filterStatus              []*framework.Status
+		toAddPod                  *corev1.Pod
+		prefilterStateAfterAddPod *preFilterState
+		filterStatusAfterAddPod   []*framework.Status
+	}{
+		{
+			name: "matchNum all equal, all satisfy maxSkew",
+			podConstraint: &v1beta1.PodConstraint{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+					Name:      "test",
+				},
+				Spec: v1beta1.PodConstraintSpec{
+					SpreadRule: v1beta1.SpreadRule{
+						Requires: []v1beta1.SpreadRuleItem{
+							{
+								TopologyKey: corev1.LabelTopologyZone,
+								MaxSkew:     1,
+							},
+						},
+					},
+				},
+			},
+			// constructs topology: topology.kubernetes.io/zone
+			//  +-------+-------+-------+
+			//  | na610 | na620 | na630 |
+			//  |-------+-------+-------|
+			//  |  2    |  2    |  2    |
+			//  +-------+-------+-------+
+			//
+			existingPods: []*corev1.Pod{
+				st.MakePod().Namespace("default").Name("pod-1").Node("test-node-1").Label(extunified.LabelPodConstraint, "test").Obj(),
+				st.MakePod().Namespace("default").Name("pod-2").Node("test-node-1").Label(extunified.LabelPodConstraint, "test").Obj(),
+				st.MakePod().Namespace("default").Name("pod-3").Node("test-node-2").Label(extunified.LabelPodConstraint, "test").Obj(),
+				st.MakePod().Namespace("default").Name("pod-4").Node("test-node-2").Label(extunified.LabelPodConstraint, "test").Obj(),
+				st.MakePod().Namespace("default").Name("pod-5").Node("test-node-3").Label(extunified.LabelPodConstraint, "test").Obj(),
+			},
+			nodes: []*corev1.Node{
+				st.MakeNode().Name("test-node-1").Label(corev1.LabelTopologyZone, "na610").Obj(),
+				st.MakeNode().Name("test-node-2").Label(corev1.LabelTopologyZone, "na620").Obj(),
+				st.MakeNode().Name("test-node-3").Label(corev1.LabelTopologyZone, "na630").Obj(),
+				st.MakeNode().Name("test-node-4").Label(corev1.LabelTopologyZone, "na630").Obj(),
+			},
+			pod: st.MakePod().Namespace("default").Name("test-pod").Label(extunified.LabelPodConstraint, "test").Obj(),
+			expectPrefilterState: &preFilterState{
+				items: []*preFilterStateItem{
+					{
+						RequiredSpreadConstraints: []*cache.TopologySpreadConstraint{
+							{
+								TopologyKey:        corev1.LabelTopologyZone,
+								MaxSkew:            1,
+								NodeAffinityPolicy: v1beta1.NodeInclusionPolicyHonor,
+								NodeTaintsPolicy:   v1beta1.NodeInclusionPolicyIgnore,
+							},
+						},
+						TpKeyToTotalMatchNum: map[string]*int32{
+							corev1.LabelTopologyZone: pointer.Int32(5),
+						},
+						TpPairToMatchNum: map[cache.TopologyPair]*int32{
+							{TopologyKey: corev1.LabelTopologyZone, TopologyValue: "na610"}: pointer.Int32(2),
+							{TopologyKey: corev1.LabelTopologyZone, TopologyValue: "na620"}: pointer.Int32(2),
+							{TopologyKey: corev1.LabelTopologyZone, TopologyValue: "na630"}: pointer.Int32(1),
+						},
+						TpKeyToCriticalPaths: nil,
+					},
+				},
+			},
+			testNodes:    []string{"test-node-1", "test-node-2", "test-node-3"},
+			filterStatus: []*framework.Status{framework.NewStatus(framework.Unschedulable, ErrReasonConstraintsNotMatch), framework.NewStatus(framework.Unschedulable, ErrReasonConstraintsNotMatch), nil},
+			toAddPod:     st.MakePod().Namespace("default").Name("pod-6").Node("test-node-3").Label(extunified.LabelPodConstraint, "test").Obj(),
+			prefilterStateAfterAddPod: &preFilterState{
+				items: []*preFilterStateItem{
+					{
+						RequiredSpreadConstraints: []*cache.TopologySpreadConstraint{
+							{
+								TopologyKey:        corev1.LabelTopologyZone,
+								MaxSkew:            1,
+								NodeAffinityPolicy: v1beta1.NodeInclusionPolicyHonor,
+								NodeTaintsPolicy:   v1beta1.NodeInclusionPolicyIgnore,
+							},
+						},
+						TpKeyToTotalMatchNum: map[string]*int32{
+							corev1.LabelTopologyZone: pointer.Int32(6),
+						},
+						TpPairToMatchNum: map[cache.TopologyPair]*int32{
+							{TopologyKey: corev1.LabelTopologyZone, TopologyValue: "na610"}: pointer.Int32(2),
+							{TopologyKey: corev1.LabelTopologyZone, TopologyValue: "na620"}: pointer.Int32(2),
+							{TopologyKey: corev1.LabelTopologyZone, TopologyValue: "na630"}: pointer.Int32(2),
+						},
+						TpKeyToCriticalPaths: nil,
+					},
+				},
+			},
+			filterStatusAfterAddPod: []*framework.Status{nil, nil, nil},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			suit := newPluginTestSuit(t, tt.nodes, tt.existingPods)
+			p, err := suit.proxyNew(suit.args, suit.Handle)
+			assert.NotNil(t, p)
+			assert.Nil(t, err)
+
+			plg := p.(*Plugin)
+			suit.start()
+
+			for _, node := range tt.nodes {
+				_, err := suit.Handle.ClientSet().CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
+				assert.NoError(t, err)
+			}
+			plg.podConstraintCache.SetPodConstraint(tt.podConstraint)
+
+			// normal prefilter
+			cycleState := framework.NewCycleState()
+			_, status := plg.PreFilter(context.TODO(), cycleState, tt.pod)
+			assert.True(t, status.IsSuccess())
+			state, status := getPreFilterState(cycleState)
+			assert.True(t, status.IsSuccess())
+			if tt.expectPrefilterState != nil {
+				assert.Equal(t, tt.expectPrefilterState.items[0].RequiredSpreadConstraints, state.items[0].RequiredSpreadConstraints)
+				assert.Equal(t, tt.expectPrefilterState.items[0].TpPairToMatchNum, state.items[0].TpPairToMatchNum)
+				if tt.expectPrefilterState.items[0].TpKeyToCriticalPaths != nil {
+					assert.Equal(t, tt.expectPrefilterState.items[0].TpKeyToCriticalPaths, state.items[0].TpKeyToCriticalPaths)
+				}
+				assert.Equal(t, tt.expectPrefilterState.items[0].TpKeyToTotalMatchNum, state.items[0].TpKeyToTotalMatchNum)
+			}
+			// normal filter
+			for i, v := range tt.testNodes {
+				nodeInfo, err := suit.Handle.SnapshotSharedLister().NodeInfos().Get(v)
+				assert.NoError(t, err)
+				status = plg.Filter(context.TODO(), cycleState, tt.pod, nodeInfo)
+				assert.Equal(t, tt.filterStatus[i], status)
+			}
+
+			nodeInfo, err := suit.Handle.SnapshotSharedLister().NodeInfos().Get(tt.toAddPod.Spec.NodeName)
+			assert.NoError(t, err)
+			status = plg.AddPod(context.TODO(), cycleState, tt.pod, framework.NewPodInfo(tt.toAddPod), nodeInfo)
+			assert.True(t, status.IsSuccess())
+			if tt.prefilterStateAfterAddPod != nil {
+				assert.Equal(t, tt.prefilterStateAfterAddPod.items[0].RequiredSpreadConstraints, state.items[0].RequiredSpreadConstraints)
+				assert.Equal(t, tt.prefilterStateAfterAddPod.items[0].TpPairToMatchNum, state.items[0].TpPairToMatchNum)
+				if tt.prefilterStateAfterAddPod.items[0].TpKeyToCriticalPaths != nil {
+					assert.Equal(t, tt.prefilterStateAfterAddPod.items[0].TpKeyToCriticalPaths, state.items[0].TpKeyToCriticalPaths)
+				}
+				assert.Equal(t, tt.prefilterStateAfterAddPod.items[0].TpKeyToTotalMatchNum, state.items[0].TpKeyToTotalMatchNum)
+			}
+			// normal filter after add pod
+			for i, v := range tt.testNodes {
+				nodeInfo, err := suit.Handle.SnapshotSharedLister().NodeInfos().Get(v)
+				assert.NoError(t, err)
+				status = plg.Filter(context.TODO(), cycleState, tt.pod, nodeInfo)
+				assert.Equal(t, tt.filterStatusAfterAddPod[i], status)
+			}
+		})
+	}
+}
+
+func TestPreFilterStateRemovePod(t *testing.T) {
+	tests := []struct {
+		name                         string
+		podConstraint                *v1beta1.PodConstraint
+		existingPods                 []*corev1.Pod
+		nodes                        []*corev1.Node
+		pod                          *corev1.Pod
+		expectPrefilterState         *preFilterState
+		testNodes                    []string
+		filterStatus                 []*framework.Status
+		toRemovePod                  *corev1.Pod
+		prefilterStateAfterRemovePod *preFilterState
+		filterStatusAfterRemovePod   []*framework.Status
+	}{
+		{
+			name: "matchNum all equal, all satisfy maxSkew",
+			podConstraint: &v1beta1.PodConstraint{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "default",
+					Name:      "test",
+				},
+				Spec: v1beta1.PodConstraintSpec{
+					SpreadRule: v1beta1.SpreadRule{
+						Requires: []v1beta1.SpreadRuleItem{
+							{
+								TopologyKey: corev1.LabelTopologyZone,
+								MaxSkew:     1,
+							},
+						},
+					},
+				},
+			},
+			// constructs topology: topology.kubernetes.io/zone
+			//  +-------+-------+-------+
+			//  | na610 | na620 | na630 |
+			//  |-------+-------+-------|
+			//  |  2    |  2    |  2    |
+			//  +-------+-------+-------+
+			//
+			existingPods: []*corev1.Pod{
+				st.MakePod().Namespace("default").Name("pod-1").Node("test-node-1").Label(extunified.LabelPodConstraint, "test").Obj(),
+				st.MakePod().Namespace("default").Name("pod-2").Node("test-node-1").Label(extunified.LabelPodConstraint, "test").Obj(),
+				st.MakePod().Namespace("default").Name("pod-3").Node("test-node-2").Label(extunified.LabelPodConstraint, "test").Obj(),
+				st.MakePod().Namespace("default").Name("pod-4").Node("test-node-2").Label(extunified.LabelPodConstraint, "test").Obj(),
+				st.MakePod().Namespace("default").Name("pod-5").Node("test-node-3").Label(extunified.LabelPodConstraint, "test").Obj(),
+				st.MakePod().Namespace("default").Name("pod-6").Node("test-node-3").Label(extunified.LabelPodConstraint, "test").Obj(),
+			},
+			nodes: []*corev1.Node{
+				st.MakeNode().Name("test-node-1").Label(corev1.LabelTopologyZone, "na610").Obj(),
+				st.MakeNode().Name("test-node-2").Label(corev1.LabelTopologyZone, "na620").Obj(),
+				st.MakeNode().Name("test-node-3").Label(corev1.LabelTopologyZone, "na630").Obj(),
+				st.MakeNode().Name("test-node-4").Label(corev1.LabelTopologyZone, "na630").Obj(),
+			},
+			pod: st.MakePod().Namespace("default").Name("test-pod").Label(extunified.LabelPodConstraint, "test").Obj(),
+			expectPrefilterState: &preFilterState{
+				items: []*preFilterStateItem{
+					{
+						RequiredSpreadConstraints: []*cache.TopologySpreadConstraint{
+							{
+								TopologyKey:        corev1.LabelTopologyZone,
+								MaxSkew:            1,
+								NodeAffinityPolicy: v1beta1.NodeInclusionPolicyHonor,
+								NodeTaintsPolicy:   v1beta1.NodeInclusionPolicyIgnore,
+							},
+						},
+						TpKeyToTotalMatchNum: map[string]*int32{
+							corev1.LabelTopologyZone: pointer.Int32(6),
+						},
+						TpPairToMatchNum: map[cache.TopologyPair]*int32{
+							{TopologyKey: corev1.LabelTopologyZone, TopologyValue: "na610"}: pointer.Int32(2),
+							{TopologyKey: corev1.LabelTopologyZone, TopologyValue: "na620"}: pointer.Int32(2),
+							{TopologyKey: corev1.LabelTopologyZone, TopologyValue: "na630"}: pointer.Int32(2),
+						},
+						TpKeyToCriticalPaths: nil,
+					},
+				},
+			},
+			testNodes:    []string{"test-node-1", "test-node-2", "test-node-3"},
+			filterStatus: []*framework.Status{nil, nil, nil},
+			toRemovePod:  st.MakePod().Namespace("default").Name("pod-6").Node("test-node-3").Label(extunified.LabelPodConstraint, "test").Obj(),
+			prefilterStateAfterRemovePod: &preFilterState{
+				items: []*preFilterStateItem{
+					{
+						RequiredSpreadConstraints: []*cache.TopologySpreadConstraint{
+							{
+								TopologyKey:        corev1.LabelTopologyZone,
+								MaxSkew:            1,
+								NodeAffinityPolicy: v1beta1.NodeInclusionPolicyHonor,
+								NodeTaintsPolicy:   v1beta1.NodeInclusionPolicyIgnore,
+							},
+						},
+						TpKeyToTotalMatchNum: map[string]*int32{
+							corev1.LabelTopologyZone: pointer.Int32(5),
+						},
+						TpPairToMatchNum: map[cache.TopologyPair]*int32{
+							{TopologyKey: corev1.LabelTopologyZone, TopologyValue: "na610"}: pointer.Int32(2),
+							{TopologyKey: corev1.LabelTopologyZone, TopologyValue: "na620"}: pointer.Int32(2),
+							{TopologyKey: corev1.LabelTopologyZone, TopologyValue: "na630"}: pointer.Int32(1),
+						},
+						TpKeyToCriticalPaths: nil,
+					},
+				},
+			},
+			filterStatusAfterRemovePod: []*framework.Status{framework.NewStatus(framework.Unschedulable, ErrReasonConstraintsNotMatch), framework.NewStatus(framework.Unschedulable, ErrReasonConstraintsNotMatch), nil},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			suit := newPluginTestSuit(t, tt.nodes, tt.existingPods)
+			p, err := suit.proxyNew(suit.args, suit.Handle)
+			assert.NotNil(t, p)
+			assert.Nil(t, err)
+
+			plg := p.(*Plugin)
+			suit.start()
+
+			for _, node := range tt.nodes {
+				_, err := suit.Handle.ClientSet().CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
+				assert.NoError(t, err)
+			}
+			plg.podConstraintCache.SetPodConstraint(tt.podConstraint)
+
+			// normal prefilter
+			cycleState := framework.NewCycleState()
+			_, status := plg.PreFilter(context.TODO(), cycleState, tt.pod)
+			assert.True(t, status.IsSuccess())
+			state, status := getPreFilterState(cycleState)
+			assert.True(t, status.IsSuccess())
+			if tt.expectPrefilterState != nil {
+				assert.Equal(t, tt.expectPrefilterState.items[0].RequiredSpreadConstraints, state.items[0].RequiredSpreadConstraints)
+				assert.Equal(t, tt.expectPrefilterState.items[0].TpPairToMatchNum, state.items[0].TpPairToMatchNum)
+				if tt.expectPrefilterState.items[0].TpKeyToCriticalPaths != nil {
+					assert.Equal(t, tt.expectPrefilterState.items[0].TpKeyToCriticalPaths, state.items[0].TpKeyToCriticalPaths)
+				}
+				assert.Equal(t, tt.expectPrefilterState.items[0].TpKeyToTotalMatchNum, state.items[0].TpKeyToTotalMatchNum)
+			}
+			// normal filter
+			for i, v := range tt.testNodes {
+				nodeInfo, err := suit.Handle.SnapshotSharedLister().NodeInfos().Get(v)
+				assert.NoError(t, err)
+				status = plg.Filter(context.TODO(), cycleState, tt.pod, nodeInfo)
+				assert.Equal(t, tt.filterStatus[i], status)
+			}
+
+			nodeInfo, err := suit.Handle.SnapshotSharedLister().NodeInfos().Get(tt.toRemovePod.Spec.NodeName)
+			assert.NoError(t, err)
+			status = plg.RemovePod(context.TODO(), cycleState, tt.pod, framework.NewPodInfo(tt.toRemovePod), nodeInfo)
+			assert.True(t, status.IsSuccess())
+			if tt.prefilterStateAfterRemovePod != nil {
+				assert.Equal(t, tt.prefilterStateAfterRemovePod.items[0].RequiredSpreadConstraints, state.items[0].RequiredSpreadConstraints)
+				assert.Equal(t, tt.prefilterStateAfterRemovePod.items[0].TpPairToMatchNum, state.items[0].TpPairToMatchNum)
+				if tt.prefilterStateAfterRemovePod.items[0].TpKeyToCriticalPaths != nil {
+					assert.Equal(t, tt.prefilterStateAfterRemovePod.items[0].TpKeyToCriticalPaths, state.items[0].TpKeyToCriticalPaths)
+				}
+				assert.Equal(t, tt.prefilterStateAfterRemovePod.items[0].TpKeyToTotalMatchNum, state.items[0].TpKeyToTotalMatchNum)
+			}
+			// normal filter after add pod
+			for i, v := range tt.testNodes {
+				nodeInfo, err := suit.Handle.SnapshotSharedLister().NodeInfos().Get(v)
+				assert.NoError(t, err)
+				status = plg.Filter(context.TODO(), cycleState, tt.pod, nodeInfo)
+				assert.Equal(t, tt.filterStatusAfterRemovePod[i], status)
+			}
+		})
+	}
+}

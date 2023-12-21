@@ -285,7 +285,7 @@ func (p *Plugin) RemovePod(ctx context.Context, state *framework.CycleState, pod
 	if !status.IsSuccess() {
 		return status
 	}
-	s.updateWithPod(podInfoToRemove.Pod, podToSchedule, nodeInfo.Node(), 1)
+	s.updateWithPod(podInfoToRemove.Pod, podToSchedule, nodeInfo.Node(), -1)
 	return nil
 }
 
