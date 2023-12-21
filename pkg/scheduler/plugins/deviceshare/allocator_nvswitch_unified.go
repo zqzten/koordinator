@@ -78,13 +78,26 @@ func (a *NVSwitchHandler) Allocate(requestCtx *requestContext, nodeDevice *nodeD
 	}
 
 	if !applyForAll {
+		// NVIDIA DGX A100 和 HGX A100 直通 GPU 到 VM 时，还需要根据 GPU 的数量直通一定量的 NVSwitch 实现 GPU 间的联通
+		// 参考 NVIDIA fabric-manager-user-guide.pdf Chapter6 Full Passthrough Virtualization Model 给出了如下的 GPU&NVSwitch 的分配关系
+		/*
+			| Number of GPUs per VM | Number of NVSwitches per VM | Enabled NVLink Interconnects Per GPU | Enabled NVLink Interconnects Per NVSwitch | Constraints                                |
+			|-----------------------|-----------------------------|--------------------------------------|-------------------------------------------|--------------------------------------------|
+			| 16                    | 12                          | 12 out of 12                         | 8                                        | One set of eight GPUs from each GPU Baseboard. |
+			| 8                     | 6                           | 12 out of 12                         | 6                                        | Two sets of four GPUs from each GPU Baseboard. |
+			| 4                     | 3                           | 6 out of 12                          | 4                                        | Four sets of two GPUs from each GPU Baseboard. |
+			| 2                     | 1                           | 2 out of 12                          | 2                                        | None                                       |
+			| 1                     | 0                           | 0 out of 12                          | 0                                        | None                                       |
+		*/
 		if numGPU == 16 {
 			desiredCount = 12
 		} else if numGPU == 7 {
+			// 基于 sGPU 支持 GPU Share 时，需要在 Host 保留一个 NVSwitch
 			desiredCount = 5
 		} else if numGPU == 8 {
 			desiredCount = 6
 		} else {
+			// 这里是一种内部特殊用法，如果分配的 GPU 不是按上述结构划分的，也需要分配 NVSwitch
 			desiredCount = numGPU - 1
 		}
 	}
