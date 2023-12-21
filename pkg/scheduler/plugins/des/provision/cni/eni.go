@@ -217,15 +217,15 @@ func (np *NetworkInterfaceProvisioner) PatchEni(ctx context.Context, pod *corev1
 			ZoneId:              zoneId,
 			VpcId:               interfaceSet[accountId].VpcId,
 			SecurityGroupIdList: interfaceSet[accountId].SecurityGroupIds.SecurityGroupId,
-			NeedRamRole:         false,
+			NeedRamRole:         true,
 		})
 	} else {
 		for iface, customConfig := range interfaceCustomConfig {
 			cidr := vSwitchCIDR
-			needRamRole := false
+			needRamRole := true
 			if customConfig.ServiceAccountUID != accountId {
 				cidr = serviceAccountVSwitchCIDR
-				needRamRole = true
+				needRamRole = false
 			}
 			injectedNetworkInterfaces = append(injectedNetworkInterfaces, &InjectedNetworkInterface{
 				Interface:           iface,
