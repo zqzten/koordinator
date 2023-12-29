@@ -17,6 +17,7 @@ package podtopologyspread
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"testing"
@@ -29,13 +30,17 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	plugintesting "k8s.io/kubernetes/pkg/scheduler/framework/plugins/testing"
 	st "k8s.io/kubernetes/pkg/scheduler/testing"
 	"k8s.io/utils/pointer"
 
+	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	"github.com/koordinator-sh/koordinator/pkg/features"
 	nodeaffinityhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/nodeaffinity"
+	"github.com/koordinator-sh/koordinator/pkg/util/feature"
 )
 
 // Snapshot is a snapshot of cache NodeInfo and NodeTree order. The scheduler takes a
@@ -200,13 +205,15 @@ func TestPreFilterState(t *testing.T) {
 	fooSelector := st.MakeLabelSelector().Exists("foo").Obj()
 	barSelector := st.MakeLabelSelector().Exists("bar").Obj()
 	tests := []struct {
-		name               string
-		pod                *v1.Pod
-		nodes              []*v1.Node
-		existingPods       []*v1.Pod
-		objs               []runtime.Object
-		defaultConstraints []v1.TopologySpreadConstraint
-		want               *preFilterState
+		name                 string
+		pod                  *v1.Pod
+		nodes                []*v1.Node
+		existingPods         []*v1.Pod
+		objs                 []runtime.Object
+		matchLabelKeys       []string
+		enableMatchLabelKeys bool
+		defaultConstraints   []v1.TopologySpreadConstraint
+		want                 *preFilterState
 	}{
 		{
 			name: "clean cluster with one spreadConstraint",
@@ -653,9 +660,232 @@ func TestPreFilterState(t *testing.T) {
 			},
 			want: &preFilterState{},
 		},
+		{
+			name: "matchLabelKeys ignored when feature gate disabled",
+			pod: st.MakePod().Name("p").Label("foo", "").Label("bar", "").
+				SpreadConstraint(1, "zone", v1.DoNotSchedule, fooSelector, nil).
+				Obj(),
+			matchLabelKeys: []string{"bar"},
+			nodes: []*v1.Node{
+				st.MakeNode().Name("node-a").Label("zone", "zone1").Label("node", "node-a").Obj(),
+				st.MakeNode().Name("node-b").Label("zone", "zone1").Label("node", "node-b").Obj(),
+				st.MakeNode().Name("node-x").Label("zone", "zone2").Label("node", "node-x").Obj(),
+				st.MakeNode().Name("node-y").Label("zone", "zone2").Label("node", "node-y").Obj(),
+			},
+			existingPods: []*v1.Pod{
+				st.MakePod().Name("p-a1").Node("node-a").Label("foo", "").Obj(),
+				st.MakePod().Name("p-a2").Node("node-a").Label("foo", "").Obj(),
+				st.MakePod().Name("p-b1").Node("node-b").Label("foo", "").Obj(),
+				st.MakePod().Name("p-y1").Node("node-y").Label("foo", "").Obj(),
+				st.MakePod().Name("p-y2").Node("node-y").Label("foo", "").Obj(),
+			},
+			want: &preFilterState{
+				Constraints: []topologySpreadConstraint{
+					{
+						MaxSkew:     1,
+						TopologyKey: "zone",
+						Selector:    mustConvertLabelSelectorAsSelector(t, fooSelector),
+					},
+				},
+				TpKeyToCriticalPaths: map[string]*criticalPaths{
+					"zone": {{"zone2", 2}, {"zone1", 3}},
+				},
+				TpPairToMatchNum: map[topologyPair]*int32{
+					{key: "zone", value: "zone1"}: pointer.Int32(3),
+					{key: "zone", value: "zone2"}: pointer.Int32(2),
+				},
+			},
+			enableMatchLabelKeys: false,
+		},
+		{
+			name: "matchLabelKeys ANDed with LabelSelector when LabelSelector isn't empty",
+			pod: st.MakePod().Name("p").Label("foo", "").Label("bar", "a").
+				SpreadConstraint(1, "zone", v1.DoNotSchedule, fooSelector, nil).
+				Obj(),
+			matchLabelKeys: []string{"bar"},
+			nodes: []*v1.Node{
+				st.MakeNode().Name("node-a").Label("zone", "zone1").Label("node", "node-a").Obj(),
+				st.MakeNode().Name("node-b").Label("zone", "zone1").Label("node", "node-b").Obj(),
+				st.MakeNode().Name("node-x").Label("zone", "zone2").Label("node", "node-x").Obj(),
+				st.MakeNode().Name("node-y").Label("zone", "zone2").Label("node", "node-y").Obj(),
+			},
+			existingPods: []*v1.Pod{
+				st.MakePod().Name("p-a1").Node("node-a").Label("foo", "").Obj(),
+				st.MakePod().Name("p-a2").Node("node-a").Label("foo", "").Label("bar", "a").Obj(),
+				st.MakePod().Name("p-b1").Node("node-b").Label("foo", "").Obj(),
+				st.MakePod().Name("p-y1").Node("node-y").Label("foo", "").Label("bar", "a").Obj(),
+				st.MakePod().Name("p-y2").Node("node-y").Label("bar", "").Obj(),
+			},
+			want: &preFilterState{
+				Constraints: []topologySpreadConstraint{
+					{
+						MaxSkew:     1,
+						TopologyKey: "zone",
+						Selector:    mustConvertLabelSelectorAsSelector(t, st.MakeLabelSelector().Exists("foo").Label("bar", "a").Obj()),
+					},
+				},
+				TpKeyToCriticalPaths: map[string]*criticalPaths{
+					"zone": {{"zone2", 1}, {"zone1", 1}},
+				},
+				TpPairToMatchNum: map[topologyPair]*int32{
+					{key: "zone", value: "zone1"}: pointer.Int32(1),
+					{key: "zone", value: "zone2"}: pointer.Int32(1),
+				},
+			},
+			enableMatchLabelKeys: true,
+		},
+		{
+			name: "matchLabelKeys ANDed with LabelSelector when LabelSelector is empty",
+			pod: st.MakePod().Name("p").Label("foo", "a").
+				SpreadConstraint(1, "zone", v1.DoNotSchedule, st.MakeLabelSelector().Obj(), nil).
+				Obj(),
+			matchLabelKeys: []string{"foo"},
+			nodes: []*v1.Node{
+				st.MakeNode().Name("node-a").Label("zone", "zone1").Label("node", "node-a").Obj(),
+				st.MakeNode().Name("node-b").Label("zone", "zone1").Label("node", "node-b").Obj(),
+				st.MakeNode().Name("node-x").Label("zone", "zone2").Label("node", "node-x").Obj(),
+				st.MakeNode().Name("node-y").Label("zone", "zone2").Label("node", "node-y").Obj(),
+			},
+			existingPods: []*v1.Pod{
+				st.MakePod().Name("p-a1").Node("node-a").Label("foo", "a").Obj(),
+				st.MakePod().Name("p-a2").Node("node-a").Label("foo", "a").Obj(),
+				st.MakePod().Name("p-b1").Node("node-b").Label("foo", "a").Obj(),
+				st.MakePod().Name("p-y1").Node("node-y").Label("foo", "a").Obj(),
+				st.MakePod().Name("p-y2").Node("node-y").Label("foo", "a").Obj(),
+			},
+			want: &preFilterState{
+				Constraints: []topologySpreadConstraint{
+					{
+						MaxSkew:     1,
+						TopologyKey: "zone",
+						Selector:    mustConvertLabelSelectorAsSelector(t, st.MakeLabelSelector().Label("foo", "a").Obj()),
+					},
+				},
+				TpKeyToCriticalPaths: map[string]*criticalPaths{
+					"zone": {{"zone2", 2}, {"zone1", 3}},
+				},
+				TpPairToMatchNum: map[topologyPair]*int32{
+					{key: "zone", value: "zone1"}: pointer.Int32(3),
+					{key: "zone", value: "zone2"}: pointer.Int32(2),
+				},
+			},
+			enableMatchLabelKeys: true,
+		},
+		{
+			name: "key in matchLabelKeys is ignored when LabelSelector is nil when feature gate enabled",
+			pod: st.MakePod().Name("p").Label("foo", "").
+				SpreadConstraint(1, "zone", v1.DoNotSchedule, nil, nil).
+				Obj(),
+			matchLabelKeys: []string{"bar"},
+			nodes: []*v1.Node{
+				st.MakeNode().Name("node-a").Label("zone", "zone1").Label("node", "node-a").Obj(),
+				st.MakeNode().Name("node-b").Label("zone", "zone1").Label("node", "node-b").Obj(),
+				st.MakeNode().Name("node-x").Label("zone", "zone2").Label("node", "node-x").Obj(),
+				st.MakeNode().Name("node-y").Label("zone", "zone2").Label("node", "node-y").Obj(),
+			},
+			existingPods: []*v1.Pod{
+				st.MakePod().Name("p-a1").Node("node-a").Label("foo", "a").Obj(),
+				st.MakePod().Name("p-a2").Node("node-a").Label("foo", "a").Obj(),
+				st.MakePod().Name("p-b1").Node("node-b").Label("foo", "a").Obj(),
+				st.MakePod().Name("p-y1").Node("node-y").Label("foo", "a").Obj(),
+				st.MakePod().Name("p-y2").Node("node-y").Label("foo", "a").Obj(),
+			},
+			want: &preFilterState{
+				Constraints: []topologySpreadConstraint{
+					{
+						MaxSkew:     1,
+						TopologyKey: "zone",
+						Selector:    mustConvertLabelSelectorAsSelector(t, nil),
+					},
+				},
+				TpKeyToCriticalPaths: map[string]*criticalPaths{
+					"zone": {{"zone2", 0}, {"zone1", 0}},
+				},
+				TpPairToMatchNum: map[topologyPair]*int32{
+					{key: "zone", value: "zone1"}: pointer.Int32(0),
+					{key: "zone", value: "zone2"}: pointer.Int32(0),
+				},
+			},
+			enableMatchLabelKeys: true,
+		},
+		{
+			name: "no pod is matched when LabelSelector is nil when feature gate disabled",
+			pod: st.MakePod().Name("p").Label("foo", "").
+				SpreadConstraint(1, "zone", v1.DoNotSchedule, nil, nil).
+				Obj(),
+			matchLabelKeys: []string{"bar"},
+			nodes: []*v1.Node{
+				st.MakeNode().Name("node-a").Label("zone", "zone1").Label("node", "node-a").Obj(),
+				st.MakeNode().Name("node-b").Label("zone", "zone1").Label("node", "node-b").Obj(),
+				st.MakeNode().Name("node-x").Label("zone", "zone2").Label("node", "node-x").Obj(),
+				st.MakeNode().Name("node-y").Label("zone", "zone2").Label("node", "node-y").Obj(),
+			},
+			existingPods: []*v1.Pod{
+				st.MakePod().Name("p-a1").Node("node-a").Label("foo", "a").Obj(),
+				st.MakePod().Name("p-a2").Node("node-a").Label("foo", "a").Obj(),
+				st.MakePod().Name("p-b1").Node("node-b").Label("foo", "a").Obj(),
+				st.MakePod().Name("p-y1").Node("node-y").Label("foo", "a").Obj(),
+				st.MakePod().Name("p-y2").Node("node-y").Label("foo", "a").Obj(),
+			},
+			want: &preFilterState{
+				Constraints: []topologySpreadConstraint{
+					{
+						MaxSkew:     1,
+						TopologyKey: "zone",
+						Selector:    mustConvertLabelSelectorAsSelector(t, nil),
+					},
+				},
+				TpKeyToCriticalPaths: map[string]*criticalPaths{
+					"zone": {{"zone2", 0}, {"zone1", 0}},
+				},
+				TpPairToMatchNum: map[topologyPair]*int32{
+					{key: "zone", value: "zone1"}: pointer.Int32(0),
+					{key: "zone", value: "zone2"}: pointer.Int32(0),
+				},
+			},
+		},
+		{
+			name: "key in matchLabelKeys is ignored when it isn't exist in pod.labels",
+			pod: st.MakePod().Name("p").Label("foo", "").
+				SpreadConstraint(1, "zone", v1.DoNotSchedule, fooSelector, nil).
+				Obj(),
+			matchLabelKeys: []string{"bar"},
+			nodes: []*v1.Node{
+				st.MakeNode().Name("node-a").Label("zone", "zone1").Label("node", "node-a").Obj(),
+				st.MakeNode().Name("node-b").Label("zone", "zone1").Label("node", "node-b").Obj(),
+				st.MakeNode().Name("node-x").Label("zone", "zone2").Label("node", "node-x").Obj(),
+				st.MakeNode().Name("node-y").Label("zone", "zone2").Label("node", "node-y").Obj(),
+			},
+			existingPods: []*v1.Pod{
+				st.MakePod().Name("p-a1").Node("node-a").Label("foo", "a").Obj(),
+				st.MakePod().Name("p-a2").Node("node-a").Label("foo", "a").Obj(),
+				st.MakePod().Name("p-b1").Node("node-b").Label("foo", "a").Obj(),
+				st.MakePod().Name("p-y1").Node("node-y").Label("foo", "a").Obj(),
+				st.MakePod().Name("p-y2").Node("node-y").Label("foo", "a").Obj(),
+			},
+			want: &preFilterState{
+				Constraints: []topologySpreadConstraint{
+					{
+						MaxSkew:     1,
+						TopologyKey: "zone",
+						Selector:    mustConvertLabelSelectorAsSelector(t, fooSelector),
+					},
+				},
+				TpKeyToCriticalPaths: map[string]*criticalPaths{
+					"zone": {{"zone2", 2}, {"zone1", 3}},
+				},
+				TpPairToMatchNum: map[topologyPair]*int32{
+					{key: "zone", value: "zone1"}: pointer.Int32(3),
+					{key: "zone", value: "zone2"}: pointer.Int32(2),
+				},
+			},
+			enableMatchLabelKeys: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			defer feature.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate, features.EnableMatchLabelKeysInPodTopologySpread, tt.enableMatchLabelKeys)()
+			SetMatchLabelKeysForPod(tt.pod, tt.matchLabelKeys)
 			ctx := context.Background()
 			args := &config.PodTopologySpreadArgs{
 				DefaultConstraints: tt.defaultConstraints,
@@ -674,6 +904,16 @@ func TestPreFilterState(t *testing.T) {
 				t.Errorf("PodTopologySpread#PreFilter() returned diff (-want,+got):\n%s", diff)
 			}
 		})
+	}
+}
+
+func SetMatchLabelKeysForPod(pod *v1.Pod, matchLabelKeys []string) {
+	if pod.Annotations == nil {
+		pod.Annotations = map[string]string{}
+	}
+	if len(matchLabelKeys) > 0 {
+		rawMatchLabelKeys, _ := json.Marshal(matchLabelKeys)
+		pod.Annotations[extunified.AnnotationMatchLabelKeysInPodTopologySpread] = string(rawMatchLabelKeys)
 	}
 }
 

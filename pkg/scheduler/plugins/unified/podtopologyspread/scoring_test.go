@@ -26,6 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config"
@@ -34,6 +35,14 @@ import (
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 	st "k8s.io/kubernetes/pkg/scheduler/testing"
 	"k8s.io/utils/pointer"
+
+	"github.com/koordinator-sh/koordinator/pkg/features"
+	"github.com/koordinator-sh/koordinator/pkg/util/feature"
+)
+
+var (
+	fooSelector = st.MakeLabelSelector().Exists("foo").Obj()
+	barSelector = st.MakeLabelSelector().Exists("bar").Obj()
 )
 
 func TestPreScoreStateEmptyNodes(t *testing.T) {
@@ -276,13 +285,15 @@ func TestPreScoreStateEmptyNodes(t *testing.T) {
 
 func TestPodTopologySpreadScore(t *testing.T) {
 	tests := []struct {
-		name         string
-		pod          *v1.Pod
-		existingPods []*v1.Pod
-		nodes        []*v1.Node
-		failedNodes  []*v1.Node // nodes + failedNodes = all nodes
-		objs         []runtime.Object
-		want         framework.NodeScoreList
+		name                 string
+		pod                  *v1.Pod
+		existingPods         []*v1.Pod
+		nodes                []*v1.Node
+		failedNodes          []*v1.Node // nodes + failedNodes = all nodes
+		objs                 []runtime.Object
+		want                 framework.NodeScoreList
+		enableMatchLabelKeys bool
+		matchLabelKeys       []string
 	}{
 		// Explanation on the Legend:
 		// a) X/Y means there are X matching pods on node1 and Y on node2, both nodes are candidates
@@ -722,9 +733,93 @@ func TestPodTopologySpreadScore(t *testing.T) {
 				{Name: "node-b", Score: 0},
 			},
 		},
+		{
+			name: "matchLabelKeys ignored when feature gate disabled",
+			pod: st.MakePod().Name("p").Label("foo", "").Label("bar", "").Label("baz", "").
+				SpreadConstraint(1, "zone", v1.ScheduleAnyway, fooSelector, nil).
+				SpreadConstraint(1, v1.LabelHostname, v1.ScheduleAnyway, barSelector, nil).
+				Obj(),
+			matchLabelKeys: []string{"baz"},
+			existingPods: []*v1.Pod{
+				st.MakePod().Name("p-a1").Node("node-a").Label("foo", "").Obj(),
+				st.MakePod().Name("p-b1").Node("node-b").Label("foo", "").Label("bar", "").Obj(),
+				st.MakePod().Name("p-y1").Node("node-c").Label("foo", "").Obj(),
+				st.MakePod().Name("p-y2").Node("node-c").Label("bar", "").Obj(),
+			},
+			nodes: []*v1.Node{
+				st.MakeNode().Name("node-a").Label("zone", "zone1").Label(v1.LabelHostname, "node-a").Obj(),
+				st.MakeNode().Name("node-b").Label("zone", "zone1").Label(v1.LabelHostname, "node-b").Obj(),
+				st.MakeNode().Name("node-c").Label("zone", "zone2").Label(v1.LabelHostname, "node-c").Obj(),
+				st.MakeNode().Name("node-d").Label("zone", "zone2").Label(v1.LabelHostname, "node-d").Obj(),
+			},
+			want: []framework.NodeScore{
+				{Name: "node-a", Score: 75},
+				{Name: "node-b", Score: 25},
+				{Name: "node-c", Score: 50},
+				{Name: "node-d", Score: 100},
+			},
+			enableMatchLabelKeys: false,
+		},
+		{
+			name: "matchLabelKeys ANDed with LabelSelector when LabelSelector is empty",
+			pod: st.MakePod().Name("p").Label("foo", "").Label("bar", "").
+				SpreadConstraint(1, "zone", v1.ScheduleAnyway, st.MakeLabelSelector().Obj(), nil).
+				SpreadConstraint(1, v1.LabelHostname, v1.ScheduleAnyway, st.MakeLabelSelector().Obj(), nil).
+				Obj(),
+			matchLabelKeys: []string{"foo", "bar"},
+			existingPods: []*v1.Pod{
+				st.MakePod().Name("p-a1").Node("node-a").Label("foo", "").Obj(),
+				st.MakePod().Name("p-b1").Node("node-b").Label("foo", "").Label("bar", "").Obj(),
+				st.MakePod().Name("p-y1").Node("node-c").Label("foo", "").Obj(),
+				st.MakePod().Name("p-y2").Node("node-c").Label("bar", "").Obj(),
+			},
+			nodes: []*v1.Node{
+				st.MakeNode().Name("node-a").Label("zone", "zone1").Label(v1.LabelHostname, "node-a").Obj(),
+				st.MakeNode().Name("node-b").Label("zone", "zone1").Label(v1.LabelHostname, "node-b").Obj(),
+				st.MakeNode().Name("node-c").Label("zone", "zone2").Label(v1.LabelHostname, "node-c").Obj(),
+				st.MakeNode().Name("node-d").Label("zone", "zone2").Label(v1.LabelHostname, "node-d").Obj(),
+			},
+			want: []framework.NodeScore{
+				{Name: "node-a", Score: 66},
+				{Name: "node-b", Score: 0},
+				{Name: "node-c", Score: 100},
+				{Name: "node-d", Score: 100},
+			},
+			enableMatchLabelKeys: true,
+		},
+		{
+			name: "matchLabelKeys ANDed with LabelSelector when LabelSelector isn't empty",
+			pod: st.MakePod().Name("p").Label("foo", "").Label("bar", "").Label("baz", "").
+				SpreadConstraint(1, "zone", v1.ScheduleAnyway, fooSelector, nil).
+				SpreadConstraint(1, v1.LabelHostname, v1.ScheduleAnyway, barSelector, nil).Obj(),
+			matchLabelKeys: []string{"baz"},
+			existingPods: []*v1.Pod{
+				st.MakePod().Name("p-a1").Node("node-a").Label("foo", "").Obj(),
+				st.MakePod().Name("p-b1").Node("node-b").Label("foo", "").Label("bar", "").Label("baz", "").Obj(),
+				st.MakePod().Name("p-c1").Node("node-c").Label("foo", "").Obj(),
+				st.MakePod().Name("p-c2").Node("node-c").Label("bar", "").Obj(),
+				st.MakePod().Name("p-d3").Node("node-c").Label("bar", "").Label("baz", "").Obj(),
+			},
+			nodes: []*v1.Node{
+				st.MakeNode().Name("node-a").Label("zone", "zone1").Label(v1.LabelHostname, "node-a").Obj(),
+				st.MakeNode().Name("node-b").Label("zone", "zone1").Label(v1.LabelHostname, "node-b").Obj(),
+				st.MakeNode().Name("node-c").Label("zone", "zone2").Label(v1.LabelHostname, "node-c").Obj(),
+				st.MakeNode().Name("node-d").Label("zone", "zone2").Label(v1.LabelHostname, "node-d").Obj(),
+			},
+			want: []framework.NodeScore{
+				{Name: "node-a", Score: 66},
+				{Name: "node-b", Score: 0},
+				{Name: "node-c", Score: 66},
+				{Name: "node-d", Score: 100},
+			},
+			enableMatchLabelKeys: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			defer feature.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate, features.EnableMatchLabelKeysInPodTopologySpread, tt.enableMatchLabelKeys)()
+			SetMatchLabelKeysForPod(tt.pod, tt.matchLabelKeys)
+
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
 			allNodes := append([]*v1.Node{}, tt.nodes...)

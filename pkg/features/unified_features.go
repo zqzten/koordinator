@@ -44,6 +44,7 @@ const (
 	EnableNodeInclusionPolicyInPodConstraint    featuregate.Feature = "EnableNodeInclusionPolicyInPodConstraint"
 	DefaultHonorTaintTolerationInPodConstraint  featuregate.Feature = "DefaultHonorTaintTolerationInPodConstraint"
 	DefaultHonorTaintTolerationInTopologySpread featuregate.Feature = "DefaultHonorTaintTolerationInTopologySpread"
+	EnableMatchLabelKeysInPodTopologySpread     featuregate.Feature = "EnableMatchLabelKeysInPodTopologySpread"
 	EnableResourceFlavor                        featuregate.Feature = "EnableResourceFlavor"
 	RejectQuotaNotExist                         featuregate.Feature = "RejectQuotaNotExist"
 	QuotaRunTime                                featuregate.Feature = "QuotaRunTime"
@@ -84,6 +85,7 @@ var defaultUnifiedSchedulerFeatureGates = map[featuregate.Feature]featuregate.Fe
 	EnableNodeInclusionPolicyInPodConstraint:    {Default: true, PreRelease: featuregate.Beta},
 	DefaultHonorTaintTolerationInPodConstraint:  {Default: false, PreRelease: featuregate.Beta},
 	DefaultHonorTaintTolerationInTopologySpread: {Default: false, PreRelease: featuregate.Beta},
+	EnableMatchLabelKeysInPodTopologySpread:     {Default: false, PreRelease: featuregate.Beta},
 	RejectQuotaNotExist:                         {Default: false, PreRelease: featuregate.Beta},
 	QuotaRunTime:                                {Default: false, PreRelease: featuregate.Beta},
 	SyncTaskQuota:                               {Default: false, PreRelease: featuregate.Beta},
