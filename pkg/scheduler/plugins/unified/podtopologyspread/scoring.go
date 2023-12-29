@@ -61,7 +61,7 @@ func (s *preScoreState) Clone() framework.StateData {
 func (pl *PodTopologySpread) initPreScoreState(s *preScoreState, pod *v1.Pod, filteredNodes []*v1.Node, requireAllTopologies bool) error {
 	var err error
 	if len(pod.Spec.TopologySpreadConstraints) > 0 {
-		s.Constraints, err = filterTopologySpreadConstraints(pod.Spec.TopologySpreadConstraints, v1.ScheduleAnyway)
+		s.Constraints, err = filterTopologySpreadConstraints(pod.Spec.TopologySpreadConstraints, pod.Labels, pod.Annotations, v1.ScheduleAnyway)
 		if err != nil {
 			return fmt.Errorf("obtaining pod's soft topology spread constraints: %w", err)
 		}
