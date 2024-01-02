@@ -17,8 +17,10 @@ limitations under the License.
 package deviceshare
 
 import (
+	"strings"
+
+	"github.com/spf13/pflag"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
@@ -28,12 +30,19 @@ import (
 	reservationutil "github.com/koordinator-sh/koordinator/pkg/util/reservation"
 )
 
+var (
+	gpuModelsSupportNVSwitch = []string{"a100", "a800", "h100", "h800"}
+)
+
 const (
 	NVSwitch = 1 << 40
 )
 
 func init() {
+	pflag.StringSliceVar(&gpuModelsSupportNVSwitch, "gpu-model-support-nvswitch", gpuModelsSupportNVSwitch, "The GPU model list that support NVSwitch")
+
 	deviceAllocators[unified.NVSwitchDeviceType] = &NVSwitchHandler{}
+	deviceHandlers[unified.NVSwitchDeviceType] = &NVSwitchHandler{}
 
 	DeviceResourceNames[unified.NVSwitchDeviceType] = []corev1.ResourceName{
 		unified.NVSwitchResource,
@@ -45,35 +54,48 @@ func init() {
 			unified.NVSwitchResource: podRequest[unified.NVSwitchResource],
 		}
 	}
-
-	deviceHandlers[unified.NVSwitchDeviceType] = &DefaultDeviceHandler{resourceName: unified.NVSwitchResource}
 }
 
 type NVSwitchHandler struct{}
 
+func (a *NVSwitchHandler) CalcDesiredRequestsAndCount(node *corev1.Node, pod *corev1.Pod, podRequests corev1.ResourceList, totalDevices deviceResources, hint *apiext.DeviceHint) (corev1.ResourceList, int, *framework.Status) {
+	if reservationutil.IsReservePod(pod) {
+		return nil, 0, framework.NewStatus(framework.Skip)
+	}
+
+	applyForAll := hint != nil && hint.AllocateStrategy == apiext.ApplyForAllDeviceAllocateStrategy
+	if !applyForAll && unified.MustAllocateGPUByPartition(node) {
+		return nil, 0, framework.NewStatus(framework.Skip)
+	}
+
+	totalNVSwitches := len(totalDevices)
+	if totalNVSwitches == 0 {
+		if applyForAll {
+			return nil, 0, framework.NewStatus(framework.Unschedulable, "Insufficient NVSwitch devices")
+		}
+		return nil, 0, framework.NewStatus(framework.Skip)
+	}
+
+	gpuModels := strings.ToLower(node.Labels[unified.LabelGPUModelSeries])
+	found := false
+	for _, v := range gpuModelsSupportNVSwitch {
+		if v == gpuModels {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return nil, 0, framework.NewStatus(framework.Skip)
+	}
+	// Allocate at least 1 NVSwitch instance. The final number of allocations is calculated in Allocator.
+	return podRequests.DeepCopy(), 1, nil
+}
+
 func (a *NVSwitchHandler) Allocate(requestCtx *requestContext, nodeDevice *nodeDevice, desiredCount int, maxDesiredCount int, preferredPCIEs sets.String) ([]*apiext.DeviceAllocation, *framework.Status) {
-	if reservationutil.IsReservePod(requestCtx.pod) {
-		return nil, nil
-	}
-	if requestCtx.node.Labels[unified.LabelGPUModelSeries] == "PPU" {
-		// Aliyun PPU does not support NVSwitch
-		return nil, nil
-	}
 	numGPU := requestCtx.desiredCountPerDeviceType[schedulingv1alpha1.GPU]
 	nvSwitchHint := requestCtx.hints[unified.NVSwitchDeviceType]
 	applyForAll := nvSwitchHint != nil && nvSwitchHint.AllocateStrategy == apiext.ApplyForAllDeviceAllocateStrategy
 	if numGPU == 0 && !applyForAll {
-		return nil, nil
-	}
-	if !applyForAll && unified.MustAllocateGPUByPartition(requestCtx.node) {
-		return nil, nil
-	}
-
-	totalNVSwitches := len(nodeDevice.deviceTotal[unified.NVSwitchDeviceType])
-	if totalNVSwitches == 0 {
-		if applyForAll {
-			return nil, framework.NewStatus(framework.Unschedulable, "Insufficient NVSwitch devices")
-		}
 		return nil, nil
 	}
 
@@ -101,21 +123,18 @@ func (a *NVSwitchHandler) Allocate(requestCtx *requestContext, nodeDevice *nodeD
 			desiredCount = numGPU - 1
 		}
 	}
-
 	if desiredCount == 0 && !applyForAll {
 		return nil, nil
 	}
+	totalNVSwitches := len(nodeDevice.deviceTotal[unified.NVSwitchDeviceType])
 	if desiredCount > totalNVSwitches || applyForAll {
 		desiredCount = totalNVSwitches
 	}
 
-	requestPerInstance := corev1.ResourceList{
-		unified.NVSwitchResource: *resource.NewQuantity(100, resource.DecimalSI),
-	}
 	return defaultAllocateDevices(
 		nodeDevice,
 		requestCtx,
-		requestPerInstance,
+		requestCtx.requestsPerInstance[unified.NVSwitchDeviceType],
 		desiredCount,
 		desiredCount,
 		unified.NVSwitchDeviceType,
