@@ -472,11 +472,15 @@ func TestAutopilotAllocateNVSwitch(t *testing.T) {
 			assert.NoError(t, err)
 			koordShareInformerFactory := koordinatorinformers.NewSharedInformerFactory(koordFakeClient, 0)
 
-			kubeFakeClient := kubefake.NewSimpleClientset(&corev1.Node{
+			node := &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "test-node-1",
+					Labels: map[string]string{
+						unified.LabelGPUModelSeries: "A100",
+					},
 				},
-			})
+			}
+			kubeFakeClient := kubefake.NewSimpleClientset(node)
 			sharedInformerFactory := informers.NewSharedInformerFactory(kubeFakeClient, 0)
 
 			if tt.assignedDevices != nil {
@@ -546,12 +550,6 @@ func TestAutopilotAllocateNVSwitch(t *testing.T) {
 
 			state, status := preparePod(pod)
 			assert.True(t, status.IsSuccess())
-
-			node := &corev1.Node{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-node-1",
-				},
-			}
 
 			nodeDevice.lock.Lock()
 			defer nodeDevice.lock.Unlock()
