@@ -43,6 +43,7 @@ const (
 type Plugin struct {
 	isLeader *bool
 	server   allocatorServerExt
+	handle   frameworkext.ExtendedHandle
 }
 
 var (
@@ -76,6 +77,7 @@ func New(obj runtime.Object, handle framework.Handle) (framework.Plugin, error) 
 	pl := &Plugin{
 		isLeader: &isLeader,
 		server:   allocatorServer,
+		handle:   handle.(frameworkext.ExtendedHandle),
 	}
 	extendHandle.RegisterErrorHandlerFilters(pl.ErrorHandler, nil)
 	return pl, nil
@@ -135,7 +137,7 @@ func (pl *Plugin) Reserve(ctx context.Context, cycleState *framework.CycleState,
 		return nil
 	}
 
-	nominatedReservation := frameworkext.GetNominatedReservation(cycleState, nodeName)
+	nominatedReservation := pl.handle.GetReservationNominator().GetNominatedReservation(pod, nodeName)
 	if nominatedReservation == nil || !apiext.IsReservationOperatingMode(nominatedReservation.GetReservePod()) {
 		return framework.NewStatus(framework.Error, "no satisfied cached pod")
 	}
@@ -152,7 +154,7 @@ func (pl *Plugin) Bind(ctx context.Context, cycleState *framework.CycleState, po
 		return framework.NewStatus(framework.Skip)
 	}
 
-	nominatedReservation := frameworkext.GetNominatedReservation(cycleState, nodeName)
+	nominatedReservation := pl.handle.GetReservationNominator().GetNominatedReservation(pod, nodeName)
 	if nominatedReservation == nil || !apiext.IsReservationOperatingMode(nominatedReservation.GetReservePod()) {
 		return framework.NewStatus(framework.Error, "no satisfied cached pod")
 	}

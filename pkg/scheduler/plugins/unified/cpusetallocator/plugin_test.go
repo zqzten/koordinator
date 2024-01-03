@@ -48,7 +48,12 @@ import (
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	koordfake "github.com/koordinator-sh/koordinator/pkg/client/clientset/versioned/fake"
+	koordinatorinformers "github.com/koordinator-sh/koordinator/pkg/client/informers/externalversions"
 	schedulingconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta2"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
+	frameworkexttesting "github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/testing"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/nodenumaresource"
 	"github.com/koordinator-sh/koordinator/pkg/util/cpuset"
 	"github.com/koordinator-sh/koordinator/pkg/util/transformer"
@@ -111,34 +116,46 @@ func (f *testSharedLister) Get(nodeName string) (*framework.NodeInfo, error) {
 }
 
 type frameworkHandleExtender struct {
-	framework.Handle
+	frameworkext.FrameworkExtender
 	*nrtfake.Clientset
 }
 
-func proxyPluginFactory(fakeClientSet *nrtfake.Clientset, factory frameworkruntime.PluginFactory) frameworkruntime.PluginFactory {
-	return func(configuration apiruntime.Object, f framework.Handle) (framework.Plugin, error) {
-		p, err := factory(configuration, &frameworkHandleExtender{
-			Handle:    f,
-			Clientset: fakeClientSet,
+type pluginTestSuit struct {
+	framework.Handle
+	NRTClientset         *nrtfake.Clientset
+	NRTInformerFactory   nrtinformers.SharedInformerFactory
+	proxyNew             frameworkruntime.PluginFactory
+	nodeNUMAResourceArgs *schedulingconfig.NodeNUMAResourceArgs
+}
+
+func newPluginTestSuit(t *testing.T, pods []*corev1.Pod, nodes []*corev1.Node) *pluginTestSuit {
+	var v1beta2args v1beta2.NodeNUMAResourceArgs
+	v1beta2.SetDefaults_NodeNUMAResourceArgs(&v1beta2args)
+	var nodeNUMAResourceArgs schedulingconfig.NodeNUMAResourceArgs
+	err := v1beta2.Convert_v1beta2_NodeNUMAResourceArgs_To_config_NodeNUMAResourceArgs(&v1beta2args, &nodeNUMAResourceArgs, nil)
+	assert.NoError(t, err)
+
+	nrtClientSet := nrtfake.NewSimpleClientset()
+	nrtInformerFactory := nrtinformers.NewSharedInformerFactoryWithOptions(nrtClientSet, 0)
+	koordClientSet := koordfake.NewSimpleClientset()
+	koordSharedInformerFactory := koordinatorinformers.NewSharedInformerFactory(koordClientSet, 0)
+	extenderFactory, err := frameworkext.NewFrameworkExtenderFactory(
+		frameworkext.WithKoordinatorClientSet(koordClientSet),
+		frameworkext.WithKoordinatorSharedInformerFactory(koordSharedInformerFactory),
+		frameworkext.WithReservationNominator(frameworkexttesting.NewFakeReservationNominator()),
+	)
+	assert.NoError(t, err)
+
+	proxyNew := frameworkext.PluginFactoryProxy(extenderFactory, func(configuration apiruntime.Object, f framework.Handle) (framework.Plugin, error) {
+		p, err := New(configuration, &frameworkHandleExtender{
+			FrameworkExtender: f.(frameworkext.FrameworkExtender),
+			Clientset:         nrtClientSet,
 		})
 		if err == nil {
 			p.(*Plugin).cpuSharePoolUpdater.Start()
 		}
 		return p, err
-	}
-}
-
-type pluginTestSuit struct {
-	framework.Handle
-	nrtClientSet       *nrtfake.Clientset
-	nrtInformerFactory nrtinformers.SharedInformerFactory
-	proxyNew           frameworkruntime.PluginFactory
-}
-
-func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
-	nrtClientSet := nrtfake.NewSimpleClientset()
-	proxyNew := proxyPluginFactory(nrtClientSet, New)
-	nrtInformerFactory := nrtinformers.NewSharedInformerFactoryWithOptions(nrtClientSet, 0)
+	})
 
 	registeredPlugins := []schedulertesting.RegisterPluginFunc{
 		schedulertesting.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
@@ -146,8 +163,12 @@ func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
 	}
 
 	cs := kubefake.NewSimpleClientset()
+	for _, v := range nodes {
+		_, err := cs.CoreV1().Nodes().Create(context.TODO(), v, metav1.CreateOptions{})
+		assert.NoError(t, err)
+	}
 	informerFactory := informers.NewSharedInformerFactory(cs, 0)
-	snapshot := newTestSharedLister(nil, nodes)
+	snapshot := newTestSharedLister(pods, nodes)
 	fh, err := schedulertesting.NewFramework(
 		registeredPlugins,
 		"koord-scheduler",
@@ -158,10 +179,11 @@ func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
 	assert.Nil(t, err)
 
 	return &pluginTestSuit{
-		Handle:             fh,
-		nrtClientSet:       nrtClientSet,
-		nrtInformerFactory: nrtInformerFactory,
-		proxyNew:           proxyNew,
+		Handle:               fh,
+		NRTClientset:         nrtClientSet,
+		NRTInformerFactory:   nrtInformerFactory,
+		proxyNew:             proxyNew,
+		nodeNUMAResourceArgs: &nodeNUMAResourceArgs,
 	}
 }
 
@@ -169,12 +191,12 @@ func (p *pluginTestSuit) start() {
 	ctx := context.TODO()
 	p.Handle.SharedInformerFactory().Start(ctx.Done())
 	p.Handle.SharedInformerFactory().WaitForCacheSync(ctx.Done())
-	p.nrtInformerFactory.Start(ctx.Done())
-	p.nrtInformerFactory.WaitForCacheSync(ctx.Done())
+	p.NRTInformerFactory.Start(ctx.Done())
+	p.NRTInformerFactory.WaitForCacheSync(ctx.Done())
 }
 
 func TestNew(t *testing.T) {
-	suit := newPluginTestSuit(t, nil)
+	suit := newPluginTestSuit(t, nil, nil)
 	p, err := suit.proxyNew(nil, suit.Handle)
 	assert.NotNil(t, p)
 	assert.Nil(t, err)
@@ -222,7 +244,7 @@ func TestPlugin_Filter(t *testing.T) {
 				nodes[0].Labels[k] = v
 			}
 
-			suit := newPluginTestSuit(t, nodes)
+			suit := newPluginTestSuit(t, nil, nodes)
 			p, err := suit.proxyNew(nil, suit.Handle)
 			assert.NotNil(t, p)
 			assert.Nil(t, err)
@@ -278,7 +300,7 @@ func TestPlugin_Score(t *testing.T) {
 				nodes[0].Labels[k] = v
 			}
 
-			suit := newPluginTestSuit(t, nodes)
+			suit := newPluginTestSuit(t, nil, nodes)
 			p, err := suit.proxyNew(nil, suit.Handle)
 			assert.NotNil(t, p)
 			assert.Nil(t, err)
@@ -339,7 +361,7 @@ func TestPlugin_Reserve(t *testing.T) {
 				nodes[0].Labels[k] = v
 			}
 
-			suit := newPluginTestSuit(t, nodes)
+			suit := newPluginTestSuit(t, nil, nodes)
 			p, err := suit.proxyNew(nil, suit.Handle)
 			assert.NotNil(t, p)
 			assert.Nil(t, err)
@@ -453,7 +475,7 @@ func TestPlugin_CPUSetProtocols(t *testing.T) {
 					},
 				},
 			}
-			suit := newPluginTestSuit(t, nodes)
+			suit := newPluginTestSuit(t, nil, nodes)
 			p, err := suit.proxyNew(nil, suit.Handle)
 			assert.NotNil(t, p)
 			assert.Nil(t, err)
@@ -480,7 +502,7 @@ func TestPlugin_CPUSetProtocols(t *testing.T) {
 				TopologyPolicies: nil,
 				Zones:            nil,
 			}
-			_, err = suit.nrtClientSet.TopologyV1alpha1().NodeResourceTopologies().Create(context.TODO(), resourceTopology, metav1.CreateOptions{})
+			_, err = suit.NRTClientset.TopologyV1alpha1().NodeResourceTopologies().Create(context.TODO(), resourceTopology, metav1.CreateOptions{})
 			assert.Nil(t, err)
 			plg := p.(*Plugin)
 			suit.start()
@@ -488,8 +510,6 @@ func TestPlugin_CPUSetProtocols(t *testing.T) {
 			nodeInfo, err := suit.Handle.SnapshotSharedLister().NodeInfos().Get("test-node-1")
 			assert.NoError(t, err)
 			assert.NotNil(t, nodeInfo)
-			_, err = suit.Handle.ClientSet().CoreV1().Nodes().Create(context.TODO(), nodes[0], metav1.CreateOptions{})
-			assert.Nil(t, err)
 
 			ctx := context.TODO()
 			cycleState := framework.NewCycleState()
@@ -558,7 +578,12 @@ func TestPlugin_CPUSharePool(t *testing.T) {
 			},
 		},
 	}
-	suit := newPluginTestSuit(t, nodes)
+	suit := newPluginTestSuit(t, nil, nodes)
+
+	// create plg, register pod eventHandler and topology eventHandler
+	p, err := suit.proxyNew(nil, suit.Handle)
+	assert.NotNil(t, p)
+	assert.Nil(t, err)
 
 	// register node event handler
 	var nodeEventChan = make(chan int)
@@ -574,14 +599,9 @@ func TestPlugin_CPUSharePool(t *testing.T) {
 		},
 	})
 
-	// create plg, register pod eventHandler and topology eventHandler
-	p, err := suit.proxyNew(nil, suit.Handle)
-	assert.NotNil(t, p)
-	assert.Nil(t, err)
-
 	// register nrt event handler
 	var nrtEventChan = make(chan int)
-	suit.nrtInformerFactory.Topology().V1alpha1().NodeResourceTopologies().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	suit.NRTInformerFactory.Topology().V1alpha1().NodeResourceTopologies().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			nodeResTopology, ok := obj.(*v1alpha1.NodeResourceTopology)
 			if !ok {
@@ -607,8 +627,6 @@ func TestPlugin_CPUSharePool(t *testing.T) {
 	nodeInfo, err := suit.Handle.SnapshotSharedLister().NodeInfos().Get("test-node-1")
 	assert.NoError(t, err)
 	assert.NotNil(t, nodeInfo)
-	_, err = suit.Handle.ClientSet().CoreV1().Nodes().Create(context.TODO(), nodes[0], metav1.CreateOptions{})
-	assert.Nil(t, err)
 	eventType := <-nodeEventChan
 	assert.Equal(t, 1, eventType)
 	cpuTopology := extension.CPUTopology{
@@ -634,7 +652,7 @@ func TestPlugin_CPUSharePool(t *testing.T) {
 		TopologyPolicies: nil,
 		Zones:            nil,
 	}
-	_, err = suit.nrtClientSet.TopologyV1alpha1().NodeResourceTopologies().Create(context.TODO(), resourceTopology, metav1.CreateOptions{})
+	_, err = suit.NRTClientset.TopologyV1alpha1().NodeResourceTopologies().Create(context.TODO(), resourceTopology, metav1.CreateOptions{})
 	assert.NoError(t, err)
 	nrtEvent := <-nrtEventChan
 	assert.Equal(t, 1, nrtEvent)
@@ -712,7 +730,7 @@ func TestPlugin_MaxRefCount(t *testing.T) {
 		},
 	}
 
-	suit := newPluginTestSuit(t, nodes)
+	suit := newPluginTestSuit(t, nil, nodes)
 
 	topologyManager := nodenumaresource.NewTopologyOptionsManager()
 	assert.NotNil(t, topologyManager)
@@ -723,9 +741,6 @@ func TestPlugin_MaxRefCount(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, nodeInfo)
 
-	_, err = suit.Handle.ClientSet().CoreV1().Nodes().Create(context.TODO(), nodes[0], metav1.CreateOptions{})
-	assert.Nil(t, err)
-	time.Sleep(100 * time.Millisecond)
 	topologyOptions := topologyManager.GetTopologyOptions(nodes[0].Name)
 	assert.Equal(t, 2, topologyOptions.MaxRefCount)
 
