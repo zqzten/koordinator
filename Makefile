@@ -86,7 +86,7 @@ lint: lint-go lint-license ## Lint all code.
 
 .PHONY: lint-go
 lint-go: golangci-lint ## Lint Go code.
-	$(GOLANGCI_LINT) run -v --timeout=$(LINT_TIMEOUT)
+	$(GOLANGCI_LINT) run -v --timeout=$(LINT_TIMEOUT) ./cmd/... ./pkg/...
 
 .PHONY: lint-license
 lint-license:
