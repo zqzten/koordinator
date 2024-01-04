@@ -420,14 +420,13 @@ func Test_appendRundResult(t *testing.T) {
 						Minor: 1,
 						Resources: corev1.ResourceList{
 							apiext.ResourceGPUCore:        resource.MustParse("50"),
-							apiext.ResourceGPUMemoryRatio: resource.MustParse("100"),
+							apiext.ResourceGPUMemoryRatio: resource.MustParse("50"),
 						},
 					},
 					{
 						Minor: 2,
 						Resources: corev1.ResourceList{
-							apiext.ResourceGPUCore:        resource.MustParse("50"),
-							apiext.ResourceGPUMemoryRatio: resource.MustParse("100"),
+							apiext.ResourceGPUMemoryRatio: resource.MustParse("50"),
 						},
 					},
 				},
@@ -905,7 +904,7 @@ func TestMatchDriverVersions(t *testing.T) {
 			if tt.shared {
 				podRequest = corev1.ResourceList{
 					apiext.ResourceGPUCore:        resource.MustParse("50"),
-					apiext.ResourceGPUMemoryRatio: resource.MustParse("100"),
+					apiext.ResourceGPUMemoryRatio: resource.MustParse("50"),
 				}
 			}
 

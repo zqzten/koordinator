@@ -730,9 +730,7 @@ func isGPUSharedPod(gpuResources corev1.ResourceList) bool {
 	}
 	quantity := gpuResources[apiext.ResourceGPUMemoryRatio]
 	memRatioAlloc := quantity.Value()
-	quantity = gpuResources[apiext.ResourceGPUCore]
-	utilAlloc := quantity.Value()
-	return memRatioAlloc < 100 || utilAlloc < 100
+	return memRatioAlloc < 100
 }
 
 func MatchSupportedVMDriverVersions(pod *corev1.Pod, device *schedulingv1alpha1.Device) (string, error) {
