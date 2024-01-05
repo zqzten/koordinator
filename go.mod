@@ -252,7 +252,6 @@ require (
 	k8s.io/apiextensions-apiserver v0.25.0 // indirect
 	k8s.io/cloud-provider v0.24.15 // indirect
 	k8s.io/csi-translation-lib v0.24.15
-	k8s.io/gengo v0.0.0-20220902162205-c0856e24416d
 	k8s.io/klog v1.0.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20230717233707-2695361300d9 // indirect
 	k8s.io/kube-proxy v0.0.0 // indirect

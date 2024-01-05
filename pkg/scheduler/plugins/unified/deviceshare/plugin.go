@@ -56,6 +56,7 @@ const (
 	stateKey                 = Name
 	ErrInvalidDriverVersion  = "node(s) invalid driver version"
 	ErrMismatchDriverVersion = "node(s) mismatch driver version"
+	ErrMissingDevice         = "node(s) missing Device"
 )
 
 var (
@@ -219,7 +220,7 @@ func (pl *Plugin) checkDriverVersionIfNeed(state *preFilterState, pod *corev1.Po
 			var deviceObj *schedulingv1alpha1.Device
 			deviceObj, err = pl.deviceLister.Get(node.Name)
 			if err != nil {
-				return framework.NewStatus(framework.UnschedulableAndUnresolvable, deviceshare.ErrMissingDevice)
+				return framework.NewStatus(framework.UnschedulableAndUnresolvable, ErrMissingDevice)
 			}
 			matchedVersion, err = MatchSupportedVMDriverVersions(pod, deviceObj)
 		}
