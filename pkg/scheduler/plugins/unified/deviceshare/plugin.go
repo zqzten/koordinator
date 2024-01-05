@@ -181,6 +181,18 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 	return result, nil
 }
 
+func (pl *Plugin) PreFilterExtensions() framework.PreFilterExtensions {
+	return pl
+}
+
+func (pl *Plugin) AddPod(ctx context.Context, cycleState *framework.CycleState, podToSchedule *corev1.Pod, podInfoToAdd *framework.PodInfo, nodeInfo *framework.NodeInfo) *framework.Status {
+	return pl.Plugin.AddPod(ctx, cycleState, podToSchedule, podInfoToAdd, nodeInfo)
+}
+
+func (pl *Plugin) RemovePod(ctx context.Context, cycleState *framework.CycleState, podToSchedule *corev1.Pod, podInfoToRemove *framework.PodInfo, nodeInfo *framework.NodeInfo) *framework.Status {
+	return pl.Plugin.RemovePod(ctx, cycleState, podToSchedule, podInfoToRemove, nodeInfo)
+}
+
 func (pl *Plugin) Filter(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
 	node := nodeInfo.Node()
 	if node == nil {
