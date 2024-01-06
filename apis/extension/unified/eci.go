@@ -25,11 +25,20 @@ import (
 )
 
 const (
-	VKTaintKey = "virtual-kubelet.io/provider"
+	VKTaintKey              = "virtual-kubelet.io/provider"
+	LabelEnhanceECIAffinity = "alibabacloud.com/enhance-eci-affinity"
 )
 
 func IsVirtualKubeletNode(node *corev1.Node) bool {
 	return node.Labels[uniext.LabelNodeType] == uniext.VKType || node.Labels[uniext.LabelCommonNodeType] == uniext.VKType
+}
+
+func EnableEnhanceECIAffinity(pod *corev1.Pod) bool {
+	val := pod.Labels[LabelEnhanceECIAffinity]
+	if val == "" {
+		return k8sfeature.DefaultFeatureGate.Enabled(features.EnableEnhanceECIAffinity)
+	}
+	return val == "true"
 }
 
 func AffinityECI(pod *corev1.Pod) bool {
@@ -37,7 +46,7 @@ func AffinityECI(pod *corev1.Pod) bool {
 		return false
 	}
 	eciAffinityLabel := pod.Labels[uniext.LabelECIAffinity]
-	return (k8sfeature.DefaultFeatureGate.Enabled(features.EnableEnhanceECIAffinity) &&
+	return (EnableEnhanceECIAffinity(pod) &&
 		(eciAffinityLabel == uniext.ECIRequired || eciAffinityLabel == uniext.ECIPreferred)) ||
 		k8sfeature.DefaultFeatureGate.Enabled(features.EnableDefaultECIProfile)
 }
