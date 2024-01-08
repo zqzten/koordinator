@@ -59,7 +59,7 @@ require (
 	k8s.io/api v0.26.0
 	k8s.io/apimachinery v0.26.0
 	k8s.io/apiserver v0.26.0
-	k8s.io/client-go v0.26.0
+	k8s.io/client-go v11.0.1-0.20190409021438-1a26190bd76a+incompatible
 	k8s.io/code-generator v0.26.0
 	k8s.io/component-base v0.26.0
 	k8s.io/component-helpers v0.26.0
@@ -114,7 +114,6 @@ require (
 	github.com/containerd/cgroups v1.0.3 // indirect
 	github.com/containerd/console v1.0.3 // indirect
 	github.com/containerd/containerd v1.6.9 // indirect
-	github.com/containerd/ttrpc v1.1.1-0.20220420014843-944ef4a40df3 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.3 // indirect
