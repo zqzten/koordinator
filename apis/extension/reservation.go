@@ -41,6 +41,16 @@ const (
 
 	// AnnotationReservationRestrictedOptions represent the Reservation Restricted options
 	AnnotationReservationRestrictedOptions = SchedulingDomainPrefix + "/reservation-restricted-options"
+
+	// AnnotationReservationTemplate includes the specification for a potential Reservation CRD
+	AnnotationReservationTemplate = SchedulingDomainPrefix + "/reservation-template"
+
+	// AnnotationReservationRequirement triggers an external provisioner to create an actual Reservation CRD instance based on the provided template.
+	AnnotationReservationRequirement = SchedulingDomainPrefix + "/reservation-requirement"
+
+	// LabelReservationID represents reservation's custom id.
+	// When the label exists, the id will be used as UID first, otherwise the UID in reservation's ObjectMeta will be used.
+	LabelReservationID = SchedulingDomainPrefix + "/reservation-id"
 )
 
 type ReservationAllocated struct {
@@ -78,6 +88,23 @@ type ReservationRestrictedOptions struct {
 	Resources []corev1.ResourceName `json:"resources,omitempty"`
 }
 
+// ReservationTemplate includes the specification for a potential Reservation CRD
+type ReservationTemplate struct {
+	// Labels defines the reservation must be declared
+	Labels map[string]string `json:"labels,omitempty"`
+	// Owners represents who can use the reservation
+	Owners []schedulingv1alpha1.ReservationOwner `json:"owners"`
+	// RecommendedSize represents the desired maximum specification for a Reservation, but it is not mandatory.
+	RecommendedSize corev1.ResourceList `json:"recommendedSize,omitempty"`
+}
+
+// ReservationRequirement triggers an external provisioner to create an actual Reservation CRD instance based on the provided template.
+type ReservationRequirement struct {
+	Labels map[string]string `json:"labels"`
+	// Resources represents the minimum reserved resource specification for a Reservation
+	Resources corev1.ResourceList `json:"resources"`
+}
+
 func GetReservationAllocated(pod *corev1.Pod) (*ReservationAllocated, error) {
 	if pod.Annotations == nil {
 		return nil, nil
@@ -94,13 +121,13 @@ func GetReservationAllocated(pod *corev1.Pod) (*ReservationAllocated, error) {
 	return reservationAllocated, nil
 }
 
-func SetReservationAllocated(pod *corev1.Pod, r metav1.Object) {
+func SetReservationAllocated(pod *corev1.Pod, reservationName string, reservationUID types.UID) {
 	if pod.Annotations == nil {
 		pod.Annotations = map[string]string{}
 	}
 	reservationAllocated := &ReservationAllocated{
-		Name: r.GetName(),
-		UID:  r.GetUID(),
+		Name: reservationName,
+		UID:  reservationUID,
 	}
 	data, _ := json.Marshal(reservationAllocated) // assert no error
 	pod.Annotations[AnnotationReservationAllocated] = string(data)
@@ -156,4 +183,64 @@ func SetReservationRestrictedOptions(obj metav1.Object, options *ReservationRest
 	annotations[AnnotationReservationRestrictedOptions] = string(data)
 	obj.SetAnnotations(annotations)
 	return nil
+}
+
+func GetReservationTemplate(annotations map[string]string) (*ReservationTemplate, error) {
+	if s := annotations[AnnotationReservationTemplate]; s != "" {
+		var template ReservationTemplate
+		if err := json.Unmarshal([]byte(s), &template); err != nil {
+			return nil, err
+		}
+		return &template, nil
+	}
+	return nil, nil
+}
+
+func SetReservationTemplate(obj metav1.Object, template *ReservationTemplate) error {
+	data, err := json.Marshal(template)
+	if err != nil {
+		return err
+	}
+	annotations := obj.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+	annotations[AnnotationReservationTemplate] = string(data)
+	obj.SetAnnotations(annotations)
+	return nil
+}
+
+func GetReservationRequirement(annotations map[string]string) (*ReservationRequirement, error) {
+	var requirement ReservationRequirement
+	if s := annotations[AnnotationReservationRequirement]; s != "" {
+		if err := json.Unmarshal([]byte(s), &requirement); err != nil {
+			return nil, err
+		}
+	}
+	return &requirement, nil
+}
+
+func SetReservationRequirement(obj metav1.Object, requirement *ReservationRequirement) error {
+	data, err := json.Marshal(requirement)
+	if err != nil {
+		return err
+	}
+	annotations := obj.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+	annotations[AnnotationReservationRequirement] = string(data)
+	obj.SetAnnotations(annotations)
+	return nil
+}
+
+func GetReservationID(obj metav1.Object) types.UID {
+	if obj == nil {
+		return ""
+	}
+	reservationID := obj.GetLabels()[LabelReservationID]
+	if reservationID != "" {
+		return types.UID(reservationID)
+	}
+	return obj.GetUID()
 }

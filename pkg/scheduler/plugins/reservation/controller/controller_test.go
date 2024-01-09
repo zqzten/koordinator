@@ -279,7 +279,7 @@ func TestSyncStatus(t *testing.T) {
 				},
 			},
 		}
-		apiext.SetReservationAllocated(pod, reservation)
+		apiext.SetReservationAllocated(pod, reservation.Name, reservation.UID)
 		_, err := fakeClientSet.CoreV1().Pods(pod.Namespace).Create(context.TODO(), pod, metav1.CreateOptions{})
 		assert.NoError(t, err)
 	}

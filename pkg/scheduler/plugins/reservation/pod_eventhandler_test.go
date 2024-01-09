@@ -91,7 +91,7 @@ func TestPodEventHandler(t *testing.T) {
 	}, handler.nominator.nominatedReservePod["test-node-1"])
 
 	newPod := pod.DeepCopy()
-	apiext.SetReservationAllocated(newPod, reservation)
+	apiext.SetReservationAllocated(newPod, reservation.Name, reservationUID)
 	handler.OnUpdate(pod, newPod)
 	rInfo = handler.cache.getReservationInfoByUID(reservationUID)
 	assert.Len(t, rInfo.AssignedPods, 0)
