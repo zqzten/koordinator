@@ -35,7 +35,7 @@ func TestSetReservationAllocated(t *testing.T) {
 		},
 	}
 	pod := &corev1.Pod{}
-	SetReservationAllocated(pod, reservation)
+	SetReservationAllocated(pod, reservation.Name, reservation.UID)
 	reservationAllocated, err := GetReservationAllocated(pod)
 	assert.NoError(t, err)
 	expectReservationAllocated := &ReservationAllocated{

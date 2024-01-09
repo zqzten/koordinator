@@ -18,6 +18,7 @@ package extension
 
 import (
 	"encoding/json"
+	"strconv"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,6 +35,14 @@ const (
 
 	// AnnotationReservationCurrentOwner indicates current resource owners which allocated the reservation resources.
 	AnnotationReservationCurrentOwner = SchedulingDomainPrefix + "/reservation-current-owner"
+
+	// AnnotationReservationAllocateOnce indicates the reserved resources are only available
+	// for the first owner who allocates successfully and are not allocatable to other owners anymore.
+	// Defaults to true.
+	AnnotationReservationAllocateOnce = SchedulingDomainPrefix + "/reservation-allocate-once"
+
+	// AnnotationReservationUnschedulable controls reservation schedulability of new pods. By default, reservation is schedulable.
+	AnnotationReservationUnschedulable = SchedulingDomainPrefix + "/reservation-unschedulable"
 )
 
 // The concept of PodOperatingMode refers to the design document https://docs.google.com/document/d/1sbFUA_9qWtorJkcukNULr12FKX6lMvISiINxAURHNFo/edit#heading=h.xgjl2srtytjt
@@ -51,6 +60,28 @@ const (
 
 func IsReservationOperatingMode(pod *corev1.Pod) bool {
 	return pod.Labels[LabelPodOperatingMode] == string(ReservationPodOperatingMode)
+}
+
+func IsOperatingPodAllocateOnce(pod *corev1.Pod) bool {
+	return pod.Annotations[AnnotationReservationAllocateOnce] != "false"
+}
+
+func SetOperatingPodAllocateOnce(pod *corev1.Pod, allocateOnce bool) {
+	if pod.Annotations == nil {
+		pod.Annotations = map[string]string{}
+	}
+	pod.Annotations[AnnotationReservationAllocateOnce] = strconv.FormatBool(allocateOnce)
+}
+
+func IsOperatingPodUnschedulable(pod *corev1.Pod) bool {
+	return pod.Annotations[AnnotationReservationUnschedulable] == "true"
+}
+
+func SetOperatingPodUnschedulable(pod *corev1.Pod, unschedulable bool) {
+	if pod.Annotations == nil {
+		pod.Annotations = map[string]string{}
+	}
+	pod.Annotations[AnnotationReservationUnschedulable] = strconv.FormatBool(unschedulable)
 }
 
 func SetReservationOwners(obj metav1.Object, owners []schedulingv1alpha1.ReservationOwner) error {
