@@ -31,6 +31,8 @@ import (
 
 const (
 	DeprecatedLabelNodeGPUModel = extension.DomainPrefix + "gpu-model"
+	GpuModelLabel               = "alibabacloud.com/gpu-card-model"
+	GpuModelDetailLabel         = "alibabacloud.com/gpu-card-model-detail"
 )
 
 var NormalGPUNamesForNode = sets.NewString(
@@ -50,11 +52,16 @@ func MaxInt64(a, b int64) int64 {
 }
 
 func GetNodeGPUModel(nodeLabels map[string]string) string {
-	model := nodeLabels[extension.LabelGPUModel]
-	if model != "" {
-		return model
+	if nodeLabels[extension.LabelGPUModel] != "" {
+		return nodeLabels[extension.LabelGPUModel]
 	}
-	return nodeLabels[DeprecatedLabelNodeGPUModel]
+	if nodeLabels[DeprecatedLabelNodeGPUModel] != "" {
+		return nodeLabels[DeprecatedLabelNodeGPUModel]
+	}
+	if nodeLabels[GpuModelDetailLabel] != "" {
+		return nodeLabels[GpuModelDetailLabel]
+	}
+	return nodeLabels[GpuModelLabel]
 }
 
 func NodeAllocatableContainsGPU(allocatable v1.ResourceList) bool {

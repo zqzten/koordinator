@@ -549,7 +549,47 @@ func TestTransformPodGPUResourcesToCardRatio(t *testing.T) {
 			},
 			expected: corev1.ResourceList{
 				unifiedresourceext.GPUResourceCardRatio: resource.MustParse("100"),
-				extension.ResourceGPUMemoryRatio:        resource.MustParse("100"),
+				unifiedresourceext.GPUResourceMemRatio:  resource.MustParse("100"),
+			},
+		},
+		{
+			name: "gpu core",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Resources: corev1.ResourceRequirements{
+								Limits: corev1.ResourceList{
+									unifiedresourceext.GPUResourceCore: resource.MustParse("100"),
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: corev1.ResourceList{
+				unifiedresourceext.GPUResourceCardRatio: resource.MustParse("100"),
+				unifiedresourceext.GPUResourceCore:      resource.MustParse("100"),
+			},
+		},
+		{
+			name: "alibaba gpu",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Resources: corev1.ResourceRequirements{
+								Limits: corev1.ResourceList{
+									unifiedresourceext.GPUResourceAlibaba: resource.MustParse("100"),
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: corev1.ResourceList{
+				unifiedresourceext.GPUResourceCardRatio: resource.MustParse("100"),
+				unifiedresourceext.GPUResourceAlibaba:   resource.MustParse("100"),
 			},
 		},
 	}
