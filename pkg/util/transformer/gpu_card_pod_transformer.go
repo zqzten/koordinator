@@ -36,6 +36,9 @@ var PercentageGPUNamesForPod = sets.NewString(
 	string(extension.ResourceGPUMemoryRatio),
 	string(extension.ResourceGPUCore),
 	string(extension.ResourceGPU),
+	cosextension.GPUResourceMemRatio,
+	cosextension.GPUResourceCore,
+	cosextension.GPUResourceAlibaba,
 )
 
 func NormalizeGPUResourcesToCardRatioForPod(res v1.ResourceList, gpuModel string) v1.ResourceList {

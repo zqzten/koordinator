@@ -185,6 +185,20 @@ func TestNormalizeQuotaResourcesToCardRatio(t *testing.T) {
 			},
 		},
 		{
+			name: "gpu resources with alibaba request and without model",
+			input: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceCPU:              resource.MustParse("1"),
+				corev1.ResourceMemory:           resource.MustParse("1Gi"),
+				cosextension.GPUResourceAlibaba: resource.MustParse("100"),
+			},
+			output: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceCPU:                resource.MustParse("1"),
+				corev1.ResourceMemory:             resource.MustParse("1Gi"),
+				cosextension.GPUResourceAlibaba:   resource.MustParse("100"),
+				cosextension.GPUResourceCardRatio: resource.MustParse("100"),
+			},
+		},
+		{
 			name: "gpu resources with alibabacloud request and without model",
 			input: map[corev1.ResourceName]resource.Quantity{
 				corev1.ResourceCPU:    resource.MustParse("1"),
@@ -225,6 +239,22 @@ func TestNormalizeQuotaResourcesToCardRatio(t *testing.T) {
 				corev1.ResourceMemory:             resource.MustParse("1Gi"),
 				extension.ResourceGPUMemoryRatio:  resource.MustParse("100"),
 				extension.ResourceGPUCore:         resource.MustParse("150"),
+				cosextension.GPUResourceCardRatio: resource.MustParse("150"),
+			},
+		},
+		{
+			name: "gpu resources with alibaba gpu-mem-ratio & core request and without model",
+			input: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceCPU:               resource.MustParse("1"),
+				corev1.ResourceMemory:            resource.MustParse("1Gi"),
+				cosextension.GPUResourceMemRatio: resource.MustParse("100"),
+				cosextension.GPUResourceCore:     resource.MustParse("150"),
+			},
+			output: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceCPU:                resource.MustParse("1"),
+				corev1.ResourceMemory:             resource.MustParse("1Gi"),
+				cosextension.GPUResourceMemRatio:  resource.MustParse("100"),
+				cosextension.GPUResourceCore:      resource.MustParse("150"),
 				cosextension.GPUResourceCardRatio: resource.MustParse("150"),
 			},
 		},
