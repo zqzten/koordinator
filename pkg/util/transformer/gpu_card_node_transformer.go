@@ -24,7 +24,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apires "k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/klog/v2"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
 )
@@ -73,19 +72,14 @@ func NodeAllocatableContainsGPU(allocatable v1.ResourceList) bool {
 	return false
 }
 
-func ParseGPUResourcesByModel(nodeName string, allocatable v1.ResourceList, nodeLabels map[string]string) v1.ResourceList {
+func ParseGPUResourcesByModel(allocatable v1.ResourceList, nodeLabels map[string]string) v1.ResourceList {
 	gpuModel := GetNodeGPUModel(nodeLabels)
-	if gpuModel == "" {
-		klog.V(5).Infof("node %s reports gpu resource in allocatable but has not gpu model", nodeName)
-		return allocatable
-	}
-
 	result := NormalizeGPUResourcesToCardRatioForNode(allocatable, gpuModel)
 	return result
 }
 
 func NormalizeGPUResourcesToCardRatioForNode(res v1.ResourceList, gpuModel string) v1.ResourceList {
-	if len(res) == 0 || gpuModel == "" {
+	if len(res) == 0 {
 		return res
 	}
 
@@ -110,6 +104,8 @@ func NormalizeGPUResourcesToCardRatioForNode(res v1.ResourceList, gpuModel strin
 
 	q := apires.NewQuantity(quantity, apires.DecimalSI)
 	res[cosextension.GPUResourceCardRatio] = *q
-	res[v1.ResourceName(strings.ToLower(fmt.Sprintf("%s-%s", cosextension.GPUResourceCardRatio, gpuModel)))] = *q
+	if gpuModel != "" {
+		res[v1.ResourceName(strings.ToLower(fmt.Sprintf("%s-%s", cosextension.GPUResourceCardRatio, gpuModel)))] = *q
+	}
 	return res
 }

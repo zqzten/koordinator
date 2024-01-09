@@ -96,9 +96,10 @@ func Test_parseGPUResourceByModel(t *testing.T) {
 				extension.ResourceNvidiaGPU: resource.MustParse("1"),
 			},
 			output: corev1.ResourceList{
-				corev1.ResourceCPU:          resource.MustParse("1"),
-				corev1.ResourceMemory:       resource.MustParse("1Gi"),
-				extension.ResourceNvidiaGPU: resource.MustParse("1"),
+				corev1.ResourceCPU:                resource.MustParse("1"),
+				corev1.ResourceMemory:             resource.MustParse("1Gi"),
+				extension.ResourceNvidiaGPU:       resource.MustParse("1"),
+				cosextension.GPUResourceCardRatio: resource.MustParse("100"),
 			},
 		},
 		{
@@ -143,7 +144,7 @@ func Test_parseGPUResourceByModel(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			out := ParseGPUResourcesByModel("node", testCase.allocatable, testCase.nodeLabel)
+			out := ParseGPUResourcesByModel(testCase.allocatable, testCase.nodeLabel)
 			if !quotav1.Equals(out, testCase.output) {
 				t.Errorf("unexpected output, expected: %+v, got: %+v", testCase.output, out)
 			}

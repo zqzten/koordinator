@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	cosextension "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/extension"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -416,11 +417,12 @@ func TestTransformNode(t *testing.T) {
 				},
 				Status: corev1.NodeStatus{
 					Allocatable: corev1.ResourceList{
-						corev1.ResourceCPU:            resource.MustParse("32"),
-						corev1.ResourceMemory:         resource.MustParse("64Gi"),
-						apiext.ResourceGPUCore:        resource.MustParse("100"),
-						apiext.ResourceGPUMemory:      resource.MustParse("10Gi"),
-						apiext.ResourceGPUMemoryRatio: resource.MustParse("100"),
+						corev1.ResourceCPU:                resource.MustParse("32"),
+						corev1.ResourceMemory:             resource.MustParse("64Gi"),
+						apiext.ResourceGPUCore:            resource.MustParse("100"),
+						apiext.ResourceGPUMemory:          resource.MustParse("10Gi"),
+						apiext.ResourceGPUMemoryRatio:     resource.MustParse("100"),
+						cosextension.GPUResourceCardRatio: *resource.NewQuantity(100, resource.DecimalSI),
 					},
 					Capacity: corev1.ResourceList{
 						corev1.ResourceCPU:            resource.MustParse("32"),
@@ -467,14 +469,15 @@ func TestTransformNode(t *testing.T) {
 				},
 				Status: corev1.NodeStatus{
 					Allocatable: corev1.ResourceList{
-						corev1.ResourceCPU:              resource.MustParse("32"),
-						corev1.ResourceMemory:           resource.MustParse("64Gi"),
-						apiext.DeprecatedGPUCore:        resource.MustParse("100"),
-						apiext.DeprecatedGPUMemory:      resource.MustParse("10Gi"),
-						apiext.DeprecatedGPUMemoryRatio: resource.MustParse("100"),
-						apiext.ResourceGPUCore:          resource.MustParse("100"),
-						apiext.ResourceGPUMemory:        resource.MustParse("10Gi"),
-						apiext.ResourceGPUMemoryRatio:   resource.MustParse("100"),
+						corev1.ResourceCPU:                resource.MustParse("32"),
+						corev1.ResourceMemory:             resource.MustParse("64Gi"),
+						apiext.DeprecatedGPUCore:          resource.MustParse("100"),
+						apiext.DeprecatedGPUMemory:        resource.MustParse("10Gi"),
+						apiext.DeprecatedGPUMemoryRatio:   resource.MustParse("100"),
+						apiext.ResourceGPUCore:            resource.MustParse("100"),
+						apiext.ResourceGPUMemory:          resource.MustParse("10Gi"),
+						apiext.ResourceGPUMemoryRatio:     resource.MustParse("100"),
+						cosextension.GPUResourceCardRatio: *resource.NewQuantity(100, resource.DecimalSI),
 					},
 					Capacity: corev1.ResourceList{
 						corev1.ResourceCPU:              resource.MustParse("32"),

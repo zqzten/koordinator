@@ -122,8 +122,9 @@ func Test_transformNodeInfoAllocatable(t *testing.T) {
 				unifiedresourceext.GPUResourceMemRatio: resource.MustParse("200"),
 			},
 			wantScalarResources: map[corev1.ResourceName]int64{
-				unifiedresourceext.GPUResourceMemRatio: 200,
-				apiext.ResourceNvidiaGPU:               2,
+				unifiedresourceext.GPUResourceMemRatio:  200,
+				apiext.ResourceNvidiaGPU:                2,
+				unifiedresourceext.GPUResourceCardRatio: 200,
 			},
 		},
 	}

@@ -95,6 +95,6 @@ func TransformNodeAllocatableWithUnifiedGPUMemoryRatio(node *corev1.Node) {
 
 func TransformNodeAllocatableToUnifiedCardRatio(node *corev1.Node) {
 	if NodeAllocatableContainsGPU(node.Status.Allocatable) {
-		node.Status.Allocatable = ParseGPUResourcesByModel(node.Name, node.Status.Allocatable, node.Labels)
+		node.Status.Allocatable = ParseGPUResourcesByModel(node.Status.Allocatable, node.Labels)
 	}
 }
