@@ -47,10 +47,10 @@ import (
 	"k8s.io/klog/v2"
 	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
 	"k8s.io/kubernetes/pkg/features"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding/metrics"
 
 	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 	koordfeature "github.com/koordinator-sh/koordinator/pkg/features"
-	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/volumebinding/metrics"
 )
 
 // ConflictReason is used for the special strings which explain why
