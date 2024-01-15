@@ -71,7 +71,8 @@ func newNodeLocalVolumeInfo(node *v1.Node) (*NodeLocalVolumeInfo, error) {
 				continue
 			}
 			if strings.HasPrefix(diskInfo.Device, "/dev/nbd") ||
-				strings.HasPrefix(diskInfo.Device, "/dev/vrbd") {
+				strings.HasPrefix(diskInfo.Device, "/dev/vrbd") ||
+				strings.HasPrefix(diskInfo.Device, "/dev/loop") {
 				continue
 			}
 			if diskInfo.FileSystemType == "tmpfs" ||

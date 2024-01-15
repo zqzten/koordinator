@@ -85,9 +85,6 @@ func HasEnoughStorageCapacity(nodeStorageInfo *NodeStorageInfo, pod *v1.Pod, sys
 	localVolumeFree := nodeStorageInfo.GetFree()
 	if requiredStorageInBytes > 0 {
 		graphDiskPath := nodeStorageInfo.GraphDiskPath
-		if graphDiskPath == "" {
-			return framework.NewStatus(framework.Unschedulable, ErrInvalidDiskInfos)
-		}
 		graphDiskFree := localVolumeFree.VolumeSize[graphDiskPath] + preemptiveUsedStorage
 		if requiredStorageInBytes > graphDiskFree {
 			return framework.NewStatus(framework.Unschedulable, ErrInsufficientEphemeralStorage)
