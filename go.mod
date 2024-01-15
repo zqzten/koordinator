@@ -270,7 +270,7 @@ replace (
 	github.com/google/cadvisor => github.com/koordinator-sh/cadvisor v0.0.0-20230619152730-4b5c088201f6
 	github.com/gophercloud/gophercloud => github.com/gophercloud/gophercloud v0.1.0
 	github.com/koordinator-sh/apis => github.com/koordinator-sh/apis v1.2.0
-	github.com/koordinator-sh/scheduler-plugins => gitlab.alibaba-inc.com/koordinator-sh/scheduler-plugins v0.0.0-20240111073617-e0004ed81f0c
+	github.com/koordinator-sh/scheduler-plugins => gitlab.alibaba-inc.com/koordinator-sh/scheduler-plugins v0.0.0-20240115032005-ab43034dd724
 	github.com/prometheus/prometheus => github.com/prometheus/prometheus v0.39.2
 	go.opentelemetry.io/contrib => go.opentelemetry.io/contrib v0.20.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc => go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.20.0

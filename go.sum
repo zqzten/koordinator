@@ -1314,8 +1314,8 @@ gitlab.alibaba-inc.com/koordinator-sh/client-go v0.24.15-internal h1:vqdckJFHZhb
 gitlab.alibaba-inc.com/koordinator-sh/client-go v0.24.15-internal/go.mod h1:200/+zvHmX6fL97NBMa/ndRbJzc3Kwh5um0U2KgCiTA=
 gitlab.alibaba-inc.com/koordinator-sh/kubernetes v1.24.15-internal h1:z5x9hhmHopycLQeC8Y6c42FgK+2EelbFFBa9eVlWw4A=
 gitlab.alibaba-inc.com/koordinator-sh/kubernetes v1.24.15-internal/go.mod h1:MlcoxAWSYrfeOwlfRNne7zYyZsHmlT3dlw7v3xzDnDM=
-gitlab.alibaba-inc.com/koordinator-sh/scheduler-plugins v0.0.0-20240111073617-e0004ed81f0c h1:LNFFKCqK+K0rifInqkOW4ioHOAfnO0ESQJ8W7BO4juE=
-gitlab.alibaba-inc.com/koordinator-sh/scheduler-plugins v0.0.0-20240111073617-e0004ed81f0c/go.mod h1:KlqAhYvc97OzmTQpYHoHe2jADbTkhDE1oGREHCdMDtg=
+gitlab.alibaba-inc.com/koordinator-sh/scheduler-plugins v0.0.0-20240115032005-ab43034dd724 h1:bVfKM0r3VL/D12I7Mlt5G6sKCzmVGzNtTtsXsbfnpCo=
+gitlab.alibaba-inc.com/koordinator-sh/scheduler-plugins v0.0.0-20240115032005-ab43034dd724/go.mod h1:KlqAhYvc97OzmTQpYHoHe2jADbTkhDE1oGREHCdMDtg=
 gitlab.alibaba-inc.com/protoss/golibs v0.0.0-20210326074649-8445f4703bdf h1:/K4iEFujLAWoRCBkTItGiEM9w0BfnJ5kGHunMZGw5lU=
 gitlab.alibaba-inc.com/protoss/golibs v0.0.0-20210326074649-8445f4703bdf/go.mod h1:WIM/2rSZnayanVDaGvbmW3Dst3ZQGWvU9H0xMcVi440=
 gitlab.alibaba-inc.com/protoss/turbine v0.0.0-20200323024151-0c4c4f7cd791/go.mod h1:fZbzaPIEeer/eRf/tFEiGbRLfp0xRLf0jaBRhNLccBA=
