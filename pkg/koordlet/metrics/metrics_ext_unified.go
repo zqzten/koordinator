@@ -17,6 +17,9 @@ limitations under the License.
 package metrics
 
 import (
+	"regexp"
+	"strings"
+
 	"github.com/prometheus/client_golang/prometheus"
 
 	uniquotav1 "gitlab.alibaba-inc.com/unischeduler/api/apis/quotas/v1"
@@ -39,6 +42,7 @@ const (
 
 	// required by PAI serverless
 	// https://aliyuque.antfin.com/obdvnp/apfnvx/cz000wrokt9ziawf?singleDoc# 《逻辑节点（LRN）方案（v1.0）》
+	// TODO: support prefix matching for LRN labels
 	GPUCardModelKey    = "gpu_card_model"
 	NodeNameKey        = "node_name"
 	ASWIDKey           = "asw_id"
@@ -48,7 +52,16 @@ const (
 	ResourceGroupKey   = "resourcegroup"
 	QuotaIDKey         = "quota_id"
 	QuotaNameKey       = "quota_name"
+	// LabelPrefixAliMetric is the prefix of LRN labels which should be exported into lrn metrics.
+	// e.g. labels["ali/metric-node-bound-quotas"] = "xxx" -> node_lrns{"node_bound_quotas": "xxx"}
+	LabelPrefixAliMetric = "ali/metric-"
 )
+
+var InvalidLabelNameCharRE = regexp.MustCompile(`[^a-zA-Z0-9_]`)
+
+func SanitizeLabelName(name string) string {
+	return InvalidLabelNameCharRE.ReplaceAllString(name, "_")
+}
 
 var (
 	NodeResourceAllocatableCPUCores = prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -145,19 +158,19 @@ func RecordNodeResourceCapacityAcceleratorTotal(value float64) {
 	NodeResourceCapacityAcceleratorTotal.With(labels).Set(value)
 }
 
-func setLRNLabels(labels map[string]string, lrn *schedulingv1alpha1.LogicalResourceNode) {
-	labels[LRNKey] = lrn.Name
-	//  GPUCardModelKey         = "gpu_card_model"
-	//	NodeNameKey             = "node_name"
-	//	SingleNodeAllocationKey = "single_node_allocation"
-	//	ASWIDKey                = "asw_id"
-	//	PointOfDeliveryKey      = "point_of_delivery"
-	//	TenantDLCKey            = "tenant_dlc_alibaba_inc_com"
-	//	MachineGroupKey         = "machinegroup"
-	//	ResourceGroupKey        = "resourcegroup"
-	//	QuotaIDKey              = "quota_id"
-	//	QuotaNameKey            = "quota_name"
-	if lrn.Labels == nil {
+func setLRNLabels(labels map[string]string, lrnName string, lrnLabels map[string]string) {
+	labels[LRNKey] = lrnName
+	//  MetricNodeBoundQuotasKey = ""
+	//  GPUCardModelKey          = "gpu_card_model"
+	//	NodeNameKey              = "node_name"
+	//	ASWIDKey                 = "asw_id"
+	//	PointOfDeliveryKey       = "point_of_delivery"
+	//	TenantDLCKey             = "tenant_dlc_alibaba_inc_com"
+	//	MachineGroupKey          = "machinegroup"
+	//	ResourceGroupKey         = "resourcegroup"
+	//	QuotaIDKey               = "quota_id"
+	//	QuotaNameKey             = "quota_name"
+	if lrnLabels == nil {
 		labels[GPUCardModelKey] = ""
 		labels[NodeNameKey] = ""
 		labels[ASWIDKey] = ""
@@ -168,14 +181,20 @@ func setLRNLabels(labels map[string]string, lrn *schedulingv1alpha1.LogicalResou
 		labels[QuotaIDKey] = ""
 		labels[QuotaNameKey] = ""
 	} else {
-		labels[GPUCardModelKey] = lrn.Labels[unified.LabelGPUCardModel]
-		labels[NodeNameKey] = lrn.Labels[schedulingv1alpha1.LabelNodeNameOfLogicalResourceNode]
-		labels[ASWIDKey] = lrn.Labels[unified.LabelNodeASWID]
-		labels[PointOfDeliveryKey] = lrn.Labels[unified.LabelNodePointOfDelivery]
-		labels[TenantDLCKey] = lrn.Labels[unified.LabelTenantDLC]
-		labels[MachineGroupKey] = lrn.Labels[unified.LabelTenantDLCMachineGroup]
-		labels[ResourceGroupKey] = lrn.Labels[unified.LabelTenantDLCResourceGroup]
-		labels[QuotaIDKey] = lrn.Labels[uniquotav1.LabelQuotaID]
-		labels[QuotaNameKey] = lrn.Labels[uniquotav1.LabelQuotaName]
+		labels[GPUCardModelKey] = lrnLabels[unified.LabelGPUCardModel]
+		labels[NodeNameKey] = lrnLabels[schedulingv1alpha1.LabelNodeNameOfLogicalResourceNode]
+		labels[ASWIDKey] = lrnLabels[unified.LabelNodeASWID]
+		labels[PointOfDeliveryKey] = lrnLabels[unified.LabelNodePointOfDelivery]
+		labels[TenantDLCKey] = lrnLabels[unified.LabelTenantDLC]
+		labels[MachineGroupKey] = lrnLabels[unified.LabelTenantDLCMachineGroup]
+		labels[ResourceGroupKey] = lrnLabels[unified.LabelTenantDLCResourceGroup]
+		labels[QuotaIDKey] = lrnLabels[uniquotav1.LabelQuotaID]
+		labels[QuotaNameKey] = lrnLabels[uniquotav1.LabelQuotaName]
+	}
+	for key, value := range lrnLabels {
+		if strings.HasPrefix(key, LabelPrefixAliMetric) {
+			labelName := SanitizeLabelName(key[len(LabelPrefixAliMetric):])
+			labels[labelName] = value
+		}
 	}
 }

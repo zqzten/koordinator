@@ -20,7 +20,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
 
-	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/util/metrics"
 )
 
@@ -61,12 +60,19 @@ var (
 		Help:      "the accelerators belonging to the LRN",
 	}, []string{NodeKey, LRNKey, AcceleratorMinorKey, AcceleratorTypeKey}))
 
-	NodeLRNs = metrics.NewGCGaugeVec("node_lrns", prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	// NodeLRNs is a loose-labels collector for the metric node_lrns.
+	// To invoke RefreshNodeLRNsLabels() before recording, it can refresh label names dynamically.
+	// e.g.
+	//   1. node_lrns{node="node-0", lrn="lrn-0", label_aaa="xxx"}, lrnLabels={"label_aaa": "yyy", "label_bbb": "zzz"}
+	//   2. RefreshNodeLRNsLabels($lrnLabels)
+	//   3. RecordNodeLRNs("lrn-0", $lrnLabels)
+	//   4. node_lrns{node="node-0", lrn="lrn-0", label_aaa="yyy", label_bbb="zzz"}
+	NodeLRNs = metrics.NewLooseLabelsGaugeVec(prometheus.GaugeOpts{
 		Subsystem: KoordletSubsystem,
 		Name:      "node_lrns",
 		Help:      "the LRNs belonging to the node",
-	}, []string{NodeKey, LRNKey, GPUCardModelKey, NodeNameKey, ASWIDKey, PointOfDeliveryKey,
-		TenantDLCKey, MachineGroupKey, ResourceGroupKey, QuotaIDKey, QuotaNameKey}))
+	}, []string{NodeKey, LRNKey, GPUCardModelKey, NodeNameKey, ASWIDKey, PointOfDeliveryKey, TenantDLCKey,
+		MachineGroupKey, ResourceGroupKey, QuotaIDKey, QuotaNameKey}, prometheus.DefaultRegisterer)
 
 	LRNCollectors = []prometheus.Collector{
 		LRNAllocatableCPUCores.GetGaugeVec(),
@@ -75,7 +81,6 @@ var (
 		LRNPods.GetGaugeVec(),
 		LRNContainers.GetGaugeVec(),
 		LRNAccelerators.GetGaugeVec(),
-		NodeLRNs.GetGaugeVec(),
 	}
 )
 
@@ -143,11 +148,26 @@ func RecordLRNAccelerators(lrnName string, deviceType string, acceleratorMinor s
 	LRNAccelerators.WithSet(labels, 1.0)
 }
 
-func RecordNodeLRNs(lrn *schedulingv1alpha1.LogicalResourceNode) {
+// RefreshNodeLRNsLabels refreshes the label names of NodeLRNs.
+func RefreshNodeLRNsLabels(lrnLabels map[string]string) {
 	labels := genNodeLabels()
 	if labels == nil {
 		return
 	}
-	setLRNLabels(labels, lrn)
-	NodeLRNs.WithSet(labels, 1.0)
+	setLRNLabels(labels, "", lrnLabels)
+	NodeLRNs.RefreshLabelsIfNeed(labels)
+}
+
+func RecordNodeLRNs(lrnName string, lrnLabels map[string]string) {
+	labels := genNodeLabels()
+	if labels == nil {
+		return
+	}
+	setLRNLabels(labels, lrnName, lrnLabels)
+	NodeLRNs.FillKnownLabels(labels)
+	NodeLRNs.GetMetricVec().(*prometheus.GaugeVec).With(labels).Set(1.0)
+}
+
+func ResetNodeLRNs() {
+	NodeLRNs.GetMetricVec().(*prometheus.GaugeVec).Reset()
 }

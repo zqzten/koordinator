@@ -54,6 +54,7 @@ func TestLRNCollectors(t *testing.T) {
 			Name: "test-lrn",
 			Labels: map[string]string{
 				schedulingv1alpha1.LabelNodeNameOfLogicalResourceNode: "test-node",
+				"ali/metric-node-bound-quotas":                        "xxx",
 			},
 		},
 		Status: schedulingv1alpha1.LogicalResourceNodeStatus{
@@ -63,6 +64,44 @@ func TestLRNCollectors(t *testing.T) {
 				apiext.ResourceNvidiaGPU: resource.MustParse("2"),
 			},
 		},
+	}
+	testingLRN1 := &schedulingv1alpha1.LogicalResourceNode{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-lrn-3",
+			Labels: map[string]string{
+				schedulingv1alpha1.LabelNodeNameOfLogicalResourceNode: "test-node",
+				"ali/metric-node-bound-quotas":                        "xxx",
+				"ali/metric-node-bound-quotas-two":                    "yyy",
+			},
+		},
+		Status: schedulingv1alpha1.LogicalResourceNodeStatus{
+			Allocatable: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceCPU:       resource.MustParse("6"),
+				corev1.ResourceMemory:    resource.MustParse("6Gi"),
+				apiext.ResourceNvidiaGPU: resource.MustParse("2"),
+			},
+		},
+	}
+	testingLRN2 := &schedulingv1alpha1.LogicalResourceNode{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-lrn-1",
+			Labels: map[string]string{
+				schedulingv1alpha1.LabelNodeNameOfLogicalResourceNode: "test-node",
+				"ali/metric-node-bound-quotas":                        "zzz",
+			},
+		},
+		Status: schedulingv1alpha1.LogicalResourceNodeStatus{
+			Allocatable: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceCPU:       resource.MustParse("4"),
+				corev1.ResourceMemory:    resource.MustParse("8Gi"),
+				apiext.ResourceNvidiaGPU: resource.MustParse("2"),
+			},
+		},
+	}
+	testingLRNLabels := map[string]string{
+		schedulingv1alpha1.LabelNodeNameOfLogicalResourceNode: "test-node",
+		"ali/metric-node-bound-quotas":                        "xxx",
+		"ali/metric-node-bound-quotas-two":                    "yyy",
 	}
 	testingPod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -100,18 +139,22 @@ func TestLRNCollectors(t *testing.T) {
 		Register(testingNode)
 		defer Register(nil)
 
-		assert.NotPanics(t, func() {
-			RecordNodeResourceAllocatable(string(corev1.ResourceCPU), UnitCore, float64(testingNode.Status.Allocatable.Cpu().MilliValue())/1000)
-			RecordNodeResourceAllocatable(string(corev1.ResourceMemory), UnitByte, float64(testingNode.Status.Allocatable.Memory().Value()))
-			RecordNodeResourceAllocatable(AcceleratorResource, UnitInteger, float64(testingNode.Status.Allocatable.Name(apiext.ResourceNvidiaGPU, resource.DecimalSI).Value()))
-			RecordLRNAllocatableCPUCores(testingLRN.Name, float64(testingLRN.Status.Allocatable.Cpu().MilliValue())/1000)
-			RecordLRNAllocatableMemoryTotalBytes(testingLRN.Name, float64(testingLRN.Status.Allocatable.Memory().Value()))
-			RecordLRNAllocatableAcceleratorTotal(testingLRN.Name, float64(testingLRN.Status.Allocatable.Name(apiext.ResourceNvidiaGPU, resource.DecimalSI).Value()))
-			RecordLRNPods(testingLRN.Name, testingPod)
-			RecordLRNContainers(testingLRN.Name, &testingPod.Status.ContainerStatuses[0], testingPod)
-			RecordLRNAccelerators(testingLRN.Name, "gpu", "4")
-			RecordNodeLRNs(testingLRN)
-		})
+		RecordNodeResourceAllocatable(string(corev1.ResourceCPU), UnitCore, float64(testingNode.Status.Allocatable.Cpu().MilliValue())/1000)
+		RecordNodeResourceAllocatable(string(corev1.ResourceMemory), UnitByte, float64(testingNode.Status.Allocatable.Memory().Value()))
+		RecordNodeResourceAllocatable(AcceleratorResource, UnitInteger, float64(testingNode.Status.Allocatable.Name(apiext.ResourceNvidiaGPU, resource.DecimalSI).Value()))
+		RecordLRNAllocatableCPUCores(testingLRN.Name, float64(testingLRN.Status.Allocatable.Cpu().MilliValue())/1000)
+		RecordLRNAllocatableMemoryTotalBytes(testingLRN.Name, float64(testingLRN.Status.Allocatable.Memory().Value()))
+		RecordLRNAllocatableAcceleratorTotal(testingLRN.Name, float64(testingLRN.Status.Allocatable.Name(apiext.ResourceNvidiaGPU, resource.DecimalSI).Value()))
+		RecordLRNPods(testingLRN.Name, testingPod)
+		RecordLRNContainers(testingLRN.Name, &testingPod.Status.ContainerStatuses[0], testingPod)
+		RecordLRNAccelerators(testingLRN.Name, "gpu", "4")
+		ResetNodeLRNs()
+		RefreshNodeLRNsLabels(testingLRNLabels)
+		RecordNodeLRNs(testingLRN.Name, testingLRN.Labels)
+		RecordNodeLRNs(testingLRN1.Name, testingLRN1.Labels)
+		RecordNodeLRNs(testingLRN2.Name, testingLRN2.Labels)
+		RefreshNodeLRNsLabels(testingLRN2.Labels)
+		RecordNodeLRNs(testingLRN2.Name, testingLRN2.Labels)
 	})
 }
 
