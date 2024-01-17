@@ -102,9 +102,9 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "No matching Quota objects")
 	}
 
-	availableQuotas := filterGuaranteeAvailableQuotas(pod, podRequests, pl.Plugin, elasticQuotas)
-	if len(availableQuotas) == 0 {
-		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "No available Quotas")
+	availableQuotas, status := filterGuaranteeAvailableQuotas(pod, podRequests, pl.Plugin, elasticQuotas)
+	if !status.IsSuccess() {
+		return nil, status
 	}
 
 	cycleState.Write(Name, &stateData{

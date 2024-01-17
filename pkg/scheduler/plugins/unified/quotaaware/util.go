@@ -160,8 +160,12 @@ type QuotaWrapper struct {
 	Obj        *schedv1alpha1.ElasticQuota
 }
 
-func filterGuaranteeAvailableQuotas(pod *corev1.Pod, requests corev1.ResourceList, cache *elasticquota.Plugin, quotas []*schedv1alpha1.ElasticQuota) []*QuotaWrapper {
+func filterGuaranteeAvailableQuotas(pod *corev1.Pod, requests corev1.ResourceList, cache *elasticquota.Plugin, quotas []*schedv1alpha1.ElasticQuota) ([]*QuotaWrapper, *framework.Status) {
+	if len(quotas) == 0 {
+		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "No available quotas")
+	}
 	var availableQuotas []*QuotaWrapper
+	status := framework.NewStatus(framework.Unschedulable)
 	requestsNames := quotav1.ResourceNames(requests)
 	for _, v := range quotas {
 		qm := cache.GetGroupQuotaManagerForQuota(v.Name)
@@ -170,9 +174,14 @@ func filterGuaranteeAvailableQuotas(pod *corev1.Pod, requests corev1.ResourceLis
 		}
 		quotaInfo := qm.GetQuotaInfoByName(v.Name)
 		if quotaInfo != nil {
-			enough, guaranteed, allocated := checkGuarantee(qm, quotaInfo, requests, requestsNames)
+			enough, guaranteed, allocated, sts := checkGuarantee(qm, quotaInfo, requests, requestsNames)
 			if !enough {
-				klog.V(4).InfoS("Insufficient quotas", "pod", klog.KObj(pod), "quota", quotaInfo.Name, "requests", sprintResourceList(requests, nil))
+				if !sts.IsSuccess() {
+					for _, reason := range sts.Reasons() {
+						status.AppendReason(reason)
+					}
+				}
+				klog.V(4).InfoS("Failed to checkGuarantee", "pod", klog.KObj(pod), "quota", quotaInfo.Name, "requests", sprintResourceList(requests, nil), "reasons", sts.Message())
 				continue
 			}
 
@@ -187,12 +196,15 @@ func filterGuaranteeAvailableQuotas(pod *corev1.Pod, requests corev1.ResourceLis
 			})
 		}
 	}
-	return availableQuotas
+	if len(availableQuotas) > 0 {
+		return availableQuotas, nil
+	}
+	return nil, status
 }
 
-func checkGuarantee(qm *elasticquotacore.GroupQuotaManager, quotaInfo *elasticquotacore.QuotaInfo, requests corev1.ResourceList, requestsNames []corev1.ResourceName) (bool, corev1.ResourceList, corev1.ResourceList) {
+func checkGuarantee(qm *elasticquotacore.GroupQuotaManager, quotaInfo *elasticquotacore.QuotaInfo, requests corev1.ResourceList, requestsNames []corev1.ResourceName) (bool, corev1.ResourceList, corev1.ResourceList, *framework.Status) {
 	if quotaInfo.Name == apiext.RootQuotaName {
-		return true, nil, nil
+		return true, nil, nil, nil
 	}
 
 	if quotaInfo.IsParent && (quotaInfo.ParentName == "" || quotaInfo.ParentName == apiext.RootQuotaName) {
@@ -200,47 +212,67 @@ func checkGuarantee(qm *elasticquotacore.GroupQuotaManager, quotaInfo *elasticqu
 		allocated := quotaInfo.GetAllocated()
 		used := quotav1.Add(requests, allocated)
 		used = quotav1.Mask(used, requestsNames)
-		enough := usedLessThan(used, totalResource)
+		enough, exceedDimensions := usedLessThanOrEqual(used, totalResource)
 		if !enough {
-			klog.Warningf("Insufficient inventory capacity, quota: %s, allocated: %s, total: %s",
-				quotaInfo.Name, sprintResourceList(allocated, requestsNames), sprintResourceList(totalResource, requestsNames))
+			status := framework.NewStatus(framework.Unschedulable, fmt.Sprintf("Insufficient inventory %q, %s", quotaInfo.Name, generateQuotaExceedMaxMessage(totalResource, allocated, exceedDimensions)))
+			return false, nil, nil, status
 		}
-		return enough, nil, nil
+		return true, nil, nil, nil
 	} else {
 		allocated := quotaInfo.GetAllocated()
 		max := quotaInfo.GetMax()
 		used := quotav1.Add(requests, allocated)
 		used = quotav1.Mask(used, requestsNames)
-		if !usedLessThan(used, max) {
-			klog.V(4).InfoS("Quota allocated exceeded max", "quota", quotaInfo.Name, "allocated", sprintResourceList(allocated, requestsNames), "max", sprintResourceList(max, requestsNames))
-			return false, nil, nil
+		if enough, exceedDimensions := usedLessThanOrEqual(used, max); !enough {
+			status := framework.NewStatus(framework.Unschedulable, fmt.Sprintf("Insufficient Quotas %q, %s", quotaInfo.Name, generateQuotaExceedMaxMessage(max, allocated, exceedDimensions)))
+			return false, nil, nil, status
 		}
 		guaranteed := quotaInfo.GetGuaranteed()
-		if usedLessThan(used, guaranteed) {
-			return true, guaranteed, allocated
+		if enough, _ := usedLessThanOrEqual(used, guaranteed); enough {
+			return true, guaranteed, allocated, nil
 		}
 		requests = quotav1.SubtractWithNonNegativeResult(used, allocated)
 	}
 
 	parent := qm.GetQuotaInfoByName(quotaInfo.ParentName)
 	if parent == nil {
-		return false, nil, nil
+		return false, nil, nil, framework.NewStatus(framework.Unschedulable, "missing parent quota")
 	}
 	return checkGuarantee(qm, parent, requests, requestsNames)
 }
 
-func usedLessThan(used, max corev1.ResourceList) bool {
-	if !quotav1.IsZero(used) && quotav1.IsZero(max) {
-		return false
+func generateQuotaExceedMaxMessage(capacity corev1.ResourceList, allocated corev1.ResourceList, exceedDimensions []corev1.ResourceName) string {
+	var sb strings.Builder
+	sort.Slice(exceedDimensions, func(i, j int) bool {
+		return exceedDimensions[i] < exceedDimensions[j]
+	})
+	for i, resourceName := range exceedDimensions {
+		if i != 0 {
+			_, _ = fmt.Fprintf(&sb, "; ")
+		}
+		c := capacity[resourceName]
+		a := allocated[resourceName]
+		_, _ = fmt.Fprintf(&sb, "%s capacity %s, allocated: %s", resourceName, c.String(), a.String())
 	}
-	satisfied, _ := quotav1.LessThanOrEqual(used, max)
-	return satisfied
+	return sb.String()
+}
+
+func usedLessThanOrEqual(used, max corev1.ResourceList) (bool, []corev1.ResourceName) {
+	if !quotav1.IsZero(used) && quotav1.IsZero(max) {
+		return false, nil
+	}
+	satisfied, exceedDimensions := quotav1.LessThanOrEqual(used, max)
+	return satisfied, exceedDimensions
 }
 
 func countReplicas(remaining, used, requests corev1.ResourceList, maxReplicas int) int {
 	replicas := 0
 	used = quotav1.Add(used, requests)
-	for usedLessThan(used, remaining) {
+	for {
+		satisfied, _ := usedLessThanOrEqual(used, remaining)
+		if !satisfied {
+			break
+		}
 		replicas++
 		if maxReplicas > 0 && replicas >= maxReplicas {
 			break
