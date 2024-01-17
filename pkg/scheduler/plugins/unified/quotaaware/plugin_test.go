@@ -345,7 +345,7 @@ func Test_PreFilterWithNoAvailableQuota(t *testing.T) {
 		NodeSelector(map[string]string{corev1.LabelArchStable: "amd64", corev1.LabelTopologyZone: "az-1"}).
 		Obj()
 	result, status := pl.PreFilter(context.TODO(), cycleState, pod)
-	assert.Equal(t, "No available Quotas", status.Message())
+	assert.Equal(t, `Insufficient Quotas "quota-a", cpu capacity 1, allocated: 0; memory capacity 1Gi, allocated: 0`, status.Message())
 	assert.Nil(t, result)
 }
 

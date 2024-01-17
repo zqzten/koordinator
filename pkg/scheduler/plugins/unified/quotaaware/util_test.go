@@ -282,15 +282,17 @@ func Test_filterAvailableQuotas(t *testing.T) {
 		corev1.ResourceMemory: resource.MustParse("4Gi"),
 	}
 	tests := []struct {
-		name     string
-		requests corev1.ResourceList
-		quotas   []*schedv1alpha1.ElasticQuota
-		want     sets.String
+		name       string
+		requests   corev1.ResourceList
+		quotas     []*schedv1alpha1.ElasticQuota
+		want       sets.String
+		wantStatus *framework.Status
 	}{
 		{
-			name:     "no quotas",
-			requests: defaultRequests,
-			want:     sets.NewString(),
+			name:       "no quotas",
+			requests:   defaultRequests,
+			want:       sets.NewString(),
+			wantStatus: framework.NewStatus(framework.UnschedulableAndUnresolvable, "No available quotas"),
 		},
 		{
 			name:     "no satisfied quotas",
@@ -308,7 +310,8 @@ func Test_filterAvailableQuotas(t *testing.T) {
 					},
 				},
 			},
-			want: sets.NewString(),
+			want:       sets.NewString(),
+			wantStatus: framework.NewStatus(framework.Unschedulable, `Insufficient Quotas "quota-a", cpu capacity 1, allocated: 0; memory capacity 1Gi, allocated: 0`),
 		},
 		{
 			name:     "has satisfied quotas",
@@ -362,7 +365,9 @@ func Test_filterAvailableQuotas(t *testing.T) {
 			p, err := suit.proxyNew(nil, suit.Framework)
 			assert.NoError(t, err)
 			pl := p.(*Plugin)
-			got := filterGuaranteeAvailableQuotas(&corev1.Pod{}, tt.requests, pl.Plugin, tt.quotas)
+			got, status := filterGuaranteeAvailableQuotas(&corev1.Pod{}, tt.requests, pl.Plugin, tt.quotas)
+			assert.Equal(t, tt.wantStatus, status)
+			t.Log(status.Message())
 			gotQuotaNames := sets.NewString()
 			for _, v := range got {
 				gotQuotaNames.Insert(v.Name)
@@ -447,8 +452,9 @@ func Test_checkGuarantee_different_requests_and_used(t *testing.T) {
 		corev1.ResourceCPU:    resource.MustParse("1"),
 		corev1.ResourceMemory: resource.MustParse("1Gi"),
 	}
-	passed, _, _ := checkGuarantee(qm, quotaInfo, requests, quotav1.ResourceNames(requests))
+	passed, _, _, status := checkGuarantee(qm, quotaInfo, requests, quotav1.ResourceNames(requests))
 	assert.True(t, passed)
+	assert.True(t, status.IsSuccess())
 }
 
 func Test_addTemporaryNodeAffinity(t *testing.T) {
