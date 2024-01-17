@@ -241,6 +241,32 @@ func checkGuarantee(qm *elasticquotacore.GroupQuotaManager, quotaInfo *elasticqu
 	return checkGuarantee(qm, parent, requests, requestsNames)
 }
 
+func checkMin(qm *elasticquotacore.GroupQuotaManager, quotaInfo *elasticquotacore.QuotaInfo, requests corev1.ResourceList, requestsNames []corev1.ResourceName) bool {
+	if quotaInfo.Name == apiext.RootQuotaName {
+		return true
+	}
+
+	if quotaInfo.IsParent && (quotaInfo.ParentName == "" || quotaInfo.ParentName == apiext.RootQuotaName) {
+		// Here skip checking inventory
+		return true
+	}
+
+	allocated := quotaInfo.GetAllocated()
+	used := quotav1.Add(requests, allocated)
+	used = quotav1.Mask(used, requestsNames)
+	guaranteed := quotaInfo.GetGuaranteed()
+	if enough, _ := usedLessThanOrEqual(used, guaranteed); enough {
+		return true
+	}
+
+	parent := qm.GetQuotaInfoByName(quotaInfo.ParentName)
+	if parent == nil {
+		return false
+	}
+	requests = quotav1.SubtractWithNonNegativeResult(used, allocated)
+	return checkMin(qm, parent, requests, requestsNames)
+}
+
 func generateQuotaExceedMaxMessage(capacity corev1.ResourceList, allocated corev1.ResourceList, exceedDimensions []corev1.ResourceName) string {
 	var sb strings.Builder
 	sort.Slice(exceedDimensions, func(i, j int) bool {

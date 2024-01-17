@@ -22,19 +22,25 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	quotav1 "k8s.io/apiserver/pkg/quota/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/helper"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/interpodaffinity"
+	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeaffinity"
 	schedlisters "sigs.k8s.io/scheduler-plugins/pkg/generated/listers/scheduling/v1alpha1"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota"
 	elasticquotacore "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota/core"
 )
 
 const (
 	Name = "QuotaAware"
+
+	ErrNoMatchingQuotaObjects = "No matching Quota objects"
 )
 
 var (
@@ -71,6 +77,10 @@ func New(obj runtime.Object, handle framework.Handle) (framework.Plugin, error) 
 		handle:             handle,
 		elasticQuotaLister: elasticQuotaLister,
 	}
+
+	extendedHandle := handle.(frameworkext.ExtendedHandle)
+	extendedHandle.RegisterErrorHandlerFilters(pl.preErrorHandlerFilter, nil)
+
 	return pl, nil
 }
 
@@ -96,10 +106,10 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 	elasticQuotas, err := podNodeAffinity.matchElasticQuotas(pl.elasticQuotaLister)
 	if err != nil {
 		klog.ErrorS(err, "Failed to findMatchedElasticQuota", "pod", klog.KObj(pod))
-		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "No matching Quota objects")
+		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, ErrNoMatchingQuotaObjects)
 	}
 	if len(elasticQuotas) == 0 {
-		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "No matching Quota objects")
+		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, ErrNoMatchingQuotaObjects)
 	}
 
 	availableQuotas, status := filterGuaranteeAvailableQuotas(pod, podRequests, pl.Plugin, elasticQuotas)
@@ -286,4 +296,99 @@ func (pl *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState,
 		pod.Labels[apiext.LabelQuotaName] = sd.selectedQuotaName
 	}
 	return nil
+}
+
+var specialPlugins = []string{
+	"UnifiedInterPodAffinity",
+}
+
+func (pl *Plugin) preErrorHandlerFilter(podInfo *framework.QueuedPodInfo, scheduleErr error) bool {
+	pod := podInfo.Pod
+	if pod.Labels[LabelQuotaID] == "" {
+		return false
+	}
+
+	fitErr, ok := scheduleErr.(*framework.FitError)
+	if !ok {
+		// TODO:后续需要等 Coscheduling 的PreFilter error 纠正后这里要加上一个判断，专门处理 framework.Error 的情况。
+		return false
+	}
+
+	fwk := pl.handle.(framework.Framework)
+	podNodeAffinity, err := newNodeAffinity(pod)
+	if err != nil {
+		klog.Warningf("Unexpected scheduling error, pod: %q, err: %v", klog.KObj(pod), "failed to parse pod")
+		UnexpectedSchedulingError.WithLabelValues(fwk.ProfileName(), "", "", "", "InvalidQuotaMeta").Inc()
+		return false
+	}
+
+	recordSchedulingErrorFn := func(reason string) {
+		UnexpectedSchedulingError.WithLabelValues(fwk.ProfileName(), podNodeAffinity.userID, podNodeAffinity.quotaID, podNodeAffinity.instanceType, reason).Inc()
+	}
+
+	//  先确认是否是特殊场景：用户创建的 Pod 却没有匹配的 ElasticQuota，只有链路上有问题才会到这种情况出现。
+	for _, status := range fitErr.Diagnosis.NodeToStatusMap {
+		if status.IsUnschedulable() && status.Message() == ErrNoMatchingQuotaObjects {
+			klog.Warningf("Unexpected scheduling error, pod: %q, err: %v", klog.KObj(pod), ErrNoMatchingQuotaObjects)
+			recordSchedulingErrorFn("NoMatchingQuota")
+			return false
+		}
+		break
+	}
+
+	elasticQuotas, err := podNodeAffinity.matchElasticQuotas(pl.elasticQuotaLister)
+	if err != nil {
+		klog.ErrorS(err, "Failed to findMatchedElasticQuota", "pod", klog.KObj(pod))
+		return false
+	}
+
+	podRequests, _ := elasticquotacore.PodRequestsAndLimits(pod)
+	requestsNames := quotav1.ResourceNames(podRequests)
+	reservedZones := sets.NewString()
+	for _, v := range elasticQuotas {
+		if qm := pl.Plugin.GetGroupQuotaManagerForQuota(v.Name); qm != nil {
+			if quotaInfo := qm.GetQuotaInfoByName(v.Name); quotaInfo != nil {
+				if enough := checkMin(qm, quotaInfo, podRequests, requestsNames); enough {
+					reservedZones.Insert(v.Labels[corev1.LabelTopologyZone])
+				}
+			}
+		}
+	}
+
+	// 没有预留资源的 ElasticQuota，不再需要识别是否是非预期的调度失败行为
+	if reservedZones.Len() == 0 {
+		return false
+	}
+
+	abnormalZones := sets.NewString()
+	for nodeName, status := range fitErr.Diagnosis.NodeToStatusMap {
+		if !status.IsUnschedulable() {
+			continue
+		}
+		message := status.Message()
+		if message == nodeaffinity.ErrReasonPod ||
+			message == interpodaffinity.ErrReasonExistingAntiAffinityRulesNotMatch ||
+			message == interpodaffinity.ErrReasonAffinityRulesNotMatch ||
+			message == interpodaffinity.ErrReasonAntiAffinityRulesNotMatch {
+			// 这类错误都是节点不符合 NodeAffinity 规则的 或者 不符合 InterPodAffinity 规则的，这类直接 skip 掉
+			// 目前 InterPodAffinity 也不支持按照 Node 粒度亲和或者反亲和，都统一处理了，后续支持了，还得细化。
+			continue
+		}
+
+		// 到了这里都是可能因为资源不足、节点不可用/不可调度、打散等原因导致的
+		nodeInfo, err := pl.handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
+		if err != nil {
+			continue
+		}
+		node := nodeInfo.Node()
+		az := node.Labels[corev1.LabelTopologyZone]
+		abnormalZones.Insert(az)
+	}
+
+	zones := abnormalZones.Intersection(reservedZones)
+	if zones.Len() > 0 {
+		klog.Warningf("Unexpected scheduling error, pod: %q, err: %v", klog.KObj(podInfo.Pod), "reserved resources but scheduling failed")
+		UnexpectedSchedulingError.WithLabelValues(fwk.ProfileName(), podNodeAffinity.userID, podNodeAffinity.quotaID, podNodeAffinity.instanceType, "FailedWithReserveResource").Inc()
+	}
+	return false
 }
