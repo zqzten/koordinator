@@ -154,6 +154,7 @@ func (l *lrnInformer) syncLRN() {
 		lrnMap[lrn.Name] = lrn
 		recordLRNMetrics(lrn)
 	}
+	recordLRNLabelsMetric(lrnMap)
 
 	count := 0
 	podMetas := l.podsInformer.GetAllPods()
@@ -252,7 +253,6 @@ func recordLRNMetrics(lrn *schedulingv1alpha1.LogicalResourceNode) {
 		return
 	}
 	name := lrn.Name
-	metrics.RecordNodeLRNs(lrn)
 
 	// cpu, memory
 	metrics.RecordLRNAllocatableCPUCores(name, float64(lrn.Status.Allocatable.Cpu().MilliValue())/1000)
@@ -272,6 +272,24 @@ func recordLRNMetrics(lrn *schedulingv1alpha1.LogicalResourceNode) {
 	}
 
 	klog.V(6).Infof("record lrn metrics for lrn %s", lrn.Name)
+}
+
+func recordLRNLabelsMetric(lrnMap map[string]*schedulingv1alpha1.LogicalResourceNode) {
+	metrics.ResetNodeLRNs()
+
+	lrnLabels := map[string]string{}
+	for _, lrn := range lrnMap {
+		for k, v := range lrn.Labels {
+			lrnLabels[k] = v
+		}
+	}
+	metrics.RefreshNodeLRNsLabels(lrnLabels)
+	klog.V(6).Infof("refresh lrn labels metrics for lrn labels %v", lrnLabels)
+
+	for _, lrn := range lrnMap {
+		metrics.RecordNodeLRNs(lrn.Name, lrn.Labels)
+	}
+	klog.V(5).Infof("record node_lrn metrics, lrn num %v, lrn labels %v", len(lrnMap), len(lrnLabels))
 }
 
 func recordLRNPodMetrics(lrn *schedulingv1alpha1.LogicalResourceNode, pod *corev1.Pod) {
