@@ -64,6 +64,11 @@ const (
 	// alpha: v1.2
 	//
 	LRNReport featuregate.Feature = "LRNReport"
+
+	// DeadlineEvict evict BE pods once the duration reach the deadline
+	// owner: @zwzhang0107
+	// alpha: v1.3
+	DeadlineEvict featuregate.Feature = "DeadlineEvict"
 )
 
 var defaultUnifiedFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -99,7 +104,8 @@ var defaultUnifiedSchedulerFeatureGates = map[featuregate.Feature]featuregate.Fe
 }
 
 var defaultUnifiedKoordletFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
-	LRNReport: {Default: false, PreRelease: featuregate.Alpha},
+	LRNReport:     {Default: false, PreRelease: featuregate.Alpha},
+	DeadlineEvict: {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {

@@ -1,0 +1,317 @@
+apiVersion: v1
+data:
+  colocation-config: |
+    {
+      "enable": false,
+      "metricAggregateDurationSeconds": 300,
+      "metricReportIntervalSeconds": 60,
+      "metricAggregatePolicy": {
+        "durations": [
+          "5m",
+          "10m",
+          "15m"
+        ]
+      },
+      "metricMemoryCollectPolicy": "usageWithoutPageCache",
+      "cpuReclaimThresholdPercent": 60,
+      "memoryReclaimThresholdPercent": 65,
+      "memoryCalculatePolicy": "usage",
+      "degradeTimeMinutes": 15,
+      "updateTimeThresholdSeconds": 300,
+      "resourceDiffThreshold": 0.1,
+      "nodeConfigs": [
+        {
+          "name": "alios",
+          "nodeSelector": {
+            "matchLabels": {
+              "kubernetes.io/kernel": "alios"
+            }
+          },
+          "updateTimeThresholdSeconds": 360,
+          "resourceDiffThreshold": 0.2
+        }
+      ]
+    }
+  cpu-burst-config: |
+    {
+      "clusterStrategy": {
+        "policy": "none",
+        "cpuBurstPercent": 1000,
+        "cfsQuotaBurstPercent": 300,
+        "cfsQuotaBurstPeriodSeconds": -1,
+        "sharePoolThresholdPercent": 50
+      },
+      "nodeStrategies": [
+        {
+          "name": "alios",
+          "nodeSelector": {
+            "matchLabels": {
+              "kubernetes.io/kernel": "alios"
+            }
+          },
+          "policy": "cfsQuotaBurstOnly",
+          "cfsQuotaBurstPercent": 400
+        }
+      ]
+    }
+  system-config: |-
+    {
+      "clusterStrategy": {
+        "minFreeKbytesFactor": 100,
+        "watermarkScaleFactor": 150
+      }
+      "nodeStrategies": [
+        {
+          "name": "alios",
+          "nodeSelector": {
+            "matchLabels": {
+              "kubernetes.io/kernel": "alios"
+            }
+          },
+          "minFreeKbytesFactor": 100,
+          "watermarkScaleFactor": 150
+        }
+      ]
+    }
+  resource-qos-config: |
+    {
+      "clusterStrategy": {
+        "lsrClass": {
+          "cpuQOS": {
+            "enable": false,
+            "groupIdentity": 2
+          },
+          "memoryQOS": {
+            "enable": false,
+            "minLimitPercent": 0,
+            "lowLimitPercent": 0,
+            "throttlingPercent": 0,
+            "wmarkRatio": 95,
+            "wmarkScalePermill": 20,
+            "wmarkMinAdj": -25,
+            "priorityEnable": 0,
+            "priority": 0,
+            "oomKillGroup": 0
+          },
+          "resctrlQOS": {
+            "enable": false,
+            "catRangeStartPercent": 0,
+            "catRangeEndPercent": 100,
+            "mbaPercent": 100
+          }
+        },
+        "lsClass": {
+          "cpuQOS": {
+            "enable": false,
+            "groupIdentity": 2
+          },
+          "memoryQOS": {
+            "enable": false,
+            "minLimitPercent": 0,
+            "lowLimitPercent": 0,
+            "throttlingPercent": 0,
+            "wmarkRatio": 95,
+            "wmarkScalePermill": 20,
+            "wmarkMinAdj": -25,
+            "priorityEnable": 0,
+            "priority": 0,
+            "oomKillGroup": 0
+          },
+          "resctrlQOS": {
+            "enable": false,
+            "catRangeStartPercent": 0,
+            "catRangeEndPercent": 100,
+            "mbaPercent": 100
+          }
+        },
+        "beClass": {
+          "cpuQOS": {
+            "enable": false,
+            "groupIdentity": -1
+          },
+          "memoryQOS": {
+            "enable": false,
+            "minLimitPercent": 0,
+            "lowLimitPercent": 0,
+            "throttlingPercent": 0,
+            "wmarkRatio": 95,
+            "wmarkScalePermill": 20,
+            "wmarkMinAdj": 50,
+            "priorityEnable": 0,
+            "priority": 0,
+            "oomKillGroup": 0
+          },
+          "blkioQOS": {
+            "blocks": [
+              {
+                "ioCfg": {
+                  "ioWeightPercent": 60
+                },
+                "name": "ackdistro-pool",
+                "type": "volumegroup"
+              },
+              {
+                "ioCfg": {
+                  "readBPS": 102400000,
+                  "readIOPS": 20480,
+                  "writeBPS": 204800004,
+                  "writeIOPS": 10240
+                },
+                "name": "/dev/sdb",
+                "type": "device"
+              },
+            ],
+            "enable": true
+          },
+          "resctrlQOS": {
+            "enable": false,
+            "catRangeStartPercent": 0,
+            "catRangeEndPercent": 30,
+            "mbaPercent": 100
+          }
+        },
+        "cgroupRoot": {
+          "blkioQOS": {
+            "blocks": [
+              {
+                "ioCfg": {
+                  "readLatency": 3000,
+                  "writeLatency": 3000
+                },
+                "name": "ackdistro-pool",
+                "type": "volumegroup"
+              }
+            ],
+            "enable": true
+          }
+        }
+      },
+      "nodeStrategies": [
+        {
+          "name": "alios",
+          "nodeSelector": {
+            "matchLabels": {
+              "kubernetes.io/kernel": "alios"
+            }
+          },
+          "beClass": {
+            "memoryQOS": {
+              "wmarkRatio": 90
+            }
+          }
+        }
+      ]
+    }
+  resource-threshold-config: |
+    {
+      "clusterStrategy": {
+        "enable": false,
+        "cpuSuppressThresholdPercent": 65,
+        "cpuSuppressPolicy": "cpuset",
+        "memoryEvictThresholdPercent": 70
+      },
+      "nodeStrategies": [
+        {
+          "name": "alios",
+          "nodeSelector": {
+            "matchLabels": {
+              "kubernetes.io/kernel": "alios"
+            }
+          },
+          "cpuEvictBEUsageThresholdPercent": 80
+        }
+      ]
+    }
+  host-application-config: |
+    {
+      "applications": [
+        {
+          "name": "nginx",
+          "priority": "koord-prod",
+          "qos": "LS",
+          "cgroupPath": {
+            "base": "CgroupRoot",
+            "parentDir": "host-latency-sensitive/",
+            "relativePath": "nginx/",
+          }
+        }
+      ],
+      "nodeConfigs": [
+        {
+          "name": "colocation-pool",
+          "nodeSelector": {
+            "matchLabels": {
+              "node-pool": "colocation"
+            }
+          },
+          "applications": [
+            {
+              "name": "nginx",
+              "priority": "koord-prod",
+              "qos": "LS",
+              "cgroupPath": {
+                "base": "CgroupRoot",
+                "parentDir": "host-latency-sensitive/",
+                "relativePath": "nginx/",
+              }
+            }
+          ]
+        }
+      ]
+    }
+  cpu-normalization-config: |
+    {
+      "enable": false,
+      "ratioModel": {
+        "Intel(R) Xeon(R) Platinum XXX CPU @ 2.50GHz": {
+          "baseRatio": 1.5,
+          "hyperThreadEnabledRatio": 1.0,
+          "turboEnabledRatio": 1.8,
+          "hyperThreadTurboEnabledRatio": 1.2
+        },
+        "Intel(R) Xeon(R) Platinum YYY CPU @ 2.50GHz": {
+          "baseRatio": 1.8,
+          "hyperThreadEnabledRatio": 1.2,
+          "turboEnabledRatio": 2.16,
+          "hyperThreadTurboEnabledRatio": 1.44
+        }
+      },
+      "nodeConfigs": [
+        {
+          "name": "test",
+          "nodeSelector": {
+            "matchLabels": {
+              "AAA": "BBB"
+            }
+          },
+          "enable": true
+        }
+      ]
+    }
+  deadline-evict-config: |
+    {
+      "clusterStrategy": {
+        "enable": false,
+        "deadlineDuration": "24h"
+      },
+      "nodeStrategies": [
+        {
+          "name": "alios",
+          "nodeSelector": {
+            "matchLabels": {
+              "kubernetes.io/kernel": "alios"
+            }
+          },
+          "deadlineDuration": "24h"
+        }
+      ]
+    }
+kind: ConfigMap
+metadata:
+  annotations:
+    meta.helm.sh/release-name: koordinator
+    meta.helm.sh/release-namespace: default
+  labels:
+    app.kubernetes.io/managed-by: Helm
+  name: slo-controller-config
+  namespace: kube-system
