@@ -18,10 +18,8 @@ package elasticquota
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -68,50 +66,31 @@ func TestController_RunBatch(t *testing.T) {
 			MakeResourceList().BatchCPU(1000).BatchMemory(2).Obj()).UID("pod2").Label(extension.LabelQuotaName, "t1-ns1-x").Obj(),
 	}
 
-	nodes := []*v1.Node{
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:              "node1",
-				DeletionTimestamp: &metav1.Time{Time: time.Now()},
-			},
-			Status: v1.NodeStatus{
-				Allocatable: MakeResourceList().CPU(100).Mem(100).BatchCPU(50 * 1000).BatchMemory(50).Obj(),
-			},
-		},
-	}
-	suit := newPluginTestSuitWithPod(t, nodes, nil)
-	plugin, err := suit.proxyNew(suit.elasticQuotaArgs, suit.Handle)
-	assert.Nil(t, err)
-	p := plugin.(*Plugin)
-	ctrl := NewElasticQuotaController(p)
+	suit := newPluginTestSuitWithPod(t, nil, nil)
 	suit.client.SchedulingV1alpha1().ElasticQuotas(elasticQuota.Namespace).Create(ctx, elasticQuota, metav1.CreateOptions{})
-	time.Sleep(10 * time.Millisecond)
 
 	for _, p := range pods {
 		suit.Handle.ClientSet().CoreV1().Pods(p.Namespace).Create(ctx, p, metav1.CreateOptions{})
 	}
-	time.Sleep(100 * time.Millisecond)
-	ctrl.Start()
+	plugin, err := suit.proxyNew(suit.elasticQuotaArgs, suit.Handle)
+	assert.Nil(t, err)
+	p := plugin.(*Plugin)
+	ctrl := NewElasticQuotaController(p)
+	ctrl.syncElasticQuotaStatusWorker()
+
+	get, _ := suit.client.SchedulingV1alpha1().ElasticQuotas(elasticQuota.Namespace).Get(ctx, elasticQuota.Name, metav1.GetOptions{})
+	assert.NotNil(t, get)
+	request, innerErr := extension.GetRequest(get)
+	assert.NoError(t, innerErr)
 
 	wantUsed := MakeResourceList().CPU(1).Mem(2).Obj()
 	wantRequests := MakeResourceList().CPU(2).Mem(4).Obj()
-	for i := 0; i < 10; i++ {
-		get, _ := suit.client.SchedulingV1alpha1().ElasticQuotas(elasticQuota.Namespace).Get(ctx, elasticQuota.Name, metav1.GetOptions{})
-		if get == nil {
-			continue
-		}
-		var request v1.ResourceList
-		json.Unmarshal([]byte(get.Annotations[extension.AnnotationRequest]), &request)
-		if !quotav1.Equals(request, wantRequests) || !quotav1.Equals(get.Status.Used, wantUsed) {
-			err = fmt.Errorf("want used: %v, request: %v, got used: %v, request: %v,quotaName: %v",
-				wantUsed, wantRequests, get.Status.Used, request, get.Name)
-			time.Sleep(1 * time.Second)
-			continue
-		} else {
-			t.Logf("got: %v", util.DumpJSON(get))
-			err = nil
-			break
-		}
+	if !quotav1.Equals(request, wantRequests) || !quotav1.Equals(get.Status.Used, wantUsed) {
+		err = fmt.Errorf("want used: %v, request: %v, got used: %v, request: %v,quotaName: %v",
+			wantUsed, wantRequests, get.Status.Used, request, get.Name)
+	} else {
+		t.Logf("got: %v", util.DumpJSON(get))
+		err = nil
 	}
 	if err != nil {
 		t.Errorf("Elastic Quota Test Failed, err: %v", err)
