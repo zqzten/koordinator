@@ -85,7 +85,7 @@ var defaultUnifiedSchedulerFeatureGates = map[featuregate.Feature]featuregate.Fe
 	EnableNodeInclusionPolicyInPodConstraint:    {Default: true, PreRelease: featuregate.Beta},
 	DefaultHonorTaintTolerationInPodConstraint:  {Default: false, PreRelease: featuregate.Beta},
 	DefaultHonorTaintTolerationInTopologySpread: {Default: false, PreRelease: featuregate.Beta},
-	EnableMatchLabelKeysInPodTopologySpread:     {Default: false, PreRelease: featuregate.Beta},
+	EnableMatchLabelKeysInPodTopologySpread:     {Default: true, PreRelease: featuregate.Beta},
 	RejectQuotaNotExist:                         {Default: false, PreRelease: featuregate.Beta},
 	QuotaRunTime:                                {Default: false, PreRelease: featuregate.Beta},
 	SyncTaskQuota:                               {Default: false, PreRelease: featuregate.Beta},
