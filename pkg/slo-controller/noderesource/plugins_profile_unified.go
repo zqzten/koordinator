@@ -25,6 +25,7 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/plugins/cpunormalization"
 	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/plugins/dynamicprodresource"
 	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/plugins/midresource"
+	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/plugins/resourceamplification"
 	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/plugins/vk"
 )
 
@@ -33,7 +34,8 @@ func init() {
 	addPluginOption(&midresource.Plugin{}, true)
 	addPluginOption(&batchresource.Plugin{}, true)
 	addPluginOption(&cpunormalization.Plugin{}, true)
-	addPluginOption(&dynamicprodresource.Plugin{}, false) // disable by default
+	addPluginOption(&dynamicprodresource.Plugin{}, false)   // disable by default
+	addPluginOption(&resourceamplification.Plugin{}, false) // disable by default
 	addPluginOption(&vk.Plugin{}, true)
 }
 
@@ -61,6 +63,7 @@ var (
 	// NodePreparePlugin implements node resource preparing for the calculated results.
 	nodePreparePlugins = []framework.NodePreparePlugin{
 		&cpunormalization.Plugin{},
+		&resourceamplification.Plugin{},
 		&midresource.Plugin{},
 		&batchresource.Plugin{},
 		&dynamicprodresource.Plugin{},
@@ -74,10 +77,12 @@ var (
 	nodeMetaCheckPlugins = []framework.NodeMetaCheckPlugin{
 		&cpunormalization.Plugin{},
 		&dynamicprodresource.Plugin{},
+		&resourceamplification.Plugin{},
 	}
 	// ResourceCalculatePlugin implements resource counting and overcommitment algorithms.
 	resourceCalculatePlugins = []framework.ResourceCalculatePlugin{
 		&cpunormalization.Plugin{},
+		&resourceamplification.Plugin{},
 		&midresource.Plugin{},
 		&batchresource.Plugin{},
 		&dynamicprodresource.Plugin{},

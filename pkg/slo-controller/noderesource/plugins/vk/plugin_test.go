@@ -26,8 +26,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 
+	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
+
 	"github.com/koordinator-sh/koordinator/apis/configuration"
 	"github.com/koordinator-sh/koordinator/apis/extension"
+	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 	slov1alpha1 "github.com/koordinator-sh/koordinator/apis/slo/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/framework"
 )
@@ -266,6 +269,258 @@ func TestPluginCalculate(t *testing.T) {
 					Quantity: resource.NewScaledQuantity(36, 9),
 					Message:  "batchAllocatable[Mem(GB)]:36 = nodeAllocatable:120 - nodeReservation:24 - podHPRequest:60",
 				},
+				{
+					Name:    extension.ResourceGPU,
+					Reset:   false,
+					Message: IgnoreGPUResourceMsg,
+				},
+				{
+					Name:    extension.ResourceGPUCore,
+					Reset:   false,
+					Message: IgnoreGPUResourceMsg,
+				},
+				{
+					Name:    extension.ResourceGPUMemory,
+					Reset:   false,
+					Message: IgnoreGPUResourceMsg,
+				},
+				{
+					Name:    extension.ResourceGPUMemoryRatio,
+					Reset:   false,
+					Message: IgnoreGPUResourceMsg,
+				},
+				{
+					Name:    extension.ResourceGPUShared,
+					Reset:   false,
+					Message: IgnoreGPUResourceMsg,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "virtual-cluster node",
+			args: args{
+				strategy: &configuration.ColocationStrategy{
+					Enable:                        pointer.BoolPtr(true),
+					CPUReclaimThresholdPercent:    pointer.Int64Ptr(70),
+					MemoryReclaimThresholdPercent: pointer.Int64Ptr(80),
+				},
+				node: &corev1.Node{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-node1",
+						Labels: map[string]string{
+							uniext.LabelNodeType: unified.ACSType,
+						},
+					},
+					Status: corev1.NodeStatus{
+						Allocatable: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("100"),
+							corev1.ResourceMemory: resource.MustParse("120G"),
+						},
+						Capacity: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("100"),
+							corev1.ResourceMemory: resource.MustParse("120G"),
+						},
+					},
+				},
+				podList: &corev1.PodList{
+					Items: []corev1.Pod{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "podA",
+								Namespace: "test",
+								Labels: map[string]string{
+									extension.LabelPodQoS: string(extension.QoSLS),
+								},
+							},
+							Spec: corev1.PodSpec{
+								NodeName: "test-node1",
+								Containers: []corev1.Container{
+									{
+										Resources: corev1.ResourceRequirements{
+											Requests: corev1.ResourceList{
+												corev1.ResourceCPU:    resource.MustParse("20"),
+												corev1.ResourceMemory: resource.MustParse("20G"),
+											},
+											Limits: corev1.ResourceList{
+												corev1.ResourceCPU:    resource.MustParse("20"),
+												corev1.ResourceMemory: resource.MustParse("20G"),
+											},
+										},
+									},
+								},
+							},
+							Status: corev1.PodStatus{
+								Phase: corev1.PodRunning,
+							},
+						},
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "podB",
+								Namespace: "test",
+								Labels: map[string]string{
+									extension.LabelPodQoS: string(extension.QoSBE),
+								},
+							},
+							Spec: corev1.PodSpec{
+								NodeName:   "test-node1",
+								Containers: []corev1.Container{{}},
+							},
+							Status: corev1.PodStatus{
+								Phase: corev1.PodRunning,
+							},
+						},
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "podC",
+								Namespace: "test",
+							},
+							Spec: corev1.PodSpec{
+								NodeName: "test-node1",
+								Containers: []corev1.Container{
+									{
+										Resources: corev1.ResourceRequirements{
+											Requests: corev1.ResourceList{
+												corev1.ResourceCPU:    resource.MustParse("10"),
+												corev1.ResourceMemory: resource.MustParse("20G"),
+											},
+											Limits: corev1.ResourceList{
+												corev1.ResourceCPU:    resource.MustParse("10"),
+												corev1.ResourceMemory: resource.MustParse("20G"),
+											},
+										},
+									}, {
+										Resources: corev1.ResourceRequirements{
+											Requests: corev1.ResourceList{
+												corev1.ResourceCPU:    resource.MustParse("10"),
+												corev1.ResourceMemory: resource.MustParse("20G"),
+											},
+											Limits: corev1.ResourceList{
+												corev1.ResourceCPU:    resource.MustParse("10"),
+												corev1.ResourceMemory: resource.MustParse("20G"),
+											},
+										},
+									},
+								},
+							},
+							Status: corev1.PodStatus{
+								Phase: corev1.PodPending,
+							},
+						},
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "podD",
+								Namespace: "test",
+								Labels: map[string]string{
+									extension.LabelPodQoS: string(extension.QoSBE),
+								},
+							},
+							Spec: corev1.PodSpec{
+								NodeName: "test-node1",
+								Containers: []corev1.Container{
+									{
+										Resources: corev1.ResourceRequirements{
+											Requests: corev1.ResourceList{
+												corev1.ResourceCPU:    resource.MustParse("10"),
+												corev1.ResourceMemory: resource.MustParse("10G"),
+											},
+											Limits: corev1.ResourceList{
+												corev1.ResourceCPU:    resource.MustParse("10"),
+												corev1.ResourceMemory: resource.MustParse("10G"),
+											},
+										},
+									},
+								},
+							},
+							Status: corev1.PodStatus{
+								Phase: corev1.PodSucceeded,
+							},
+						},
+					},
+				},
+				metrics: &framework.ResourceMetrics{
+					NodeMetric: &slov1alpha1.NodeMetric{
+						Status: slov1alpha1.NodeMetricStatus{
+							UpdateTime: &metav1.Time{Time: time.Now()},
+							NodeMetric: &slov1alpha1.NodeMetricInfo{
+								NodeUsage: slov1alpha1.ResourceMap{
+									ResourceList: corev1.ResourceList{
+										corev1.ResourceCPU:    resource.MustParse("50"),
+										corev1.ResourceMemory: resource.MustParse("55G"),
+									},
+								},
+							},
+							PodsMetric: []*slov1alpha1.PodMetricInfo{
+								{
+									Namespace: "test",
+									Name:      "podA",
+									PodUsage: slov1alpha1.ResourceMap{
+										ResourceList: corev1.ResourceList{
+											corev1.ResourceCPU:    resource.MustParse("11"),
+											corev1.ResourceMemory: resource.MustParse("11G"),
+										},
+									},
+								}, {
+									Namespace: "test",
+									Name:      "podB",
+									PodUsage: slov1alpha1.ResourceMap{
+										ResourceList: corev1.ResourceList{
+											corev1.ResourceCPU:    resource.MustParse("10"),
+											corev1.ResourceMemory: resource.MustParse("10G"),
+										},
+									},
+								},
+								{
+									Namespace: "test",
+									Name:      "podC",
+									PodUsage: slov1alpha1.ResourceMap{
+										ResourceList: corev1.ResourceList{
+											corev1.ResourceCPU:    resource.MustParse("22"),
+											corev1.ResourceMemory: resource.MustParse("22G"),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			want: []framework.ResourceItem{
+				{
+					Name:     extension.BatchCPU,
+					Quantity: resource.NewQuantity(30000, resource.DecimalSI),
+					Message:  "batchAllocatable[CPU(Milli-Core)]:30000 = nodeAllocatable:100000 - nodeReservation:30000 - podHPRequest:40000",
+				},
+				{
+					Name:     extension.BatchMemory,
+					Quantity: resource.NewScaledQuantity(36, 9),
+					Message:  "batchAllocatable[Mem(GB)]:36 = nodeAllocatable:120 - nodeReservation:24 - podHPRequest:60",
+				},
+				{
+					Name:    extension.ResourceGPU,
+					Reset:   false,
+					Message: IgnoreGPUResourceMsg,
+				},
+				{
+					Name:    extension.ResourceGPUCore,
+					Reset:   false,
+					Message: IgnoreGPUResourceMsg,
+				},
+				{
+					Name:    extension.ResourceGPUMemory,
+					Reset:   false,
+					Message: IgnoreGPUResourceMsg,
+				},
+				{
+					Name:    extension.ResourceGPUMemoryRatio,
+					Reset:   false,
+					Message: IgnoreGPUResourceMsg,
+				},
+				{
+					Name:    extension.ResourceGPUShared,
+					Reset:   false,
+					Message: IgnoreGPUResourceMsg,
+				},
 			},
 			wantErr: false,
 		},
@@ -286,7 +541,11 @@ func testingCorrectResourceItems(t *testing.T, want, got []framework.ResourceIte
 		qWant, qGot := want[i].Quantity, got[i].Quantity
 		want[i].Quantity, got[i].Quantity = nil, nil
 		assert.Equal(t, want[i], got[i], "equal fields for resource "+want[i].Name)
-		assert.Equal(t, qWant.MilliValue(), qGot.MilliValue(), "equal values for resource "+want[i].Name)
+		if qWant == nil {
+			assert.Nil(t, qGot, "expect no resource for "+want[i].Name)
+		} else {
+			assert.Equal(t, qWant.MilliValue(), qGot.MilliValue(), "equal values for resource "+want[i].Name)
+		}
 		want[i].Quantity, got[i].Quantity = qWant, qGot
 	}
 }

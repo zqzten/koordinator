@@ -19,24 +19,37 @@ package vk
 import (
 	"fmt"
 
-	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	quotav1 "k8s.io/apiserver/pkg/quota/v1"
 	"k8s.io/klog/v2"
 
+	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
+
 	"github.com/koordinator-sh/koordinator/apis/configuration"
 	"github.com/koordinator-sh/koordinator/apis/extension"
+	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/framework"
 	"github.com/koordinator-sh/koordinator/pkg/util"
 )
 
 const PluginName = "VKResource"
 
+const IgnoreGPUResourceMsg = "node gpu resources ignored by VK node"
+
 type Plugin struct{}
 
 var (
 	_ framework.ResourceCalculatePlugin = (*Plugin)(nil)
+
+	// IgnoredGPUResourceNames are the gpu resource names that should be ignored for the VK node.
+	IgnoredGPUResourceNames = []corev1.ResourceName{
+		extension.ResourceGPU,
+		extension.ResourceGPUCore,
+		extension.ResourceGPUMemory,
+		extension.ResourceGPUMemoryRatio,
+		extension.ResourceGPUShared,
+	}
 )
 
 func (p *Plugin) Name() string {
@@ -49,15 +62,15 @@ func (p *Plugin) Reset(node *corev1.Node, message string) []framework.ResourceIt
 
 func (p *Plugin) Calculate(strategy *configuration.ColocationStrategy, node *corev1.Node, podList *corev1.PodList,
 	metrics *framework.ResourceMetrics) ([]framework.ResourceItem, error) {
-	if !uniext.IsVirtualKubeletNode(node) {
+	// handle Virtual-Kubelet node and Virtual Cluster node
+	if node == nil || node.Labels == nil || !uniext.IsVirtualKubeletNode(node) && !unified.IsACSVirtualNode(node.Labels) {
 		return nil, nil
 	}
 
 	var resourceItems []framework.ResourceItem
 
 	// 1. VK Batch resources (batch.allocatable := node.total - HP.request - node.reserved)
-	batchResources, err := p.calculateForBatchResource(strategy, node, podList)
-	if err != nil {
+	if batchResources, err := p.calculateForBatchResource(strategy, node, podList); err != nil {
 		klog.V(4).InfoS("failed to calculate Batch resources for VK node", "node", node.Name,
 			"err", err)
 	} else {
@@ -65,12 +78,19 @@ func (p *Plugin) Calculate(strategy *configuration.ColocationStrategy, node *cor
 	}
 
 	// 2. VK Mid resources (mid.allocatable = zero)
-	midResources, err := p.calculateForMidResources(strategy, node, podList)
-	if err != nil {
+	if midResources, err := p.calculateForMidResources(strategy, node, podList); err != nil {
 		klog.V(4).InfoS("failed to calculate Mid resources for VK node", "node", node.Name,
 			"err", err)
 	} else {
 		resourceItems = append(resourceItems, midResources...)
+	}
+
+	// 3. VK GPU Device resources (skip for VK node)
+	if gpuDeviceResources, err := p.calculateForGPUDeviceResources(strategy, node, podList); err != nil {
+		klog.V(4).InfoS("failed to calculate gpu device resources for VK node", "node", node.Name,
+			"err", err)
+	} else {
+		resourceItems = append(resourceItems, gpuDeviceResources...)
 	}
 
 	return resourceItems, nil
@@ -130,6 +150,19 @@ func (p *Plugin) calculateForMidResources(strategy *configuration.ColocationStra
 	podList *corev1.PodList) ([]framework.ResourceItem, error) {
 	// currently, vk node does not support Mid-tier overcommitment
 	return nil, nil
+}
+
+func (p *Plugin) calculateForGPUDeviceResources(strategy *configuration.ColocationStrategy, node *corev1.Node,
+	podList *corev1.PodList) ([]framework.ResourceItem, error) {
+	var items []framework.ResourceItem
+	for _, resourceName := range IgnoredGPUResourceNames {
+		items = append(items, framework.ResourceItem{
+			Name:    resourceName,
+			Reset:   false,
+			Message: IgnoreGPUResourceMsg,
+		})
+	}
+	return items, nil
 }
 
 // getNodeAllocatable gets node allocatable and filters out non-CPU and non-Mem resources
