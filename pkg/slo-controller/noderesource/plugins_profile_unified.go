@@ -24,8 +24,8 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/plugins/batchresource"
 	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/plugins/cpunormalization"
 	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/plugins/dynamicprodresource"
+	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/plugins/gpudeviceresource"
 	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/plugins/midresource"
-	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/plugins/resourceamplification"
 	"github.com/koordinator-sh/koordinator/pkg/slo-controller/noderesource/plugins/vk"
 )
 
@@ -34,8 +34,9 @@ func init() {
 	addPluginOption(&midresource.Plugin{}, true)
 	addPluginOption(&batchresource.Plugin{}, true)
 	addPluginOption(&cpunormalization.Plugin{}, true)
-	addPluginOption(&dynamicprodresource.Plugin{}, false)   // disable by default
-	addPluginOption(&resourceamplification.Plugin{}, false) // disable by default
+	addPluginOption(&gpudeviceresource.Plugin{}, true)
+	// TODO: merge resourceamplification and dynamicprodresource
+	addPluginOption(&dynamicprodresource.Plugin{}, false) // disable by default
 	addPluginOption(&vk.Plugin{}, true)
 }
 
@@ -54,6 +55,7 @@ var (
 	setupPlugins = []framework.SetupPlugin{
 		&cpunormalization.Plugin{}, // should be first
 		&batchresource.Plugin{},
+		&gpudeviceresource.Plugin{},
 		&dynamicprodresource.Plugin{},
 	}
 	// NodePreUpdatePlugin implements node resource pre-updating.
@@ -63,28 +65,29 @@ var (
 	// NodePreparePlugin implements node resource preparing for the calculated results.
 	nodePreparePlugins = []framework.NodePreparePlugin{
 		&cpunormalization.Plugin{},
-		&resourceamplification.Plugin{},
 		&midresource.Plugin{},
 		&batchresource.Plugin{},
+		&gpudeviceresource.Plugin{},
 		&dynamicprodresource.Plugin{},
 	}
 	// nodeStatusCheckPlugins implements the check of node status updating.
 	nodeStatusCheckPlugins = []framework.NodeStatusCheckPlugin{
 		&midresource.Plugin{},
 		&batchresource.Plugin{},
+		&gpudeviceresource.Plugin{},
 	}
 	// nodeMetaCheckPlugins implements the check of node meta updating.
 	nodeMetaCheckPlugins = []framework.NodeMetaCheckPlugin{
 		&cpunormalization.Plugin{},
+		&gpudeviceresource.Plugin{},
 		&dynamicprodresource.Plugin{},
-		&resourceamplification.Plugin{},
 	}
 	// ResourceCalculatePlugin implements resource counting and overcommitment algorithms.
 	resourceCalculatePlugins = []framework.ResourceCalculatePlugin{
 		&cpunormalization.Plugin{},
-		&resourceamplification.Plugin{},
 		&midresource.Plugin{},
 		&batchresource.Plugin{},
+		&gpudeviceresource.Plugin{},
 		&dynamicprodresource.Plugin{},
 		&vk.Plugin{}, // should be at the ending
 	}
