@@ -22,6 +22,7 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/ack/gputopology"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/cpusetallocator"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/firstfit"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/gpuoversell"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/hybridnet"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/lazyload"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/license"
@@ -45,5 +46,6 @@ func init() {
 		extender.GPUShareResponsibleForPodFunc,
 	)
 	koordinatorPlugins[gputopology.GPUTopologyName] = gputopology.New
+	koordinatorPlugins[gpuoversell.GPUOversellName] = gpuoversell.New
 
 }
