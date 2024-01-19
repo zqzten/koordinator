@@ -1335,7 +1335,7 @@ func TestResourceSummaryReconciler_Reconcile(t *testing.T) {
 	pod.Name = fmt.Sprintf("pod-%d-%d", 0, 1)
 	priority := uniext.PriorityProdValueMax
 	pod.Spec.Priority = &priority
-	extension.SetReservationAllocated(pod, reservation.Name, reservation.UID)
+	extension.SetReservationAllocated(pod, reservation)
 	err = r.Client.Create(context.Background(), pod)
 	assert.NoError(t, err)
 
