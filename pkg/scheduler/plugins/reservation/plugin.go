@@ -607,7 +607,7 @@ func (pl *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState,
 	reservation := state.assumed
 	klog.V(4).Infof("Attempting to pre-bind pod %v to node %v with reservation %v", klog.KObj(pod), nodeName, klog.KObj(reservation))
 
-	apiext.SetReservationAllocated(pod, reservation.GetName(), reservation.UID())
+	apiext.SetReservationAllocated(pod, reservation.GetObject())
 	return nil
 }
 
