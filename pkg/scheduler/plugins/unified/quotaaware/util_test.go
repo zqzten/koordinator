@@ -396,6 +396,11 @@ func Test_checkGuarantee_different_requests_and_used(t *testing.T) {
 				corev1.ResourceMemory: resource.MustParse("10Gi"),
 				"fakeResource":        resource.MustParse("10"),
 			},
+			Min: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("10"),
+				corev1.ResourceMemory: resource.MustParse("10Gi"),
+				"fakeResource":        resource.MustParse("10"),
+			},
 		},
 	}, false)
 	assert.NoError(t, err)
