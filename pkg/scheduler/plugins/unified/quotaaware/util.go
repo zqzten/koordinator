@@ -208,7 +208,7 @@ func checkGuarantee(qm *elasticquotacore.GroupQuotaManager, quotaInfo *elasticqu
 	}
 
 	if quotaInfo.IsParent && (quotaInfo.ParentName == "" || quotaInfo.ParentName == apiext.RootQuotaName) {
-		totalResource := qm.GetClusterTotalResource()
+		totalResource := quotav1.Mask(qm.GetClusterTotalResource(), quotav1.ResourceNames(quotaInfo.GetMin()))
 		allocated := quotaInfo.GetAllocated()
 		used := quotav1.Add(requests, allocated)
 		used = quotav1.Mask(used, requestsNames)
@@ -248,7 +248,7 @@ func checkMin(qm *elasticquotacore.GroupQuotaManager, quotaInfo *elasticquotacor
 
 	if quotaInfo.IsParent && (quotaInfo.ParentName == "" || quotaInfo.ParentName == apiext.RootQuotaName) {
 		// Here skip checking inventory
-		return true
+		return false
 	}
 
 	allocated := quotaInfo.GetAllocated()
