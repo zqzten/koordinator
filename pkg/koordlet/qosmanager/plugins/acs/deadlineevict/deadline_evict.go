@@ -8,6 +8,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
@@ -19,7 +20,6 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/qosmanager/framework"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/statesinformer"
 	"github.com/koordinator-sh/koordinator/pkg/util"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -33,7 +33,7 @@ var (
 type deadlineEvict struct {
 	evictInterval  time.Duration
 	statesInformer statesinformer.StatesInformer
-	// TOOD refactor Evictor in framework pkg as an interface which can be extended with different implementation
+	// TODO refactor Evictor in framework pkg as an interface which can be extended with different implementation
 	evictor *acsEvictor
 }
 
