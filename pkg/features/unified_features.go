@@ -69,6 +69,11 @@ const (
 	// owner: @zwzhang0107
 	// alpha: v1.3
 	DeadlineEvict featuregate.Feature = "DeadlineEvict"
+
+	// CPUSatisfactionCollector enable pod cpu satisfaction collector
+	// owner: @shizun.zx
+	// alpha: v1.4
+	CPUSatisfactionCollector featuregate.Feature = "CPUSatisfactionCollector"
 )
 
 var defaultUnifiedFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -104,8 +109,9 @@ var defaultUnifiedSchedulerFeatureGates = map[featuregate.Feature]featuregate.Fe
 }
 
 var defaultUnifiedKoordletFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
-	LRNReport:     {Default: false, PreRelease: featuregate.Alpha},
-	DeadlineEvict: {Default: false, PreRelease: featuregate.Alpha},
+	LRNReport:                {Default: false, PreRelease: featuregate.Alpha},
+	DeadlineEvict:            {Default: false, PreRelease: featuregate.Alpha},
+	CPUSatisfactionCollector: {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {

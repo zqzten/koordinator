@@ -20,6 +20,7 @@ limitations under the License.
 package metricsadvisor
 
 import (
+	"github.com/koordinator-sh/koordinator/pkg/koordlet/metricsadvisor/collectors/podcpusatisfaction"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/metricsadvisor/collectors/podresource"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/metricsadvisor/collectors/podthrottled"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/metricsadvisor/collectors/unifiedrundresource"
@@ -28,6 +29,7 @@ import (
 
 func init() {
 	collectorPlugins[unifiedrundresource.CollectorName] = unifiedrundresource.New
+	collectorPlugins[podcpusatisfaction.CollectorName] = podcpusatisfaction.New
 
 	podFilters[podresource.CollectorName] = framework.DefaultRuntimePodFilter
 	// TODO: add pod throttled filter for rund
