@@ -38,14 +38,14 @@ func TestNewCgroupReaderAnolis(t *testing.T) {
 			fields: fields{
 				UseCgroupsV2: false,
 			},
-			want: &CgroupV1AnolisReader{},
+			want: &CgroupV1ReaderAnolis{},
 		},
 		{
 			name: "anolis cgroups-v2 reader",
 			fields: fields{
 				UseCgroupsV2: true,
 			},
-			want: &CgroupV2AnolisReader{},
+			want: &CgroupV2ReaderAnolis{},
 		},
 	}
 	for _, tt := range tests {

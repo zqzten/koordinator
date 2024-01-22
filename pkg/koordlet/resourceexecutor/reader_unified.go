@@ -26,25 +26,30 @@ import (
 type CgroupReaderAnolis interface {
 	ReadCPUStat(parentDir string) (*sysutil.CPUStatAnolisRaw, error)
 	ReadCPUSchedCfsStatistics(parentDir string) (*sysutil.CPUSchedCfsStatisticsAnolisRaw, error)
+	ReadCPUHTRatio(parentDir string) (int64, error)
 }
 
-var _ CgroupReaderAnolis = &CgroupV1AnolisReader{}
+var _ CgroupReaderAnolis = (*CgroupV1ReaderAnolis)(nil)
 
-type CgroupV1AnolisReader struct{}
+type CgroupV1ReaderAnolis struct{}
 
-func (r *CgroupV1AnolisReader) ReadCPUStat(parentDir string) (*sysutil.CPUStatAnolisRaw, error) {
+func (r *CgroupV1ReaderAnolis) ReadCPUHTRatio(parentDir string) (int64, error) {
+	return 0, fmt.Errorf("not implemented")
+}
+
+func (r *CgroupV1ReaderAnolis) ReadCPUStat(parentDir string) (*sysutil.CPUStatAnolisRaw, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (r *CgroupV1AnolisReader) ReadCPUSchedCfsStatistics(parentDir string) (*sysutil.CPUSchedCfsStatisticsAnolisRaw, error) {
+func (r *CgroupV1ReaderAnolis) ReadCPUSchedCfsStatistics(parentDir string) (*sysutil.CPUSchedCfsStatisticsAnolisRaw, error) {
 	return nil, errors.New("not implemented")
 }
 
-var _ CgroupReaderAnolis = &CgroupV2AnolisReader{}
+var _ CgroupReaderAnolis = (*CgroupV2ReaderAnolis)(nil)
 
-type CgroupV2AnolisReader struct{}
+type CgroupV2ReaderAnolis struct{}
 
-func (r *CgroupV2AnolisReader) ReadCPUStat(parentDir string) (*sysutil.CPUStatAnolisRaw, error) {
+func (r *CgroupV2ReaderAnolis) ReadCPUStat(parentDir string) (*sysutil.CPUStatAnolisRaw, error) {
 	resource, ok := sysutil.DefaultRegistry.Get(sysutil.CgroupVersionV2, sysutil.CPUStatName)
 	if !ok {
 		return nil, ErrResourceNotRegistered
@@ -61,7 +66,7 @@ func (r *CgroupV2AnolisReader) ReadCPUStat(parentDir string) (*sysutil.CPUStatAn
 	return v, nil
 }
 
-func (r *CgroupV2AnolisReader) ReadCPUSchedCfsStatistics(parentDir string) (*sysutil.CPUSchedCfsStatisticsAnolisRaw, error) {
+func (r *CgroupV2ReaderAnolis) ReadCPUSchedCfsStatistics(parentDir string) (*sysutil.CPUSchedCfsStatisticsAnolisRaw, error) {
 	resource, ok := sysutil.DefaultRegistry.Get(sysutil.CgroupVersionV2, sysutil.CPUSchedCfsStatisticsName)
 	if !ok {
 		return nil, ErrResourceNotRegistered
@@ -78,9 +83,17 @@ func (r *CgroupV2AnolisReader) ReadCPUSchedCfsStatistics(parentDir string) (*sys
 	return v, nil
 }
 
+func (r *CgroupV2ReaderAnolis) ReadCPUHTRatio(parentDir string) (int64, error) {
+	resource, ok := sysutil.DefaultRegistry.Get(sysutil.CgroupVersionV2, sysutil.CPUHTRatioName)
+	if !ok {
+		return -1, ErrResourceNotRegistered
+	}
+	return readCgroupAndParseInt64(parentDir, resource)
+}
+
 func NewCgroupReaderAnolis() CgroupReaderAnolis {
 	if sysutil.GetCurrentCgroupVersion() == sysutil.CgroupVersionV2 {
-		return &CgroupV2AnolisReader{}
+		return &CgroupV2ReaderAnolis{}
 	}
-	return &CgroupV1AnolisReader{}
+	return &CgroupV1ReaderAnolis{}
 }

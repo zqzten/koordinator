@@ -16,7 +16,7 @@ func TestRegisterDefaultExtensionsMap(t *testing.T) {
 	RegisterDefaultExtensionsMap(extKey, extCfg)
 	defaultExtensions := getDefaultExtensionsMap()
 	assert.NotNil(t, defaultExtensions)
-	assert.Equal(t, len(defaultExtensions.Object), 3)
+	assert.Equal(t, len(defaultExtensions.Object), 4)
 	assert.Equal(t, defaultExtensions.Object[extKey], extCfg)
 
 	deadlineEvictStrategy, ok := defaultExtensions.Object[unified.DeadlineEvictExtKey].(*unified.DeadlineEvictStrategy)
@@ -32,4 +32,10 @@ func TestRegisterDefaultExtensionsMap(t *testing.T) {
 	assert.False(t, *acsSystemStrategy.Enable)
 	assert.Equal(t, *DefaultACSSystemStrategy().SchedSchedStats, *acsSystemStrategy.SchedSchedStats)
 	assert.Equal(t, *DefaultACSSystemStrategy().SchedAcpu, *acsSystemStrategy.SchedAcpu)
+
+	cpuStableStrategy, ok := defautExtensions.Object[unified.CPUStableExtKey].(*unified.CPUStableStrategy)
+	assert.True(t, ok)
+	assert.NotNil(t, cpuStableStrategy)
+	assert.Equal(t, unified.CPUStablePolicyIgnore, *cpuStableStrategy.Policy)
+	assert.Equal(t, DefaultCPUStableStrategy(), cpuStableStrategy)
 }

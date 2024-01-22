@@ -195,3 +195,37 @@ func TestUnifiedCollectors(t *testing.T) {
 		})
 	})
 }
+
+func TestCPUStableCollectors(t *testing.T) {
+	testingNode := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "test-node",
+			Labels: map[string]string{},
+		},
+		Status: corev1.NodeStatus{
+			Allocatable: corev1.ResourceList{
+				corev1.ResourceCPU:       resource.MustParse("96"),
+				corev1.ResourceMemory:    resource.MustParse("180Gi"),
+				apiext.BatchCPU:          resource.MustParse("50000"),
+				apiext.BatchMemory:       resource.MustParse("80Gi"),
+				apiext.ResourceNvidiaGPU: resource.MustParse("4"),
+			},
+			Capacity: corev1.ResourceList{
+				corev1.ResourceCPU:       resource.MustParse("100"),
+				corev1.ResourceMemory:    resource.MustParse("200Gi"),
+				apiext.BatchCPU:          resource.MustParse("50000"),
+				apiext.BatchMemory:       resource.MustParse("80Gi"),
+				apiext.ResourceNvidiaGPU: resource.MustParse("4"),
+			},
+		},
+	}
+	t.Run("test", func(t *testing.T) {
+		Register(testingNode)
+		defer Register(nil)
+
+		assert.NotPanics(t, func() {
+			ResetPodHTRatio()
+			RecordPodHTRatio("test-ns", "test", "test-uid", "none", 100.0)
+		})
+	})
+}
