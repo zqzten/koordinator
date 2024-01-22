@@ -298,10 +298,6 @@ func (pl *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState,
 	return nil
 }
 
-var specialPlugins = []string{
-	"UnifiedInterPodAffinity",
-}
-
 func (pl *Plugin) preErrorHandlerFilter(podInfo *framework.QueuedPodInfo, scheduleErr error) bool {
 	pod := podInfo.Pod
 	if pod.Labels[LabelQuotaID] == "" {
