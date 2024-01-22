@@ -32,6 +32,7 @@ import (
 	"k8s.io/klog/v2"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
+	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	frameworkexthelper "github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/helper"
 )
@@ -41,14 +42,15 @@ const (
 )
 
 type nodeDevice struct {
-	lock          sync.RWMutex
-	deviceTotal   map[schedulingv1alpha1.DeviceType]deviceResources
-	deviceFree    map[schedulingv1alpha1.DeviceType]deviceResources
-	deviceUsed    map[schedulingv1alpha1.DeviceType]deviceResources
-	vfAllocations map[schedulingv1alpha1.DeviceType]*VFAllocation
-	allocateSet   map[schedulingv1alpha1.DeviceType]map[types.NamespacedName]deviceResources
-	numaTopology  *NUMATopology
-	deviceInfos   map[schedulingv1alpha1.DeviceType][]*schedulingv1alpha1.DeviceInfo
+	lock              sync.RWMutex
+	deviceTotal       map[schedulingv1alpha1.DeviceType]deviceResources
+	deviceFree        map[schedulingv1alpha1.DeviceType]deviceResources
+	deviceUsed        map[schedulingv1alpha1.DeviceType]deviceResources
+	vfAllocations     map[schedulingv1alpha1.DeviceType]*VFAllocation
+	allocateSet       map[schedulingv1alpha1.DeviceType]map[types.NamespacedName]deviceResources
+	numaTopology      *NUMATopology
+	deviceInfos       map[schedulingv1alpha1.DeviceType][]*schedulingv1alpha1.DeviceInfo
+	gpuPartitionTable unified.GPUPartitionTable
 }
 
 type VFAllocation struct {
@@ -391,6 +393,7 @@ func (n *nodeDevice) filter(
 	r.vfAllocations = n.vfAllocations
 	r.numaTopology = n.numaTopology
 	r.deviceInfos = n.deviceInfos
+	r.gpuPartitionTable = n.gpuPartitionTable
 	return r
 }
 
@@ -498,12 +501,17 @@ func (n *nodeDeviceCache) updateNodeDevice(nodeName string, device *schedulingv1
 		info := &device.Spec.Devices[i]
 		deviceInfos[info.Type] = append(deviceInfos[info.Type], info)
 	}
+	gpuPartitionTable, err := unified.GetGPUPartitionTableFromDevice(device)
+	if err != nil {
+		klog.Errorf("invalid gpu partition table, err: %s", err.Error())
+	}
 	info := n.getNodeDevice(nodeName, true)
 	info.lock.Lock()
 	defer info.lock.Unlock()
 	info.resetDeviceTotal(nodeDeviceResource)
 	info.numaTopology = numaTopology
 	info.deviceInfos = deviceInfos
+	info.gpuPartitionTable = gpuPartitionTable
 }
 
 func buildDeviceResources(device *schedulingv1alpha1.Device) map[schedulingv1alpha1.DeviceType]deviceResources {

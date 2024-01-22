@@ -18,6 +18,7 @@ package unified
 
 import (
 	"encoding/json"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 
@@ -259,17 +260,60 @@ var H800PartitionTables = map[int][]GPUPartition{
 	},
 }
 
+var H100PartitionTables = GPUPartitionTable{
+	8: {
+		{ID: 0, NumberOfGPUs: 8, ModuleIDs: []int{1, 2, 3, 4, 5, 6, 7, 8}},
+	},
+	4: {
+		{ID: 1, NumberOfGPUs: 4, ModuleIDs: []int{1, 2, 3, 4}},
+		{ID: 2, NumberOfGPUs: 4, ModuleIDs: []int{5, 6, 7, 8}},
+	},
+	2: {
+		{ID: 3, NumberOfGPUs: 2, ModuleIDs: []int{1, 3}},
+		{ID: 4, NumberOfGPUs: 2, ModuleIDs: []int{2, 4}},
+		{ID: 5, NumberOfGPUs: 2, ModuleIDs: []int{5, 7}},
+		{ID: 6, NumberOfGPUs: 2, ModuleIDs: []int{6, 8}},
+	},
+	1: {
+		// keep the following order to reduce fragments
+		{ID: 7, NumberOfGPUs: 1, ModuleIDs: []int{1}},
+		{ID: 9, NumberOfGPUs: 1, ModuleIDs: []int{3}},
+		{ID: 8, NumberOfGPUs: 1, ModuleIDs: []int{2}},
+		{ID: 10, NumberOfGPUs: 1, ModuleIDs: []int{4}},
+		{ID: 11, NumberOfGPUs: 1, ModuleIDs: []int{5}},
+		{ID: 13, NumberOfGPUs: 1, ModuleIDs: []int{7}},
+		{ID: 12, NumberOfGPUs: 1, ModuleIDs: []int{6}},
+		{ID: 14, NumberOfGPUs: 1, ModuleIDs: []int{8}},
+	},
+}
+
 var PartitionTables = map[string]map[int][]GPUPartition{
 	"H800": H800PartitionTables,
+	"H100": H100PartitionTables,
 }
 
 func MustAllocateGPUByPartition(node *corev1.Node) bool {
-	model := node.Labels[extension.LabelGPUModel]
+	model := node.Labels[LabelGPUModelSeries]
 	_, ok := PartitionTables[model]
 	return ok
 }
 
+func GetGPUPartitionTableFromDevice(device *schedulingv1alpha1.Device) (GPUPartitionTable, error) {
+	if rawGPUPartitionTable, ok := device.Annotations[AnnotationGPUPartitions]; ok && rawGPUPartitionTable != "" {
+		gpuPartitionTable := GPUPartitionTable{}
+		err := json.Unmarshal([]byte(rawGPUPartitionTable), &gpuPartitionTable)
+		if err != nil {
+			return nil, err
+		}
+		if gpuPartitionTable == nil {
+			return nil, fmt.Errorf("invalid gpu partitions in device cr: %s", rawGPUPartitionTable)
+		}
+		return gpuPartitionTable, nil
+	}
+	return nil, nil
+}
+
 func GetGPUPartitionTable(node *corev1.Node) map[int][]GPUPartition {
-	model := node.Labels[extension.LabelGPUModel]
+	model := node.Labels[LabelGPUModelSeries]
 	return PartitionTables[model]
 }
