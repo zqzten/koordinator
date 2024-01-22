@@ -55,7 +55,13 @@ func (a *GPUAllocator) Allocate(requestCtx *requestContext, nodeDevice *nodeDevi
 }
 
 func (a *GPUAllocator) allocateResourcesByPartition(requestCtx *requestContext, nodeDevice *nodeDevice, desiredCount int, preferredPCIes sets.String) ([]*apiext.DeviceAllocation, *framework.Status) {
-	partitionTable := unified.GetGPUPartitionTable(requestCtx.node)
+	partitionTable := nodeDevice.gpuPartitionTable
+	if partitionTable == nil {
+		partitionTable = unified.GetGPUPartitionTable(requestCtx.node)
+		if partitionTable == nil {
+			return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "node(s) missing GPU Partition Table")
+		}
+	}
 	partitions, ok := partitionTable[desiredCount]
 	if !ok {
 		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "node(s) Unsupported number of GPU requests")
