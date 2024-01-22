@@ -31,6 +31,7 @@ import (
 func init() {
 	ExternalMustRegister(LRNCollectors...)
 	ExternalMustRegister(UnifiedCollectors...)
+	internalMustRegister(CPUStableCollector...)
 }
 
 const (

@@ -79,6 +79,11 @@ const (
 	// owner: @shizun.zx
 	// alpha: v1.4
 	ACSSystemConfig featuregate.Feature = "ACSSystemConfig"
+
+	// CPUStable stabilizes cpu usage for the cpushare pods to achieve a consistent performance.
+	// owner: @saintube
+	// alpha: v1.4
+	CPUStable featuregate.Feature = "CPUStable"
 )
 
 var defaultUnifiedFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -118,6 +123,7 @@ var defaultUnifiedKoordletFeatureGates = map[featuregate.Feature]featuregate.Fea
 	DeadlineEvict:            {Default: false, PreRelease: featuregate.Alpha},
 	CPUSatisfactionCollector: {Default: false, PreRelease: featuregate.Alpha},
 	ACSSystemConfig:          {Default: false, PreRelease: featuregate.Alpha},
+	CPUStable:                {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {
