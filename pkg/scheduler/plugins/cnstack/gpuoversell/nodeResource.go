@@ -1,16 +1,17 @@
 package gpuoversell
 
 import (
+	"sync"
+
 	v1 "k8s.io/api/core/v1"
 	apitypes "k8s.io/apimachinery/pkg/types"
-	"sync"
 )
 
 type NodeResource struct {
 	mu                    sync.RWMutex
 	resourceName          v1.ResourceName
 	allocatedPodResources map[apitypes.UID]*PodResource
-	total                 int64
+	total                 int
 }
 
 func (n *NodeResource) Clone() *NodeResource {
@@ -44,17 +45,11 @@ func (n *NodeResource) AddPodResource(pod *v1.Pod) {
 	n.allocatedPodResources[pr.PodUID] = pr
 }
 
-func (n *NodeResource) RemovePodResource(pod *v1.Pod) {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	delete(n.allocatedPodResources, pod.UID)
-}
-
 func getPodResources(resourceName v1.ResourceName, pod *v1.Pod) *PodResource {
 	pr := NewPodResource(pod)
 	for i, c := range pod.Spec.Containers {
 		if v, ok := c.Resources.Limits[resourceName]; ok && v.Value() > 0 {
-			pr.AllocatedResources[i] = v.Value()
+			pr.AllocatedResources[i] = int(v.Value())
 		}
 	}
 	if len(pr.AllocatedResources) > 0 {
@@ -63,20 +58,57 @@ func getPodResources(resourceName v1.ResourceName, pod *v1.Pod) *PodResource {
 	return nil
 }
 
-func (n *NodeResource) SetTotal(total int64) {
+func (n *NodeResource) GetTotal() int {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.total
+}
+
+func (n *NodeResource) SetTotal(total int) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.total = total
 }
 
-func (n *NodeResource) GetAllocated() int64 {
+func (n *NodeResource) GetAllocated() int {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
-	allocated := int64(0)
+	allocated := 0
 	for _, pr := range n.allocatedPodResources {
 		for _, v := range pr.AllocatedResources {
 			allocated = allocated + v
 		}
 	}
 	return allocated
+}
+
+func (n *NodeResource) GetAllocatedPodResource(podUID apitypes.UID) *PodResource {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	p, ok := n.allocatedPodResources[podUID]
+	if !ok {
+		return nil
+	}
+	return p.Clone()
+}
+
+func (n *NodeResource) PodResourceIsCached(podUID apitypes.UID) bool {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	_, ok := n.allocatedPodResources[podUID]
+	return ok
+}
+
+func (n *NodeResource) RemoveAllocatedPodResources(podUID apitypes.UID) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	delete(n.allocatedPodResources, podUID)
+}
+
+func getNodeGPUCount(node *v1.Node) int {
+	val, ok := node.Status.Allocatable[v1.ResourceName(GPUResourceCountName)]
+	if !ok {
+		return int(0)
+	}
+	return int(val.Value())
 }

@@ -10,3 +10,4 @@ testbin/
 
 !bin/start-koord-manager.sh
 !bin/kubectl*
+!bin/logrotate*

@@ -35,6 +35,8 @@ var (
 	ErrMsgDefaultPolicyMoreThanOne = "only supports one default policy"
 	// ErrMsgNodeNotInCache returns an error message that node information is not found in frameworkcache
 	ErrMsgNodeNotInCache = "node(s) didn't be in frameworkcache"
+	// ErrMsgNotEnoughActualResources returns an error message that requested resources surpass what the actual device can provide when overselling
+	ErrMsgNotEnoughActualResources = "the requested resources surpass what the actual device can provide"
 )
 
 type DeviceSharingRuntime struct {

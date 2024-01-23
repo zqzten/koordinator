@@ -37,7 +37,7 @@ func GetContainerRequestResourceByName(resourceName v1.ResourceName, pod *v1.Pod
 func GetNodeResourcesByNames(node *v1.Node, resourceNames ...v1.ResourceName) map[v1.ResourceName]int {
 	result := map[v1.ResourceName]int{}
 	for _, resourceName := range resourceNames {
-		val, ok := node.Status.Capacity[resourceName]
+		val, ok := node.Status.Allocatable[resourceName]
 		if !ok {
 			continue
 		}
