@@ -33,6 +33,7 @@ import (
 	unifiedlimitaware "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/limitaware"
 	unifiednodeaffinity "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/nodeaffinity"
 	unifiednodeports "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/nodeports"
+	unifiednodevolumelimits "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/nodevolumelimits"
 	unifiedoverquota "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/overquota"
 	unifiedpodconstraint "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/podconstraint"
 	unifiedpodtopologyaware "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/podtopologyaware"
@@ -67,4 +68,5 @@ func init() {
 	koordinatorPlugins[unifiedinplaceupdate.Name] = unifiedinplaceupdate.New
 	koordinatorPlugins[unifiedlimitaware.Name] = unifiedlimitaware.New
 	koordinatorPlugins[unifiedquotaaware.Name] = unifiedquotaaware.New
+	koordinatorPlugins[unifiednodevolumelimits.CSIName] = unifiednodevolumelimits.NewCSI
 }
