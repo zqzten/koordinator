@@ -25,9 +25,8 @@ RUN --mount=type=ssh mkdir -p /go/src/gitlab.alibaba-inc.com/koordinator-sh/x &&
     git clone git@gitlab.alibaba-inc.com:koordinator-sh/x.git . && \
     go build -mod=vendor -v -a -o logrotate.bin logrotate/logrotate.go
 
-FROM --platform=$TARGETPLATFORM reg.docker.alibaba-inc.com/ackee/centos:latest
+FROM --platform=$TARGETPLATFORM registry-cn-hangzhou.ack.aliyuncs.com/dev/alpine:3.18-base
 WORKDIR /
-RUN yum install net-tools iproute bind-utils openssh-clients cronie sysvinit-tools less vim -y && yum update -y
 COPY --from=builder /go/src/github.com/koordinator-sh/koordinator/koord-scheduler .
 COPY --from=builder /go/src/gitlab.alibaba-inc.com/koordinator-sh/x/logrotate.bin ./logrotate
-COPY docker-asi/start-koord-scheduler.sh .
+ENTRYPOINT ["./logrotate", "--file=/log/koord-scheduler.log"]
