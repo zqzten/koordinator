@@ -47,7 +47,8 @@ const (
 	NVSwitchResource                       = "koordinator.sh/nvswitch"
 	ResourcePPU        corev1.ResourceName = "alibabacloud.com/ppu"
 
-	LabelGPUModelSeries string = extension.NodeDomainPrefix + "/gpu-model-series"
+	LabelGPUModelSeries       string = extension.NodeDomainPrefix + "/gpu-model-series"
+	LabelEnableSharedNVSwitch string = extension.NodeDomainPrefix + "/enable-shared-nvswitch"
 )
 
 type NVIDIADriverVersions []string
@@ -293,6 +294,10 @@ var PartitionTables = map[string]map[int][]GPUPartition{
 }
 
 func MustAllocateGPUByPartition(node *corev1.Node) bool {
+	if fabricManagerOperatingMode, ok := node.Labels[LabelEnableSharedNVSwitch]; ok {
+		return fabricManagerOperatingMode == "true"
+	}
+	// TODO 这里为了兼容存量没有加该 Label 的 Rund 场景，仍然先保留按照卡型判断的逻辑，即对于 PartitionTable 中记录的卡型 default=true，none 或者 bareMetal 或者 fullPassThrough 需要显式申明 label 说明
 	model := node.Labels[LabelGPUModelSeries]
 	_, ok := PartitionTables[model]
 	return ok
