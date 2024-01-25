@@ -30,6 +30,7 @@ import (
 
 	"github.com/koordinator-sh/koordinator/pkg/features"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/metriccache"
+	koordletmetrics "github.com/koordinator-sh/koordinator/pkg/koordlet/metrics"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/metricsadvisor/framework"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/resourceexecutor"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/statesinformer"
@@ -166,6 +167,9 @@ func (p *podCPUSatisfactionCollector) collectPodCPUSatisfactionUsed() {
 	podMetas := p.statesInformer.GetAllPods()
 	count := 0
 	metrics := make([]metriccache.MetricSample, 0)
+	koordletmetrics.ResetPodCPUCfsSatisfaction()
+	koordletmetrics.ResetPodCPUSatisfaction()
+	koordletmetrics.ResetPodCPUSatisfactionWithThrottle()
 	for _, meta := range podMetas {
 		pod := meta.Pod
 		uid := string(pod.UID) // types.UID
@@ -236,6 +240,7 @@ func (p *podCPUSatisfactionCollector) collectPodCPUSatisfactionUsed() {
 			klog.V(4).Infof("failed to generate pod cpu cfs satisfaction metric for pod %s, err %v", podKey, err)
 			continue
 		}
+		koordletmetrics.RecordPodCPUCfsSatisfaction(pod, CPUCfsSatisfactionValue)
 
 		CPUSatisfactionMetric, err := metriccache.PodCPUSatisfactionMetric.GenerateSample(
 			metriccache.MetricPropertiesFunc.Pod(uid), collectTime, CPUSatisfactionValue)
@@ -243,6 +248,7 @@ func (p *podCPUSatisfactionCollector) collectPodCPUSatisfactionUsed() {
 			klog.V(4).Infof("failed to generate pod cpu satisfaction metric for pod %s, err %v", podKey, err)
 			continue
 		}
+		koordletmetrics.RecordPodCPUSatisfaction(pod, CPUSatisfactionValue)
 
 		CPUSatisfactionWithThrottleMetric, err := metriccache.PodCPUSatisfactionWithThrottleMetric.GenerateSample(
 			metriccache.MetricPropertiesFunc.Pod(uid), collectTime, CPUSatisfactionWithThrottleValue)
@@ -250,6 +256,7 @@ func (p *podCPUSatisfactionCollector) collectPodCPUSatisfactionUsed() {
 			klog.V(4).Infof("failed to generate pod cpu satisfaction metric for pod %s, err %v", podKey, err)
 			continue
 		}
+		koordletmetrics.RecordPodCPUSatisfactionWithThrottle(pod, CPUSatisfactionWithThrottleValue)
 
 		metrics = append(metrics, CPUCfsSatisfactionMetric)
 		metrics = append(metrics, CPUSatisfactionMetric)
