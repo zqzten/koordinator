@@ -93,7 +93,7 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 		return pl.Plugin.PreFilter(ctx, cycleState, pod)
 	}
 
-	podNodeAffinity, err := newNodeAffinity(pod)
+	quotaAffinity, err := newQuotaAffinity(pod)
 	if err != nil {
 		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, err.Error())
 	}
@@ -103,12 +103,17 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 		return nil, nil
 	}
 
-	elasticQuotas, err := podNodeAffinity.matchElasticQuotas(pl.elasticQuotaLister)
+	elasticQuotas, err := quotaAffinity.matchElasticQuotas(pl.elasticQuotaLister, true)
 	if err != nil {
 		klog.ErrorS(err, "Failed to findMatchedElasticQuota", "pod", klog.KObj(pod))
 		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, ErrNoMatchingQuotaObjects)
 	}
 	if len(elasticQuotas) == 0 {
+		elasticQuotas, err = quotaAffinity.matchElasticQuotas(pl.elasticQuotaLister, false)
+		message := generateAffinityConflictMessage(quotaAffinity, pl.elasticQuotaLister)
+		if message != "" {
+			return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, message)
+		}
 		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, ErrNoMatchingQuotaObjects)
 	}
 
@@ -122,7 +127,7 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 		availableQuotas: availableQuotas,
 	})
 
-	if podNodeAffinity.affinityZones.Len() == 0 {
+	if quotaAffinity.affinityZones.Len() == 0 {
 		addTemporaryNodeAffinity(cycleState, elasticQuotas)
 	}
 
@@ -311,7 +316,7 @@ func (pl *Plugin) preErrorHandlerFilter(podInfo *framework.QueuedPodInfo, schedu
 	}
 
 	fwk := pl.handle.(framework.Framework)
-	podNodeAffinity, err := newNodeAffinity(pod)
+	quotaAffinity, err := newQuotaAffinity(pod)
 	if err != nil {
 		klog.Warningf("Unexpected scheduling error, pod: %q, err: %v", klog.KObj(pod), "failed to parse pod")
 		UnexpectedSchedulingError.WithLabelValues(fwk.ProfileName(), "", "", "", "InvalidQuotaMeta").Inc()
@@ -319,7 +324,7 @@ func (pl *Plugin) preErrorHandlerFilter(podInfo *framework.QueuedPodInfo, schedu
 	}
 
 	recordSchedulingErrorFn := func(reason string) {
-		UnexpectedSchedulingError.WithLabelValues(fwk.ProfileName(), podNodeAffinity.userID, podNodeAffinity.quotaID, podNodeAffinity.instanceType, reason).Inc()
+		UnexpectedSchedulingError.WithLabelValues(fwk.ProfileName(), quotaAffinity.userID, quotaAffinity.quotaID, quotaAffinity.instanceType, reason).Inc()
 	}
 
 	//  先确认是否是特殊场景：用户创建的 Pod 却没有匹配的 ElasticQuota，只有链路上有问题才会到这种情况出现。
@@ -332,7 +337,7 @@ func (pl *Plugin) preErrorHandlerFilter(podInfo *framework.QueuedPodInfo, schedu
 		break
 	}
 
-	elasticQuotas, err := podNodeAffinity.matchElasticQuotas(pl.elasticQuotaLister)
+	elasticQuotas, err := quotaAffinity.matchElasticQuotas(pl.elasticQuotaLister, true)
 	if err != nil {
 		klog.ErrorS(err, "Failed to findMatchedElasticQuota", "pod", klog.KObj(pod))
 		return false
@@ -384,7 +389,7 @@ func (pl *Plugin) preErrorHandlerFilter(podInfo *framework.QueuedPodInfo, schedu
 	zones := abnormalZones.Intersection(reservedZones)
 	if zones.Len() > 0 {
 		klog.Warningf("Unexpected scheduling error, pod: %q, err: %v", klog.KObj(podInfo.Pod), "reserved resources but scheduling failed")
-		UnexpectedSchedulingError.WithLabelValues(fwk.ProfileName(), podNodeAffinity.userID, podNodeAffinity.quotaID, podNodeAffinity.instanceType, "FailedWithReserveResource").Inc()
+		UnexpectedSchedulingError.WithLabelValues(fwk.ProfileName(), quotaAffinity.userID, quotaAffinity.quotaID, quotaAffinity.instanceType, "FailedWithReserveResource").Inc()
 	}
 	return false
 }
