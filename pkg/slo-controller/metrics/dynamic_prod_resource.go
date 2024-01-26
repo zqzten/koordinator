@@ -24,7 +24,7 @@ import (
 )
 
 func init() {
-	MustRegister(DynamicProdResourceCollector...)
+	InternalMustRegister(DynamicProdResourceCollector...)
 }
 
 var (
