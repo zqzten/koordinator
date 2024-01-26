@@ -46,7 +46,6 @@ func AffinityECI(pod *corev1.Pod) bool {
 		return false
 	}
 	eciAffinityLabel := pod.Labels[uniext.LabelECIAffinity]
-	return (EnableEnhanceECIAffinity(pod) &&
-		(eciAffinityLabel == uniext.ECIRequired || eciAffinityLabel == uniext.ECIPreferred)) ||
-		k8sfeature.DefaultFeatureGate.Enabled(features.EnableDefaultECIProfile)
+	return (EnableEnhanceECIAffinity(pod) && (eciAffinityLabel == uniext.ECIRequired || eciAffinityLabel == uniext.ECIPreferred)) ||
+		(k8sfeature.DefaultFeatureGate.Enabled(features.EnableDefaultECIProfile) && EnableEnhanceECIAffinity(pod))
 }
