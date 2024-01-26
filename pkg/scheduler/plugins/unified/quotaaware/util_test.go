@@ -31,18 +31,20 @@ import (
 	st "k8s.io/kubernetes/pkg/scheduler/testing"
 	schedv1alpha1 "sigs.k8s.io/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
 	schedfake "sigs.k8s.io/scheduler-plugins/pkg/generated/clientset/versioned/fake"
+	"sigs.k8s.io/scheduler-plugins/pkg/generated/informers/externalversions"
 	schedinformer "sigs.k8s.io/scheduler-plugins/pkg/generated/informers/externalversions"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	elasticquotacore "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota/core"
 	nodeaffinityhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/nodeaffinity"
+	"github.com/koordinator-sh/koordinator/pkg/util/transformer"
 )
 
 func Test_newNodeAffinity(t *testing.T) {
 	tests := []struct {
 		name    string
 		pod     *corev1.Pod
-		want    *nodeAffinity
+		want    *quotaAffinity
 		wantErr bool
 	}{
 		{
@@ -66,7 +68,7 @@ func Test_newNodeAffinity(t *testing.T) {
 		{
 			name: "target pod",
 			pod:  st.MakePod().Label(LabelUserAccountId, "123456").Label(LabelQuotaID, "666").Label(LabelInstanceType, "aaa").Obj(),
-			want: &nodeAffinity{
+			want: &quotaAffinity{
 				userID:         "123456",
 				quotaID:        "666",
 				instanceType:   "aaa",
@@ -79,7 +81,7 @@ func Test_newNodeAffinity(t *testing.T) {
 			name: "target pod with az selector",
 			pod: st.MakePod().Label(LabelUserAccountId, "123456").Label(LabelQuotaID, "666").Label(LabelInstanceType, "aaa").
 				NodeSelector(map[string]string{corev1.LabelTopologyZone: "az-1"}).Obj(),
-			want: &nodeAffinity{
+			want: &quotaAffinity{
 				userID:         "123456",
 				quotaID:        "666",
 				instanceType:   "aaa",
@@ -92,7 +94,7 @@ func Test_newNodeAffinity(t *testing.T) {
 			name: "target pod with az affinity",
 			pod: st.MakePod().Label(LabelUserAccountId, "123456").Label(LabelQuotaID, "666").Label(LabelInstanceType, "aaa").
 				NodeAffinityIn(corev1.LabelTopologyZone, []string{"az-1", "az-2"}).Obj(),
-			want: &nodeAffinity{
+			want: &quotaAffinity{
 				userID:         "123456",
 				quotaID:        "666",
 				instanceType:   "aaa",
@@ -105,7 +107,7 @@ func Test_newNodeAffinity(t *testing.T) {
 			name: "target pod with arch affinity",
 			pod: st.MakePod().Label(LabelUserAccountId, "123456").Label(LabelQuotaID, "666").Label(LabelInstanceType, "aaa").
 				NodeAffinityIn(corev1.LabelArchStable, []string{"arm64"}).Obj(),
-			want: &nodeAffinity{
+			want: &quotaAffinity{
 				userID:         "123456",
 				quotaID:        "666",
 				instanceType:   "aaa",
@@ -117,9 +119,9 @@ func Test_newNodeAffinity(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := newNodeAffinity(tt.pod)
+			got, err := newQuotaAffinity(tt.pod)
 			if tt.wantErr != (err != nil) {
-				t.Errorf("newNodeAffinity() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("newQuotaAffinity() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			assert.Equal(t, tt.want, got)
 		})
@@ -128,7 +130,7 @@ func Test_newNodeAffinity(t *testing.T) {
 }
 
 func Test_nodAffinity_matchElasticQuotas(t *testing.T) {
-	affinity := &nodeAffinity{
+	affinity := &quotaAffinity{
 		userID:         "123",
 		quotaID:        "666",
 		instanceType:   "aaa",
@@ -137,7 +139,7 @@ func Test_nodAffinity_matchElasticQuotas(t *testing.T) {
 	}
 	tests := []struct {
 		name         string
-		nodeAffinity *nodeAffinity
+		nodeAffinity *quotaAffinity
 		quotas       []*schedv1alpha1.ElasticQuota
 		want         []*schedv1alpha1.ElasticQuota
 		wantErr      bool
@@ -267,7 +269,7 @@ func Test_nodAffinity_matchElasticQuotas(t *testing.T) {
 			elasticQuotaLister := informerFactory.Scheduling().V1alpha1().ElasticQuotas().Lister()
 			informerFactory.Start(nil)
 			informerFactory.WaitForCacheSync(nil)
-			got, err := tt.nodeAffinity.matchElasticQuotas(elasticQuotaLister)
+			got, err := tt.nodeAffinity.matchElasticQuotas(elasticQuotaLister, true)
 			if tt.wantErr != (err != nil) {
 				t.Errorf("matchElasticQuotas() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -509,4 +511,85 @@ func Test_addTemporaryNodeAffinity(t *testing.T) {
 			},
 		},
 	}))
+}
+
+func Test_generateAffinityConflictMessage(t *testing.T) {
+	quota := &schedv1alpha1.ElasticQuota{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "quota-a",
+			Namespace: "default",
+			Labels: map[string]string{
+				corev1.LabelTopologyZone: "az-1",
+				corev1.LabelArchStable:   "amd64",
+				apiext.LabelQuotaParent:  "",
+				LabelQuotaID:             "666",
+				LabelUserAccountId:       "123",
+				LabelInstanceType:        "aaa",
+			},
+		},
+		Spec: schedv1alpha1.ElasticQuotaSpec{
+			Max: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("40"),
+				corev1.ResourceMemory: resource.MustParse("80Gi"),
+			},
+			Min: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("4"),
+				corev1.ResourceMemory: resource.MustParse("8Gi"),
+			},
+		},
+	}
+
+	schedclient := schedfake.NewSimpleClientset()
+	_, err := schedclient.SchedulingV1alpha1().ElasticQuotas("default").Create(context.TODO(), quota, metav1.CreateOptions{})
+	assert.NoError(t, err)
+
+	scheSharedInformerFactory := externalversions.NewSharedInformerFactory(schedclient, 0)
+	transformer.SetupElasticQuotaTransformers(scheSharedInformerFactory)
+	elasticQuotaInformer := scheSharedInformerFactory.Scheduling().V1alpha1().ElasticQuotas()
+	lister := elasticQuotaInformer.Lister()
+	scheSharedInformerFactory.Start(nil)
+	scheSharedInformerFactory.WaitForCacheSync(nil)
+
+	tests := []struct {
+		name         string
+		affinityZone string
+		userID       string
+		want         string
+	}{
+		{
+			name:         "conflict affinity",
+			affinityZone: "az-b",
+			want:         "Available ElasticQuotas can't be used because of NodeAffinity issues. Check the Pod's NodeAffinity or the cluster's vSwitch settings.",
+		},
+		{
+			name: "no zones",
+			want: "",
+		},
+		{
+			name:         "missing account id but affinity available zone",
+			affinityZone: "az-1",
+			userID:       "non-exist-user-id",
+			want:         "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			affinity := &quotaAffinity{
+				userID:         "123",
+				quotaID:        "666",
+				instanceType:   "aaa",
+				affinityZones:  sets.NewString(),
+				affinityArches: sets.NewString("amd64"),
+			}
+			if tt.affinityZone != "" {
+				affinity.affinityZones.Insert(tt.affinityZone)
+			}
+			if tt.userID != "" {
+				affinity.userID = tt.userID
+			}
+			message := generateAffinityConflictMessage(affinity, lister)
+			assert.Equal(t, tt.want, message)
+		})
+	}
+
 }

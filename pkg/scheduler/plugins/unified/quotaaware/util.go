@@ -40,7 +40,7 @@ import (
 	nodeaffinityhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/nodeaffinity"
 )
 
-type nodeAffinity struct {
+type quotaAffinity struct {
 	userID         string
 	quotaID        string
 	instanceType   string
@@ -48,7 +48,7 @@ type nodeAffinity struct {
 	affinityArches sets.String
 }
 
-func newNodeAffinity(pod *corev1.Pod) (*nodeAffinity, error) {
+func newQuotaAffinity(pod *corev1.Pod) (*quotaAffinity, error) {
 	userID := pod.Labels[LabelUserAccountId]
 	if userID == "" {
 		return nil, fmt.Errorf("missing user account id")
@@ -78,7 +78,7 @@ func newNodeAffinity(pod *corev1.Pod) (*nodeAffinity, error) {
 	if affinityArches.Len() == 0 {
 		affinityArches.Insert("amd64")
 	}
-	return &nodeAffinity{
+	return &quotaAffinity{
 		userID:         userID,
 		quotaID:        quotaID,
 		instanceType:   instanceType,
@@ -87,7 +87,7 @@ func newNodeAffinity(pod *corev1.Pod) (*nodeAffinity, error) {
 	}, nil
 }
 
-func (p *nodeAffinity) matchElasticQuotas(elasticQuotaLister schedlisters.ElasticQuotaLister) ([]*schedv1alpha1.ElasticQuota, error) {
+func (p *quotaAffinity) matchElasticQuotas(elasticQuotaLister schedlisters.ElasticQuotaLister, includeAffinityZones bool) ([]*schedv1alpha1.ElasticQuota, error) {
 	labelSelector := &metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
 			{
@@ -117,7 +117,7 @@ func (p *nodeAffinity) matchElasticQuotas(elasticQuotaLister schedlisters.Elasti
 			},
 		},
 	}
-	if p.affinityZones.Len() > 0 {
+	if includeAffinityZones && p.affinityZones.Len() > 0 {
 		labelSelector.MatchExpressions = append(labelSelector.MatchExpressions, metav1.LabelSelectorRequirement{
 			Key:      corev1.LabelTopologyZone,
 			Operator: metav1.LabelSelectorOpIn,
@@ -148,6 +148,26 @@ func parseNodeAffinity(pod *corev1.Pod, fn func(key string, operator corev1.Node
 			}
 		}
 	}
+}
+
+func generateAffinityConflictMessage(affinity *quotaAffinity, elasticQuotaLister schedlisters.ElasticQuotaLister) string {
+	if affinity.affinityZones.Len() == 0 {
+		return ""
+	}
+	elasticQuotas, _ := affinity.matchElasticQuotas(elasticQuotaLister, false)
+	if len(elasticQuotas) == 0 {
+		return ""
+	}
+	candidateZones := sets.NewString()
+	for _, v := range elasticQuotas {
+		zone := v.Labels[corev1.LabelTopologyZone]
+		candidateZones.Insert(zone)
+	}
+	zones := affinity.affinityZones.Intersection(candidateZones)
+	if zones.Len() != 0 {
+		return ""
+	}
+	return "Available ElasticQuotas can't be used because of NodeAffinity issues. Check the Pod's NodeAffinity or the cluster's vSwitch settings."
 }
 
 type QuotaWrapper struct {
