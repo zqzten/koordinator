@@ -29,8 +29,8 @@ import (
 )
 
 func init() {
-	prometheus.MustRegister(LRNCollectors...)
-	prometheus.MustRegister(UnifiedCollectors...)
+	ExternalMustRegister(LRNCollectors...)
+	ExternalMustRegister(UnifiedCollectors...)
 }
 
 const (
