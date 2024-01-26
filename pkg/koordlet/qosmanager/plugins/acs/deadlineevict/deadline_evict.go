@@ -199,11 +199,14 @@ func newACSEvictor(kubeClient clientset.Interface) *acsEvictor {
 
 // evictPod patch the following labels and annotations on pod
 // labels:
-//   alibabacloud.com/eviction: 'true'
+//
+//	alibabacloud.com/eviction: 'true'
+//
 // annotations:
-//   alibabacloud.com/eviction-type: '["involuntary"]'
-//   alibabacloud.com/skip-not-ready-flow-control: true
-//   alibabacloud.com/eviction-message: message
+//
+//	alibabacloud.com/eviction-type: '["involuntary"]'
+//	alibabacloud.com/skip-not-ready-flow-control: true
+//	alibabacloud.com/eviction-message: message
 func (e *acsEvictor) evictPod(pod *corev1.Pod, message string) (bool, error) {
 	if pod == nil {
 		return false, nil
