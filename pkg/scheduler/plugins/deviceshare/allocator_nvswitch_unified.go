@@ -58,7 +58,7 @@ func init() {
 
 type NVSwitchHandler struct{}
 
-func (a *NVSwitchHandler) CalcDesiredRequestsAndCount(node *corev1.Node, pod *corev1.Pod, podRequests corev1.ResourceList, totalDevices deviceResources, hint *apiext.DeviceHint) (corev1.ResourceList, int, *framework.Status) {
+func (a *NVSwitchHandler) CalcDesiredRequestsAndCount(node *corev1.Node, pod *corev1.Pod, podRequests corev1.ResourceList, nodeDevice *nodeDevice, hint *apiext.DeviceHint) (corev1.ResourceList, int, *framework.Status) {
 	if reservationutil.IsReservePod(pod) {
 		return nil, 0, framework.NewStatus(framework.Skip)
 	}
@@ -68,6 +68,7 @@ func (a *NVSwitchHandler) CalcDesiredRequestsAndCount(node *corev1.Node, pod *co
 		return nil, 0, framework.NewStatus(framework.Skip)
 	}
 
+	totalDevices := nodeDevice.deviceTotal[unified.NVSwitchDeviceType]
 	totalNVSwitches := len(totalDevices)
 	if totalNVSwitches == 0 {
 		if applyForAll {
