@@ -28,15 +28,15 @@ RUN export DBG="-g -Wall" && \
   make install -C libpfm-4.13.0
 RUN go build -a -o koordlet cmd/koordlet/main.go
 
-# The CUDA container images provide an easy-to-use distribution for CUDA supported platforms and architectures.
-# NVIDIA provides rich images in https://hub.docker.com/r/nvidia/cuda/tags, literally cover all kinds of CUDA version
-# and system architecture. Please replace the following base image according to your Kubernetes/System environment.
-# For more details about how those images got built, you might wanna check the original Dockerfile in
-# https://gitlab.com/nvidia/container-images/cuda/-/tree/master/dist.
+FROM --platform=$TARGETPLATFORM registry-cn-hangzhou.ack.aliyuncs.com/dev/ubuntu:20.04-update as utils-builder
+RUN apt-get update && apt-get install -y lvm2
 
-FROM --platform=$TARGETPLATFORM nvidia/cuda:11.6.2-base-ubuntu20.04
+# TODO: use a secure pruned CUDA image
+FROM --platform=$TARGETPLATFORM registry-cn-hangzhou.ack.aliyuncs.com/dev/ubuntu:20.04-base
 WORKDIR /
-RUN apt-get update && apt-get upgrade -y && apt-get install -y lvm2 && rm -rf /var/cache/apt/
+USER 0
 COPY --from=builder /go/src/github.com/koordinator-sh/koordinator/koordlet .
 COPY --from=builder /usr/local/lib /usr/lib
+COPY --from=utils-builder /usr/bin/cat /usr/bin/getconf /usr/bin/lscpu /usr/bin/lsblk /usr/bin/findmnt /usr/bin/
+COPY --from=utils-builder /usr/sbin/vgs /usr/sbin/lvs /usr/sbin/
 ENTRYPOINT ["/koordlet"]
