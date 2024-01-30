@@ -116,7 +116,7 @@ func TestGetResourceSpec(t *testing.T) {
 	}
 }
 
-func TestGetResourceStatus(t *testing.T) {
+func TestGetUnifiedResourceStatus(t *testing.T) {
 	koordResourceStatusData := `{"cpuset":"0-3"}`
 	unifiedAllocStatusData := `{"cpu":[0,1,2,3],"gpu":{}}`
 	asiAllocSpec := AllocSpec{
@@ -145,7 +145,7 @@ func TestGetResourceStatus(t *testing.T) {
 		wantErr assert.ErrorAssertionFunc
 	}{
 		{
-			name: "koord resource status",
+			name: "no annotations",
 			args: args{
 				annotations: nil,
 			},
@@ -165,7 +165,7 @@ func TestGetResourceStatus(t *testing.T) {
 			wantErr: assert.NoError,
 		},
 		{
-			name: "koord resource status",
+			name: "unified resource status",
 			args: args{
 				annotations: map[string]string{uniext.AnnotationAllocStatus: unifiedAllocStatusData},
 			},
@@ -175,7 +175,7 @@ func TestGetResourceStatus(t *testing.T) {
 			wantErr: assert.NoError,
 		},
 		{
-			name: "koord resource status",
+			name: "asi alloc-spec resource status",
 			args: args{
 				annotations: map[string]string{AnnotationAllocSpec: string(asiAllocSpecData)},
 			},
@@ -196,7 +196,7 @@ func TestGetResourceStatus(t *testing.T) {
 	}
 }
 
-func TestSetResourceStatus(t *testing.T) {
+func TestSetUnifiedResourceStatus(t *testing.T) {
 	asiAllocSpec := AllocSpec{
 		Containers: []Container{
 			{
@@ -214,13 +214,16 @@ func TestSetResourceStatus(t *testing.T) {
 	}
 	asiAllocSpecData, err := json.Marshal(asiAllocSpec)
 	assert.NoError(t, err)
-	koordResourceSpec := `{"preferredCPUBindPolicy":"FullPCPUs"}`
+	koordResourceSpec := &extension.ResourceSpec{
+		PreferredCPUBindPolicy: extension.CPUBindPolicyFullPCPUs,
+	}
+	koordResourceSpecData := `{"preferredCPUBindPolicy":"FullPCPUs"}`
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "default",
 			Name:      "test-pod-1",
 			Annotations: map[string]string{AnnotationAllocSpec: string(asiAllocSpecData),
-				extension.AnnotationResourceSpec: koordResourceSpec},
+				extension.AnnotationResourceSpec: koordResourceSpecData},
 		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
@@ -229,7 +232,6 @@ func TestSetResourceStatus(t *testing.T) {
 			},
 		},
 	}
-	koordResourceStatus := `{"cpuset":"0-3"}`
 	unifiedAllocStatus := `{"cpu":[0,1,2,3],"gpu":{}}`
 	asiAllocSpec.Containers[0].Resource.CPU.CPUSet.CPUIDs = []int{0, 1, 2, 3}
 	asiAllocSpec.Containers = append(asiAllocSpec.Containers, Container{
@@ -237,7 +239,7 @@ func TestSetResourceStatus(t *testing.T) {
 		Resource: ResourceRequirements{
 			CPU: CPUSpec{
 				CPUSet: &CPUSetSpec{
-					SpreadStrategy: koordCPUStrategyToASI(extension.CPUBindPolicyFullPCPUs),
+					SpreadStrategy: koordCPUStrategyToASI(koordResourceSpec),
 					CPUIDs:         []int{0, 1, 2, 3},
 				},
 			},
@@ -246,11 +248,10 @@ func TestSetResourceStatus(t *testing.T) {
 	asiAllocSpecData, err = json.Marshal(asiAllocSpec)
 	assert.NoError(t, err)
 
-	err = SetResourceStatus(pod, &extension.ResourceStatus{
+	err = SetUnifiedResourceStatusIfHasCPUs(pod, &extension.ResourceStatus{
 		CPUSet: "0-3",
 	})
 	assert.NoError(t, err)
-	assert.Equal(t, koordResourceStatus, pod.Annotations[extension.AnnotationResourceStatus])
 	assert.Equal(t, unifiedAllocStatus, pod.Annotations[uniext.AnnotationAllocStatus])
 	assert.Equal(t, string(asiAllocSpecData), pod.Annotations[AnnotationAllocSpec])
 }

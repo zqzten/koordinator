@@ -109,7 +109,6 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, ErrNoMatchingQuotaObjects)
 	}
 	if len(elasticQuotas) == 0 {
-		elasticQuotas, err = quotaAffinity.matchElasticQuotas(pl.elasticQuotaLister, false)
 		message := generateAffinityConflictMessage(quotaAffinity, pl.elasticQuotaLister)
 		if message != "" {
 			return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, message)
