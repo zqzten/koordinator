@@ -220,11 +220,11 @@ func (p *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState, 
 	if !status.IsSuccess() {
 		return status
 	}
-	resourceStatus, err := extunified.GetResourceStatus(pod.Annotations)
+	resourceStatus, err := extension.GetResourceStatus(pod.Annotations)
 	if err != nil {
 		return framework.AsStatus(err)
 	}
-	err = extunified.SetUnifiedResourceStatus(pod, resourceStatus)
+	err = extunified.SetUnifiedResourceStatusIfHasCPUs(pod, resourceStatus)
 	if err != nil {
 		return framework.AsStatus(err)
 	}

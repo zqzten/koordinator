@@ -255,8 +255,12 @@ func TransformResourceSpec(pod *corev1.Pod) {
 	if from == "" {
 		return
 	}
-	if resourceSpec.PreferredCPUBindPolicy == extension.CPUBindPolicyFullPCPUs ||
-		resourceSpec.PreferredCPUBindPolicy == extension.CPUBindPolicySpreadByPCPUs {
+	cpuBindPolicy := resourceSpec.RequiredCPUBindPolicy
+	if cpuBindPolicy == "" {
+		cpuBindPolicy = resourceSpec.PreferredCPUBindPolicy
+	}
+	if cpuBindPolicy == extension.CPUBindPolicyFullPCPUs ||
+		cpuBindPolicy == extension.CPUBindPolicySpreadByPCPUs {
 		err = extension.SetResourceSpec(pod, resourceSpec)
 		if err != nil {
 			klog.ErrorS(err, "Failed to extension.SetResourceSpec", "pod", klog.KObj(pod))

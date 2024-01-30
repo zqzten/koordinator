@@ -418,16 +418,28 @@ func TestPlugin_CPUSetProtocols(t *testing.T) {
 	assert.NoError(t, err)
 
 	tests := []struct {
-		name        string
-		annotations map[string]string
-		labels      map[string]string
+		name            string
+		annotations     map[string]string
+		labels          map[string]string
+		wantAnnotations map[string]string
 	}{
+		{
+			name:            "cpu share",
+			annotations:     nil,
+			labels:          map[string]string{extension.LabelPodQoS: string(extension.QoSLS)},
+			wantAnnotations: nil,
+		},
 		{
 			name: "only koord resource spec",
 			annotations: map[string]string{
 				extension.AnnotationResourceSpec: string(koordResourceSpecData),
 			},
 			labels: map[string]string{extension.LabelPodQoS: string(extension.QoSLSE)},
+			wantAnnotations: map[string]string{
+				extension.AnnotationResourceSpec:   string(koordResourceSpecData),
+				extension.AnnotationResourceStatus: `{"cpuset":"0-2,4,6"}`,
+				uniext.AnnotationAllocStatus:       `{"cpu":[0,1,2,4,6],"gpu":{}}`,
+			},
 		},
 		{
 			name: "only unified resource spec",
@@ -435,6 +447,12 @@ func TestPlugin_CPUSetProtocols(t *testing.T) {
 				uniext.AnnotationAllocSpec: string(unifiedResourceSpecWithSpreadData),
 			},
 			labels: map[string]string{extunified.LabelPodQoSClass: string(extension.QoSLSE)},
+			wantAnnotations: map[string]string{
+				uniext.AnnotationAllocSpec:         string(unifiedResourceSpecWithSpreadData),
+				extension.AnnotationResourceSpec:   string(koordResourceSpecData),
+				extension.AnnotationResourceStatus: `{"cpuset":"0-2,4,6"}`,
+				uniext.AnnotationAllocStatus:       `{"cpu":[0,1,2,4,6],"gpu":{}}`,
+			},
 		},
 		{
 			name: "only asi resource spec",
@@ -442,6 +460,30 @@ func TestPlugin_CPUSetProtocols(t *testing.T) {
 				extunified.AnnotationAllocSpec: string(asiAllocSpecWthSpreadData),
 			},
 			labels: map[string]string{extunified.LabelPodQoSClass: string(extension.QoSLSE)},
+			wantAnnotations: map[string]string{
+				extunified.AnnotationAllocSpec: func() string {
+					allocSpec := extunified.AllocSpec{
+						Containers: []extunified.Container{
+							{
+								Name: "container-1",
+								Resource: extunified.ResourceRequirements{
+									CPU: extunified.CPUSpec{
+										CPUSet: &extunified.CPUSetSpec{
+											SpreadStrategy: extunified.SpreadStrategySpread,
+											CPUIDs:         []int{0, 1, 2, 4, 6},
+										},
+									},
+								},
+							},
+						},
+					}
+					data, _ := json.Marshal(&allocSpec)
+					return string(data)
+				}(),
+				extension.AnnotationResourceSpec:   string(koordResourceSpecData),
+				extension.AnnotationResourceStatus: `{"cpuset":"0-2,4,6"}`,
+				uniext.AnnotationAllocStatus:       `{"cpu":[0,1,2,4,6],"gpu":{}}`,
+			},
 		},
 		{
 			name: "if both koord and unified exists, use koord",
@@ -450,6 +492,12 @@ func TestPlugin_CPUSetProtocols(t *testing.T) {
 				uniext.AnnotationAllocSpec:       string(unifiedResourceSpecWithSameCoreData),
 			},
 			labels: map[string]string{extunified.LabelPodQoSClass: string(extension.QoSBE), extension.LabelPodQoS: string(extension.QoSLSE)},
+			wantAnnotations: map[string]string{
+				extension.AnnotationResourceSpec:   string(koordResourceSpecData),
+				uniext.AnnotationAllocSpec:         string(unifiedResourceSpecWithSameCoreData),
+				extension.AnnotationResourceStatus: `{"cpuset":"0-2,4,6"}`,
+				uniext.AnnotationAllocStatus:       `{"cpu":[0,1,2,4,6],"gpu":{}}`,
+			},
 		},
 		{
 			name: "if both unified and asi exists, use unified",
@@ -458,6 +506,31 @@ func TestPlugin_CPUSetProtocols(t *testing.T) {
 				extunified.AnnotationAllocSpec: string(asiAllocSpecWthSameCoreData),
 			},
 			labels: map[string]string{extunified.LabelPodQoSClass: string(extension.QoSLSE)},
+			wantAnnotations: map[string]string{
+				uniext.AnnotationAllocSpec: string(unifiedResourceSpecWithSpreadData),
+				extunified.AnnotationAllocSpec: func() string {
+					allocSpec := extunified.AllocSpec{
+						Containers: []extunified.Container{
+							{
+								Name: "container-1",
+								Resource: extunified.ResourceRequirements{
+									CPU: extunified.CPUSpec{
+										CPUSet: &extunified.CPUSetSpec{
+											SpreadStrategy: extunified.SpreadStrategySpread,
+											CPUIDs:         []int{0, 1, 2, 4, 6},
+										},
+									},
+								},
+							},
+						},
+					}
+					data, _ := json.Marshal(&allocSpec)
+					return string(data)
+				}(),
+				extension.AnnotationResourceSpec:   string(koordResourceSpecData),
+				extension.AnnotationResourceStatus: `{"cpuset":"0-2,4,6"}`,
+				uniext.AnnotationAllocStatus:       `{"cpu":[0,1,2,4,6],"gpu":{}}`,
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -554,11 +627,7 @@ func TestPlugin_CPUSetProtocols(t *testing.T) {
 			assert.Nil(t, status)
 
 			assert.Nil(t, err)
-			assert.Equal(t, `{"cpuset":"0-2,4,6"}`, pod.Annotations[extension.AnnotationResourceStatus])
-			assert.Equal(t, `{"cpu":[0,1,2,4,6],"gpu":{}}`, pod.Annotations[uniext.AnnotationAllocStatus])
-			if tt.annotations[extunified.AnnotationAllocSpec] != "" {
-				assert.Equal(t, `{"containers":[{"name":"container-1","resource":{"cpu":{"cpuSet":{"spreadStrategy":"spread","cpuIDs":[0,1,2,4,6]}}}}]}`, pod.Annotations[extunified.AnnotationAllocSpec])
-			}
+			assert.Equal(t, tt.wantAnnotations, pod.Annotations)
 		})
 	}
 }

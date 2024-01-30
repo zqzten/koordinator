@@ -21,7 +21,6 @@ import (
 
 	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
@@ -47,50 +46,53 @@ func GetResourceSpec(annotations map[string]string) (*extension.ResourceSpec, st
 	}
 	// unified protocols
 	if _, ok := annotations[uniext.AnnotationAllocSpec]; ok {
-		spec, err := getResourceSpecByUnified(annotations)
+		spec, err := convertUnifiedResourceSpec(annotations)
 		if err != nil {
 			return nil, uniext.AnnotationAllocSpec, err
 		}
 		return spec, uniext.AnnotationAllocSpec, nil
 	}
 	// asi protocols
-	if resourceSpec, err := getResourceSpecByASI(annotations); err == nil && resourceSpec != nil {
+	if resourceSpec, err := convertASIAllocSpec(annotations); err == nil && resourceSpec != nil {
 		return resourceSpec, AnnotationPodRequestAllocSpec, nil
 	}
-	return &extension.ResourceSpec{PreferredCPUBindPolicy: extension.CPUBindPolicyDefault}, "", nil
+	return &extension.ResourceSpec{PreferredCPUBindPolicy: ""}, "", nil
 }
 
-func getResourceSpecByUnified(annotations map[string]string) (*extension.ResourceSpec, error) {
-	allocSpecOfUnified, err := uniext.GetAllocSpec(annotations)
+func convertUnifiedResourceSpec(annotations map[string]string) (*extension.ResourceSpec, error) {
+	unifiedResourceSpec, err := uniext.GetAllocSpec(annotations)
 	if err != nil {
 		return nil, err
 	}
 	resourceSpec := &extension.ResourceSpec{
-		PreferredCPUBindPolicy: extension.CPUBindPolicyDefault,
+		PreferredCPUBindPolicy: "",
 	}
-	switch allocSpecOfUnified.CPU {
+	switch unifiedResourceSpec.CPU {
 	case uniext.CPUBindStrategySpread:
 		resourceSpec.PreferredCPUBindPolicy = extension.CPUBindPolicySpreadByPCPUs
 	case uniext.CPUBindStrategySameCoreFirst:
 		resourceSpec.PreferredCPUBindPolicy = extension.CPUBindPolicyFullPCPUs
+	case uniext.CPUBindStrategyMustSpread:
+		resourceSpec.RequiredCPUBindPolicy = extension.CPUBindPolicySpreadByPCPUs
 	}
 	return resourceSpec, nil
 }
 
-func getResourceSpecByASI(annotations map[string]string) (*extension.ResourceSpec, error) {
-	allocSpecOfASI, err := GetASIAllocSpec(annotations)
-	if err != nil || allocSpecOfASI == nil {
+func convertASIAllocSpec(annotations map[string]string) (*extension.ResourceSpec, error) {
+	allocSpec, err := GetASIAllocSpec(annotations)
+	if err != nil || allocSpec == nil {
 		return nil, err
 	}
 	resourceSpec := &extension.ResourceSpec{
-		PreferredCPUBindPolicy: extension.CPUBindPolicyDefault,
+		PreferredCPUBindPolicy: "",
 	}
-	for _, container := range allocSpecOfASI.Containers {
-		// CPU Set
+	for _, container := range allocSpec.Containers {
 		if container.Resource.CPU.CPUSet != nil {
 			resourceSpec.PreferredCPUBindPolicy = extension.CPUBindPolicySpreadByPCPUs
 			if container.Resource.CPU.CPUSet.SpreadStrategy == SpreadStrategySameCoreFirst {
 				resourceSpec.PreferredCPUBindPolicy = extension.CPUBindPolicyFullPCPUs
+			} else if container.Resource.CPU.CPUSet.SpreadStrategy == SpreadStrategyMustSpread {
+				resourceSpec.RequiredCPUBindPolicy = extension.CPUBindPolicySpreadByPCPUs
 			}
 			break
 		}
@@ -100,14 +102,13 @@ func getResourceSpecByASI(annotations map[string]string) (*extension.ResourceSpe
 
 // GetResourceStatus parses ResourceStatus from annotations
 func GetResourceStatus(annotations map[string]string) (*extension.ResourceStatus, error) {
-	resourceStatus := &extension.ResourceStatus{
-		CPUSet: "",
-	}
-	// koord
 	if _, ok := annotations[extension.AnnotationResourceStatus]; ok {
 		return extension.GetResourceStatus(annotations)
 	}
 	// unified
+	resourceStatus := &extension.ResourceStatus{
+		CPUSet: "",
+	}
 	if _, ok := annotations[uniext.AnnotationAllocStatus]; ok {
 		if allocStatus, err := uniext.GetAllocStatus(annotations); err != nil {
 			return nil, err
@@ -133,29 +134,18 @@ func GetResourceStatus(annotations map[string]string) (*extension.ResourceStatus
 	return resourceStatus, nil
 }
 
-func SetResourceStatus(obj metav1.Object, status *extension.ResourceStatus) error {
-	err := extension.SetResourceStatus(obj, status)
+func SetUnifiedResourceStatusIfHasCPUs(pod *corev1.Pod, status *extension.ResourceStatus) error {
+	cpus, err := cpuset.Parse(status.CPUSet)
 	if err != nil {
 		return err
 	}
-
-	// just set unified/asi protocol into pod
-	pod, ok := obj.(*corev1.Pod)
-	if !ok {
+	if cpus.IsEmpty() {
 		return nil
 	}
 
-	return SetUnifiedResourceStatus(pod, status)
-}
-
-func SetUnifiedResourceStatus(pod *corev1.Pod, status *extension.ResourceStatus) error {
-	cpuset, err := cpuset.Parse(status.CPUSet)
-	if err != nil {
-		return err
-	}
 	// unified-scheduler AnnotationAllocStatus
 	unifiedAllocState := &uniext.ResourceAllocState{
-		CPU: cpuset.ToSlice(),
+		CPU: cpus.ToSlice(),
 	}
 	unifiedAllocStateData, err := json.Marshal(unifiedAllocState)
 	if err != nil {
@@ -165,7 +155,8 @@ func SetUnifiedResourceStatus(pod *corev1.Pod, status *extension.ResourceStatus)
 		pod.Annotations = map[string]string{}
 	}
 	pod.Annotations[uniext.AnnotationAllocStatus] = string(unifiedAllocStateData)
-	// ASI  AnnotationAllocSpec
+
+	// ASI AnnotationAllocSpec
 	asiAllocSpec, err := GetASIAllocSpec(pod.Annotations)
 	if err != nil {
 		return err
@@ -178,13 +169,14 @@ func SetUnifiedResourceStatus(pod *corev1.Pod, status *extension.ResourceStatus)
 		return nil
 	}
 	existsContainerNames := sets.NewString()
+	asiCPUBindPolicy := koordCPUStrategyToASI(spec)
 	for i := range asiAllocSpec.Containers {
 		existsContainerNames.Insert(asiAllocSpec.Containers[i].Name)
 		if asiAllocSpec.Containers[i].Resource.CPU.CPUSet == nil {
 			asiAllocSpec.Containers[i].Resource.CPU.CPUSet = &CPUSetSpec{}
 		}
-		asiAllocSpec.Containers[i].Resource.CPU.CPUSet.SpreadStrategy = koordCPUStrategyToASI(spec.PreferredCPUBindPolicy)
-		asiAllocSpec.Containers[i].Resource.CPU.CPUSet.CPUIDs = cpuset.ToSlice()
+		asiAllocSpec.Containers[i].Resource.CPU.CPUSet.SpreadStrategy = asiCPUBindPolicy
+		asiAllocSpec.Containers[i].Resource.CPU.CPUSet.CPUIDs = cpus.ToSlice()
 	}
 	for i := range pod.Spec.Containers {
 		if !existsContainerNames.Has(pod.Spec.Containers[i].Name) {
@@ -193,8 +185,8 @@ func SetUnifiedResourceStatus(pod *corev1.Pod, status *extension.ResourceStatus)
 				Resource: ResourceRequirements{
 					CPU: CPUSpec{
 						CPUSet: &CPUSetSpec{
-							SpreadStrategy: koordCPUStrategyToASI(spec.PreferredCPUBindPolicy),
-							CPUIDs:         cpuset.ToSlice(),
+							SpreadStrategy: asiCPUBindPolicy,
+							CPUIDs:         cpus.ToSlice(),
 						},
 					},
 				},
@@ -210,13 +202,13 @@ func SetUnifiedResourceStatus(pod *corev1.Pod, status *extension.ResourceStatus)
 	return nil
 }
 
-func koordCPUStrategyToASI(policy extension.CPUBindPolicy) SpreadStrategy {
-	switch policy {
-	case extension.CPUBindPolicySpreadByPCPUs:
-		return SpreadStrategySpread
-	case extension.CPUBindPolicyFullPCPUs:
-		return SpreadStrategySameCoreFirst
-	default:
-		return SpreadStrategyMustSpread
+func koordCPUStrategyToASI(spec *extension.ResourceSpec) SpreadStrategy {
+	policy := spec.RequiredCPUBindPolicy
+	if policy == "" {
+		policy = spec.PreferredCPUBindPolicy
 	}
+	if policy == extension.CPUBindPolicyFullPCPUs {
+		return SpreadStrategySameCoreFirst
+	}
+	return SpreadStrategySpread
 }
