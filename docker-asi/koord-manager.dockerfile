@@ -20,14 +20,17 @@ RUN --mount=type=ssh go mod download
 
 RUN CGO_ENABLED=0 go build -a -o koord-manager ./cmd/koord-manager
 
-RUN --mount=type=ssh mkdir -p /go/src/gitlab.alibaba-inc.com/unischeduler/x && \
-    cd /go/src/gitlab.alibaba-inc.com/unischeduler/x && \
-    git clone git@gitlab.alibaba-inc.com:unischeduler/x.git . && \
+RUN --mount=type=ssh mkdir -p /go/src/gitlab.alibaba-inc.com/koordinator-sh/x && \
+    cd /go/src/gitlab.alibaba-inc.com/koordinator-sh/x && \
+    git clone git@gitlab.alibaba-inc.com:koordinator-sh/x.git . && \
     go build -mod=vendor -v -a -o logrotate.bin logrotate/logrotate.go
 
-FROM --platform=$TARGETPLATFORM reg.docker.alibaba-inc.com/ackee/centos:latest
+FROM --platform=$TARGETPLATFORM registry-cn-hangzhou.ack.aliyuncs.com/dev/alpine:3.18-update as utils-builder
+
+FROM --platform=$TARGETPLATFORM registry-cn-hangzhou.ack.aliyuncs.com/dev/alpine:3.18-base
+# https://aliyuque.antfin.com/op0cg2/cu4mmd/ikauud
 WORKDIR /
-RUN yum install net-tools iproute bind-utils openssh-clients cronie sysvinit-tools less vim -y && yum update -y
 COPY --from=builder /go/src/github.com/koordinator-sh/koordinator/koord-manager .
-COPY --from=builder /go/src/gitlab.alibaba-inc.com/unischeduler/x/logrotate.bin ./logrotate
-COPY docker-asi/start-koord-manager.sh .
+COPY --from=builder /go/src/gitlab.alibaba-inc.com/koordinator-sh/x/logrotate.bin ./logrotate
+COPY --from=utils-builder /bin/cat /bin/
+ENTRYPOINT ["./logrotate", "--file=/log/koord-manager.log"]
