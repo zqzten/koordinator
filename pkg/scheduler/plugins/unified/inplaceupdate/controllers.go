@@ -197,7 +197,7 @@ func makeInplaceUpdatePod(pod *corev1.Pod, resourceUpdateSpec *uniext.ResourceUp
 		containerToUpdate := &inplaceUpdatePod.Spec.Containers[i]
 		containerUpdateSpec, ok := containersUpdateSpec[containerToUpdate.Name]
 		if !ok {
-			break
+			continue
 		}
 		// 1. 当 InplaceUpdate Complete 之后，InplaceUpdate 插件会从 Cache 中 Forget InplaceUpdatePod，这样其实会把 TargetPod使用的端口 从 Cache 的 NodeInfo.UsedPorts 中错误去掉
 		// 2. 原地升级不会变动端口，涉及端口的更改就毫无必要了
