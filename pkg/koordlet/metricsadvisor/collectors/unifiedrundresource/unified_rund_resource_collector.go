@@ -215,6 +215,11 @@ func (p *rundResourceCollector) collectRundPod(meta *statesinformer.PodMeta) (cp
 
 	metrics = append(metrics, cpuUsageMetric, memUsageMetric)
 	for deviceName, deviceCollector := range p.deviceCollectors {
+		if !deviceCollector.Enabled() {
+			klog.V(6).Infof("skip rund pod metrics from the disabled device collector %s, pod %s", deviceName, podKey)
+			continue
+		}
+
 		if deviceMetrics, err := deviceCollector.GetPodMetric(uid, meta.CgroupDir, pod.Status.ContainerStatuses); err != nil {
 			klog.V(4).Infof("get rund pod %s device usage failed for %v, err: %v", podKey, deviceName, err)
 		} else if len(metrics) > 0 {
@@ -321,6 +326,11 @@ func (p *rundResourceCollector) collectRundContainersResUsed(meta *statesinforme
 		containerMetrics = append(containerMetrics, cpuUsageMetric, memUsageMetric)
 
 		for deviceName, deviceCollector := range p.deviceCollectors {
+			if !deviceCollector.Enabled() {
+				klog.V(6).Infof("skip container metrics from the disabled device collector %s, container %s", deviceName, containerKey)
+				continue
+			}
+
 			if metrics, err := deviceCollector.GetContainerMetric(containerStat.ContainerID, meta.CgroupDir, containerStat); err != nil {
 				klog.Warningf("get rund container %s device usage failed for %v, error: %v", containerKey, deviceName, err)
 			} else {

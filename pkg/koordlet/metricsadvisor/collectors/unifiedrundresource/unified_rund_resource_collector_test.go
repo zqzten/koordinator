@@ -159,11 +159,12 @@ func Test_collectRundPodsResUsed(t *testing.T) {
 	}
 	type fields struct {
 		podFilterOption       framework.PodFilter
+		deviceCollectors      map[string]framework.DeviceCollector
 		getPodMetas           []*statesinformer.PodMeta
 		initPodLastStat       func(lastState *gocache.Cache)
 		initContainerLastTick func(lastState *gocache.Cache)
 		SetSysUtil            func(helper *system.FileTestUtil)
-		NewRundExtendedStats  func(helper *system.FileTestUtil) *ttrpc.Server
+		NewRundExtendedStats  func(tt *testing.T, helper *system.FileTestUtil) *ttrpc.Server
 		useCgroupV2           bool
 	}
 	type wantFields struct {
@@ -181,6 +182,9 @@ func Test_collectRundPodsResUsed(t *testing.T) {
 			name: "cgroups v1",
 			fields: fields{
 				podFilterOption: framework.RundPodFilter,
+				deviceCollectors: map[string]framework.DeviceCollector{
+					"TestDeviceCollector": &fakeDeviceCollector{isEnabled: true},
+				},
 				getPodMetas: []*statesinformer.PodMeta{
 					{
 						CgroupDir: testPodMetaDir,
@@ -217,7 +221,7 @@ total_active_file 0
 total_unevictable 0
 `)
 				},
-				NewRundExtendedStats: func(helper *system.FileTestUtil) *ttrpc.Server {
+				NewRundExtendedStats: func(tt *testing.T, helper *system.FileTestUtil) *ttrpc.Server {
 					expected := &grpc.ExtendedStatsResponse{
 						PodStats: &grpc.PodStats{},
 						ConStats: []*grpc.ContainerStats{
@@ -247,7 +251,7 @@ total_unevictable 0
 					}
 
 					s, err := ttrpc.NewServer()
-					assert.NoError(t, err)
+					assert.NoError(tt, err)
 					svc := &system.FakeExtendedStatusService{}
 					svc.FakeExtendedStats = func(ctx context.Context, req *grpc.ExtendedStatsRequest) (*grpc.ExtendedStatsResponse, error) {
 						return expected, nil
@@ -271,6 +275,9 @@ total_unevictable 0
 			name: "cgroups v2",
 			fields: fields{
 				podFilterOption: framework.RundPodFilter,
+				deviceCollectors: map[string]framework.DeviceCollector{
+					"TestDeviceCollector": &fakeDeviceCollector{isEnabled: false},
+				},
 				getPodMetas: []*statesinformer.PodMeta{
 					{
 						CgroupDir: testPodMetaDir,
@@ -307,7 +314,7 @@ active_file 0
 unevictable 0
 `)
 				},
-				NewRundExtendedStats: func(helper *system.FileTestUtil) *ttrpc.Server {
+				NewRundExtendedStats: func(tt *testing.T, helper *system.FileTestUtil) *ttrpc.Server {
 					expected := &grpc.ExtendedStatsResponse{
 						PodStats: &grpc.PodStats{},
 						ConStats: []*grpc.ContainerStats{
@@ -337,7 +344,7 @@ unevictable 0
 					}
 
 					s, err := ttrpc.NewServer()
-					assert.NoError(t, err)
+					assert.NoError(tt, err)
 					svc := &system.FakeExtendedStatusService{}
 					svc.FakeExtendedStats = func(ctx context.Context, req *grpc.ExtendedStatsRequest) (*grpc.ExtendedStatsResponse, error) {
 						return expected, nil
@@ -370,7 +377,7 @@ unevictable 0
 			}
 			oldHostRunRootDir := system.Conf.RunRootDir
 			system.Conf.RunRootDir = helper.TempDir
-			s := tt.fields.NewRundExtendedStats(helper)
+			s := tt.fields.NewRundExtendedStats(t, helper)
 			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 			defer cancel()
 			socketPath := system.GenRundShimSocketPath(sandboxID)
@@ -378,9 +385,10 @@ unevictable 0
 			assert.NoError(t, err)
 			l, err := net.Listen("unix", socketPath)
 			assert.NoError(t, err, "listen error")
+			assert.NotNil(t, l)
 			go s.Serve(ctx, l)
 			defer func() {
-				err := s.Close()
+				err := s.Shutdown(context.TODO())
 				assert.NoError(t, err)
 				system.Conf.RunRootDir = oldHostRunRootDir
 			}()
@@ -408,7 +416,8 @@ unevictable 0
 				},
 			})
 			collector.Setup(&framework.Context{
-				State: framework.NewSharedState(),
+				State:            framework.NewSharedState(),
+				DeviceCollectors: tt.fields.deviceCollectors,
 			})
 			c := collector.(*rundResourceCollector)
 			c.timeNowFn = func() time.Time {
@@ -497,4 +506,29 @@ func doQuery(querier metriccache.Querier, resource metriccache.MetricResource, p
 	}
 
 	return aggregateResult, nil
+}
+
+type fakeDeviceCollector struct {
+	framework.DeviceCollector
+	isEnabled          bool
+	getPodMetric       func(uid, podParentDir string, cs []corev1.ContainerStatus) ([]metriccache.MetricSample, error)
+	getContainerMetric func(uid, podParentDir string, c *corev1.ContainerStatus) ([]metriccache.MetricSample, error)
+}
+
+func (f *fakeDeviceCollector) Enabled() bool {
+	return f.isEnabled
+}
+
+func (f *fakeDeviceCollector) GetPodMetric(uid, podParentDir string, cs []corev1.ContainerStatus) ([]metriccache.MetricSample, error) {
+	if f.getPodMetric != nil {
+		return f.getPodMetric(uid, podParentDir, cs)
+	}
+	return nil, nil
+}
+
+func (f *fakeDeviceCollector) GetContainerMetric(containerID, podParentDir string, c *corev1.ContainerStatus) ([]metriccache.MetricSample, error) {
+	if f.getContainerMetric != nil {
+		return f.getContainerMetric(containerID, podParentDir, c)
+	}
+	return nil, nil
 }
