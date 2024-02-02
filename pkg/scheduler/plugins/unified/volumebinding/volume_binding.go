@@ -390,7 +390,7 @@ func (pl *VolumeBinding) Unreserve(ctx context.Context, cs *framework.CycleState
 		return
 	}
 	pl.Binder.RevertAssumedPodVolumes(podVolumes)
-	pl.revertLocalPVCAllocs(nodeName, podVolumes, false)
+	pl.revertLocalPVCAllocs(nodeName, podVolumes, true)
 	return
 }
 
