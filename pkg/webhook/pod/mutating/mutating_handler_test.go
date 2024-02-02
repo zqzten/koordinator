@@ -26,6 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/kubernetes/scheme"
 	clientcache "k8s.io/client-go/tools/cache"
 	sigcache "sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/cache/informertest"
@@ -34,10 +35,12 @@ import (
 
 	"github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
 
+	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/webhook/elasticquota"
 )
 
 func makeTestHandler() (*PodMutatingHandler, *informertest.FakeInformers) {
+	schedulingv1alpha1.AddToScheme(scheme.Scheme)
 	client := fake.NewClientBuilder().Build()
 	sche := client.Scheme()
 	sche.AddKnownTypes(schema.GroupVersion{
