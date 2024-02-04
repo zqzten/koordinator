@@ -78,10 +78,10 @@ func (h *LogicalResourceNodeValidatingHandler) Handle(ctx context.Context, req a
 }
 
 func validateLRN(lrn *schedulingv1alpha1.LogicalResourceNode) error {
-	if podLabelSelector, err := lrnutil.GetPodLabelSelector(lrn); err != nil {
+	if owners, err := lrnutil.GetReservationOwners(lrn); err != nil {
 		return err
-	} else if len(podLabelSelector) == 0 {
-		return fmt.Errorf("lrn.koordinator.sh/pod-label-selector can not be an empty selector")
+	} else if len(owners) == 0 {
+		return fmt.Errorf("owners(pod-label-selector) can not be empty")
 	}
 
 	if err := validateRequirements(&lrn.Spec.Requirements); err != nil {

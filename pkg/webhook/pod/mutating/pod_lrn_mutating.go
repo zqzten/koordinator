@@ -25,6 +25,7 @@ import (
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
@@ -54,14 +55,25 @@ func (h *PodMutatingHandler) mutatingLRNPodCreate(ctx context.Context, req admis
 			continue
 		}
 
-		podLabelSelector1, err := lrnutil.GetPodLabelSelector(lrn1)
+		podLabelSelectors, err := lrnutil.GetPodLabelSelector(lrn1)
 		if err != nil {
-			klog.Warningf("Failed to get pod label selector from LogicalResourceNode %s when admit Pod %s/%s: %v", lrn1.Name, req.Namespace, pod.Name, err)
+			klog.Warningf("Failed to get pod label selectors from LogicalResourceNode %s when admit Pod %s/%s: %v", lrn1.Name, req.Namespace, pod.Name, err)
 			continue
 		}
 
-		podSelector := labels.SelectorFromSet(podLabelSelector1)
-		if !podSelector.Matches(labels.Set(pod.Labels)) {
+		var matched bool
+		for _, labelSelector := range podLabelSelectors {
+			podSelector, err := metav1.LabelSelectorAsSelector(&labelSelector)
+			if err != nil {
+				klog.Warningf("Failed to convert pod label selectos from LogicalResourceNode %s when admit Pod %s/%s: %v", lrn1.Name, req.Namespace, pod.Name, err)
+				continue
+			}
+			if podSelector.Matches(labels.Set(pod.Labels)) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
 			continue
 		}
 

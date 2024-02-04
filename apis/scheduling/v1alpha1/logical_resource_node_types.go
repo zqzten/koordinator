@@ -25,6 +25,9 @@ const (
 	// AnnotationLogicalResourceNodePodLabelSelector is the label selector that matches pod
 	AnnotationLogicalResourceNodePodLabelSelector = "lrn.koordinator.sh/pod-label-selector"
 
+	// AnnotationLogicalResourceNodePodLabelSelectorList is the ORed multiple label selector that matches pod.
+	AnnotationLogicalResourceNodePodLabelSelectorList = "lrn.koordinator.sh/pod-label-selector-list"
+
 	// LabelLogicalResourceNodePodAssign is the label on pod that indicates which LRN is the pod assigned to.
 	LabelLogicalResourceNodePodAssign = "pod.lrn.koordinator.sh/assign-lrn"
 
@@ -75,6 +78,12 @@ type LogicalResourceNodeRequirements struct {
 	// If specified, the LRN's tolerations.
 	// +optional
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
+
+	// TopologySpreadConstraints describes how a group of LRNs ought to spread across topology
+	// domains. Scheduler will schedule pods in a way which abides by the constraints.
+	// All topologySpreadConstraints are ANDed.
+	// +optional
+	TopologySpreadConstraints []corev1.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty"`
 }
 
 type LogicalResourceNodePhase string

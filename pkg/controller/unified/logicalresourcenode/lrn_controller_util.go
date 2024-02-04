@@ -65,7 +65,7 @@ var (
 	reservationExpectations = expectations.NewResourceVersionExpectation()
 	qosGroupExpectations    = expectations.NewResourceVersionExpectation()
 
-	workerNumFlag      = flag.Int("lrn-controller-workers", 3, "The workers number of LRN controller.")
+	workerNumFlag      = flag.Int("lrn-controller-workers", 5, "The workers number of LRN controller.")
 	enableQoSGroupFlag = flag.Bool("lrn-qos-group-enabled", false, "Whether to enable ENI QoS Group for LRN.")
 
 	syncNodeLabelsFlag         = flag.String("lrn-sync-node-labels", "node.koordinator.sh/asw-id,node.koordinator.sh/point-of-delivery,sigma.ali/user-id,alibabacloud.com/gpu-card-model,node.koordinator.sh/gpu-model,node.koordinator.sh/gpu-model-series", "Node label keys that should be synced to LRN.")
@@ -127,7 +127,7 @@ func syncNodeStatus(lrnStatus *schedulingv1alpha1.LogicalResourceNodeStatus, nod
 }
 
 func generateNewReservation(lrn *schedulingv1alpha1.LogicalResourceNode, generation int64) (*schedulingv1alpha1.Reservation, error) {
-	podLabelSelector, err := lrnutil.GetPodLabelSelector(lrn)
+	owners, err := lrnutil.GetReservationOwners(lrn)
 	if err != nil {
 		return nil, err
 	}
@@ -149,11 +149,7 @@ func generateNewReservation(lrn *schedulingv1alpha1.LogicalResourceNode, generat
 			Template: &corev1.PodTemplateSpec{
 				Spec: *lrnutil.RequirementsToPodSpec(&lrn.Spec.Requirements),
 			},
-			Owners: []schedulingv1alpha1.ReservationOwner{
-				{
-					LabelSelector: &metav1.LabelSelector{MatchLabels: podLabelSelector},
-				},
-			},
+			Owners:         owners,
 			TTL:            &metav1.Duration{Duration: 0},
 			AllocateOnce:   utilpointer.Bool(false),
 			AllocatePolicy: schedulingv1alpha1.ReservationAllocatePolicyRestricted,
