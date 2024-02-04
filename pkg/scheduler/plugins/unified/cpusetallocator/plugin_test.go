@@ -35,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/uuid"
+	k8sfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/informers"
 	kubefake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
@@ -50,12 +51,14 @@ import (
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	koordfake "github.com/koordinator-sh/koordinator/pkg/client/clientset/versioned/fake"
 	koordinatorinformers "github.com/koordinator-sh/koordinator/pkg/client/informers/externalversions"
+	"github.com/koordinator-sh/koordinator/pkg/features"
 	schedulingconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta2"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 	frameworkexttesting "github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/testing"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/nodenumaresource"
 	"github.com/koordinator-sh/koordinator/pkg/util/cpuset"
+	"github.com/koordinator-sh/koordinator/pkg/util/feature"
 	"github.com/koordinator-sh/koordinator/pkg/util/transformer"
 )
 
@@ -784,6 +787,7 @@ func convertCPUTopology(reportedCPUTopology *extension.CPUTopology) *nodenumares
 }
 
 func TestPlugin_MaxRefCount(t *testing.T) {
+	feature.SetFeatureGateDuringTest(t, k8sfeature.DefaultMutableFeatureGate, features.DisableCPUSetOversold, false)
 	nodes := []*corev1.Node{
 		{
 			ObjectMeta: metav1.ObjectMeta{

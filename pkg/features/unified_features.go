@@ -94,7 +94,7 @@ var defaultUnifiedSchedulerFeatureGates = map[featuregate.Feature]featuregate.Fe
 	RejectQuotaNotExist:                         {Default: false, PreRelease: featuregate.Beta},
 	QuotaRunTime:                                {Default: false, PreRelease: featuregate.Beta},
 	SyncTaskQuota:                               {Default: false, PreRelease: featuregate.Beta},
-	DisableCPUSetOversold:                       {Default: false, PreRelease: featuregate.Beta},
+	DisableCPUSetOversold:                       {Default: true, PreRelease: featuregate.Beta},
 	EnableACKGPUShareScheduling:                 {Default: false, PreRelease: featuregate.Beta},
 	DisableInterPodAffinityByNamespaces:         {Default: false, PreRelease: featuregate.Beta},
 	EnableHugePageAsMemory:                      {Default: false, PreRelease: featuregate.Beta},

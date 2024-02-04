@@ -20,10 +20,12 @@ import (
 	unifiedresourceext "gitlab.alibaba-inc.com/cos/unified-resource-api/apis/extension"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	k8sfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	"github.com/koordinator-sh/koordinator/pkg/features"
 )
 
 func init() {
@@ -65,8 +67,10 @@ func TransformNodeAllocatableWithOverQuota(node *corev1.Node) {
 			apiext.AmplifyResourceList(node.Status.Allocatable, amplificationRatios, resourceName)
 		}
 	}
-	if len(amplificationRatios) > 0 {
-		apiext.SetNodeResourceAmplificationRatios(node, amplificationRatios)
+	if k8sfeature.DefaultFeatureGate.Enabled(features.DisableCPUSetOversold) {
+		if len(amplificationRatios) > 0 {
+			apiext.SetNodeResourceAmplificationRatios(node, amplificationRatios)
+		}
 	}
 	if len(rawAllocatable) > 0 {
 		apiext.SetNodeRawAllocatable(node, rawAllocatable)

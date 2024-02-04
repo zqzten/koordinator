@@ -24,10 +24,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	extunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
+	"github.com/koordinator-sh/koordinator/pkg/features"
+	utilfeature "github.com/koordinator-sh/koordinator/pkg/util/feature"
 )
 
 func TestTransformNodeAllocatableWithOverQuota(t *testing.T) {
@@ -35,6 +38,7 @@ func TestTransformNodeAllocatableWithOverQuota(t *testing.T) {
 		name                       string
 		nodeLabels                 map[string]string
 		nodeAllocatable            corev1.ResourceList
+		disableCPUSetOversold      bool
 		wantTransformedAllocatable corev1.ResourceList
 		wantRatios                 map[corev1.ResourceName]apiext.Ratio
 	}{
@@ -48,6 +52,7 @@ func TestTransformNodeAllocatableWithOverQuota(t *testing.T) {
 				corev1.ResourceCPU:    resource.MustParse("2"),
 				corev1.ResourceMemory: resource.MustParse("2Gi"),
 			},
+			disableCPUSetOversold: true,
 			wantTransformedAllocatable: corev1.ResourceList{
 				corev1.ResourceCPU:    *resource.NewMilliQuantity(3000, resource.DecimalSI),
 				corev1.ResourceMemory: *resource.NewQuantity(4*1024*1024*1024, resource.BinarySI),
@@ -67,6 +72,7 @@ func TestTransformNodeAllocatableWithOverQuota(t *testing.T) {
 				corev1.ResourceCPU:    resource.MustParse("2"),
 				corev1.ResourceMemory: resource.MustParse("2Gi"),
 			},
+			disableCPUSetOversold: true,
 			wantTransformedAllocatable: corev1.ResourceList{
 				corev1.ResourceCPU:    *resource.NewMilliQuantity(3000, resource.DecimalSI),
 				corev1.ResourceMemory: *resource.NewQuantity(4*1024*1024*1024, resource.BinarySI),
@@ -76,9 +82,44 @@ func TestTransformNodeAllocatableWithOverQuota(t *testing.T) {
 				corev1.ResourceMemory: 2,
 			},
 		},
+		{
+			name: "cpu 1.5, and memory 2",
+			nodeLabels: map[string]string{
+				extunified.LabelCPUOverQuota:    "1.5",
+				extunified.LabelMemoryOverQuota: "2",
+			},
+			nodeAllocatable: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("2"),
+				corev1.ResourceMemory: resource.MustParse("2Gi"),
+			},
+			disableCPUSetOversold: false,
+			wantTransformedAllocatable: corev1.ResourceList{
+				corev1.ResourceCPU:    *resource.NewMilliQuantity(3000, resource.DecimalSI),
+				corev1.ResourceMemory: *resource.NewQuantity(4*1024*1024*1024, resource.BinarySI),
+			},
+			wantRatios: nil,
+		},
+		{
+			name: "cpu 1.5, and memory 2 with new api",
+			nodeLabels: map[string]string{
+				extunified.LabelAlibabaCPUOverQuota:    "1.5",
+				extunified.LabelAlibabaMemoryOverQuota: "2",
+			},
+			nodeAllocatable: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("2"),
+				corev1.ResourceMemory: resource.MustParse("2Gi"),
+			},
+			disableCPUSetOversold: false,
+			wantTransformedAllocatable: corev1.ResourceList{
+				corev1.ResourceCPU:    *resource.NewMilliQuantity(3000, resource.DecimalSI),
+				corev1.ResourceMemory: *resource.NewQuantity(4*1024*1024*1024, resource.BinarySI),
+			},
+			wantRatios: nil,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			defer utilfeature.SetFeatureGateDuringTest(t, k8sfeature.DefaultMutableFeatureGate, features.DisableCPUSetOversold, tt.disableCPUSetOversold)()
 			nodeAllocatable := tt.nodeAllocatable.DeepCopy()
 			node := &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
