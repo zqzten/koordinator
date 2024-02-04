@@ -20,27 +20,65 @@ import (
 	"encoding/json"
 	"fmt"
 
-	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
-
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 )
 
-func GetPodLabelSelector(lrn *schedulingv1alpha1.LogicalResourceNode) (map[string]string, error) {
+func GetPodLabelSelector(lrn *schedulingv1alpha1.LogicalResourceNode) ([]metav1.LabelSelector, error) {
+	var ret []metav1.LabelSelector
+
+	// Use the new annotation first
+	multiPodSelectorStr := lrn.Annotations[schedulingv1alpha1.AnnotationLogicalResourceNodePodLabelSelectorList]
+	if multiPodSelectorStr != "" {
+		labelSelectors := make([]map[string]string, 0)
+		if err := json.Unmarshal([]byte(multiPodSelectorStr), &labelSelectors); err != nil {
+			return nil, fmt.Errorf("failed to parse %s: %v", schedulingv1alpha1.AnnotationLogicalResourceNodePodLabelSelectorList, err)
+		}
+		for i := range labelSelectors {
+			if len(labelSelectors[i]) == 0 {
+				continue
+			}
+			ret = append(ret, metav1.LabelSelector{MatchLabels: labelSelectors[i]})
+		}
+		return ret, nil
+	}
+
 	labelSelector := map[string]string{}
 	if podSelectorStr := lrn.Annotations[schedulingv1alpha1.AnnotationLogicalResourceNodePodLabelSelector]; podSelectorStr == "" {
 		return nil, fmt.Errorf("no found lrn.koordinator.sh/pod-label-selector in annotations")
 	} else if err := json.Unmarshal([]byte(podSelectorStr), &labelSelector); err != nil {
 		return nil, fmt.Errorf("failed to parse lrn.koordinator.sh/pod-label-selector in annotations: %s", err)
 	}
-	return labelSelector, nil
+	if len(labelSelector) != 0 {
+		ret = append(ret, metav1.LabelSelector{MatchLabels: labelSelector})
+	}
+	return ret, nil
+}
+
+func GetReservationOwners(lrn *schedulingv1alpha1.LogicalResourceNode) ([]schedulingv1alpha1.ReservationOwner, error) {
+	selectors, err := GetPodLabelSelector(lrn)
+	if err != nil {
+		return nil, err
+	}
+	owners := make([]schedulingv1alpha1.ReservationOwner, 0, len(selectors))
+	for i := range selectors {
+		selector := &selectors[i]
+		owners = append(owners, schedulingv1alpha1.ReservationOwner{
+			LabelSelector: selector,
+		})
+	}
+	return owners, nil
 }
 
 func RequirementsToPodSpec(requirements *schedulingv1alpha1.LogicalResourceNodeRequirements) *corev1.PodSpec {
 	// Add some required fields for validation
 	return &corev1.PodSpec{
-		NodeSelector: requirements.NodeSelector,
-		Affinity:     requirements.Affinity,
-		Tolerations:  requirements.Tolerations,
+		NodeSelector:              requirements.NodeSelector,
+		Affinity:                  requirements.Affinity,
+		Tolerations:               requirements.Tolerations,
+		TopologySpreadConstraints: requirements.TopologySpreadConstraints,
 		Containers: []corev1.Container{
 			{
 				Name:            "mock",
