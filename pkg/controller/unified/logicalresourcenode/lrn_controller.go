@@ -34,6 +34,7 @@ import (
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
+	"github.com/koordinator-sh/koordinator/pkg/util"
 	lrnutil "github.com/koordinator-sh/koordinator/pkg/util/logicalresourcenode"
 )
 
@@ -47,7 +48,7 @@ type LogicalResourceNodeReconciler struct {
 }
 
 type internalReconciler interface {
-	reconcile(ctx context.Context, lrn *schedulingv1alpha1.LogicalResourceNode) (ctrl.Result, error)
+	reconcile(ctx context.Context, cfg *lrnutil.Config, lrn *schedulingv1alpha1.LogicalResourceNode) (ctrl.Result, error)
 }
 
 // +kubebuilder:rbac:groups=scheduling.koordinator.sh,resources=logicalresourcenodes,verbs=get;list;watch;create;update;patch;delete
@@ -79,10 +80,21 @@ func (r *LogicalResourceNodeReconciler) Reconcile(ctx context.Context, req ctrl.
 		return ctrl.Result{}, fmt.Errorf("unsatisfied LRN for %s duration", duration)
 	}
 
-	return r.reservationReconciler.reconcile(ctx, lrn)
+	cfg, err := lrnutil.GetConfig(r.Client)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to get lrn config: %v", err)
+	}
+
+	return r.reservationReconciler.reconcile(ctx, cfg, lrn)
 }
 
 func Add(mgr ctrl.Manager) error {
+	cfg, err := lrnutil.GetConfig(mgr.GetAPIReader())
+	if err != nil {
+		return fmt.Errorf("failed to get lrn config when setup: %v", err)
+	}
+	klog.Infof("Initializing lrn controller with config: %v", util.DumpJSON(cfg))
+
 	if err := mgr.GetCache().IndexField(context.Background(), &schedulingv1alpha1.LogicalResourceNode{}, "status.nodeName", func(obj client.Object) []string {
 		lrn, ok := obj.(*schedulingv1alpha1.LogicalResourceNode)
 		if !ok {
@@ -127,10 +139,10 @@ func Add(mgr ctrl.Manager) error {
 		Recorder:              mgr.GetEventRecorderFor("logicalresourcenode-controller"),
 		reservationReconciler: &reservationReconciler{Client: mgr.GetClient()},
 	}
-	return reconciler.setup(mgr)
+	return reconciler.setup(mgr, cfg)
 }
 
-func (r *LogicalResourceNodeReconciler) setup(mgr ctrl.Manager) error {
+func (r *LogicalResourceNodeReconciler) setup(mgr ctrl.Manager, cfg *lrnutil.Config) error {
 	builder := ctrl.NewControllerManagedBy(mgr).
 		For(&schedulingv1alpha1.LogicalResourceNode{}).
 		WithOptions(controller.Options{MaxConcurrentReconciles: *workerNumFlag}).
@@ -140,7 +152,7 @@ func (r *LogicalResourceNodeReconciler) setup(mgr ctrl.Manager) error {
 		}).
 		Watches(&source.Kind{Type: &corev1.Node{}}, &nodeEventHandler{cache: mgr.GetCache()}).
 		Named("logicalresourcenode")
-	if isQoSGroupEnabled() {
+	if cfg.Common.EnableQoSGroup {
 		builder.Watches(&source.Kind{Type: &terwayapis.ENIQosGroup{}}, &qosGroupEventHandler{})
 	}
 	return builder.Complete(r)

@@ -46,6 +46,9 @@ const (
 	// AnnotationForceSyncLabelRegex is the regular expressions that indicates which label keys should be
 	// force synced and deleted from LRN to Reservation.
 	AnnotationForceSyncLabelRegex = "lrn.koordinator.sh/force-sync-label-regex"
+
+	// LabelLogicalResourceNodeReservationGeneration is the generation of the reservation, which indicates the recreation count for this LRN.
+	LabelLogicalResourceNodeReservationGeneration = "lrn.koordinator.sh/reservation-generation"
 )
 
 type LRNVPCQoSThreshold struct {

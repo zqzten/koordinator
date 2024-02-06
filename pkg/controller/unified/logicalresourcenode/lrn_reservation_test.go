@@ -23,14 +23,13 @@ import (
 	"sort"
 	"testing"
 
-	"k8s.io/apimachinery/pkg/types"
-
 	terwayapis "github.com/AliyunContainerService/terway-apis/network.alibabacloud.com/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	utilpointer "k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -38,6 +37,7 @@ import (
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/util"
+	lrnutil "github.com/koordinator-sh/koordinator/pkg/util/logicalresourcenode"
 )
 
 func TestReconcileWithReservation(t *testing.T) {
@@ -478,7 +478,9 @@ func TestReconcileWithReservation(t *testing.T) {
 			}
 			reconciler := reservationReconciler{Client: clientBuilder.Build()}
 
-			gotStatus, err := reconciler.reconcileWithReservation(context.TODO(), testCase.lrn, testCase.reservation, testCase.currentGeneration, nil)
+			cfg := &lrnutil.Config{}
+			cfg.SetDefaults()
+			gotStatus, err := reconciler.reconcileWithReservation(context.TODO(), cfg, testCase.lrn, testCase.reservation, testCase.currentGeneration, nil)
 			if err != nil {
 				t.Fatalf("failed to reconcile with reservation: %v", err)
 			}
@@ -507,10 +509,15 @@ func TestReconcileWithReservation(t *testing.T) {
 }
 
 func TestGenerateLRNPatch(t *testing.T) {
-	syncNodeLabelsFlag = func() *string {
-		labels := "node.koordinator.sh/asw-id,node.koordinator.sh/point-of-delivery,node.koordinator.sh/gpu-model,node.koordinator.sh/gpu-model-series"
-		return &labels
-	}()
+	cfg := &lrnutil.Config{
+		Common: lrnutil.CommonConfig{
+			SyncNodeLabelKeys: []string{
+				"node.koordinator.sh/asw-id",
+				"node.koordinator.sh/point-of-delivery",
+			},
+		},
+	}
+	cfg.SetDefaults()
 
 	cases := []struct {
 		lrnMeta       *metav1.ObjectMeta
@@ -549,12 +556,12 @@ func TestGenerateLRNPatch(t *testing.T) {
 			expectedPatch: &patchObject{
 				Metadata: patchMetaData{
 					Labels: map[string]interface{}{
-						labelReservationGeneration:                            "0",
-						"node.koordinator.sh/asw-id":                          "XXX-P1-S1",
-						"node.koordinator.sh/point-of-delivery":               "XXX-P1",
-						"node.koordinator.sh/gpu-model-series":                "A800",
-						"node.koordinator.sh/gpu-model":                       "A800-SXM4-80GB",
-						schedulingv1alpha1.LabelNodeNameOfLogicalResourceNode: "fake-node01",
+						schedulingv1alpha1.LabelLogicalResourceNodeReservationGeneration: "0",
+						"node.koordinator.sh/asw-id":                                     "XXX-P1-S1",
+						"node.koordinator.sh/point-of-delivery":                          "XXX-P1",
+						"node.koordinator.sh/gpu-model-series":                           "A800",
+						"node.koordinator.sh/gpu-model":                                  "A800-SXM4-80GB",
+						schedulingv1alpha1.LabelNodeNameOfLogicalResourceNode:            "fake-node01",
 					},
 					Annotations: map[string]interface{}{
 						schedulingv1alpha1.AnnotationLogicalResourceNodeDevices: `{"gpu":[{"minor":0},{"minor":1},{"minor":2},{"minor":3},{"minor":4},{"minor":5},{"minor":6},{"minor":7}]}`,
@@ -566,13 +573,13 @@ func TestGenerateLRNPatch(t *testing.T) {
 		{
 			lrnMeta: &metav1.ObjectMeta{
 				Labels: map[string]string{
-					labelReservationGeneration:                            "0",
-					"node.koordinator.sh/asw-id":                          "XXX-P1-S1",
-					"node.koordinator.sh/point-of-delivery":               "XXX-P1",
-					"node.koordinator.sh/gpu-model-series":                "A800",
-					"node.koordinator.sh/gpu-model":                       "A800-SXM4-80GB",
-					"fake-previous-synced-label":                          "foo",
-					schedulingv1alpha1.LabelNodeNameOfLogicalResourceNode: "fake-node01",
+					schedulingv1alpha1.LabelLogicalResourceNodeReservationGeneration: "0",
+					"node.koordinator.sh/asw-id":                                     "XXX-P1-S1",
+					"node.koordinator.sh/point-of-delivery":                          "XXX-P1",
+					"node.koordinator.sh/gpu-model-series":                           "A800",
+					"node.koordinator.sh/gpu-model":                                  "A800-SXM4-80GB",
+					"fake-previous-synced-label":                                     "foo",
+					schedulingv1alpha1.LabelNodeNameOfLogicalResourceNode:            "fake-node01",
 				},
 				Annotations: map[string]string{
 					schedulingv1alpha1.AnnotationLogicalResourceNodeDevices: `{"gpu":[{"minor":0},{"minor":1},{"minor":2},{"minor":3},{"minor":4},{"minor":5},{"minor":6},{"minor":7}]}`,
@@ -604,13 +611,13 @@ func TestGenerateLRNPatch(t *testing.T) {
 			expectedPatch: &patchObject{
 				Metadata: patchMetaData{
 					Labels: map[string]interface{}{
-						labelReservationGeneration:                            "1",
-						"node.koordinator.sh/asw-id":                          "XXX-P1-S1",
-						"node.koordinator.sh/point-of-delivery":               "XXX-P1",
-						"node.koordinator.sh/gpu-model-series":                "H800",
-						"node.koordinator.sh/gpu-model":                       "H800",
-						schedulingv1alpha1.LabelNodeNameOfLogicalResourceNode: "fake-node02",
-						"fake-previous-synced-label":                          nil,
+						schedulingv1alpha1.LabelLogicalResourceNodeReservationGeneration: "1",
+						"node.koordinator.sh/asw-id":                                     "XXX-P1-S1",
+						"node.koordinator.sh/point-of-delivery":                          "XXX-P1",
+						"node.koordinator.sh/gpu-model-series":                           "H800",
+						"node.koordinator.sh/gpu-model":                                  "H800",
+						schedulingv1alpha1.LabelNodeNameOfLogicalResourceNode:            "fake-node02",
+						"fake-previous-synced-label":                                     nil,
 					},
 					Annotations: map[string]interface{}{
 						schedulingv1alpha1.AnnotationLogicalResourceNodeDevices: `{"gpu":[{"minor":0},{"minor":1},{"minor":2},{"minor":3},{"minor":4},{"minor":5},{"minor":6},{"minor":7}]}`,
@@ -623,7 +630,7 @@ func TestGenerateLRNPatch(t *testing.T) {
 
 	for i, testCase := range cases {
 		t.Run(fmt.Sprintf("Case #%d", i), func(t *testing.T) {
-			gotPatch := generateLRNPatch(testCase.lrnMeta, testCase.generation, testCase.reservation, testCase.node)
+			gotPatch := generateLRNPatch(cfg, testCase.lrnMeta, testCase.generation, testCase.reservation, testCase.node)
 			if !reflect.DeepEqual(gotPatch, testCase.expectedPatch) {
 				t.Fatalf("expected %v, got %v", util.DumpJSON(testCase.expectedPatch), util.DumpJSON(gotPatch))
 			}
@@ -1838,7 +1845,9 @@ func TestUpdateReservation(t *testing.T) {
 			clientBuilder := fake.NewClientBuilder().WithScheme(scheme).WithObjects(testCase.lrn, testCase.reservation)
 			reconciler := reservationReconciler{Client: clientBuilder.Build()}
 
-			if err := reconciler.updateReservation(context.TODO(), testCase.lrn, testCase.reservation, testCase.qosGroup); err != nil {
+			cfg := &lrnutil.Config{}
+			cfg.SetDefaults()
+			if err := reconciler.updateReservation(context.TODO(), cfg, testCase.lrn, testCase.reservation, testCase.qosGroup); err != nil {
 				t.Fatal(err)
 			}
 			gotReservation := &schedulingv1alpha1.Reservation{}

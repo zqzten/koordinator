@@ -66,6 +66,12 @@ func (n *nodeEventHandler) enqueue(obj client.Object, q workqueue.RateLimitingIn
 		return
 	}
 
+	cfg, err := lrnutil.GetConfig(n.cache)
+	if err != nil {
+		klog.Errorf("Failed to get lrn config: %v", err)
+		return
+	}
+
 	lrnNames := sets.NewString()
 	for i := range reservationList.Items {
 		reservation := &reservationList.Items[i]
@@ -85,13 +91,13 @@ func (n *nodeEventHandler) enqueue(obj client.Object, q workqueue.RateLimitingIn
 			NodeName:    node.Name,
 			Allocatable: reservation.Status.Allocatable,
 		}
-		syncNodeStatus(&newStatus, node)
+		syncNodeStatus(cfg, &newStatus, node)
 		if !apiequality.Semantic.DeepEqual(newStatus, lrn.Status) {
 			lrnNames.Insert(lrnName)
 			continue
 		}
 
-		patchBody := generateLRNPatch(lrn, getGenerationFromLRN(lrn), reservation, node)
+		patchBody := generateLRNPatch(cfg, lrn, getGenerationFromLRN(lrn), reservation, node)
 		if !patchBody.isConsistent(lrn) {
 			lrnNames.Insert(lrnName)
 		}

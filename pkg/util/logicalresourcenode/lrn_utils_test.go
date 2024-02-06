@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/koordinator-sh/koordinator/pkg/util"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
+	"github.com/koordinator-sh/koordinator/pkg/util"
 )
 
 func TestGetReservationOwners(t *testing.T) {
