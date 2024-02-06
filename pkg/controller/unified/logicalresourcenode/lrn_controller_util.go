@@ -38,7 +38,6 @@ import (
 	utilpointer "k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/util"
 	"github.com/koordinator-sh/koordinator/pkg/util/expectations"
@@ -48,9 +47,6 @@ import (
 const (
 	// finalizerInternalGC is the finalizer on LRN and Reservation to do cleanup when deleted.
 	finalizerInternalGC = "lrn.koordinator.sh/internal-gc"
-
-	// labelReservationGeneration is the generation of the reservation, which indicates the recreation count for this LRN.
-	labelReservationGeneration = "lrn.koordinator.sh/reservation-generation"
 
 	labelOwnedByLRN = "lrn.koordinator.sh/owned-by-lrn"
 
@@ -65,30 +61,16 @@ var (
 	reservationExpectations = expectations.NewResourceVersionExpectation()
 	qosGroupExpectations    = expectations.NewResourceVersionExpectation()
 
-	workerNumFlag      = flag.Int("lrn-controller-workers", 5, "The workers number of LRN controller.")
-	enableQoSGroupFlag = flag.Bool("lrn-qos-group-enabled", false, "Whether to enable ENI QoS Group for LRN.")
-
-	syncNodeLabelsFlag         = flag.String("lrn-sync-node-labels", "node.koordinator.sh/asw-id,node.koordinator.sh/point-of-delivery,sigma.ali/user-id,alibabacloud.com/gpu-card-model,node.koordinator.sh/gpu-model,node.koordinator.sh/gpu-model-series", "Node label keys that should be synced to LRN.")
-	syncNodeConditionTypesFlag = flag.String("lrn-sync-node-condition-types", "Ready", "Node condition types that should be synced to LRN status.")
-
-	reservationCleanupGracePeriodSeconds = flag.Int("lrn-reservation-cleanup-grace-period-seconds", 10, "The grace period seconds that will delete all pods after their reservation has become terminating.")
-
-	skipSyncReservationLabels  = sets.NewString(labelReservationGeneration, schedulingv1alpha1.LabelNodeNameOfLogicalResourceNode)
-	syncReservationAnnotations = sets.NewString(apiext.SchedulingDomainPrefix+"/device-allocate-hint", schedulingv1alpha1.AnnotationVPCQoSThreshold)
+	workerNumFlag = flag.Int("lrn-controller-workers", 5, "The workers number of LRN controller.")
 )
 
-func isQoSGroupEnabled() bool {
-	return enableQoSGroupFlag != nil && *enableQoSGroupFlag
-}
-
-func getsSyncNodeLabels(node *corev1.Node) (res map[string]string) {
-	if syncNodeLabelsFlag == nil || len(strings.TrimSpace(*syncNodeLabelsFlag)) == 0 || node == nil {
+func getsSyncNodeLabels(cfg *lrnutil.Config, node *corev1.Node) (res map[string]string) {
+	if node == nil {
 		return
 	}
 
-	labelKeys := strings.Split(strings.TrimSpace(*syncNodeLabelsFlag), ",")
-	res = make(map[string]string, len(labelKeys))
-	for _, key := range labelKeys {
+	res = make(map[string]string, len(cfg.Common.SyncNodeLabelKeys))
+	for _, key := range cfg.Common.SyncNodeLabelKeys {
 		if val, ok := node.Labels[key]; ok {
 			res[key] = val
 		}
@@ -96,18 +78,14 @@ func getsSyncNodeLabels(node *corev1.Node) (res map[string]string) {
 	return
 }
 
-func syncNodeStatus(lrnStatus *schedulingv1alpha1.LogicalResourceNodeStatus, node *corev1.Node) {
+func syncNodeStatus(cfg *lrnutil.Config, lrnStatus *schedulingv1alpha1.LogicalResourceNodeStatus, node *corev1.Node) {
 	lrnStatus.NodeStatus = &schedulingv1alpha1.LRNNodeStatus{
 		Unschedulable: node.Spec.Unschedulable,
 		PrintColumn:   "NotReady",
 	}
 
-	condTypes := sets.NewString(strings.Split(strings.TrimSpace(*syncNodeConditionTypesFlag), ",")...)
-	// Ready is necessary
-	condTypes.Insert(string(corev1.NodeReady))
-
 	for _, cond := range node.Status.Conditions {
-		if !condTypes.Has(string(cond.Type)) {
+		if !slice.ContainsString(cfg.Common.SyncNodeConditionTypes, string(cond.Type), nil) {
 			continue
 		}
 		// Currently no need to sync those translate/heartbeat timestamps
@@ -126,7 +104,7 @@ func syncNodeStatus(lrnStatus *schedulingv1alpha1.LogicalResourceNodeStatus, nod
 	}
 }
 
-func generateNewReservation(lrn *schedulingv1alpha1.LogicalResourceNode, generation int64) (*schedulingv1alpha1.Reservation, error) {
+func generateNewReservation(cfg *lrnutil.Config, lrn *schedulingv1alpha1.LogicalResourceNode, generation int64) (*schedulingv1alpha1.Reservation, error) {
 	owners, err := lrnutil.GetReservationOwners(lrn)
 	if err != nil {
 		return nil, err
@@ -158,18 +136,18 @@ func generateNewReservation(lrn *schedulingv1alpha1.LogicalResourceNode, generat
 
 	syncedLabels := getLabelsSyncedFromNode(lrn.Annotations)
 	for k, v := range lrn.Labels {
-		if !syncedLabels.Has(k) && !skipSyncReservationLabels.Has(k) {
+		if !syncedLabels.Has(k) && !slice.ContainsString(cfg.Common.SkipSyncReservationLabelKeys, k, nil) {
 			reservation.Labels[k] = v
 		}
 	}
 
 	for k, v := range lrn.Annotations {
-		if syncReservationAnnotations.Has(k) {
+		if slice.ContainsString(cfg.Common.SyncReservationAnnotationKeys, k, nil) {
 			reservation.Annotations[k] = v
 		}
 	}
 
-	if lrn.Spec.Unschedulable || hasQoSGroupAndEnabled(lrn) {
+	if lrn.Spec.Unschedulable || hasQoSGroupAndEnabled(cfg, lrn) {
 		reservation.Spec.Unschedulable = true
 	}
 
@@ -177,7 +155,7 @@ func generateNewReservation(lrn *schedulingv1alpha1.LogicalResourceNode, generat
 }
 
 func getGenerationFromLRN(lrn *schedulingv1alpha1.LogicalResourceNode) int64 {
-	rg, ok := lrn.Labels[labelReservationGeneration]
+	rg, ok := lrn.Labels[schedulingv1alpha1.LabelLogicalResourceNodeReservationGeneration]
 	if !ok {
 		return -1
 	}
@@ -310,8 +288,8 @@ func getLabelsSyncedFromNode(annotations map[string]string) sets.String {
 	return sets.NewString(strings.Split(val, ",")...)
 }
 
-func hasQoSGroupAndEnabled(obj metav1.Object) bool {
-	return isQoSGroupEnabled() && obj.GetAnnotations()[schedulingv1alpha1.AnnotationVPCQoSThreshold] != ""
+func hasQoSGroupAndEnabled(cfg *lrnutil.Config, obj metav1.Object) bool {
+	return cfg.Common.EnableQoSGroup && obj.GetAnnotations()[schedulingv1alpha1.AnnotationVPCQoSThreshold] != ""
 }
 
 func generateENIQoSGroup(reservation *schedulingv1alpha1.Reservation) (*terwayapis.ENIQosGroup, error) {

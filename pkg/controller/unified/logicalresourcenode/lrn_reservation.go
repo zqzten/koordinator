@@ -31,6 +31,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
+	"k8s.io/kubernetes/pkg/util/slice"
 	"k8s.io/utils/strings/slices"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -45,7 +46,7 @@ type reservationReconciler struct {
 	client.Client
 }
 
-func (r *reservationReconciler) reconcile(ctx context.Context, lrn *schedulingv1alpha1.LogicalResourceNode) (ctrl.Result, error) {
+func (r *reservationReconciler) reconcile(ctx context.Context, cfg *lrnutil.Config, lrn *schedulingv1alpha1.LogicalResourceNode) (ctrl.Result, error) {
 	activeReservations, terminatingReservations, err := r.getOwnedReservations(ctx, lrn)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to get owned reservations: %v", err)
@@ -60,7 +61,7 @@ func (r *reservationReconciler) reconcile(ctx context.Context, lrn *schedulingv1
 
 	// Cleanup LRN and all its Reservations and Pods
 	if lrn.DeletionTimestamp != nil {
-		requeueDuration, err = r.gcTerminatingLRN(ctx, lrn, append(terminatingReservations, activeReservations...))
+		requeueDuration, err = r.gcTerminatingLRN(ctx, cfg, lrn, append(terminatingReservations, activeReservations...))
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -70,7 +71,7 @@ func (r *reservationReconciler) reconcile(ctx context.Context, lrn *schedulingv1
 
 	// Cleanup terminating Reservations and their Pods
 	for _, rr := range terminatingReservations {
-		d, err := r.gcTerminatingReservation(ctx, rr)
+		d, err := r.gcTerminatingReservation(ctx, cfg, rr)
 		if err != nil {
 			klog.Errorf("Failed to gc terminating Reservation %s for LogicalResourceNode %s, ignoring.", rr.Name, lrn.Name)
 		}
@@ -100,7 +101,7 @@ func (r *reservationReconciler) reconcile(ctx context.Context, lrn *schedulingv1
 	}
 
 	var qosGroup *terwayapis.ENIQosGroup
-	if reservation != nil && hasQoSGroupAndEnabled(reservation) {
+	if reservation != nil && hasQoSGroupAndEnabled(cfg, reservation) {
 		qosGroup, err = r.getQoSGroupForReservation(ctx, reservation)
 		if err != nil {
 			return ctrl.Result{}, err
@@ -134,7 +135,7 @@ func (r *reservationReconciler) reconcile(ctx context.Context, lrn *schedulingv1
 	}
 
 	// The main reconcile is here.
-	newStatus, err := r.reconcileWithReservation(ctx, lrn, reservation, currentGeneration, qosGroup)
+	newStatus, err := r.reconcileWithReservation(ctx, cfg, lrn, reservation, currentGeneration, qosGroup)
 	if err != nil {
 		return result, err
 	}
@@ -150,7 +151,7 @@ func (r *reservationReconciler) reconcile(ctx context.Context, lrn *schedulingv1
 	return result, nil
 }
 
-func (r *reservationReconciler) reconcileWithReservation(ctx context.Context, lrn *schedulingv1alpha1.LogicalResourceNode,
+func (r *reservationReconciler) reconcileWithReservation(ctx context.Context, cfg *lrnutil.Config, lrn *schedulingv1alpha1.LogicalResourceNode,
 	reservation *schedulingv1alpha1.Reservation, currentGeneration int64, qosGroup *terwayapis.ENIQosGroup) (status *schedulingv1alpha1.LogicalResourceNodeStatus, err error) {
 
 	status = &schedulingv1alpha1.LogicalResourceNodeStatus{Phase: schedulingv1alpha1.LogicalResourceNodePending}
@@ -158,7 +159,7 @@ func (r *reservationReconciler) reconcileWithReservation(ctx context.Context, lr
 	// Create a new Reservation if not exists
 	if reservation == nil {
 		currentGeneration++
-		reservation, err = generateNewReservation(lrn, currentGeneration)
+		reservation, err = generateNewReservation(cfg, lrn, currentGeneration)
 		if err != nil {
 			return
 		}
@@ -170,7 +171,7 @@ func (r *reservationReconciler) reconcileWithReservation(ctx context.Context, lr
 		klog.Infof("Successfully create Reservation %s for LogicalResourceNode %s", reservation.Name, lrn.Name)
 
 		// Update LRN metadata
-		if err := r.updateLRNMetadata(ctx, lrn, currentGeneration, reservation, nil); err != nil {
+		if err := r.updateLRNMetadata(ctx, cfg, lrn, currentGeneration, reservation, nil); err != nil {
 			return nil, fmt.Errorf("failed to patch LRN metadata: %v", err)
 		}
 		return
@@ -189,7 +190,7 @@ func (r *reservationReconciler) reconcileWithReservation(ctx context.Context, lr
 		}
 
 		// Create or wait QoSGroup if needed
-		if hasQoSGroupAndEnabled(reservation) {
+		if hasQoSGroupAndEnabled(cfg, reservation) {
 			if qosGroup == nil {
 				qosGroup, err = generateENIQoSGroup(reservation)
 				if err != nil {
@@ -220,7 +221,7 @@ func (r *reservationReconciler) reconcileWithReservation(ctx context.Context, lr
 		status.Phase = schedulingv1alpha1.LogicalResourceNodeAvailable
 		status.NodeName = node.Name
 		status.Allocatable = reservation.Status.Allocatable
-		syncNodeStatus(status, node)
+		syncNodeStatus(cfg, status, node)
 
 		if lrn.Spec.Unschedulable {
 			status.Phase = schedulingv1alpha1.LogicalResourceNodeUnschedulable
@@ -230,12 +231,12 @@ func (r *reservationReconciler) reconcileWithReservation(ctx context.Context, lr
 		return nil, fmt.Errorf("unexpected Reservation %s phase %s", reservation.Name, reservation.Status.Phase)
 	}
 
-	if err := r.updateReservation(ctx, lrn, reservation, qosGroup); err != nil {
+	if err := r.updateReservation(ctx, cfg, lrn, reservation, qosGroup); err != nil {
 		return nil, fmt.Errorf("failed to update reservation: %v", err)
 	}
 
 	// Update LRN metadata
-	if err := r.updateLRNMetadata(ctx, lrn, currentGeneration, reservation, node); err != nil {
+	if err := r.updateLRNMetadata(ctx, cfg, lrn, currentGeneration, reservation, node); err != nil {
 		return nil, fmt.Errorf("failed to update LRN metadata: %v", err)
 	}
 
@@ -261,7 +262,7 @@ func (r *reservationReconciler) getQoSGroupForReservation(ctx context.Context, r
 }
 
 // TODO: temporarily help users to update pod-label-selector on LRN. Should be removed later.
-func (r *reservationReconciler) updateReservation(ctx context.Context, lrn *schedulingv1alpha1.LogicalResourceNode,
+func (r *reservationReconciler) updateReservation(ctx context.Context, cfg *lrnutil.Config, lrn *schedulingv1alpha1.LogicalResourceNode,
 	reservation *schedulingv1alpha1.Reservation, qosGroup *terwayapis.ENIQosGroup) error {
 
 	patchBody := newPatchObject()
@@ -305,7 +306,7 @@ func (r *reservationReconciler) updateReservation(ctx context.Context, lrn *sche
 	labelsSyncedFromNode := getLabelsSyncedFromNode(lrn.GetAnnotations())
 	for k, v := range lrn.Labels {
 		rVal := reservation.Labels[k]
-		if labelsSyncedFromNode.Has(k) || skipSyncReservationLabels.Has(k) || rVal == v {
+		if labelsSyncedFromNode.Has(k) || slice.ContainsString(cfg.Common.SkipSyncReservationLabelKeys, k, nil) || rVal == v {
 			continue
 		}
 		if rVal != "" && (forceSyncLabelRegex == nil || !forceSyncLabelRegex.MatchString(k)) {
@@ -355,7 +356,7 @@ func (r *reservationReconciler) getOwnedReservations(ctx context.Context, lrn *s
 	return
 }
 
-func (r *reservationReconciler) gcTerminatingLRN(ctx context.Context, lrn *schedulingv1alpha1.LogicalResourceNode, reservations []*schedulingv1alpha1.Reservation) (time.Duration, error) {
+func (r *reservationReconciler) gcTerminatingLRN(ctx context.Context, cfg *lrnutil.Config, lrn *schedulingv1alpha1.LogicalResourceNode, reservations []*schedulingv1alpha1.Reservation) (time.Duration, error) {
 	if len(reservations) == 0 {
 		klog.Infof("No reservation found for terminating LogicalResourceNode %s", lrn.Name)
 		return 0, r.removeGCFinalizerFromLRN(ctx, lrn.Name)
@@ -366,7 +367,7 @@ func (r *reservationReconciler) gcTerminatingLRN(ctx context.Context, lrn *sched
 	var requeueDuration time.Duration
 	for _, reservation := range reservations {
 		if reservation.DeletionTimestamp != nil {
-			d, err := r.gcTerminatingReservation(ctx, reservation)
+			d, err := r.gcTerminatingReservation(ctx, cfg, reservation)
 			if err != nil {
 				return 0, err
 			}
@@ -383,8 +384,8 @@ func (r *reservationReconciler) gcTerminatingLRN(ctx context.Context, lrn *sched
 	return requeueDuration, nil
 }
 
-func (r *reservationReconciler) gcTerminatingReservation(ctx context.Context, reservation *schedulingv1alpha1.Reservation) (time.Duration, error) {
-	leftGrace := time.Duration(*reservationCleanupGracePeriodSeconds)*time.Second - time.Since(reservation.DeletionTimestamp.Time)
+func (r *reservationReconciler) gcTerminatingReservation(ctx context.Context, cfg *lrnutil.Config, reservation *schedulingv1alpha1.Reservation) (time.Duration, error) {
+	leftGrace := time.Duration(cfg.Common.ReservationTerminationGracePeriodSeconds)*time.Second - time.Since(reservation.DeletionTimestamp.Time)
 	if leftGrace > 0 {
 		klog.Infof("Reservation %s is still in termination grace time.", reservation.Name)
 		return leftGrace + time.Second, nil
@@ -418,10 +419,10 @@ func (r *reservationReconciler) removeGCFinalizerFromReservation(ctx context.Con
 	return removeGCFinalizer(ctx, r.Client, types.NamespacedName{Name: reservationName}, func() client.Object { return &schedulingv1alpha1.Reservation{} })
 }
 
-func (r *reservationReconciler) updateLRNMetadata(ctx context.Context, lrn *schedulingv1alpha1.LogicalResourceNode, generation int64,
+func (r *reservationReconciler) updateLRNMetadata(ctx context.Context, cfg *lrnutil.Config, lrn *schedulingv1alpha1.LogicalResourceNode, generation int64,
 	reservation *schedulingv1alpha1.Reservation, node *corev1.Node) error {
 
-	patchBody := generateLRNPatch(lrn, generation, reservation, node)
+	patchBody := generateLRNPatch(cfg, lrn, generation, reservation, node)
 	if patchBody.isConsistent(lrn) {
 		return nil
 	}
@@ -434,7 +435,7 @@ func (r *reservationReconciler) updateLRNMetadata(ctx context.Context, lrn *sche
 	return nil
 }
 
-func generateLRNPatch(lrnMeta metav1.Object, generation int64, reservation *schedulingv1alpha1.Reservation, node *corev1.Node) *patchObject {
+func generateLRNPatch(cfg *lrnutil.Config, lrnMeta metav1.Object, generation int64, reservation *schedulingv1alpha1.Reservation, node *corev1.Node) *patchObject {
 
 	patchBody := patchMetaData{
 		Labels:      map[string]interface{}{},
@@ -455,7 +456,7 @@ func generateLRNPatch(lrnMeta metav1.Object, generation int64, reservation *sche
 		patchBody.Labels[k] = v
 	}
 
-	patchBody.Labels[labelReservationGeneration] = fmt.Sprintf("%d", generation)
+	patchBody.Labels[schedulingv1alpha1.LabelLogicalResourceNodeReservationGeneration] = fmt.Sprintf("%d", generation)
 
 	if reservation == nil || reservation.Status.NodeName == "" {
 		patchBody.Labels[schedulingv1alpha1.LabelNodeNameOfLogicalResourceNode] = nil
@@ -488,7 +489,7 @@ func generateLRNPatch(lrnMeta metav1.Object, generation int64, reservation *sche
 		patchBody.Annotations[schedulingv1alpha1.AnnotationLogicalResourceNodeDevices] = util.DumpJSON(devices)
 	}
 
-	syncNodeLabels := getsSyncNodeLabels(node)
+	syncNodeLabels := getsSyncNodeLabels(cfg, node)
 	syncNodeLabelKeys := make([]string, 0, len(syncNodeLabels))
 	for k, v := range syncNodeLabels {
 		patchBody.Labels[k] = v
