@@ -13,6 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
+	apiextunified "github.com/koordinator-sh/koordinator/apis/extension/unified"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/util/sloconfig"
 )
@@ -23,10 +24,10 @@ const (
 
 var (
 	defaultSyncNodeLabelKeys = []string{
-		"node.koordinator.sh/gpu-model",
-		"node.koordinator.sh/gpu-model-series",
-		"node.koordinator.sh/asw-id",
-		"node.koordinator.sh/point-of-delivery",
+		apiext.LabelGPUModel,
+		apiextunified.LabelGPUModelSeries,
+		apiextunified.LabelNodeASWID,
+		apiextunified.LabelNodePointOfDelivery,
 	}
 
 	defaultSyncNodeConditionTypes = []string{
@@ -40,6 +41,7 @@ var (
 
 	defaultSyncReservationAnnotationKeys = []string{
 		apiext.AnnotationDeviceAllocateHint,
+		apiext.AnnotationDeviceJointAllocate,
 		schedulingv1alpha1.AnnotationVPCQoSThreshold,
 	}
 
