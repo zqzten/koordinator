@@ -29,6 +29,8 @@ const (
 	AnnotationSkipNotReadyFlowControlKey   = "alibabacloud.com/skip-not-ready-flow-control" // true or false
 	AnnotationSkipNotReadyFlowControlValue = "true"
 	AnnotationEvictionMessageKey           = "alibabacloud.com/eviction-message"
+	AnnotationEvictionConditionKey         = "alibabacloud.com/eviction-condition-type"
+	AnnotationEvictionConditionPodValue    = "PodEviction"
 	LabelEvictionKey                       = "alibabacloud.com/eviction"
 	LabelEvictionValue                     = "true"
 )
