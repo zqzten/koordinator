@@ -231,7 +231,7 @@ func (e *acsEvictor) evictPod(pod *corev1.Pod, message string) (bool, error) {
 	newPod.Annotations[unified.AnnotationEvictionTypeKey] = string(evictionTypeStr)
 	newPod.Annotations[unified.AnnotationSkipNotReadyFlowControlKey] = unified.AnnotationSkipNotReadyFlowControlValue
 	newPod.Annotations[unified.AnnotationEvictionMessageKey] = message
-
+	newPod.Annotations[unified.AnnotationEvictionConditionKey] = unified.AnnotationEvictionConditionPodValue
 	if reflect.DeepEqual(newPod.Annotations, pod.Annotations) && reflect.DeepEqual(newPod.Labels, pod.Labels) {
 		klog.V(6).Infof("pod %s has no change, skip patch", util.GetPodKey(pod))
 		return false, nil
