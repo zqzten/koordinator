@@ -41,17 +41,23 @@ func TransformElasticQuotaForACS(quota *v1alpha1.ElasticQuota) {
 	replaceAndEraseResource(quota.Spec.Min, corev1.ResourceCPU, extension.BatchCPU)
 	replaceAndEraseResource(quota.Spec.Min, corev1.ResourceMemory, extension.BatchMemory)
 
-	// convert shared weight.
-	if quota.Annotations[extension.AnnotationSharedWeight] != "" {
-		res := corev1.ResourceList{}
-		err := json.Unmarshal([]byte(quota.Annotations[extension.AnnotationSharedWeight]), &res)
-		if err == nil {
-			replaceAndEraseResource(res, corev1.ResourceCPU, extension.BatchCPU)
-			replaceAndEraseResource(res, corev1.ResourceMemory, extension.BatchMemory)
-		}
-		data, err := json.Marshal(res)
-		if err == nil {
-			quota.Annotations[extension.AnnotationSharedWeight] = string(data)
-		}
+	convertQuotaResourceAnnotations(quota, extension.AnnotationSharedWeight)
+	convertQuotaResourceAnnotations(quota, extension.AnnotationTotalResource)
+}
+
+func convertQuotaResourceAnnotations(quota *v1alpha1.ElasticQuota, key string) {
+	val := quota.Annotations[key]
+	if val == "" {
+		return
+	}
+	res := corev1.ResourceList{}
+	err := json.Unmarshal([]byte(val), &res)
+	if err == nil {
+		replaceAndEraseResource(res, corev1.ResourceCPU, extension.BatchCPU)
+		replaceAndEraseResource(res, corev1.ResourceMemory, extension.BatchMemory)
+	}
+	data, err := json.Marshal(res)
+	if err == nil {
+		quota.Annotations[key] = string(data)
 	}
 }
