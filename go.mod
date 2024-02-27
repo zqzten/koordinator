@@ -39,9 +39,9 @@ require (
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.2
-	gitlab.alibaba-inc.com/cos/recommender v0.6.3
+	gitlab.alibaba-inc.com/cos/recommender v0.7.0
 	gitlab.alibaba-inc.com/cos/scheduling-api v0.0.0-20210630080232-14abe8ce6989
-	gitlab.alibaba-inc.com/cos/unified-resource-api v1.22.3-7.0.20230421031529-1e703e9aca00
+	gitlab.alibaba-inc.com/cos/unified-resource-api v1.22.6
 	gitlab.alibaba-inc.com/dbpaas/Inventory/inventory-sdk-go v0.0.0-20230621090011-d38b24c293da
 	gitlab.alibaba-inc.com/serverlessinfra/dummy-workload v1.0.1
 	gitlab.alibaba-inc.com/sigma/sigma-k8s-api v1.1.3
