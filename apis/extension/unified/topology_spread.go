@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	AnnotationMatchLabelKeysInPodTopologySpread = extension.SchedulingDomainPrefix + "match-label-keys-in-topology-spread"
+	AnnotationMatchLabelKeysInPodTopologySpread = extension.SchedulingDomainPrefix + "/match-label-keys-in-topology-spread"
 )
 
 func GetMatchLabelKeysInPodTopologySpread(annotations map[string]string) ([]string, error) {
