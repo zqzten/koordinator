@@ -65,6 +65,9 @@ var (
 
 type podCPUSatisfactionCollector struct {
 	collectInterval     time.Duration
+	lastCheckTime       time.Time
+	checkIntervel       time.Duration
+	sysEnabled          bool
 	started             *atomic.Bool
 	appendableDB        metriccache.Appendable
 	statesInformer      statesinformer.StatesInformer
@@ -82,6 +85,9 @@ func New(opt *framework.Options) framework.Collector {
 	}
 	return &podCPUSatisfactionCollector{
 		collectInterval:     collectInterval,
+		lastCheckTime:       time.Time{},
+		checkIntervel:       KernelConfigurationCheckIntervel,
+		sysEnabled:          false,
 		started:             atomic.NewBool(false),
 		appendableDB:        opt.MetricCache,
 		statesInformer:      opt.StatesInformer,
@@ -129,20 +135,11 @@ func (p *podCPUSatisfactionCollector) Run(stopCh <-chan struct{}) {
 		return
 	}
 
-	checkEnabled := make(chan struct{})
-	wait.Until(func() {
-		sysEnabled, msg := system.IsSchedAcpuEnabled()
-		if !sysEnabled {
-			klog.V(0).Infof("collect pod cpu satisfaction failed since acpu statistics feature is not enabled, msg: %s", msg)
-		} else {
-			cpuSchedCfsStatisticsV2AnolisCheck, _ := system.CPUSchedCfsStatisticsV2Anolis.IsSupported("")
-			if !cpuSchedCfsStatisticsV2AnolisCheck {
-				klog.V(0).Infof("collect pod cpu satisfaction failed, please check cpu.sched_cfs_statistics file exist and readable in kubepods directory")
-			} else {
-				close(checkEnabled)
-			}
-		}
-	}, KernelConfigurationCheckIntervel, checkEnabled)
+	cpuSchedCfsStatisticsV2AnolisCheck, _ := system.CPUSchedCfsStatisticsV2Anolis.IsSupported("")
+	if !cpuSchedCfsStatisticsV2AnolisCheck {
+		klog.V(0).Info("cpu.sched_cfs_statistics file not found or unreadable in kubepods directory")
+		return
+	}
 
 	go wait.Until(p.collectPodCPUSatisfactionUsed, p.collectInterval, stopCh)
 }
@@ -164,6 +161,22 @@ type CPUSchedStat struct {
 
 func (p *podCPUSatisfactionCollector) collectPodCPUSatisfactionUsed() {
 	klog.V(6).Info("start collectPodCPUSatisfactionUsed")
+
+	// check if acpu statistics feature is enabled
+	if p.lastCheckTime.IsZero() || time.Since(p.lastCheckTime) >= p.checkIntervel {
+		var msg string
+		p.lastCheckTime = time.Now()
+		p.sysEnabled, msg = system.IsSchedAcpuEnabled()
+		if !p.sysEnabled {
+			klog.V(4).Infof("collectPodCPUSatisfactionUsed failed, acpu statistics feature is not enabled, msg: %s", msg)
+		}
+	}
+
+	if !p.sysEnabled {
+		time.Sleep(p.checkIntervel)
+		return
+	}
+
 	podMetas := p.statesInformer.GetAllPods()
 	count := 0
 	metrics := make([]metriccache.MetricSample, 0)
@@ -278,7 +291,5 @@ func (p *podCPUSatisfactionCollector) collectPodCPUSatisfactionUsed() {
 		return
 	}
 
-	// update collect time
-	p.started.Store(true)
 	klog.V(4).Infof("collectPodResUsed finished, pod num %d, collected %d", len(podMetas), count)
 }

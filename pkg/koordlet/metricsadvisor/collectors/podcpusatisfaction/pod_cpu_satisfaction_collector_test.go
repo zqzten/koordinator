@@ -100,6 +100,43 @@ func Test_collector_collectPodCPUSatisfactionUsed(t *testing.T) {
 		want   wantFields
 	}{
 		{
+			name: "sysctl not enabled",
+			fields: fields{
+				podFilterOption: framework.DefaultPodFilter,
+				getPodMetas: []*statesinformer.PodMeta{
+					{
+						CgroupDir: testPodMetaDir,
+						Pod:       testPod,
+					},
+				},
+				initLastPodCPUSchedStat: func(lastState *gocache.Cache) {
+					lastState.Set(string(testPod.UID), CPUSchedStat{
+						Serve:         0,
+						OnCpu:         0,
+						SibidleUSec:   0,
+						ThrottledUSec: 0,
+					}, gocache.DefaultExpiration)
+				},
+				SetSysUtil: func(helper *system.FileTestUtil) {
+					helper.SetCgroupsV2(true)
+					helper.WriteCgroupFileContents(testPodParentDir, system.CPUStatV2, `
+		usage_usec 1000
+		user_usec 900
+		system_usec 100
+		sibidle_usec 500
+		nr_periods 0
+		nr_throttled 0
+		throttled_usec 0
+		`)
+					helper.WriteCgroupFileContents(kubepodsParentDir, system.CPUSchedCfsStatisticsV2Anolis, `0 0 0 0 0 0`)
+					helper.WriteCgroupFileContents(testPodParentDir, system.CPUSchedCfsStatisticsV2Anolis, `1200000 1000000 100000 100000 200000 0`)
+				},
+			},
+			want: wantFields{
+				podMetricNum: 0,
+			},
+		},
+		{
 			name: "anolis cgroups v2",
 			fields: fields{
 				podFilterOption: framework.DefaultPodFilter,
@@ -119,6 +156,8 @@ func Test_collector_collectPodCPUSatisfactionUsed(t *testing.T) {
 				},
 				SetSysUtil: func(helper *system.FileTestUtil) {
 					helper.SetCgroupsV2(true)
+					helper.WriteFileContents(system.GetProcSysFilePath(system.KernelSchedSchedStats), `1`)
+					helper.WriteFileContents(system.GetProcSysFilePath(system.KernelSchedAcpu), `1`)
 					helper.WriteCgroupFileContents(testPodParentDir, system.CPUStatV2, `
 		usage_usec 1000
 		user_usec 900
@@ -162,6 +201,8 @@ func Test_collector_collectPodCPUSatisfactionUsed(t *testing.T) {
 				},
 				SetSysUtil: func(helper *system.FileTestUtil) {
 					helper.SetCgroupsV2(true)
+					helper.WriteFileContents(system.GetProcSysFilePath(system.KernelSchedSchedStats), `1`)
+					helper.WriteFileContents(system.GetProcSysFilePath(system.KernelSchedAcpu), `1`)
 					helper.WriteCgroupFileContents(testPodParentDir, system.CPUStatV2, `
 		usage_usec 1700
 		user_usec 1200
@@ -204,7 +245,7 @@ func Test_collector_collectPodCPUSatisfactionUsed(t *testing.T) {
 			}()
 			statesInformer := mock_statesinformer.NewMockStatesInformer(ctrl)
 			statesInformer.EXPECT().HasSynced().Return(true).AnyTimes()
-			statesInformer.EXPECT().GetAllPods().Return(tt.fields.getPodMetas).Times(1)
+			statesInformer.EXPECT().GetAllPods().Return(tt.fields.getPodMetas).MaxTimes(1)
 
 			collector := New(&framework.Options{
 				Config: &framework.Config{
