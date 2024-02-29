@@ -291,5 +291,5 @@ func (p *podCPUSatisfactionCollector) collectPodCPUSatisfactionUsed() {
 		return
 	}
 
-	klog.V(4).Infof("collectPodResUsed finished, pod num %d, collected %d", len(podMetas), count)
+	klog.V(4).Infof("collectPodCPUSatisfactionUsed finished, pod num %d, collected %d", len(podMetas), count)
 }
