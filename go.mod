@@ -256,7 +256,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20230717233707-2695361300d9 // indirect
 	k8s.io/kube-proxy v0.0.0 // indirect
 	k8s.io/legacy-cloud-providers v0.0.0 // indirect
-	k8s.io/metrics v0.24.15 // indirect
+	k8s.io/metrics v0.24.15
 	k8s.io/mount-utils v0.24.15 // indirect
 	moul.io/http2curl v1.0.0 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.37 // indirect
