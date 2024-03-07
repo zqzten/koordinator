@@ -22,4 +22,25 @@ func init() {
 			DeadlineDuration: &defaultDeadlineDuration,
 		},
 	})
+	RegisterDefaultExtensionsMap(unified.ACSSystemExtKey, DefaultACSSystemStrategy())
+}
+
+func NoneACSSystemStrategy() *unified.ACSSystemStrategy {
+	return &unified.ACSSystemStrategy{
+		Enable: pointer.Bool(false),
+		ACSSystem: unified.ACSSystem{
+			SchedSchedStats: pointer.Int64(1),
+			SchedAcpu:       pointer.Int64(0),
+		},
+	}
+}
+
+func DefaultACSSystemStrategy() *unified.ACSSystemStrategy {
+	return &unified.ACSSystemStrategy{
+		Enable: pointer.Bool(false),
+		ACSSystem: unified.ACSSystem{
+			SchedSchedStats: pointer.Int64(1),
+			SchedAcpu:       pointer.Int64(1),
+		},
+	}
 }
