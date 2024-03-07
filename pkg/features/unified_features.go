@@ -74,6 +74,11 @@ const (
 	// owner: @shizun.zx
 	// alpha: v1.4
 	CPUSatisfactionCollector featuregate.Feature = "CPUSatisfactionCollector"
+
+	// ACSSystemConfig set kernel features in /proc/sys/*
+	// owner: @shizun.zx
+	// alpha: v1.4
+	ACSSystemConfig featuregate.Feature = "ACSSystemConfig"
 )
 
 var defaultUnifiedFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -112,6 +117,7 @@ var defaultUnifiedKoordletFeatureGates = map[featuregate.Feature]featuregate.Fea
 	LRNReport:                {Default: false, PreRelease: featuregate.Alpha},
 	DeadlineEvict:            {Default: false, PreRelease: featuregate.Alpha},
 	CPUSatisfactionCollector: {Default: false, PreRelease: featuregate.Alpha},
+	ACSSystemConfig:          {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {
