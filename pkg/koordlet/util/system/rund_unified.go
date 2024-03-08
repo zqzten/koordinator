@@ -96,7 +96,7 @@ func GetRundStats(sandboxID string) (*grpc.ExtendedStatsResponse, error) {
 	defer func() {
 		err = conn.Close()
 		if err != nil {
-			klog.Warningf("failed to close the connection to rund oam socket, sandbox id %s, err: %s", sandboxID, err)
+			klog.Warningf("failed to close the connection to rund ExtendedStats socket, sandbox id %s, err: %s", sandboxID, err)
 		}
 	}()
 
@@ -104,7 +104,7 @@ func GetRundStats(sandboxID string) (*grpc.ExtendedStatsResponse, error) {
 	defer func() {
 		err = client.Close()
 		if err != nil {
-			klog.Warningf("failed to close ttrpc client to rund oam, sandbox id %s, err: %s", sandboxID, err)
+			klog.Warningf("failed to close ttrpc client to rund ExtendedStats, sandbox id %s, err: %s", sandboxID, err)
 		}
 	}()
 
