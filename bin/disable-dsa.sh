@@ -1,18 +1,3 @@
-#!/usr/bin/env bash
- 
-set -euo pipefail
- 
-DEV="${VARIABLE:-dsa}"
-NODE_NAME="${NODE_NAME:-}"
- 
-function cmd() {
- 
-    echo "$@"
- 
-    "${@}"
-} 
- 
-for dev in $(accel-config list | jq '.[].dev' | grep "$DEV" | sed 's/\"//g'); do
-    cmd accel-config disable-device "$dev"
- 
-done
+version https://git-lfs.github.com/spec/v1
+oid sha256:51447f633d1b489c55c14f1aa46ee482f278ca57185d0a5f85a7bb284c5f7475
+size 275
