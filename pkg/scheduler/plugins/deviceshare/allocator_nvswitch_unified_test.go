@@ -454,6 +454,9 @@ func TestAutopilotAllocateNVSwitch(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			randIntnFn = func(n int) int {
+				return 0
+			}
 			fakeDevice := tt.deviceCR.DeepCopy()
 			for i := 0; i < 6; i++ {
 				fakeDevice.Spec.Devices = append(fakeDevice.Spec.Devices, schedulingv1alpha1.DeviceInfo{
