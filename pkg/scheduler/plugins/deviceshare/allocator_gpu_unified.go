@@ -38,7 +38,7 @@ type GPUAllocator struct {
 
 func (a *GPUAllocator) Allocate(requestCtx *requestContext, nodeDevice *nodeDevice, desiredCount int, maxDesiredCount int, preferredPCIEs sets.String) ([]*apiext.DeviceAllocation, *framework.Status) {
 	if unified.MustAllocateGPUByPartition(requestCtx.node) {
-		if len(nodeDevice.deviceTotal[schedulingv1alpha1.GPU]) != len(nodeDevice.deviceInfos[schedulingv1alpha1.GPU]) {
+		if requestCtx.allocateByTopology {
 			return nil, nil
 		}
 		return a.allocateResourcesByPartition(requestCtx, nodeDevice, desiredCount, preferredPCIEs)
@@ -68,7 +68,7 @@ func (a *GPUAllocator) allocateResourcesByPartition(requestCtx *requestContext, 
 		}
 	}
 
-	sortedPartitions, status := sortCandidatePartition(partitionTable, desiredCount, nodeDevice)
+	sortedPartitions, status := sortCandidatePartition(partitionTable, desiredCount, requestCtx.nodeDevice)
 	if !status.IsSuccess() {
 		return nil, status
 	}
