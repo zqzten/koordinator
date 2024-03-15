@@ -17,8 +17,6 @@ limitations under the License.
 package deviceshare
 
 import (
-	"sort"
-
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
@@ -38,9 +36,6 @@ type GPUAllocator struct {
 
 func (a *GPUAllocator) Allocate(requestCtx *requestContext, nodeDevice *nodeDevice, desiredCount int, maxDesiredCount int, preferredPCIEs sets.String) ([]*apiext.DeviceAllocation, *framework.Status) {
 	if unified.MustAllocateGPUByPartition(requestCtx.node) {
-		if len(nodeDevice.deviceTotal[schedulingv1alpha1.GPU]) != len(nodeDevice.deviceInfos[schedulingv1alpha1.GPU]) {
-			return nil, nil
-		}
 		return a.allocateResourcesByPartition(requestCtx, nodeDevice, desiredCount, preferredPCIEs)
 	}
 
@@ -67,13 +62,12 @@ func (a *GPUAllocator) allocateResourcesByPartition(requestCtx *requestContext, 
 			return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "node(s) missing GPU Partition Table")
 		}
 	}
-
-	sortedPartitions, status := sortCandidatePartition(partitionTable, desiredCount, nodeDevice)
-	if !status.IsSuccess() {
-		return nil, status
+	partitions, ok := partitionTable[desiredCount]
+	if !ok {
+		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "node(s) Unsupported number of GPU requests")
 	}
 
-	for _, partition := range sortedPartitions {
+	for _, partition := range partitions {
 		minors := sets.NewInt()
 		for _, moduleID := range partition.ModuleIDs {
 			for _, v := range nodeDevice.deviceInfos[schedulingv1alpha1.GPU] {
@@ -110,90 +104,4 @@ func (a *GPUAllocator) allocateResourcesByPartition(requestCtx *requestContext, 
 	}
 
 	return nil, framework.NewStatus(framework.Unschedulable, "Insufficient gpu devices")
-}
-
-func sortCandidatePartition(partitionTable unified.GPUPartitionTable, desiredCount int, nodeDevice *nodeDevice) ([]unified.GPUPartition, *framework.Status) {
-	partitions, ok := partitionTable[desiredCount]
-	if !ok {
-		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "node(s) Unsupported number of GPU requests")
-	}
-	if desiredCount == 8 || desiredCount == 4 {
-		return partitions, nil
-	}
-
-	everAllocatedDevice := nodeDevice.deviceUsed[schedulingv1alpha1.GPU]
-	if len(everAllocatedDevice) == 0 {
-		return partitions, nil
-	}
-	var moduleIDs []int
-	for minor := range everAllocatedDevice {
-		if moduleID := nodeDevice.deviceInfos[schedulingv1alpha1.GPU][minor].ModuleID; moduleID != nil {
-			moduleIDs = append(moduleIDs, int(*moduleID))
-		}
-	}
-	everAllocatedModuleIDHash := hashModuleIDs(moduleIDs)
-
-	var partitionDetails []*GPUPartitionDetail
-	for numberOfGPUs, gpuPartitions := range partitionTable {
-		if numberOfGPUs <= desiredCount || numberOfGPUs == 8 {
-			continue
-		}
-		for i := range gpuPartitions {
-			gpuPartition := gpuPartitions[i]
-			moduleIDHash := hashModuleIDs(gpuPartition.ModuleIDs)
-			if everAllocated := moduleIDHash & everAllocatedModuleIDHash; everAllocated != 0 {
-				continue
-			}
-			partitionDetails = append(partitionDetails, &GPUPartitionDetail{
-				GPUPartition: &gpuPartition,
-				moduleIDHash: moduleIDHash,
-			})
-		}
-	}
-
-	candidatePartitions := partitionTable[desiredCount]
-	var candidatePartitionScores []*GPUPartitionScore
-	scoreOfNumOfGPUs := map[int]int{4: 10, 2: 1}
-	for i := range candidatePartitions {
-		candidatePartition := candidatePartitions[i]
-		score := 0
-		moduleIDHash := hashModuleIDs(candidatePartition.ModuleIDs)
-		for _, partitionDetail := range partitionDetails {
-			if moduleIDHash&partitionDetail.moduleIDHash == 0 {
-				score += scoreOfNumOfGPUs[partitionDetail.NumberOfGPUs]
-			}
-		}
-		candidatePartitionScores = append(candidatePartitionScores, &GPUPartitionScore{
-			GPUPartition: &candidatePartition,
-			score:        score,
-		})
-	}
-
-	sort.Slice(candidatePartitionScores, func(i, j int) bool {
-		return candidatePartitionScores[i].score > candidatePartitionScores[j].score
-	})
-	var resultPartitions []unified.GPUPartition
-	for _, candidatePartitionScore := range candidatePartitionScores {
-		resultPartitions = append(resultPartitions, *candidatePartitionScore.GPUPartition)
-	}
-	return resultPartitions, nil
-}
-
-type GPUPartitionDetail struct {
-	*unified.GPUPartition
-	moduleIDHash int
-}
-
-type GPUPartitionScore struct {
-	*unified.GPUPartition
-	score int
-}
-
-func hashModuleIDs(moduleIDs []int) int {
-	hash := 0
-	for _, moduleID := range moduleIDs {
-		moduleHash := 1 << moduleID
-		hash = hash | moduleHash
-	}
-	return hash
 }
