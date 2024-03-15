@@ -93,20 +93,20 @@ func TestAllocateByPartition(t *testing.T) {
 			want: apiext.DeviceAllocations{
 				schedulingv1alpha1.GPU: []*apiext.DeviceAllocation{
 					{
-						Minor:     0,
+						Minor:     4,
 						Resources: gpuResourceList,
 					},
 				},
 				schedulingv1alpha1.RDMA: []*apiext.DeviceAllocation{
 					{
-						Minor: 1,
+						Minor: 5,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: &apiext.DeviceAllocationExtension{
 							VirtualFunctions: []apiext.VirtualFunction{
 								{
-									BusID: "0000:09:00.3",
+									BusID: "0001:08:00.3",
 									Minor: 1,
 								},
 							},
@@ -123,38 +123,38 @@ func TestAllocateByPartition(t *testing.T) {
 			want: apiext.DeviceAllocations{
 				schedulingv1alpha1.GPU: []*apiext.DeviceAllocation{
 					{
-						Minor:     2,
+						Minor:     4,
 						Resources: gpuResourceList,
 					},
 					{
-						Minor:     3,
+						Minor:     5,
 						Resources: gpuResourceList,
 					},
 				},
 				schedulingv1alpha1.RDMA: []*apiext.DeviceAllocation{
 					{
-						Minor: 3,
+						Minor: 5,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: &apiext.DeviceAllocationExtension{
 							VirtualFunctions: []apiext.VirtualFunction{
 								{
-									BusID: "0000:a3:00.3",
+									BusID: "0001:08:00.3",
 									Minor: 1,
 								},
 							},
 						},
 					},
 					{
-						Minor: 4,
+						Minor: 6,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: &apiext.DeviceAllocationExtension{
 							VirtualFunctions: []apiext.VirtualFunction{
 								{
-									BusID: "0000:c7:00.3",
+									BusID: "0001:7e:00.3",
 									Minor: 1,
 								},
 							},
@@ -178,74 +178,74 @@ func TestAllocateByPartition(t *testing.T) {
 			want: apiext.DeviceAllocations{
 				schedulingv1alpha1.GPU: []*apiext.DeviceAllocation{
 					{
-						Minor:     0,
+						Minor:     4,
 						Resources: gpuResourceList,
 					},
 					{
-						Minor:     1,
+						Minor:     5,
 						Resources: gpuResourceList,
 					},
 					{
-						Minor:     2,
+						Minor:     6,
 						Resources: gpuResourceList,
 					},
 					{
-						Minor:     3,
+						Minor:     7,
 						Resources: gpuResourceList,
 					},
 				},
 				schedulingv1alpha1.RDMA: []*apiext.DeviceAllocation{
 					{
-						Minor: 1,
+						Minor: 5,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: &apiext.DeviceAllocationExtension{
 							VirtualFunctions: []apiext.VirtualFunction{
 								{
-									BusID: "0000:09:00.3",
+									BusID: "0001:08:00.3",
 									Minor: 1,
 								},
 							},
 						},
 					},
 					{
-						Minor: 2,
+						Minor: 6,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: &apiext.DeviceAllocationExtension{
 							VirtualFunctions: []apiext.VirtualFunction{
 								{
-									BusID: "0000:7f:00.3",
+									BusID: "0001:7e:00.3",
 									Minor: 1,
 								},
 							},
 						},
 					},
 					{
-						Minor: 3,
+						Minor: 7,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: &apiext.DeviceAllocationExtension{
 							VirtualFunctions: []apiext.VirtualFunction{
 								{
-									BusID: "0000:a3:00.3",
+									BusID: "0001:a2:00.3",
 									Minor: 1,
 								},
 							},
 						},
 					},
 					{
-						Minor: 4,
+						Minor: 8,
 						Resources: corev1.ResourceList{
 							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
 						},
 						Extension: &apiext.DeviceAllocationExtension{
 							VirtualFunctions: []apiext.VirtualFunction{
 								{
-									BusID: "0000:c7:00.3",
+									BusID: "0001:c6:00.3",
 									Minor: 1,
 								},
 							},
@@ -501,6 +501,134 @@ func TestAllocateByPartition(t *testing.T) {
 								{
 									BusID: "0000:7f:00.4",
 									Minor: 2,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:        "allocate 2 GPU and 2 VF with assigned devices; BinPack",
+			deviceCR:    fakeH800DeviceCR,
+			modelSeries: "H800",
+			gpuWanted:   2,
+			assignedDevices: apiext.DeviceAllocations{
+				schedulingv1alpha1.GPU: []*apiext.DeviceAllocation{
+					{
+						Minor:     4,
+						Resources: gpuResourceList,
+					},
+				},
+
+				schedulingv1alpha1.RDMA: []*apiext.DeviceAllocation{
+					{
+						Minor: 5,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: &apiext.DeviceAllocationExtension{
+							VirtualFunctions: []apiext.VirtualFunction{
+								{
+									BusID: "0001:08:00.3",
+									Minor: 1,
+								},
+							},
+						},
+					},
+				},
+			},
+			want: apiext.DeviceAllocations{
+				schedulingv1alpha1.GPU: []*apiext.DeviceAllocation{
+					{
+						Minor:     6,
+						Resources: gpuResourceList,
+					},
+					{
+						Minor:     7,
+						Resources: gpuResourceList,
+					},
+				},
+				schedulingv1alpha1.RDMA: []*apiext.DeviceAllocation{
+					{
+						Minor: 7,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: &apiext.DeviceAllocationExtension{
+							VirtualFunctions: []apiext.VirtualFunction{
+								{
+									BusID: "0001:a2:00.3",
+									Minor: 1,
+								},
+							},
+						},
+					},
+					{
+						Minor: 8,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: &apiext.DeviceAllocationExtension{
+							VirtualFunctions: []apiext.VirtualFunction{
+								{
+									BusID: "0001:c6:00.3",
+									Minor: 1,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:        "allocate 1 GPU and 1 VF with assigned devices; BinPack",
+			deviceCR:    fakeH800DeviceCR,
+			modelSeries: "H800",
+			gpuWanted:   1,
+			assignedDevices: apiext.DeviceAllocations{
+				schedulingv1alpha1.GPU: []*apiext.DeviceAllocation{
+					{
+						Minor:     4,
+						Resources: gpuResourceList,
+					},
+				},
+
+				schedulingv1alpha1.RDMA: []*apiext.DeviceAllocation{
+					{
+						Minor: 5,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: &apiext.DeviceAllocationExtension{
+							VirtualFunctions: []apiext.VirtualFunction{
+								{
+									BusID: "0001:08:00.3",
+									Minor: 1,
+								},
+							},
+						},
+					},
+				},
+			},
+			want: apiext.DeviceAllocations{
+				schedulingv1alpha1.GPU: []*apiext.DeviceAllocation{
+					{
+						Minor:     5,
+						Resources: gpuResourceList,
+					},
+				},
+				schedulingv1alpha1.RDMA: []*apiext.DeviceAllocation{
+					{
+						Minor: 6,
+						Resources: corev1.ResourceList{
+							apiext.ResourceRDMA: *resource.NewQuantity(1, resource.DecimalSI),
+						},
+						Extension: &apiext.DeviceAllocationExtension{
+							VirtualFunctions: []apiext.VirtualFunction{
+								{
+									BusID: "0001:7e:00.3",
+									Minor: 1,
 								},
 							},
 						},
