@@ -30,6 +30,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
+	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	fakekoordclientset "github.com/koordinator-sh/koordinator/pkg/client/clientset/versioned/fake"
 	listerschedulingv1alpha1 "github.com/koordinator-sh/koordinator/pkg/client/listers/scheduling/v1alpha1"
@@ -146,9 +147,23 @@ func Test_syncLRN(t *testing.T) {
 		},
 		Status: schedulingv1alpha1.LogicalResourceNodeStatus{
 			Allocatable: map[corev1.ResourceName]resource.Quantity{
-				corev1.ResourceCPU:       resource.MustParse("4"),
-				corev1.ResourceMemory:    resource.MustParse("4Gi"),
-				apiext.ResourceNvidiaGPU: resource.MustParse("0"),
+				corev1.ResourceCPU:    resource.MustParse("4"),
+				corev1.ResourceMemory: resource.MustParse("4Gi"),
+			},
+		},
+	}
+	testLRNWithPPU := &schedulingv1alpha1.LogicalResourceNode{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-lrn-with-ppu",
+			Labels: map[string]string{
+				schedulingv1alpha1.LabelNodeNameOfLogicalResourceNode: testNode.Name,
+			},
+		},
+		Status: schedulingv1alpha1.LogicalResourceNodeStatus{
+			Allocatable: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceCPU:    resource.MustParse("6"),
+				corev1.ResourceMemory: resource.MustParse("6Gi"),
+				unified.ResourcePPU:   resource.MustParse("2"),
 			},
 		},
 	}
@@ -189,7 +204,7 @@ func Test_syncLRN(t *testing.T) {
 			},
 		},
 	}
-	testPodonLRN := &corev1.Pod{
+	testPodOnLRN := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-pod-on-lrn",
 			Namespace: "test-ns",
@@ -211,6 +226,46 @@ func Test_syncLRN(t *testing.T) {
 							corev1.ResourceCPU:       resource.MustParse("2"),
 							corev1.ResourceMemory:    resource.MustParse("4Gi"),
 							apiext.ResourceNvidiaGPU: resource.MustParse("1"),
+						},
+					},
+				},
+			},
+			NodeName: testNode.Name,
+		},
+		Status: corev1.PodStatus{
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name:    "test-container",
+					Started: pointer.Bool(true),
+					State: corev1.ContainerState{
+						Running: &corev1.ContainerStateRunning{},
+					},
+				},
+			},
+		},
+	}
+	testPodOnLRNWithPPU := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod-on-lrn-with-ppu",
+			Namespace: "test-ns",
+			Labels: map[string]string{
+				schedulingv1alpha1.LabelLogicalResourceNodePodAssign: testLRNWithPPU.Name,
+			},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name: "test-container",
+					Resources: corev1.ResourceRequirements{
+						Requests: map[corev1.ResourceName]resource.Quantity{
+							corev1.ResourceCPU:    resource.MustParse("2"),
+							corev1.ResourceMemory: resource.MustParse("4Gi"),
+							unified.ResourcePPU:   resource.MustParse("1"),
+						},
+						Limits: map[corev1.ResourceName]resource.Quantity{
+							corev1.ResourceCPU:    resource.MustParse("2"),
+							corev1.ResourceMemory: resource.MustParse("4Gi"),
+							unified.ResourcePPU:   resource.MustParse("1"),
 						},
 					},
 				},
@@ -256,7 +311,7 @@ func Test_syncLRN(t *testing.T) {
 				node: testNode,
 				podMap: map[string]*statesinformer.PodMeta{
 					"test-ns/test-pod-on-lrn": {
-						Pod: testPodonLRN,
+						Pod: testPodOnLRN,
 					},
 				},
 				lrnLister: newFakeLRNLister(false, testLRN),
@@ -268,10 +323,22 @@ func Test_syncLRN(t *testing.T) {
 				node: testNode,
 				podMap: map[string]*statesinformer.PodMeta{
 					"test-ns/test-pod-on-lrn": {
-						Pod: testPodonLRN,
+						Pod: testPodOnLRN,
 					},
 				},
 				lrnLister: newFakeLRNLister(false, testLRN1),
+			},
+		},
+		{
+			name: "sync lrn successfully with ppu",
+			fields: fields{
+				node: testNode,
+				podMap: map[string]*statesinformer.PodMeta{
+					"test-ns/test-pod-on-lrn-with-ppy": {
+						Pod: testPodOnLRNWithPPU,
+					},
+				},
+				lrnLister: newFakeLRNLister(false, testLRNWithPPU),
 			},
 		},
 		{
@@ -280,7 +347,7 @@ func Test_syncLRN(t *testing.T) {
 				node: testNode,
 				podMap: map[string]*statesinformer.PodMeta{
 					"test-ns/test-pod-on-lrn": {
-						Pod: testPodonLRN,
+						Pod: testPodOnLRN,
 					},
 				},
 				lrnLister: newFakeLRNLister(true, testLRN),
