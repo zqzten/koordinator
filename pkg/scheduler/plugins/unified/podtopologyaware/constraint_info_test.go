@@ -111,16 +111,19 @@ func Test_partitionTopologies(t *testing.T) {
 				"az-topology":     az,
 				"custom-topology": custom,
 			},
-			nodes: sets.NewString(),
+			nodes:     sets.NewString(),
+			hostNames: sets.NewString(),
 		}
 		for i := 0; i < 5; i++ {
 			node := schedulertesting.MakeNode().
 				Name(fmt.Sprintf("node-%d%d", j, i)).
 				Label("az-topology", az).
 				Label("custom-topology", custom).
+				Label(corev1.LabelHostname, fmt.Sprintf("node-%d%d", j, i)).
 				Obj()
 			nodes = append(nodes, node)
 			topo.nodes.Insert(node.Name)
+			topo.hostNames.Insert(node.Labels[corev1.LabelHostname])
 		}
 		topologies = append(topologies, &topo)
 	}
@@ -188,17 +191,20 @@ func Test_partitionTopologies_with_selector(t *testing.T) {
 				"az-topology":     az,
 				"custom-topology": custom,
 			},
-			nodes: sets.NewString(),
+			nodes:     sets.NewString(),
+			hostNames: sets.NewString(),
 		}
 		for i := 0; i < 5; i++ {
 			node := schedulertesting.MakeNode().
 				Name(fmt.Sprintf("node-%d%d", j, i)).
 				Label("az-topology", az).
 				Label("custom-topology", custom).
+				Label(corev1.LabelHostname, fmt.Sprintf("node-%d%d", j, i)).
 				Label("test", "true").
 				Obj()
 			nodes = append(nodes, node)
 			topo.nodes.Insert(node.Name)
+			topo.hostNames.Insert(node.Labels[corev1.LabelHostname])
 		}
 		topologies = append(topologies, &topo)
 	}

@@ -46,15 +46,18 @@ func TestPreFilter(t *testing.T) {
 			labels: map[string]string{
 				"az-topology": az,
 			},
-			nodes: sets.NewString(),
+			nodes:     sets.NewString(),
+			hostNames: sets.NewString(),
 		}
 		for i := 0; i < 5; i++ {
 			node := schedulertesting.MakeNode().
 				Name(fmt.Sprintf("node-%d%d", j, i)).
 				Label("az-topology", az).
+				Label(corev1.LabelHostname, fmt.Sprintf("node-%d%d", j, i)).
 				Obj()
 			nodes = append(nodes, node)
 			topo.nodes.Insert(node.Name)
+			topo.hostNames.Insert(node.Labels[corev1.LabelHostname])
 		}
 		topologies = append(topologies, &topo)
 	}

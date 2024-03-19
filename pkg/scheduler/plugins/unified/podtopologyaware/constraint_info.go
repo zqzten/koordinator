@@ -22,6 +22,7 @@ import (
 	"strings"
 	"sync/atomic"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -43,10 +44,12 @@ type constraintInfo struct {
 }
 
 type topology struct {
-	uniqueName string
-	labels     map[string]string
-	nodes      sets.String
-	anchor     string
+	uniqueName     string
+	labels         map[string]string
+	nodes          sets.String
+	anchor         string
+	hostNames      sets.String
+	anchorHostName string
 }
 
 func newTopologyAwareConstraintInfo(namespace string, constraint *apiext.TopologyAwareConstraint) *constraintInfo {
@@ -129,6 +132,7 @@ func (s *constraintInfo) partitionNodeByTopologies(ctx context.Context, handle f
 		}
 		topology.uniqueName = strings.Join(values, "#")
 		topology.anchor = node.Name
+		topology.anchorHostName = node.Labels[corev1.LabelHostname]
 		index := atomic.AddInt32(&nodeIndex, 1)
 		topologies[index-1] = &topology
 	}
@@ -146,10 +150,12 @@ func (s *constraintInfo) partitionNodeByTopologies(ctx context.Context, handle f
 				uniqueName: topo.uniqueName,
 				labels:     topo.labels,
 				nodes:      sets.NewString(),
+				hostNames:  sets.NewString(),
 			}
 			merged[topo.uniqueName] = r
 		}
 		r.nodes.Insert(topo.anchor)
+		r.hostNames.Insert(topo.anchorHostName)
 	}
 
 	result := make([]*topology, 0, len(merged))
