@@ -27,6 +27,7 @@ import (
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
+	nodeaffinityhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/nodeaffinity"
 )
 
 const (
@@ -117,7 +118,26 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 		currentTopology: currentTopology,
 	}
 	cycleState.Write(Name, sd)
+	addTemporaryNodeAffinity(cycleState, constraintInfo)
 	return nil, nil
+}
+
+func addTemporaryNodeAffinity(cycleState *framework.CycleState, constraintInfo *constraintInfo) {
+	nodeaffinityhelper.SetTemporaryNodeAffinity(cycleState, &nodeaffinityhelper.TemporaryNodeAffinity{
+		NodeSelector: &corev1.NodeSelector{
+			NodeSelectorTerms: []corev1.NodeSelectorTerm{
+				{
+					MatchFields: []corev1.NodeSelectorRequirement{
+						{
+							Key:      "metadata.name",
+							Operator: corev1.NodeSelectorOpIn,
+							Values:   constraintInfo.getCurrentTopology().nodes.List(),
+						},
+					},
+				},
+			},
+		},
+	})
 }
 
 func (pl *Plugin) PreFilterExtensions() framework.PreFilterExtensions {
