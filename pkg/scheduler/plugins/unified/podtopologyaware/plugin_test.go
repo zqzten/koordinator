@@ -33,6 +33,7 @@ import (
 	schedulertesting "k8s.io/kubernetes/pkg/scheduler/testing"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
+	nodeaffinityhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/nodeaffinity"
 )
 
 func TestPreFilter(t *testing.T) {
@@ -72,11 +73,12 @@ func TestPreFilter(t *testing.T) {
 	assert.NoError(t, err)
 
 	tests := []struct {
-		name          string
-		pod           *corev1.Pod
-		constraint    *apiext.TopologyAwareConstraint
-		wantStateData *stateData
-		wantStatus    *framework.Status
+		name                      string
+		pod                       *corev1.Pod
+		constraint                *apiext.TopologyAwareConstraint
+		wantStateData             *stateData
+		wantTemporaryNodeAffinity nodeaffinityhelper.RequiredNodeSelectorAndAffinity
+		wantStatus                *framework.Status
 	}{
 		{
 			name:          "non topology-aware constraint",
@@ -151,6 +153,11 @@ func TestPreFilter(t *testing.T) {
 			_, status := pl.PreFilter(context.TODO(), cycleState, tt.pod)
 			assert.Equal(t, tt.wantStatus, status)
 			assert.Equal(t, tt.wantStateData, getStateData(cycleState))
+			if tt.wantStateData.constraintInfo != nil {
+				temporaryCycleState := framework.NewCycleState()
+				addTemporaryNodeAffinity(temporaryCycleState, tt.wantStateData.constraintInfo)
+				assert.Equal(t, nodeaffinityhelper.GetTemporaryNodeAffinity(temporaryCycleState), nodeaffinityhelper.GetTemporaryNodeAffinity(cycleState))
+			}
 		})
 	}
 }
