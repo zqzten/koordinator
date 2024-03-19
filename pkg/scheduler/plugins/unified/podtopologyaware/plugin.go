@@ -127,11 +127,11 @@ func addTemporaryNodeAffinity(cycleState *framework.CycleState, constraintInfo *
 		NodeSelector: &corev1.NodeSelector{
 			NodeSelectorTerms: []corev1.NodeSelectorTerm{
 				{
-					MatchFields: []corev1.NodeSelectorRequirement{
+					MatchExpressions: []corev1.NodeSelectorRequirement{
 						{
-							Key:      "metadata.name",
+							Key:      corev1.LabelHostname,
 							Operator: corev1.NodeSelectorOpIn,
-							Values:   constraintInfo.getCurrentTopology().nodes.List(),
+							Values:   constraintInfo.getCurrentTopology().hostNames.List(),
 						},
 					},
 				},
