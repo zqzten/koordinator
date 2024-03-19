@@ -34,6 +34,7 @@ import (
 	"k8s.io/klog/v2"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
+	"github.com/koordinator-sh/koordinator/apis/extension/unified"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	koordclientset "github.com/koordinator-sh/koordinator/pkg/client/clientset/versioned"
 	listerschedulingv1alpha1 "github.com/koordinator-sh/koordinator/pkg/client/listers/scheduling/v1alpha1"
@@ -50,6 +51,12 @@ var reportLRNInterval = 20 * time.Second
 const (
 	lrnInformerName PluginName = "lrnInformer"
 )
+
+// knownLRNAcceleratorResources is the known accelerator resources to export from nodes and LRNs.
+var knownLRNAcceleratorResources = []corev1.ResourceName{
+	apiext.ResourceNvidiaGPU,
+	unified.ResourcePPU,
+}
 
 var _ informerPlugin = (*lrnInformer)(nil)
 
@@ -237,10 +244,10 @@ func recordLRNNodeMetrics(node *corev1.Node) {
 	metrics.RecordNodeResourceAllocatableMemoryTotalBytes(float64(node.Status.Allocatable.Memory().Value()))
 	metrics.RecordNodeResourceCapacityCPUCores(float64(node.Status.Capacity.Cpu().MilliValue()) / 1000)
 	metrics.RecordNodeResourceCapacityMemoryTotalBytes(float64(node.Status.Capacity.Memory().Value()))
-	// NOTE: accelerators currently only includes `nvidia.com/gpu`
-	acceleratorAllocatableValue := float64(node.Status.Allocatable.Name(apiext.ResourceNvidiaGPU, resource.DecimalSI).Value())
+	// accelerators
+	acceleratorAllocatableValue := float64(getAcceleratorResources(node.Status.Allocatable).Value())
 	metrics.RecordNodeResourceAllocatableAcceleratorTotal(acceleratorAllocatableValue)
-	acceleratorCapacityValue := float64(node.Status.Capacity.Name(apiext.ResourceNvidiaGPU, resource.DecimalSI).Value())
+	acceleratorCapacityValue := float64(getAcceleratorResources(node.Status.Capacity).Value())
 	metrics.RecordNodeResourceCapacityAcceleratorTotal(acceleratorCapacityValue)
 
 	klog.V(6).Infof("record lrn metrics for node %s", node.Name)
@@ -259,8 +266,7 @@ func recordLRNMetrics(lrn *schedulingv1alpha1.LogicalResourceNode) {
 	metrics.RecordLRNAllocatableMemoryTotalBytes(name, float64(lrn.Status.Allocatable.Memory().Value()))
 
 	// accelerator
-	// NOTE: accelerators currently only includes `nvidia.com/gpu`
-	acceleratorValue := float64(lrn.Status.Allocatable.Name(apiext.ResourceNvidiaGPU, resource.DecimalSI).Value())
+	acceleratorValue := float64(getAcceleratorResources(lrn.Status.Allocatable).Value())
 	metrics.RecordLRNAllocatableAcceleratorTotal(name, acceleratorValue)
 	lrnDevices := getDevicesOnLRN(lrn)
 	if lrnDevices != nil {
@@ -322,4 +328,16 @@ func recordLRNPodMetrics(lrn *schedulingv1alpha1.LogicalResourceNode, pod *corev
 	}
 
 	klog.V(6).Infof("record lrn pod metrics for lrn %s, pod %s/%s", lrn.Name, pod.Namespace, pod.Name)
+}
+
+// getAcceleratorResources gets the accelerator resources from the given resourceList.
+// NOTE: accelerators currently include:
+// - "nvidia.com/gpu"
+// - "alibabacloud.com/ppu"
+func getAcceleratorResources(rl corev1.ResourceList) *resource.Quantity {
+	acceleratorQuantity := resource.NewQuantity(0, resource.DecimalSI)
+	for _, resourceName := range knownLRNAcceleratorResources {
+		acceleratorQuantity.Add(*rl.Name(resourceName, resource.DecimalSI))
+	}
+	return acceleratorQuantity
 }
