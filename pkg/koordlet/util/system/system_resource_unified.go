@@ -19,7 +19,7 @@ package system
 const (
 	ACSSystemConfigReconcileName = "ACSSystemConfigReconcile"
 
-	KernelRelativePath = "kernel/"
+	ProcSysKernelRelativePath = "sys/kernel/"
 
 	SchedSchedStatsFileName = "sched_schedstats"
 	SchedAcpuFileName       = "sched_acpu"
@@ -31,6 +31,6 @@ var (
 )
 
 var (
-	SchedSchedStats = NewCommonSystemResource(KernelRelativePath, SchedSchedStatsFileName, GetProcRootDir).WithValidator(SchedSchedStatsValidator).WithCheckSupported(SupportedIfFileExists)
-	SchedAcpu       = NewCommonSystemResource(KernelRelativePath, SchedAcpuFileName, GetProcRootDir).WithValidator(SchedAcpuValidator).WithCheckSupported(SupportedIfFileExists)
+	SchedSchedStats = NewCommonSystemResource(ProcSysKernelRelativePath, SchedSchedStatsFileName, GetProcRootDir).WithValidator(SchedSchedStatsValidator).WithCheckSupported(SupportedIfFileExists)
+	SchedAcpu       = NewCommonSystemResource(ProcSysKernelRelativePath, SchedAcpuFileName, GetProcRootDir).WithValidator(SchedAcpuValidator).WithCheckSupported(SupportedIfFileExists)
 )
