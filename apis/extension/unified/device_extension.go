@@ -49,6 +49,7 @@ const (
 
 	LabelGPUModelSeries       string = extension.NodeDomainPrefix + "/gpu-model-series"
 	LabelEnableSharedNVSwitch string = extension.NodeDomainPrefix + "/enable-shared-nvswitch"
+	LabelRDMANICType          string = extension.NodeDomainPrefix + "/rdma-nic-type"
 )
 
 type NVIDIADriverVersions []string
