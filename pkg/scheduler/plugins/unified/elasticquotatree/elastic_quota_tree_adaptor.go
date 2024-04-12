@@ -34,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/cache"
@@ -310,11 +311,13 @@ func (p *Plugin) getToDeleteElasticQuotas(spec v1beta1.ElasticQuotaSpec) []*apiv
 	}
 	totalQuota := make(map[string]struct{})
 	getQuotaTreeTotalQuota(spec, totalQuota, "")
+	notDeleteQuotaNames := sets.NewString(extension.SystemQuotaName, extension.RootQuotaName, extension.DefaultQuotaName)
 	for _, eq := range eqs {
 		if _, exist := totalQuota[eq.Name]; !exist {
-			if eq.Name != extension.SystemQuotaName && eq.Name != extension.DefaultQuotaName {
-				toDeleteQuota = append(toDeleteQuota, eq)
+			if notDeleteQuotaNames.Has(eq.Name) {
+				continue
 			}
+			toDeleteQuota = append(toDeleteQuota, eq)
 		}
 	}
 	sort.Slice(toDeleteQuota, func(i, j int) bool {
