@@ -17,7 +17,13 @@ limitations under the License.
 package impl
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"path/filepath"
 	"testing"
 
 	faketopologyclientset "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/generated/clientset/versioned/fake"
@@ -36,6 +42,7 @@ import (
 	listerschedulingv1alpha1 "github.com/koordinator-sh/koordinator/pkg/client/listers/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/metrics"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/statesinformer"
+	"github.com/koordinator-sh/koordinator/pkg/koordlet/util/system"
 )
 
 func Test_lrnInformer(t *testing.T) {
@@ -371,4 +378,132 @@ func Test_syncLRN(t *testing.T) {
 			assert.NotPanics(t, li.syncLRN)
 		})
 	}
+}
+
+func Test_lrnServer(t *testing.T) {
+	testNode := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+		},
+		Status: corev1.NodeStatus{
+			Allocatable: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceCPU:       resource.MustParse("10"),
+				corev1.ResourceMemory:    resource.MustParse("10Gi"),
+				apiext.ResourceNvidiaGPU: resource.MustParse("2"),
+			},
+			Capacity: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceCPU:       resource.MustParse("10"),
+				corev1.ResourceMemory:    resource.MustParse("12Gi"),
+				apiext.ResourceNvidiaGPU: resource.MustParse("2"),
+			},
+		},
+	}
+	testLRN := &schedulingv1alpha1.LogicalResourceNode{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-lrn",
+			Labels: map[string]string{
+				schedulingv1alpha1.LabelNodeNameOfLogicalResourceNode: testNode.Name,
+			},
+		},
+		Status: schedulingv1alpha1.LogicalResourceNodeStatus{
+			Allocatable: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceCPU:       resource.MustParse("6"),
+				corev1.ResourceMemory:    resource.MustParse("6Gi"),
+				apiext.ResourceNvidiaGPU: resource.MustParse("2"),
+			},
+		},
+	}
+	testLRN1 := &schedulingv1alpha1.LogicalResourceNode{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-lrn-1",
+			Labels: map[string]string{
+				schedulingv1alpha1.LabelNodeNameOfLogicalResourceNode: "other-node",
+			},
+		},
+		Status: schedulingv1alpha1.LogicalResourceNodeStatus{
+			Allocatable: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceCPU:    resource.MustParse("4"),
+				corev1.ResourceMemory: resource.MustParse("4Gi"),
+			},
+		},
+	}
+	testLRNWithPPU := &schedulingv1alpha1.LogicalResourceNode{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-lrn-with-ppu",
+			Labels: map[string]string{
+				schedulingv1alpha1.LabelNodeNameOfLogicalResourceNode: testNode.Name,
+			},
+		},
+		Status: schedulingv1alpha1.LogicalResourceNodeStatus{
+			Allocatable: map[corev1.ResourceName]resource.Quantity{
+				corev1.ResourceCPU:    resource.MustParse("6"),
+				corev1.ResourceMemory: resource.MustParse("6Gi"),
+				unified.ResourcePPU:   resource.MustParse("2"),
+			},
+		},
+	}
+	expectLRNList := schedulingv1alpha1.LogicalResourceNodeList{
+		Items: []schedulingv1alpha1.LogicalResourceNode{
+			*testLRN,
+			*testLRN1,
+			*testLRNWithPPU,
+		},
+	}
+	t.Run("test", func(t *testing.T) {
+		helper := system.NewFileTestUtil(t)
+		defer helper.Cleanup()
+		oldLRNSockAddr := lrnServerSockAddr
+		defer func() {
+			lrnServerSockAddr = oldLRNSockAddr
+		}()
+		helper.MkDirAll("koordlet")
+		lrnServerSockAddr = filepath.Join(helper.TempDir, "koordlet/koordlet-lrn.sock")
+
+		lrnLister := newFakeLRNLister(false, testLRN, testLRN1, testLRNWithPPU)
+		li := &lrnInformer{
+			lrnLister: lrnLister,
+		}
+
+		err := li.createServer()
+		assert.NoError(t, err)
+
+		assert.NotPanics(t, func() {
+			go li.startServer()
+		})
+
+		lrnClient := http.Client{
+			Transport: &http.Transport{
+				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+					return net.Dial("unix", lrnServerSockAddr)
+				},
+			},
+		}
+
+		// get success
+		resp, err := lrnClient.Get("http://unix")
+		assert.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		data, err := io.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		var gotLRNList schedulingv1alpha1.LogicalResourceNodeList
+		err = json.Unmarshal(data, &gotLRNList)
+		assert.NoError(t, err)
+		assert.Equal(t, expectLRNList, gotLRNList)
+
+		// no lrn
+		lrnLister.objects = nil
+		lrnLister.objectMap = map[string]*schedulingv1alpha1.LogicalResourceNode{}
+		resp, err = lrnClient.Get("http://unix")
+		assert.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		// list error
+		lrnLister.listErr = true
+		resp, err = lrnClient.Get("http://unix")
+		assert.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	})
 }

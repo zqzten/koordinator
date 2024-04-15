@@ -20,7 +20,11 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"fmt"
+	"net"
+	"net/http"
 	"strconv"
+	"syscall"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -40,13 +44,19 @@ import (
 	listerschedulingv1alpha1 "github.com/koordinator-sh/koordinator/pkg/client/listers/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/features"
 	"github.com/koordinator-sh/koordinator/pkg/koordlet/metrics"
+	"github.com/koordinator-sh/koordinator/pkg/koordlet/util/system"
 )
 
 func init() {
 	flag.DurationVar(&reportLRNInterval, "report-lrn-interval", reportLRNInterval, "The duration of reporting metrics of the LogicalResourceNodes. Default is 20s. Zero means the reporting is disabled. Non-zero values should contain a corresponding time unit (e.g. 1s, 2m, 3h).")
+	flag.StringVar(&lrnServerSockAddr, "lrn-server-sock-addr", lrnServerSockAddr, "The unix domain socket path under the host /var/run/koordlet dir for the lrn server.")
 }
 
-var reportLRNInterval = 20 * time.Second
+var (
+	// DEPRECATED: remove prom metrics exporter
+	reportLRNInterval = 20 * time.Second
+	lrnServerSockAddr = "/host-var-run-koordlet/koordlet-lrn.sock"
+)
 
 const (
 	lrnInformerName PluginName = "lrnInformer"
@@ -66,6 +76,8 @@ type lrnInformer struct {
 	podsInformer *podsInformer
 	lrnInformer  cache.SharedIndexInformer
 	lrnLister    listerschedulingv1alpha1.LogicalResourceNodeLister
+	lrnServer    *http.Server
+	lrnListener  net.Listener
 }
 
 func newLRNInformer() *lrnInformer {
@@ -99,17 +111,26 @@ func (l *lrnInformer) Start(stopCh <-chan struct{}) {
 		klog.Fatalf("lrnInformer timed out waiting for node and pods caches to sync")
 	}
 
-	if features.DefaultKoordletFeatureGate.Enabled(features.LRNReport) && reportLRNInterval > 0 {
+	if features.DefaultKoordletFeatureGate.Enabled(features.LRNReport) {
 		go l.lrnInformer.Run(stopCh)
 		if !cache.WaitForCacheSync(stopCh, l.lrnInformer.HasSynced) {
 			klog.Fatalf("lrnInformer timed out waiting for LRN cache to sync")
 		}
 
-		go wait.Until(l.syncLRN, reportLRNInterval, stopCh)
-		klog.V(4).Infof("lrnInformer start to sync")
+		if reportLRNInterval > 0 {
+			go wait.Until(l.syncLRN, reportLRNInterval, stopCh)
+			klog.V(4).Infof("lrnInformer start to sync")
+		} else {
+			klog.Infof("LRN prom exporter is disabled, interval %v", reportLRNInterval.String())
+		}
+
+		if err := l.createServer(); err != nil {
+			klog.Fatalf("failed to create lrn server, err: %s", err)
+		}
+		go l.startServer()
 	} else {
-		klog.Infof("LRN Report is disabled, feature gate %v, interval %v",
-			features.DefaultKoordletFeatureGate.Enabled(features.LRNReport), reportLRNInterval.String())
+		klog.Infof("LRN Report is disabled, feature gate %v",
+			features.DefaultKoordletFeatureGate.Enabled(features.LRNReport))
 	}
 
 	klog.V(2).Infof("lrnInformer started")
@@ -184,6 +205,82 @@ func (l *lrnInformer) syncLRN() {
 	klog.V(5).Infof("record lrn pod metrics, count %v", count)
 
 	klog.V(4).Infof("record lrn metrics for node %v, lrn count %v", node.Name, len(lrnList))
+}
+
+func (l *lrnInformer) createServer() error {
+	lrnServerAddr := lrnServerSockAddr
+	if exist, err := system.PathExists(lrnServerAddr); err != nil {
+		return fmt.Errorf("check lrn server failed, addr %s, err: %w", lrnServerAddr, err)
+	} else if exist {
+		if err = syscall.Unlink(lrnServerAddr); err != nil {
+			return fmt.Errorf("unlink old lrn server failed, addr %s, err: %w", lrnServerAddr, err)
+		}
+	}
+
+	listener, err := net.Listen("unix", lrnServerAddr)
+	if err != nil {
+		return fmt.Errorf("create lrn server failed, addr %s, err: %w", lrnServerAddr, err)
+	}
+	l.lrnListener = listener
+
+	l.lrnServer = &http.Server{
+		Handler: http.HandlerFunc(l.Handle),
+	}
+
+	return nil
+}
+
+func (l *lrnInformer) startServer() {
+	klog.Infof("LRN server is starting, addr %s", lrnServerSockAddr)
+	if err := l.lrnServer.Serve(l.lrnListener); err != nil {
+		klog.Fatalf("failed to serve lrn server, addr %s, err: %s", lrnServerSockAddr, err)
+	}
+}
+
+func (l *lrnInformer) Handle(rw http.ResponseWriter, r *http.Request) {
+	if l.lrnLister == nil {
+		klog.ErrorS(fmt.Errorf("lister uninitialized"), "[LRN server] failed to list LRN")
+		http.Error(rw, "lister uninitialized", http.StatusInternalServerError)
+		return
+	}
+
+	lrns, err := l.lrnLister.List(labels.SelectorFromSet(map[string]string{
+		schedulingv1alpha1.LabelNodeNameOfLogicalResourceNode: l.nodeName,
+	}))
+	if err != nil {
+		klog.ErrorS(err, "[LRN server] failed to list LRNs", "node", l.nodeName)
+		http.Error(rw, fmt.Sprintf("list LRNs failed, node %s, err: %s", l.nodeName, err), http.StatusInternalServerError)
+		return
+	}
+
+	if len(lrns) <= 0 {
+		klog.V(5).InfoS("[LRN server] list no LRN against node", "node", l.nodeName)
+		rw.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// encode LRNList if necessary
+	lrnList := schedulingv1alpha1.LogicalResourceNodeList{
+		Items: make([]schedulingv1alpha1.LogicalResourceNode, len(lrns)),
+	}
+	for i := range lrns {
+		lrnList.Items[i] = *lrns[i]
+	}
+
+	data, err := json.Marshal(lrnList)
+	if err != nil {
+		klog.ErrorS(err, "[LRN server] failed to marshal LRNs", "node", l.nodeName)
+		http.Error(rw, fmt.Sprintf("marshal LRNs failed, node %s, err: %s", l.nodeName, err), http.StatusInternalServerError)
+		return
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+	rw.WriteHeader(http.StatusOK)
+	if _, err = rw.Write(data); err != nil {
+		klog.ErrorS(err, "[LRN server] failed to write response")
+		return
+	}
+	klog.V(4).InfoS("[LRN server] list LRN against node successfully", "node", l.nodeName, "lrn count", len(lrnList.Items))
 }
 
 func newLogicalResourceNodeInformer(client koordclientset.Interface, nodeName string) cache.SharedIndexInformer {
