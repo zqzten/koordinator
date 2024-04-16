@@ -822,9 +822,6 @@ func TestAllocateByPartition(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			randIntnFn = func(n int) int {
-				return 0
-			}
 			koordFakeClient := koordfake.NewSimpleClientset()
 			deviceCR := tt.deviceCR.DeepCopy()
 			if partitionTable, ok := extunified.PartitionTables[tt.modelSeries]; ok {
