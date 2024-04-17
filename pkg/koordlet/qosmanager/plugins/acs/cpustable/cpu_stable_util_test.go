@@ -309,7 +309,7 @@ func Test_calculateCPUSharePoolUsage(t *testing.T) {
 					mockAggregateNodeUsageResult.EXPECT().Count().Return(1)
 					mockAggregateNodeUsageResult.EXPECT().Value(metriccache.AggregationTypeAVG).Return(10.0, nil)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForNodeUsage).Return(mockAggregateNodeUsageResult)
-					mockQuerier.EXPECT().Query(queryMetaForNodeUsage, nil, mockAggregateNodeUsageResult).Return(nil)
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForNodeUsage, nil, mockAggregateNodeUsageResult).Return(nil)
 					return mockMetricCache
 				},
 				statesInformer: func(ctrl *gomock.Controller) statesinformer.StatesInformer {
@@ -353,7 +353,7 @@ func Test_calculateCPUSharePoolUsage(t *testing.T) {
 					mockAggregateNodeUsageResult.EXPECT().Count().Return(3)
 					mockAggregateNodeUsageResult.EXPECT().Value(metriccache.AggregationTypeAVG).Return(10.0, nil)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForNodeUsage).Return(mockAggregateNodeUsageResult)
-					mockQuerier.EXPECT().Query(queryMetaForNodeUsage, nil, mockAggregateNodeUsageResult).Return(nil)
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForNodeUsage, nil, mockAggregateNodeUsageResult).Return(nil)
 					// ls pod, usage = 2.0
 					queryMetaForLSPod, err := metriccache.PodCPUUsageMetric.BuildQueryMeta(metriccache.MetricPropertiesFunc.Pod("xxxxxx"))
 					assert.NoError(t, err)
@@ -361,14 +361,14 @@ func Test_calculateCPUSharePoolUsage(t *testing.T) {
 					mockAggregateResultForLSPod.EXPECT().Count().Return(3)
 					mockAggregateResultForLSPod.EXPECT().Value(metriccache.AggregationTypeAVG).Return(2.0, nil)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForLSPod).Return(mockAggregateResultForLSPod)
-					mockQuerier.EXPECT().Query(queryMetaForLSPod, nil, mockAggregateResultForLSPod).Return(nil)
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForLSPod, nil, mockAggregateResultForLSPod).Return(nil)
 					// lse pod, usage is missing
 					queryMetaForLSEPod, err := metriccache.PodCPUUsageMetric.BuildQueryMeta(metriccache.MetricPropertiesFunc.Pod("yyyyyy"))
 					assert.NoError(t, err)
 					mockAggregateResultForLSEPod := mockmetriccache.NewMockAggregateResult(ctrl)
 					mockAggregateResultForLSEPod.EXPECT().Count().Return(0)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForLSEPod).Return(mockAggregateResultForLSEPod)
-					mockQuerier.EXPECT().Query(queryMetaForLSEPod, nil, mockAggregateResultForLSEPod).Return(nil)
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForLSEPod, nil, mockAggregateResultForLSEPod).Return(nil)
 					// be pod, usage = 6.0
 					queryMetaForBEPod, err := metriccache.PodCPUUsageMetric.BuildQueryMeta(metriccache.MetricPropertiesFunc.Pod("zzzzzz"))
 					assert.NoError(t, err)
@@ -376,7 +376,7 @@ func Test_calculateCPUSharePoolUsage(t *testing.T) {
 					mockAggregateResultForBEPod.EXPECT().Count().Return(2)
 					mockAggregateResultForBEPod.EXPECT().Value(metriccache.AggregationTypeAVG).Return(5.0, nil)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForBEPod).Return(mockAggregateResultForBEPod)
-					mockQuerier.EXPECT().Query(queryMetaForBEPod, nil, mockAggregateResultForBEPod).Return(nil)
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForBEPod, nil, mockAggregateResultForBEPod).Return(nil)
 					return mockMetricCache
 				},
 				statesInformer: func(ctrl *gomock.Controller) statesinformer.StatesInformer {
@@ -449,7 +449,7 @@ func Test_calculateCPUSharePoolUsage(t *testing.T) {
 					metriccache.DefaultAggregateResultFactory = mockAggregateResultFactory
 					mockAggregateNodeUsageResult := mockmetriccache.NewMockAggregateResult(ctrl)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForNodeUsage).Return(mockAggregateNodeUsageResult)
-					mockQuerier.EXPECT().Query(queryMetaForNodeUsage, nil, mockAggregateNodeUsageResult).Return(fmt.Errorf("expected error"))
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForNodeUsage, nil, mockAggregateNodeUsageResult).Return(fmt.Errorf("expected error"))
 					return mockMetricCache
 				},
 				statesInformer: func(ctrl *gomock.Controller) statesinformer.StatesInformer {
@@ -490,7 +490,7 @@ func Test_calculateCPUSharePoolUsage(t *testing.T) {
 					mockAggregateNodeUsageResult := mockmetriccache.NewMockAggregateResult(ctrl)
 					mockAggregateNodeUsageResult.EXPECT().Count().Return(0)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForNodeUsage).Return(mockAggregateNodeUsageResult)
-					mockQuerier.EXPECT().Query(queryMetaForNodeUsage, nil, mockAggregateNodeUsageResult).Return(nil)
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForNodeUsage, nil, mockAggregateNodeUsageResult).Return(nil)
 					return mockMetricCache
 				},
 				statesInformer: func(ctrl *gomock.Controller) statesinformer.StatesInformer {

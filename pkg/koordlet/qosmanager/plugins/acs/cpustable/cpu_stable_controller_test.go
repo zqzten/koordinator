@@ -416,7 +416,7 @@ func Test_htRatioPIDController_GetWarmupState(t *testing.T) {
 					mockAggregateNodeUsageResult.EXPECT().Count().Return(3)
 					mockAggregateNodeUsageResult.EXPECT().Value(metriccache.AggregationTypeAVG).Return(10.0, nil)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForNodeUsage).Return(mockAggregateNodeUsageResult)
-					mockQuerier.EXPECT().Query(queryMetaForNodeUsage, nil, mockAggregateNodeUsageResult).Return(nil)
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForNodeUsage, nil, mockAggregateNodeUsageResult).Return(nil)
 					// ls pod, usage = 2.0
 					queryMetaForLSPod, err := metriccache.PodCPUUsageMetric.BuildQueryMeta(metriccache.MetricPropertiesFunc.Pod("xxxxxx"))
 					assert.NoError(t, err)
@@ -424,14 +424,14 @@ func Test_htRatioPIDController_GetWarmupState(t *testing.T) {
 					mockAggregateResultForLSPod.EXPECT().Count().Return(3)
 					mockAggregateResultForLSPod.EXPECT().Value(metriccache.AggregationTypeAVG).Return(2.0, nil)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForLSPod).Return(mockAggregateResultForLSPod)
-					mockQuerier.EXPECT().Query(queryMetaForLSPod, nil, mockAggregateResultForLSPod).Return(nil)
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForLSPod, nil, mockAggregateResultForLSPod).Return(nil)
 					// lse pod, usage is missing
 					queryMetaForLSEPod, err := metriccache.PodCPUUsageMetric.BuildQueryMeta(metriccache.MetricPropertiesFunc.Pod("yyyyyy"))
 					assert.NoError(t, err)
 					mockAggregateResultForLSEPod := mockmetriccache.NewMockAggregateResult(ctrl)
 					mockAggregateResultForLSEPod.EXPECT().Count().Return(0)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForLSEPod).Return(mockAggregateResultForLSEPod)
-					mockQuerier.EXPECT().Query(queryMetaForLSEPod, nil, mockAggregateResultForLSEPod).Return(nil)
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForLSEPod, nil, mockAggregateResultForLSEPod).Return(nil)
 					// be pod, usage = 8.0, scaled usage = 4.0
 					queryMetaForBEPod, err := metriccache.PodCPUUsageMetric.BuildQueryMeta(metriccache.MetricPropertiesFunc.Pod("zzzzzz"))
 					assert.NoError(t, err)
@@ -439,7 +439,7 @@ func Test_htRatioPIDController_GetWarmupState(t *testing.T) {
 					mockAggregateResultForBEPod.EXPECT().Count().Return(2)
 					mockAggregateResultForBEPod.EXPECT().Value(metriccache.AggregationTypeAVG).Return(8.0, nil)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForBEPod).Return(mockAggregateResultForBEPod)
-					mockQuerier.EXPECT().Query(queryMetaForBEPod, nil, mockAggregateResultForBEPod).Return(nil)
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForBEPod, nil, mockAggregateResultForBEPod).Return(nil)
 					// ls share pool usage = 6.0, util = 37.5%
 					return mockMetricCache
 				},
@@ -729,7 +729,7 @@ func Test_htRatioPIDController_GetSignal(t *testing.T) {
 					mockAggregateSatisfactionResult := mockmetriccache.NewMockAggregateResult(ctrl)
 					mockAggregateSatisfactionResult.EXPECT().Count().Return(0)
 					mockAggregateResultFactory.EXPECT().New(queryMeta).Return(mockAggregateSatisfactionResult)
-					mockQuerier.EXPECT().Query(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil)
+					mockQuerier.EXPECT().QueryAndClose(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil)
 					return mockMetricCache
 				},
 				runInterval: 5 * time.Second,
@@ -759,7 +759,7 @@ func Test_htRatioPIDController_GetSignal(t *testing.T) {
 					mockAggregateSatisfactionResult.EXPECT().Count().Return(1)
 					mockAggregateResultFactory.EXPECT().New(queryMeta).Return(mockAggregateSatisfactionResult)
 					mockAggregateSatisfactionResult.EXPECT().Value(metriccache.AggregationTypeAVG).Return(0.0, fmt.Errorf("expected error"))
-					mockQuerier.EXPECT().Query(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil)
+					mockQuerier.EXPECT().QueryAndClose(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil)
 					return mockMetricCache
 				},
 				runInterval: 5 * time.Second,
@@ -795,8 +795,8 @@ func Test_htRatioPIDController_GetSignal(t *testing.T) {
 					mockAggregateSatisfactionResult.EXPECT().Value(metriccache.AggregationTypeAVG).Return(0.83, nil)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForUsage).Return(mockAggregateUsageResult).Times(1)
 					mockAggregateResultFactory.EXPECT().New(queryMeta).Return(mockAggregateSatisfactionResult).Times(1)
-					mockQuerier.EXPECT().Query(queryMetaForUsage, nil, mockAggregateUsageResult).Return(nil).Times(1)
-					mockQuerier.EXPECT().Query(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil).Times(1)
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForUsage, nil, mockAggregateUsageResult).Return(nil).Times(1)
+					mockQuerier.EXPECT().QueryAndClose(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil).Times(1)
 					return mockMetricCache
 				},
 				runInterval: 5 * time.Second,
@@ -859,14 +859,14 @@ func Test_htRatioPIDController_GetSignal(t *testing.T) {
 					mockAggregateResult.EXPECT().Count().Return(1)
 					mockAggregateResult.EXPECT().Value(metriccache.AggregationTypeAVG).Return(1.0, nil)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForUsage).Return(mockAggregateResult).Times(1)
-					mockQuerier.EXPECT().Query(queryMetaForUsage, nil, mockAggregateResult).Return(nil).Times(1)
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForUsage, nil, mockAggregateResult).Return(nil).Times(1)
 					queryMeta, err := metriccache.PodCPUSatisfactionWithThrottleMetric.BuildQueryMeta(metriccache.MetricPropertiesFunc.Pod(string("xxxxxx")))
 					assert.NoError(t, err)
 					mockAggregateSatisfactionResult := mockmetriccache.NewMockAggregateResult(ctrl)
 					mockAggregateSatisfactionResult.EXPECT().Count().Return(1)
 					mockAggregateSatisfactionResult.EXPECT().Value(metriccache.AggregationTypeAVG).Return(0.83, nil)
 					mockAggregateResultFactory.EXPECT().New(queryMeta).Return(mockAggregateSatisfactionResult).Times(1)
-					mockQuerier.EXPECT().Query(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil).Times(1)
+					mockQuerier.EXPECT().QueryAndClose(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil).Times(1)
 					return mockMetricCache
 				},
 				runInterval: 5 * time.Second,
@@ -911,8 +911,8 @@ func Test_htRatioPIDController_GetSignal(t *testing.T) {
 					mockAggregateSatisfactionResult.EXPECT().Value(metriccache.AggregationTypeAVG).Return(0.65, nil)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForUsage).Return(mockAggregateUsageResult).Times(1)
 					mockAggregateResultFactory.EXPECT().New(queryMeta).Return(mockAggregateSatisfactionResult).Times(1)
-					mockQuerier.EXPECT().Query(queryMetaForUsage, nil, mockAggregateUsageResult).Return(nil).Times(1)
-					mockQuerier.EXPECT().Query(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil).Times(1)
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForUsage, nil, mockAggregateUsageResult).Return(nil).Times(1)
+					mockQuerier.EXPECT().QueryAndClose(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil).Times(1)
 					return mockMetricCache
 				},
 				runInterval: 5 * time.Second,
@@ -956,8 +956,8 @@ func Test_htRatioPIDController_GetSignal(t *testing.T) {
 					mockAggregateSatisfactionResult.EXPECT().Value(metriccache.AggregationTypeAVG).Return(0.95, nil)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForUsage).Return(mockAggregateUsageResult).Times(1)
 					mockAggregateResultFactory.EXPECT().New(queryMeta).Return(mockAggregateSatisfactionResult).Times(1)
-					mockQuerier.EXPECT().Query(queryMetaForUsage, nil, mockAggregateUsageResult).Return(nil).Times(1)
-					mockQuerier.EXPECT().Query(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil).Times(1)
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForUsage, nil, mockAggregateUsageResult).Return(nil).Times(1)
+					mockQuerier.EXPECT().QueryAndClose(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil).Times(1)
 					return mockMetricCache
 				},
 				runInterval: 5 * time.Second,
@@ -1001,8 +1001,8 @@ func Test_htRatioPIDController_GetSignal(t *testing.T) {
 					mockAggregateSatisfactionResult.EXPECT().Value(metriccache.AggregationTypeAVG).Return(0.83, nil)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForUsage).Return(mockAggregateUsageResult).Times(1)
 					mockAggregateResultFactory.EXPECT().New(queryMeta).Return(mockAggregateSatisfactionResult).Times(1)
-					mockQuerier.EXPECT().Query(queryMetaForUsage, nil, mockAggregateUsageResult).Return(nil).Times(1)
-					mockQuerier.EXPECT().Query(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil).Times(1)
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForUsage, nil, mockAggregateUsageResult).Return(nil).Times(1)
+					mockQuerier.EXPECT().QueryAndClose(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil).Times(1)
 					return mockMetricCache
 				},
 				runInterval: 5 * time.Second,
@@ -1128,13 +1128,13 @@ func Test_htRatioPIDController_GetSignal(t *testing.T) {
 					mockAggregateSatisfactionResult := mockmetriccache.NewMockAggregateResult(ctrl)
 					mockAggregateSatisfactionResult.EXPECT().Count().Return(0)
 					mockAggregateResultFactory.EXPECT().New(queryMeta).Return(mockAggregateSatisfactionResult).Times(1)
-					mockQuerier.EXPECT().Query(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil).Times(1)
+					mockQuerier.EXPECT().QueryAndClose(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil).Times(1)
 					mockQuerierForDegrade := mockmetriccache.NewMockQuerier(ctrl)
 					mockMetricCache.EXPECT().Querier(fakeNow.Add(-300*time.Second), fakeNow).Return(mockQuerierForDegrade, nil).Times(1)
 					mockAggregateSatisfactionResultForDegrade := mockmetriccache.NewMockAggregateResult(ctrl)
 					mockAggregateSatisfactionResultForDegrade.EXPECT().Count().Return(0)
 					mockAggregateResultFactory.EXPECT().New(queryMeta).Return(mockAggregateSatisfactionResultForDegrade).Times(1)
-					mockQuerierForDegrade.EXPECT().Query(queryMeta, nil, mockAggregateSatisfactionResultForDegrade).Return(nil).Times(1)
+					mockQuerierForDegrade.EXPECT().QueryAndClose(queryMeta, nil, mockAggregateSatisfactionResultForDegrade).Return(nil).Times(1)
 					return mockMetricCache
 				},
 				runInterval: 5 * time.Second,
@@ -1769,7 +1769,7 @@ func Test_htRatioAIMDController_GetSignal(t *testing.T) {
 					mockAggregateSatisfactionResult := mockmetriccache.NewMockAggregateResult(ctrl)
 					mockAggregateSatisfactionResult.EXPECT().Count().Return(0)
 					mockAggregateResultFactory.EXPECT().New(queryMeta).Return(mockAggregateSatisfactionResult)
-					mockQuerier.EXPECT().Query(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil)
+					mockQuerier.EXPECT().QueryAndClose(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil)
 					return mockMetricCache
 				},
 				runInterval: 5 * time.Second,
@@ -1799,7 +1799,7 @@ func Test_htRatioAIMDController_GetSignal(t *testing.T) {
 					mockAggregateSatisfactionResult.EXPECT().Count().Return(1)
 					mockAggregateResultFactory.EXPECT().New(queryMeta).Return(mockAggregateSatisfactionResult)
 					mockAggregateSatisfactionResult.EXPECT().Value(metriccache.AggregationTypeAVG).Return(0.0, fmt.Errorf("expected error"))
-					mockQuerier.EXPECT().Query(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil)
+					mockQuerier.EXPECT().QueryAndClose(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil)
 					return mockMetricCache
 				},
 				runInterval: 5 * time.Second,
@@ -1835,8 +1835,8 @@ func Test_htRatioAIMDController_GetSignal(t *testing.T) {
 					mockAggregateSatisfactionResult.EXPECT().Value(metriccache.AggregationTypeAVG).Return(0.83, nil)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForUsage).Return(mockAggregateUsageResult).Times(1)
 					mockAggregateResultFactory.EXPECT().New(queryMeta).Return(mockAggregateSatisfactionResult).Times(1)
-					mockQuerier.EXPECT().Query(queryMetaForUsage, nil, mockAggregateUsageResult).Return(nil).Times(1)
-					mockQuerier.EXPECT().Query(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil).Times(1)
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForUsage, nil, mockAggregateUsageResult).Return(nil).Times(1)
+					mockQuerier.EXPECT().QueryAndClose(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil).Times(1)
 					return mockMetricCache
 				},
 				runInterval: 5 * time.Second,
@@ -1895,14 +1895,14 @@ func Test_htRatioAIMDController_GetSignal(t *testing.T) {
 					mockAggregateResult.EXPECT().Count().Return(1)
 					mockAggregateResult.EXPECT().Value(metriccache.AggregationTypeAVG).Return(1.0, nil)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForUsage).Return(mockAggregateResult).Times(1)
-					mockQuerier.EXPECT().Query(queryMetaForUsage, nil, mockAggregateResult).Return(nil).Times(1)
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForUsage, nil, mockAggregateResult).Return(nil).Times(1)
 					queryMeta, err := metriccache.PodCPUSatisfactionWithThrottleMetric.BuildQueryMeta(metriccache.MetricPropertiesFunc.Pod(string("xxxxxx")))
 					assert.NoError(t, err)
 					mockAggregateSatisfactionResult := mockmetriccache.NewMockAggregateResult(ctrl)
 					mockAggregateSatisfactionResult.EXPECT().Count().Return(1)
 					mockAggregateSatisfactionResult.EXPECT().Value(metriccache.AggregationTypeAVG).Return(0.83, nil)
 					mockAggregateResultFactory.EXPECT().New(queryMeta).Return(mockAggregateSatisfactionResult).Times(1)
-					mockQuerier.EXPECT().Query(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil).Times(1)
+					mockQuerier.EXPECT().QueryAndClose(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil).Times(1)
 					return mockMetricCache
 				},
 				runInterval: 5 * time.Second,
@@ -1940,8 +1940,8 @@ func Test_htRatioAIMDController_GetSignal(t *testing.T) {
 					mockAggregateSatisfactionResult.EXPECT().Value(metriccache.AggregationTypeAVG).Return(0.65, nil)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForUsage).Return(mockAggregateUsageResult).Times(1)
 					mockAggregateResultFactory.EXPECT().New(queryMeta).Return(mockAggregateSatisfactionResult).Times(1)
-					mockQuerier.EXPECT().Query(queryMetaForUsage, nil, mockAggregateUsageResult).Return(nil).Times(1)
-					mockQuerier.EXPECT().Query(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil).Times(1)
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForUsage, nil, mockAggregateUsageResult).Return(nil).Times(1)
+					mockQuerier.EXPECT().QueryAndClose(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil).Times(1)
 					return mockMetricCache
 				},
 				runInterval: 5 * time.Second,
@@ -1981,8 +1981,8 @@ func Test_htRatioAIMDController_GetSignal(t *testing.T) {
 					mockAggregateSatisfactionResult.EXPECT().Value(metriccache.AggregationTypeAVG).Return(0.95, nil)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForUsage).Return(mockAggregateUsageResult).Times(1)
 					mockAggregateResultFactory.EXPECT().New(queryMeta).Return(mockAggregateSatisfactionResult).Times(1)
-					mockQuerier.EXPECT().Query(queryMetaForUsage, nil, mockAggregateUsageResult).Return(nil).Times(1)
-					mockQuerier.EXPECT().Query(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil).Times(1)
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForUsage, nil, mockAggregateUsageResult).Return(nil).Times(1)
+					mockQuerier.EXPECT().QueryAndClose(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil).Times(1)
 					return mockMetricCache
 				},
 				runInterval: 5 * time.Second,
@@ -2022,8 +2022,8 @@ func Test_htRatioAIMDController_GetSignal(t *testing.T) {
 					mockAggregateSatisfactionResult.EXPECT().Value(metriccache.AggregationTypeAVG).Return(0.83, nil)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForUsage).Return(mockAggregateUsageResult).Times(1)
 					mockAggregateResultFactory.EXPECT().New(queryMeta).Return(mockAggregateSatisfactionResult).Times(1)
-					mockQuerier.EXPECT().Query(queryMetaForUsage, nil, mockAggregateUsageResult).Return(nil).Times(1)
-					mockQuerier.EXPECT().Query(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil).Times(1)
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForUsage, nil, mockAggregateUsageResult).Return(nil).Times(1)
+					mockQuerier.EXPECT().QueryAndClose(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil).Times(1)
 					return mockMetricCache
 				},
 				runInterval: 5 * time.Second,
@@ -2141,13 +2141,13 @@ func Test_htRatioAIMDController_GetSignal(t *testing.T) {
 					mockAggregateSatisfactionResult := mockmetriccache.NewMockAggregateResult(ctrl)
 					mockAggregateSatisfactionResult.EXPECT().Count().Return(0)
 					mockAggregateResultFactory.EXPECT().New(queryMeta).Return(mockAggregateSatisfactionResult).Times(1)
-					mockQuerier.EXPECT().Query(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil).Times(1)
+					mockQuerier.EXPECT().QueryAndClose(queryMeta, nil, mockAggregateSatisfactionResult).Return(nil).Times(1)
 					mockQuerierForDegrade := mockmetriccache.NewMockQuerier(ctrl)
 					mockMetricCache.EXPECT().Querier(fakeNow.Add(-300*time.Second), fakeNow).Return(mockQuerierForDegrade, nil).Times(1)
 					mockAggregateSatisfactionResultForDegrade := mockmetriccache.NewMockAggregateResult(ctrl)
 					mockAggregateSatisfactionResultForDegrade.EXPECT().Count().Return(0)
 					mockAggregateResultFactory.EXPECT().New(queryMeta).Return(mockAggregateSatisfactionResultForDegrade).Times(1)
-					mockQuerierForDegrade.EXPECT().Query(queryMeta, nil, mockAggregateSatisfactionResultForDegrade).Return(nil).Times(1)
+					mockQuerierForDegrade.EXPECT().QueryAndClose(queryMeta, nil, mockAggregateSatisfactionResultForDegrade).Return(nil).Times(1)
 					return mockMetricCache
 				},
 				runInterval: 5 * time.Second,
@@ -2777,7 +2777,7 @@ func Test_htRatioAIMDController_GetWarmupState(t *testing.T) {
 					mockAggregateNodeUsageResult.EXPECT().Count().Return(3)
 					mockAggregateNodeUsageResult.EXPECT().Value(metriccache.AggregationTypeAVG).Return(10.0, nil)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForNodeUsage).Return(mockAggregateNodeUsageResult)
-					mockQuerier.EXPECT().Query(queryMetaForNodeUsage, nil, mockAggregateNodeUsageResult).Return(nil)
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForNodeUsage, nil, mockAggregateNodeUsageResult).Return(nil)
 					// ls pod, usage = 2.0
 					queryMetaForLSPod, err := metriccache.PodCPUUsageMetric.BuildQueryMeta(metriccache.MetricPropertiesFunc.Pod("xxxxxx"))
 					assert.NoError(t, err)
@@ -2785,14 +2785,14 @@ func Test_htRatioAIMDController_GetWarmupState(t *testing.T) {
 					mockAggregateResultForLSPod.EXPECT().Count().Return(3)
 					mockAggregateResultForLSPod.EXPECT().Value(metriccache.AggregationTypeAVG).Return(2.0, nil)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForLSPod).Return(mockAggregateResultForLSPod)
-					mockQuerier.EXPECT().Query(queryMetaForLSPod, nil, mockAggregateResultForLSPod).Return(nil)
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForLSPod, nil, mockAggregateResultForLSPod).Return(nil)
 					// lse pod, usage is missing
 					queryMetaForLSEPod, err := metriccache.PodCPUUsageMetric.BuildQueryMeta(metriccache.MetricPropertiesFunc.Pod("yyyyyy"))
 					assert.NoError(t, err)
 					mockAggregateResultForLSEPod := mockmetriccache.NewMockAggregateResult(ctrl)
 					mockAggregateResultForLSEPod.EXPECT().Count().Return(0)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForLSEPod).Return(mockAggregateResultForLSEPod)
-					mockQuerier.EXPECT().Query(queryMetaForLSEPod, nil, mockAggregateResultForLSEPod).Return(nil)
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForLSEPod, nil, mockAggregateResultForLSEPod).Return(nil)
 					// be pod, usage = 8.0, scaled usage = 4.0
 					queryMetaForBEPod, err := metriccache.PodCPUUsageMetric.BuildQueryMeta(metriccache.MetricPropertiesFunc.Pod("zzzzzz"))
 					assert.NoError(t, err)
@@ -2800,7 +2800,7 @@ func Test_htRatioAIMDController_GetWarmupState(t *testing.T) {
 					mockAggregateResultForBEPod.EXPECT().Count().Return(2)
 					mockAggregateResultForBEPod.EXPECT().Value(metriccache.AggregationTypeAVG).Return(8.0, nil)
 					mockAggregateResultFactory.EXPECT().New(queryMetaForBEPod).Return(mockAggregateResultForBEPod)
-					mockQuerier.EXPECT().Query(queryMetaForBEPod, nil, mockAggregateResultForBEPod).Return(nil)
+					mockQuerier.EXPECT().QueryAndClose(queryMetaForBEPod, nil, mockAggregateResultForBEPod).Return(nil)
 					// ls share pool usage = 6.0, util = 37.5%
 					return mockMetricCache
 				},
