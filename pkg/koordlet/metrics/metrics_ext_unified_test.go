@@ -17,7 +17,10 @@ limitations under the License.
 package metrics
 
 import (
+	"net/http"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -155,6 +158,8 @@ func TestLRNCollectors(t *testing.T) {
 		RecordNodeLRNs(testingLRN2.Name, testingLRN2.Labels)
 		RefreshNodeLRNsLabels(testingLRN2.Labels)
 		RecordNodeLRNs(testingLRN2.Name, testingLRN2.Labels)
+		started := time.Now()
+		RecordLRNServeDurationMilliSeconds(http.MethodGet, "/", strconv.Itoa(http.StatusOK), SinceInSeconds(started))
 	})
 }
 

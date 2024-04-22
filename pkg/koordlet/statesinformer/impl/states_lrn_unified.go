@@ -238,9 +238,11 @@ func (l *lrnInformer) startServer() {
 }
 
 func (l *lrnInformer) Handle(rw http.ResponseWriter, r *http.Request) {
+	started := time.Now()
 	if l.lrnLister == nil {
 		klog.ErrorS(fmt.Errorf("lister uninitialized"), "[LRN server] failed to list LRN")
 		http.Error(rw, "lister uninitialized", http.StatusInternalServerError)
+		metrics.RecordLRNServeDurationMilliSeconds(r.Method, r.RequestURI, strconv.Itoa(http.StatusInternalServerError), metrics.SinceInSeconds(started))
 		return
 	}
 
@@ -250,12 +252,14 @@ func (l *lrnInformer) Handle(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		klog.ErrorS(err, "[LRN server] failed to list LRNs", "node", l.nodeName)
 		http.Error(rw, fmt.Sprintf("list LRNs failed, node %s, err: %s", l.nodeName, err), http.StatusInternalServerError)
+		metrics.RecordLRNServeDurationMilliSeconds(r.Method, r.RequestURI, strconv.Itoa(http.StatusInternalServerError), metrics.SinceInSeconds(started))
 		return
 	}
 
 	if len(lrns) <= 0 {
 		klog.V(5).InfoS("[LRN server] list no LRN against node", "node", l.nodeName)
 		rw.WriteHeader(http.StatusOK)
+		metrics.RecordLRNServeDurationMilliSeconds(r.Method, r.RequestURI, strconv.Itoa(http.StatusOK), metrics.SinceInSeconds(started))
 		return
 	}
 
@@ -271,6 +275,7 @@ func (l *lrnInformer) Handle(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		klog.ErrorS(err, "[LRN server] failed to marshal LRNs", "node", l.nodeName)
 		http.Error(rw, fmt.Sprintf("marshal LRNs failed, node %s, err: %s", l.nodeName, err), http.StatusInternalServerError)
+		metrics.RecordLRNServeDurationMilliSeconds(r.Method, r.RequestURI, strconv.Itoa(http.StatusInternalServerError), metrics.SinceInSeconds(started))
 		return
 	}
 
@@ -278,8 +283,10 @@ func (l *lrnInformer) Handle(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusOK)
 	if _, err = rw.Write(data); err != nil {
 		klog.ErrorS(err, "[LRN server] failed to write response")
+		metrics.RecordLRNServeDurationMilliSeconds(r.Method, r.RequestURI, strconv.Itoa(http.StatusOK), metrics.SinceInSeconds(started))
 		return
 	}
+	metrics.RecordLRNServeDurationMilliSeconds(r.Method, r.RequestURI, strconv.Itoa(http.StatusOK), metrics.SinceInSeconds(started))
 	klog.V(4).InfoS("[LRN server] list LRN against node successfully", "node", l.nodeName, "lrn count", len(lrnList.Items))
 }
 

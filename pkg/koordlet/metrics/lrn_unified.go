@@ -74,6 +74,17 @@ var (
 	}, []string{NodeKey, LRNKey, GPUCardModelKey, NodeNameKey, ASWIDKey, PointOfDeliveryKey, TenantDLCKey,
 		MachineGroupKey, ResourceGroupKey, QuotaIDKey, QuotaNameKey}, ExternalRegistry)
 
+	LRNServeDurationMilliSeconds = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Subsystem: KoordletSubsystem,
+			Name:      "lrn_serve_duration_milliseconds",
+			Help:      "lrn server serve duration in milliseconds",
+			// 10us ~ 10.24ms
+			Buckets: prometheus.ExponentialBuckets(0.01, 4, 8),
+		},
+		[]string{HTTPVerbKey, HTTPPathKey, HTTPCodeKey},
+	)
+
 	LRNCollectors = []prometheus.Collector{
 		LRNAllocatableCPUCores.GetGaugeVec(),
 		LRNAllocatableMemoryTotalBytes.GetGaugeVec(),
@@ -81,6 +92,7 @@ var (
 		LRNPods.GetGaugeVec(),
 		LRNContainers.GetGaugeVec(),
 		LRNAccelerators.GetGaugeVec(),
+		LRNServeDurationMilliSeconds,
 	}
 )
 
@@ -170,4 +182,9 @@ func RecordNodeLRNs(lrnName string, lrnLabels map[string]string) {
 
 func ResetNodeLRNs() {
 	NodeLRNs.GetMetricVec().(*prometheus.GaugeVec).Reset()
+}
+
+// RecordLRNServeDurationMilliSeconds records the duration of LRN server serves.
+func RecordLRNServeDurationMilliSeconds(verb, path, code string, seconds float64) {
+	LRNServeDurationMilliSeconds.WithLabelValues(verb, path, code).Observe(seconds * 1000)
 }
