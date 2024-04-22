@@ -147,7 +147,7 @@ func generateNewReservation(cfg *lrnutil.Config, lrn *schedulingv1alpha1.Logical
 		}
 	}
 
-	if lrn.Spec.Unschedulable || hasQoSGroupAndEnabled(cfg, lrn) {
+	if lrn.Spec.Unschedulable || hasQoSGroupAndEnabled(cfg, lrn) || isInitializing(lrn) {
 		reservation.Spec.Unschedulable = true
 	}
 
@@ -330,4 +330,8 @@ func generateENIQoSGroup(reservation *schedulingv1alpha1.Reservation) (*terwayap
 		},
 	}
 	return &qosGroup, nil
+}
+
+func isInitializing(lrn *schedulingv1alpha1.LogicalResourceNode) bool {
+	return lrn.Labels[schedulingv1alpha1.LabelLogicalResourceNodeInitializing] == "true"
 }

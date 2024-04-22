@@ -286,7 +286,7 @@ func (r *reservationReconciler) updateReservation(ctx context.Context, cfg *lrnu
 		}
 	}
 
-	expectedUnschedulable := lrn.Spec.Unschedulable || qosGroupNotReady
+	expectedUnschedulable := lrn.Spec.Unschedulable || qosGroupNotReady || isInitializing(lrn)
 	if expectedUnschedulable != reservation.Spec.Unschedulable {
 		if expectedUnschedulable {
 			patchBody.Spec["unschedulable"] = true

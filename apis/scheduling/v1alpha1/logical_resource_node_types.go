@@ -49,6 +49,19 @@ const (
 
 	// LabelLogicalResourceNodeReservationGeneration is the generation of the reservation, which indicates the recreation count for this LRN.
 	LabelLogicalResourceNodeReservationGeneration = "lrn.koordinator.sh/reservation-generation"
+
+	// LabelLogicalResourceNodeInitializing indicates the LRN is initializing that its Reservation should be unschedulable
+	LabelLogicalResourceNodeInitializing = "lrn.koordinator.sh/initializing"
+
+	// LabelLogicalResourceNodePodAllocatePolicy is the policy of Pod allocate from LRN.
+	LabelLogicalResourceNodePodAllocatePolicy = "pod.lrn.koordinator.sh/allocate-lrn"
+)
+
+type LogicalResourceNodePodAllocatePolicy string
+
+const (
+	LogicalResourceNodePodAllocateRequired  LogicalResourceNodePodAllocatePolicy = "Required"
+	LogicalResourceNodePodAllocatePreferred LogicalResourceNodePodAllocatePolicy = "Preferred"
 )
 
 type LRNVPCQoSThreshold struct {

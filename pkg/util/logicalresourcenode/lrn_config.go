@@ -37,6 +37,7 @@ var (
 	defaultSkipSyncReservationLabelKeys = []string{
 		schedulingv1alpha1.LabelNodeNameOfLogicalResourceNode,
 		schedulingv1alpha1.LabelLogicalResourceNodeReservationGeneration,
+		schedulingv1alpha1.LabelLogicalResourceNodeInitializing,
 	}
 
 	defaultSyncReservationAnnotationKeys = []string{
@@ -68,6 +69,9 @@ type CommonConfig struct {
 
 	// Whether to enable ENI QoS Group for LRN.
 	EnableQoSGroup bool `json:"enableQoSGroup"`
+
+	// LegacyMode is deprecated which hooks pods by existing LRNs.
+	LegacyMode bool `json:"legacyMode,omitempty"`
 }
 
 var (

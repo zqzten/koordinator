@@ -43,46 +43,75 @@ func (h *PodMutatingHandler) mutatingLRNPodCreate(ctx context.Context, req admis
 		return nil
 	}
 
-	lrnList := schedulingv1alpha1.LogicalResourceNodeList{}
-	if err := h.Client.List(ctx, &lrnList, utilclient.DisableDeepCopy); err != nil {
-		return err
+	cfg, err := lrnutil.GetConfig(h.Client)
+	if err != nil {
+		return fmt.Errorf("failed to get lrn config: %v", err)
 	}
 
-	var lrn *schedulingv1alpha1.LogicalResourceNode
-	for i := range lrnList.Items {
-		lrn1 := &lrnList.Items[i]
-		if lrn1.DeletionTimestamp != nil {
-			continue
+	if cfg.Common.LegacyMode {
+		lrnList := schedulingv1alpha1.LogicalResourceNodeList{}
+		if err := h.Client.List(ctx, &lrnList, utilclient.DisableDeepCopy); err != nil {
+			return err
 		}
 
-		podLabelSelectors, err := lrnutil.GetPodLabelSelector(lrn1)
-		if err != nil {
-			klog.Warningf("Failed to get pod label selectors from LogicalResourceNode %s when admit Pod %s/%s: %v", lrn1.Name, req.Namespace, pod.Name, err)
-			continue
-		}
-
-		var matched bool
-		for _, labelSelector := range podLabelSelectors {
-			podSelector, err := metav1.LabelSelectorAsSelector(&labelSelector)
-			if err != nil {
-				klog.Warningf("Failed to convert pod label selectos from LogicalResourceNode %s when admit Pod %s/%s: %v", lrn1.Name, req.Namespace, pod.Name, err)
+		var lrn *schedulingv1alpha1.LogicalResourceNode
+		for i := range lrnList.Items {
+			lrn1 := &lrnList.Items[i]
+			if lrn1.DeletionTimestamp != nil {
 				continue
 			}
-			if podSelector.Matches(labels.Set(pod.Labels)) {
-				matched = true
-				break
+
+			podLabelSelectors, err := lrnutil.GetPodLabelSelector(lrn1)
+			if err != nil {
+				klog.Warningf("Failed to get pod label selectors from LogicalResourceNode %s when admit Pod %s/%s: %v", lrn1.Name, req.Namespace, pod.Name, err)
+				continue
+			}
+
+			var matched bool
+			for _, labelSelector := range podLabelSelectors {
+				podSelector, err := metav1.LabelSelectorAsSelector(&labelSelector)
+				if err != nil {
+					klog.Warningf("Failed to convert pod label selectos from LogicalResourceNode %s when admit Pod %s/%s: %v", lrn1.Name, req.Namespace, pod.Name, err)
+					continue
+				}
+				if podSelector.Matches(labels.Set(pod.Labels)) {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
+
+			lrn = lrn1
+			break
+		}
+
+		if lrn == nil {
+			return nil
+		}
+
+		// append LRN tolerations into pod
+		for _, toleration := range lrn.Spec.Requirements.Tolerations {
+			var exists bool
+			for _, existingToleration := range pod.Spec.Tolerations {
+				if equality.Semantic.DeepEqual(existingToleration, toleration) {
+					exists = true
+				}
+			}
+			if !exists {
+				klog.Infof("Adding toleration %s from LRN %s to Pod %s/%s", toleration.Key, lrn.Name, pod.Namespace, pod.Name)
+				pod.Spec.Tolerations = append(pod.Spec.Tolerations, toleration)
 			}
 		}
-		if !matched {
-			continue
+	} else {
+		policy, exists := pod.Labels[schedulingv1alpha1.LabelLogicalResourceNodePodAllocatePolicy]
+		if !exists {
+			return nil
 		}
-
-		lrn = lrn1
-		break
-	}
-
-	if lrn == nil {
-		return nil
+		if schedulingv1alpha1.LogicalResourceNodePodAllocatePolicy(policy) != schedulingv1alpha1.LogicalResourceNodePodAllocateRequired {
+			return fmt.Errorf("unsupported lrn allocate policy %s", policy)
+		}
 	}
 
 	if pod.Labels == nil {
@@ -109,20 +138,6 @@ func (h *PodMutatingHandler) mutatingLRNPodCreate(ctx context.Context, req admis
 			pod.Annotations = map[string]string{}
 		}
 		pod.Annotations[apiext.AnnotationReservationAffinity] = util.DumpJSON(reservationAffinity)
-	}
-
-	// append LRN tolerations into pod
-	for _, toleration := range lrn.Spec.Requirements.Tolerations {
-		var exists bool
-		for _, existingToleration := range pod.Spec.Tolerations {
-			if equality.Semantic.DeepEqual(existingToleration, toleration) {
-				exists = true
-			}
-		}
-		if !exists {
-			klog.Infof("Adding toleration %s from LRN %s to Pod %s/%s", toleration.Key, lrn.Name, pod.Namespace, pod.Name)
-			pod.Spec.Tolerations = append(pod.Spec.Tolerations, toleration)
-		}
 	}
 
 	return nil
