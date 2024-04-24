@@ -228,6 +228,17 @@ func (p *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState, 
 	if err != nil {
 		return framework.AsStatus(err)
 	}
+	if len(resourceStatus.NUMANodeResources) == 0 {
+		return nil
+	}
+	topologyOptions := p.GetTopologyOptionsManager().GetTopologyOptions(nodeName)
+	if !topologyOptions.CPUTopology.IsValid() {
+		return framework.NewStatus(framework.UnschedulableAndUnresolvable, nodenumaresource.ErrInvalidCPUTopology)
+	}
+	err = SetRundNUMAAwareResult(topologyOptions.CPUTopology.CPUDetails, pod, resourceStatus)
+	if err != nil {
+		return framework.AsStatus(err)
+	}
 	return nil
 }
 
