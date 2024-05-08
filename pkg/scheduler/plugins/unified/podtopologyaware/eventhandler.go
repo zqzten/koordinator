@@ -44,7 +44,7 @@ func registerPodEventHandler(cacheManager *cacheManager, factory informers.Share
 	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), koordSharedInformerFactory, reservationInformer.Informer(), reservationEventHandler)
 }
 
-func (h *podEventHandler) OnAdd(obj interface{}) {
+func (h *podEventHandler) OnAdd(obj interface{}, isInInitialList bool) {
 	pod, _ := obj.(*corev1.Pod)
 	if pod == nil {
 		return

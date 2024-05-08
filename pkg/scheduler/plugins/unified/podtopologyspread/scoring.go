@@ -1,5 +1,5 @@
 /*
-Copyright 2019 The Kubernetes Authors.
+Copyright 2022 The Koordinator Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -172,7 +172,7 @@ func (pl *PodTopologySpread) PreScore(
 			atomic.AddInt64(tpCount, int64(count))
 		}
 	}
-	pl.handle.Parallelizer().Until(ctx, len(allNodes), processAllNode)
+	pl.handle.Parallelizer().Until(ctx, len(allNodes), processAllNode, pl.Name())
 
 	cycleState.Write(preScoreStateKey, state)
 	return nil

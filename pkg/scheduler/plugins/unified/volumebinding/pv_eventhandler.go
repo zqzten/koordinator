@@ -50,7 +50,7 @@ func registerPVEventHandler(informerFactory informers.SharedInformerFactory, cac
 	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), informerFactory, pvInformer, eventHandler)
 }
 
-func (e *pvEventHandler) OnAdd(obj interface{}) {
+func (e *pvEventHandler) OnAdd(obj interface{}, isInInitialList bool) {
 	pv, ok := obj.(*v1.PersistentVolume)
 	if !ok {
 		return

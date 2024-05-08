@@ -66,7 +66,7 @@ func assignedPod(pod *corev1.Pod) bool {
 	return pod.Spec.NodeName != ""
 }
 
-func (p *podEventHandler) OnAdd(obj interface{}) {
+func (p *podEventHandler) OnAdd(obj interface{}, isInInitialList bool) {
 	pod, ok := obj.(*corev1.Pod)
 	if !ok {
 		return

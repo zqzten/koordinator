@@ -17,6 +17,7 @@ limitations under the License.
 package elasticquotatree
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net"
@@ -41,10 +42,10 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/queuesort"
 	"k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 	schetesting "k8s.io/kubernetes/pkg/scheduler/testing"
-	pgclientset "sigs.k8s.io/scheduler-plugins/pkg/generated/clientset/versioned"
-	pgfake "sigs.k8s.io/scheduler-plugins/pkg/generated/clientset/versioned/fake"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
+	pgclientset "github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/generated/clientset/versioned"
+	pgfake "github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/generated/clientset/versioned/fake"
 	"github.com/koordinator-sh/koordinator/pkg/client/clientset/versioned/fake"
 	koordinatorinformers "github.com/koordinator-sh/koordinator/pkg/client/informers/externalversions"
 )
@@ -143,7 +144,7 @@ func newPluginTestSuit(t *testing.T) *pluginTestSuit {
 		schetesting.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 	}
 
-	handle, _ := schetesting.NewFramework(registeredPlugins, "koord-scheduler",
+	handle, _ := schetesting.NewFramework(context.TODO(), registeredPlugins, "koord-scheduler",
 		runtime.WithKubeConfig(cfg),
 		runtime.WithInformerFactory(informerFactory),
 		runtime.WithClientSet(cs))

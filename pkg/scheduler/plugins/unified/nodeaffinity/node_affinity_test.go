@@ -1,5 +1,5 @@
 /*
-Copyright 2019 The Kubernetes Authors.
+Copyright 2022 The Koordinator Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -528,7 +528,7 @@ func TestNodeAffinity(t *testing.T) {
 				},
 			},
 			nodeName:            "node1",
-			wantPreFilterResult: &framework.PreFilterResult{NodeNames: sets.NewString("node1")},
+			wantPreFilterResult: &framework.PreFilterResult{NodeNames: sets.New[string]("node1")},
 		},
 		{
 			name: "Pod with matchFields using In operator that does not match the existing node",
@@ -555,7 +555,7 @@ func TestNodeAffinity(t *testing.T) {
 			},
 			nodeName:            "node2",
 			wantStatus:          framework.NewStatus(framework.UnschedulableAndUnresolvable, ErrReasonPod),
-			wantPreFilterResult: &framework.PreFilterResult{NodeNames: sets.NewString("node1")},
+			wantPreFilterResult: &framework.PreFilterResult{NodeNames: sets.New[string]("node1")},
 		},
 		{
 			name: "Pod with two terms: matchFields does not match, but matchExpressions matches",
@@ -624,7 +624,7 @@ func TestNodeAffinity(t *testing.T) {
 			},
 			nodeName:            "node2",
 			labels:              map[string]string{"foo": "bar"},
-			wantPreFilterResult: &framework.PreFilterResult{NodeNames: sets.NewString("node1")},
+			wantPreFilterResult: &framework.PreFilterResult{NodeNames: sets.New[string]("node1")},
 			wantStatus:          framework.NewStatus(framework.UnschedulableAndUnresolvable, ErrReasonPod),
 		},
 		{
@@ -659,7 +659,7 @@ func TestNodeAffinity(t *testing.T) {
 			},
 			nodeName:            "node1",
 			labels:              map[string]string{"foo": "bar"},
-			wantPreFilterResult: &framework.PreFilterResult{NodeNames: sets.NewString("node1")},
+			wantPreFilterResult: &framework.PreFilterResult{NodeNames: sets.New[string]("node1")},
 		},
 		{
 			name: "Pod with two terms: both matchFields and matchExpressions do not match",
@@ -730,7 +730,7 @@ func TestNodeAffinity(t *testing.T) {
 				},
 			},
 			nodeName:            "node2",
-			wantPreFilterResult: &framework.PreFilterResult{NodeNames: sets.NewString("node1", "node2")},
+			wantPreFilterResult: &framework.PreFilterResult{NodeNames: sets.New[string]("node1", "node2")},
 		},
 		{
 			name: "Pod with two conflicting mach field requirements",

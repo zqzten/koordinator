@@ -1,4 +1,4 @@
-FROM --platform=$TARGETPLATFORM golang:1.18 as builder
+FROM --platform=$TARGETPLATFORM golang:1.20 as builder
 WORKDIR /go/src/github.com/koordinator-sh/koordinator
 
 ARG VERSION
@@ -40,11 +40,35 @@ RUN export DBG="-g -Wall" && \
   make install -C libpfm-4.13.0
 RUN go build -a -o koordlet cmd/koordlet/main.go
 
-FROM --platform=$TARGETPLATFORM registry-cn-hangzhou.ack.aliyuncs.com/dev/ubuntu:20.04-update as utils-builder
-
+#FROM --platform=$TARGETPLATFORM registry-cn-hangzhou.ack.aliyuncs.com/dev/ubuntu:20.04-update as utils-builder
 # use a secure pruned CUDA image
-FROM --platform=$TARGETPLATFORM registry.cn-hangzhou.aliyuncs.com/acs/ubuntu:20.04-base-cuda-11.6
-WORKDIR /
+#FROM --platform=$TARGETPLATFORM registry.cn-hangzhou.aliyuncs.com/acs/ubuntu:20.04-base-cuda-11.6
+#WORKDIR /
+
+FROM --platform=$TARGETPLATFORM ubuntu:22.04 as utils-builder
+RUN apt-get update && apt-get install -y lvm2
+
+FROM --platform=$TARGETPLATFORM nvidia/cuda:11.8.0-base-ubuntu22.04
+RUN set -eux; \
+    rm /etc/apt/sources.list.d/* && \
+    apt-get update && apt-get upgrade -y && \
+    rm -rf /var/cache/apt/ && \
+    echo "only include root and nobody user" && \
+    echo "root:x:0:0:root:/root:/bin/bash\nnobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin" | tee /etc/passwd && \
+    echo "root:x:0:\nnogroup:x:65534:" | tee /etc/group && \
+    echo "remove bins" && \
+    cp /bin/rm /rm_bak && \
+    /rm_bak -rf /usr/lib/apt/apt-helper  && \
+    /rm_bak -rf /var/lib/dpkg/info/bash.preinst  && \
+    /rm_bak -rf /usr/lib/apt/methods/*  && \
+    /rm_bak -rf /usr/local/sbin/* && \
+    /rm_bak -rf /usr/local/bin/* && \
+    /rm_bak -rf /usr/sbin/* && \
+    /rm_bak -rf /usr/bin/* && \
+    /rm_bak -rf /bin/* && \
+    /rm_bak -rf /sbin/* && \
+    /rm_bak -rf /rm_bak
+
 USER 0
 COPY --from=builder /go/src/github.com/koordinator-sh/koordinator/koordlet .
 COPY --from=builder /usr/local/lib /usr/lib

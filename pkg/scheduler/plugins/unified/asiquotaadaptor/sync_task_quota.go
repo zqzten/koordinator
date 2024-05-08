@@ -61,7 +61,7 @@ func (pl *Plugin) syncTaskQuota() {
 		batchMemory := node.Status.Allocatable[apiext.BatchMemory]
 		atomic.AddInt64(&totalBatchCPU, batchCPU.Value())
 		atomic.AddInt64(&totalBatchMemory, batchMemory.Value())
-	})
+	}, pl.Name())
 
 	taskQuotaUsage := &quotav1.TaskQuotaUsage{
 		ObjectMeta: metav1.ObjectMeta{

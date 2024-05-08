@@ -297,7 +297,7 @@ func (pl *Plugin) forgetHijackedPodFromSchedulerCache(targetPod *corev1.Pod) {
 	defer pl.lock.Unlock()
 	hijackedPod := pl.hijackedPods[objRef.UID]
 	if hijackedPod != nil {
-		err := pl.extendedHandle.ForgetPod(hijackedPod)
+		err := pl.extendedHandle.ForgetPod(klog.Background(), hijackedPod)
 		if err != nil {
 			klog.ErrorS(err, "failed to forget hijacked pod", "targetPod", klog.KObj(targetPod), "hijacked", klog.KObj(hijackedPod), "hijacked", data)
 		} else {

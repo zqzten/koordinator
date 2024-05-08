@@ -73,21 +73,17 @@ func NewDrainNodeController(args runtime.Object, handle framework.Handle) (frame
 		return nil, err
 	}
 
-	if err = c.Watch(&source.Kind{Type: &v1alpha1.DrainNode{}}, &handler.EnqueueRequestForObject{}); err != nil {
+	if err = c.Watch(source.Kind(options.Manager.GetCache(), &v1alpha1.DrainNode{}), &handler.EnqueueRequestForObject{}); err != nil {
 		return nil, err
 	}
 
-	if err = c.Watch(&source.Kind{Type: r.reservationInterpreter.GetReservationType()}, &handler.EnqueueRequestForOwner{
-		IsController: true,
-		OwnerType:    &v1alpha1.DrainNode{},
-	}); err != nil {
+	if err = c.Watch(source.Kind(options.Manager.GetCache(), r.reservationInterpreter.GetReservationType()), handler.EnqueueRequestForOwner(
+		options.Manager.GetScheme(), options.Manager.GetRESTMapper(), &v1alpha1.DrainNode{}, handler.OnlyControllerOwner())); err != nil {
 		return nil, err
 	}
 
-	if err = c.Watch(&source.Kind{Type: &v1alpha1.PodMigrationJob{}}, &handler.EnqueueRequestForOwner{
-		IsController: true,
-		OwnerType:    &v1alpha1.DrainNode{},
-	}); err != nil {
+	if err = c.Watch(source.Kind(options.Manager.GetCache(), &v1alpha1.PodMigrationJob{}), handler.EnqueueRequestForOwner(
+		options.Manager.GetScheme(), options.Manager.GetRESTMapper(), &v1alpha1.DrainNode{}, handler.OnlyControllerOwner())); err != nil {
 		return nil, err
 	}
 	return r, nil

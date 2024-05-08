@@ -217,7 +217,7 @@ func GetPVCIOLimitInfo(pvc *corev1.PersistentVolumeClaim) (*unified.LocalStorage
 }
 
 func GetRequestedStorageInBytes(pod *corev1.Pod, classLister storagelisters.StorageClassLister) int64 {
-	requests, _ := resource.PodRequestsAndLimits(pod)
+	requests := resource.PodRequests(pod, resource.PodResourcesOptions{})
 	q := requests[v1.ResourceEphemeralStorage]
 	requiredStorageInBytes := q.Value()
 	requiredStorageInBytes += unified.CalcLocalInlineVolumeSize(pod.Spec.Volumes, classLister)

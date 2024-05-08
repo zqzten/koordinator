@@ -29,12 +29,13 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
-	schedv1alpha1 "sigs.k8s.io/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
-	schedlisters "sigs.k8s.io/scheduler-plugins/pkg/generated/listers/scheduling/v1alpha1"
+
+	schedv1alpha1 "github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
+	schedlisters "github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/generated/listers/scheduling/v1alpha1"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	schedulingconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
-	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta2"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta3"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota"
 	elasticquotacore "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota/core"
 	nodeaffinityhelper "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/helper/nodeaffinity"
@@ -337,13 +338,13 @@ func getElasticQuotaArgs(obj runtime.Object) (*schedulingconfig.ElasticQuotaArgs
 	if !ok {
 		return nil, fmt.Errorf("got args of type %T, want *DeviceShareArgs", obj)
 	}
-	var v1beta2args v1beta2.ElasticQuotaArgs
-	v1beta2.SetDefaults_ElasticQuotaArgs(&v1beta2args)
-	if err := frameworkruntime.DecodeInto(unknownObj, &v1beta2args); err != nil {
+	var v1beta3args v1beta3.ElasticQuotaArgs
+	v1beta3.SetDefaults_ElasticQuotaArgs(&v1beta3args)
+	if err := frameworkruntime.DecodeInto(unknownObj, &v1beta3args); err != nil {
 		return nil, err
 	}
 	var args schedulingconfig.ElasticQuotaArgs
-	err := v1beta2.Convert_v1beta2_ElasticQuotaArgs_To_config_ElasticQuotaArgs(&v1beta2args, &args, nil)
+	err := v1beta3.Convert_v1beta3_ElasticQuotaArgs_To_config_ElasticQuotaArgs(&v1beta3args, &args, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -351,10 +352,10 @@ func getElasticQuotaArgs(obj runtime.Object) (*schedulingconfig.ElasticQuotaArgs
 }
 
 func getDefaultElasticQuotaArgs() (*schedulingconfig.ElasticQuotaArgs, error) {
-	var v1beta2args v1beta2.ElasticQuotaArgs
-	v1beta2.SetDefaults_ElasticQuotaArgs(&v1beta2args)
+	var v1beta3args v1beta3.ElasticQuotaArgs
+	v1beta3.SetDefaults_ElasticQuotaArgs(&v1beta3args)
 	var elasticQuotaArgs schedulingconfig.ElasticQuotaArgs
-	err := v1beta2.Convert_v1beta2_ElasticQuotaArgs_To_config_ElasticQuotaArgs(&v1beta2args, &elasticQuotaArgs, nil)
+	err := v1beta3.Convert_v1beta3_ElasticQuotaArgs_To_config_ElasticQuotaArgs(&v1beta3args, &elasticQuotaArgs, nil)
 	if err != nil {
 		return nil, err
 	}

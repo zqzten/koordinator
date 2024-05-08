@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	kubeclientset "k8s.io/client-go/kubernetes"
 	kubefake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
@@ -44,7 +45,7 @@ func (f *fakeExtendedHandle) ClientSet() kubeclientset.Interface {
 	return f.clientset
 }
 
-func (f *fakeExtendedHandle) ForgetPod(pod *corev1.Pod) error {
+func (f *fakeExtendedHandle) ForgetPod(logger klog.Logger, pod *corev1.Pod) error {
 	f.forgotPod = pod
 	return nil
 }

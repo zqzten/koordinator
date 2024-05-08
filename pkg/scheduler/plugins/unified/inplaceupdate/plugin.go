@@ -1,7 +1,24 @@
+/*
+Copyright 2022 The Koordinator Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package inplaceupdate
 
 import (
 	"context"
+	"time"
 
 	uniext "gitlab.alibaba-inc.com/unischeduler/api/apis/extension"
 	corev1 "k8s.io/api/core/v1"
@@ -62,18 +79,19 @@ func New(obj runtime.Object, handle framework.Handle) (framework.Plugin, error) 
 	extendHandle := handle.(frameworkext.ExtendedHandle)
 	addInQFn := func(pod *corev1.Pod) error {
 		scheduler := extendHandle.Scheduler()
-		return scheduler.GetSchedulingQueue().Add(pod)
+		return scheduler.GetSchedulingQueue().Add(klog.Background(), pod)
 	}
 	p := &Plugin{handle: handle, addInQFn: addInQFn}
 	extendHandle.RegisterErrorHandlerFilters(p.ErrorHandler, nil)
 	return p, nil
 }
 
-func (p *Plugin) ErrorHandler(podInfo *framework.QueuedPodInfo, err error) bool {
+func (p *Plugin) ErrorHandler(ctx context.Context, fwk framework.Framework, podInfo *framework.QueuedPodInfo, status *framework.Status, nominatingInfo *framework.NominatingInfo, start time.Time) bool {
 	inplaceUpdatePod := podInfo.Pod
 	if inplaceUpdatePod == nil || !extunified.IsInplaceUpdatePod(inplaceUpdatePod) {
 		return false
 	}
+	err := status.AsError()
 	klog.Errorf("InplaceUpdate Pod Schedule Failed, err: %s", err.Error())
 	targetPodName := extunified.GetInplaceUpdateTargetPodName(inplaceUpdatePod)
 	targetPod, err := p.handle.SharedInformerFactory().Core().V1().Pods().Lister().Pods(inplaceUpdatePod.Namespace).Get(targetPodName)
@@ -136,7 +154,7 @@ func (p *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleState
 		targetPod: targetPod,
 	})
 	return &framework.PreFilterResult{
-		NodeNames: sets.NewString(pod.Spec.NodeName),
+		NodeNames: sets.New[string](pod.Spec.NodeName),
 	}, nil
 }
 

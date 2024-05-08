@@ -58,4 +58,10 @@ func init() {
 	controllerAddFuncs[RecommenderControllerName] = AddRecommender
 
 	controllerAddFuncs["logicalresourcenode"] = logicalresourcenode.Add
+
+	_ = clientgoscheme.AddToScheme(Scheme)
+	_ = autoscaling.AddToScheme(Scheme)
+	_ = kruisev1alpha1.AddToScheme(Scheme)
+	_ = kruisev1beta1.AddToScheme(Scheme)
+	controllerAddFuncs[RecommenderControllerName] = AddRecommender
 }

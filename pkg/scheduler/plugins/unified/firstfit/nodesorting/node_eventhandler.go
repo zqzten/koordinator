@@ -38,7 +38,7 @@ func registerNodeEventHandler(collection *baseNodeCollection, factory informers.
 	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), factory, nodeInformer, eventHandler)
 }
 
-func (h *nodeEventHandler) OnAdd(obj interface{}) {
+func (h *nodeEventHandler) OnAdd(obj interface{}, isInInitialList bool) {
 	node, _ := obj.(*corev1.Node)
 	if node == nil {
 		return

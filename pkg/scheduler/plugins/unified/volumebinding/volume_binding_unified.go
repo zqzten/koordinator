@@ -26,22 +26,22 @@ import (
 	"k8s.io/client-go/tools/cache"
 	storagehelpers "k8s.io/component-helpers/storage/volume"
 	"k8s.io/klog/v2"
-	scheduledconfigv1beta2config "k8s.io/kube-scheduler/config/v1beta2"
+	scheduledconfigv1beta3 "k8s.io/kube-scheduler/config/v1beta3"
 	"k8s.io/kubernetes/pkg/api/v1/resource"
-	"k8s.io/kubernetes/pkg/features"
 	scheduledconfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
-	"k8s.io/kubernetes/pkg/scheduler/apis/config/v1beta2"
+	"k8s.io/kubernetes/pkg/scheduler/apis/config/v1beta3"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	"github.com/koordinator-sh/koordinator/apis/extension/unified"
+	koordfeature "github.com/koordinator-sh/koordinator/pkg/features"
 	frameworkexthelper "github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/helper"
 )
 
 func getDefaultVolumeBindingArgs() (*scheduledconfig.VolumeBindingArgs, error) {
-	var v1beta2args scheduledconfigv1beta2config.VolumeBindingArgs
-	v1beta2.SetDefaults_VolumeBindingArgs(&v1beta2args)
+	var v1beta3args scheduledconfigv1beta3.VolumeBindingArgs
+	v1beta3.SetDefaults_VolumeBindingArgs(&v1beta3args)
 	var volumeBindingArgs scheduledconfig.VolumeBindingArgs
-	err := v1beta2.Convert_v1beta2_VolumeBindingArgs_To_config_VolumeBindingArgs(&v1beta2args, &volumeBindingArgs, nil)
+	err := v1beta3.Convert_v1beta3_VolumeBindingArgs_To_config_VolumeBindingArgs(&v1beta3args, &volumeBindingArgs, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -56,8 +56,8 @@ func forceSyncStorageInformers(informerFactory informers.SharedInformerFactory) 
 	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), informerFactory, storageClassInformer.Informer(), &cache.ResourceEventHandlerFuncs{})
 	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), informerFactory, csiNodeInformer.Informer(), &cache.ResourceEventHandlerFuncs{})
 	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), informerFactory, csiDriverInformer.Informer(), &cache.ResourceEventHandlerFuncs{})
-	if utilfeature.DefaultFeatureGate.Enabled(features.CSIStorageCapacity) {
-		csiStorageCapacityInformer := informerFactory.Storage().V1beta1().CSIStorageCapacities()
+	if utilfeature.DefaultFeatureGate.Enabled(koordfeature.CSIStorageCapacity) {
+		csiStorageCapacityInformer := informerFactory.Storage().V1().CSIStorageCapacities()
 		frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), informerFactory, csiStorageCapacityInformer.Informer(), &cache.ResourceEventHandlerFuncs{})
 	}
 }
@@ -82,7 +82,7 @@ func (pl *VolumeBinding) filterWithoutPVC(state *stateData, pod *v1.Pod, nodeInf
 }
 
 func (pl *VolumeBinding) assumeEphemeralStorage(pod *v1.Pod, nodeName string) {
-	requests, _ := resource.PodRequestsAndLimits(pod)
+	requests := resource.PodRequests(pod, resource.PodResourcesOptions{})
 	ephemeralStorageSize := requests[v1.ResourceEphemeralStorage]
 	localInlineVolumeSize := unified.CalcLocalInlineVolumeSize(pod.Spec.Volumes, pl.classLister)
 	if ephemeralStorageSize.IsZero() && localInlineVolumeSize == 0 {
@@ -94,7 +94,7 @@ func (pl *VolumeBinding) assumeEphemeralStorage(pod *v1.Pod, nodeName string) {
 }
 
 func (pl *VolumeBinding) revertAssumedEphemeralStorage(pod *v1.Pod, nodeName string) {
-	requests, _ := resource.PodRequestsAndLimits(pod)
+	requests := resource.PodRequests(pod, resource.PodResourcesOptions{})
 	ephemeralStorageSize := requests[v1.ResourceEphemeralStorage]
 	localInlineVolumeSize := unified.CalcLocalInlineVolumeSize(pod.Spec.Volumes, pl.classLister)
 	if ephemeralStorageSize.IsZero() && localInlineVolumeSize == 0 {

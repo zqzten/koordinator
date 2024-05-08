@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Koordinator Authors.
+Copyright 2022 The Koordinator Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -37,20 +37,20 @@ type nodeEventHandler struct {
 	cache client.Reader
 }
 
-func (n *nodeEventHandler) Create(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+func (n *nodeEventHandler) Create(ctx context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
 	n.enqueue(e.Object, q)
 }
 
-func (n *nodeEventHandler) Update(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (n *nodeEventHandler) Update(ctx context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	nodeExpectations.Observe(e.ObjectNew)
 	n.enqueue(e.ObjectNew, q)
 }
 
-func (n *nodeEventHandler) Delete(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+func (n *nodeEventHandler) Delete(ctx context.Context, e event.DeleteEvent, q workqueue.RateLimitingInterface) {
 	n.enqueue(e.Object, q)
 }
 
-func (n *nodeEventHandler) Generic(e event.GenericEvent, q workqueue.RateLimitingInterface) {
+func (n *nodeEventHandler) Generic(ctx context.Context, e event.GenericEvent, q workqueue.RateLimitingInterface) {
 	n.enqueue(e.Object, q)
 }
 
@@ -110,19 +110,19 @@ func (n *nodeEventHandler) enqueue(obj client.Object, q workqueue.RateLimitingIn
 
 type qosGroupEventHandler struct{}
 
-func (h *qosGroupEventHandler) Create(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+func (h *qosGroupEventHandler) Create(ctx context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
 	h.enqueue(e.Object, q)
 }
 
-func (h *qosGroupEventHandler) Update(e event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (h *qosGroupEventHandler) Update(ctx context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	h.enqueue(e.ObjectNew, q)
 }
 
-func (h *qosGroupEventHandler) Delete(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
+func (h *qosGroupEventHandler) Delete(ctx context.Context, e event.DeleteEvent, q workqueue.RateLimitingInterface) {
 	return
 }
 
-func (h *qosGroupEventHandler) Generic(e event.GenericEvent, q workqueue.RateLimitingInterface) {
+func (h *qosGroupEventHandler) Generic(ctx context.Context, e event.GenericEvent, q workqueue.RateLimitingInterface) {
 	h.enqueue(e.Object, q)
 }
 

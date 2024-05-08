@@ -24,7 +24,6 @@ import (
 	v1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -35,9 +34,9 @@ type FakeLogicalResourceNodes struct {
 	Fake *FakeSchedulingV1alpha1
 }
 
-var logicalresourcenodesResource = schema.GroupVersionResource{Group: "scheduling.koordinator.sh", Version: "v1alpha1", Resource: "logicalresourcenodes"}
+var logicalresourcenodesResource = v1alpha1.SchemeGroupVersion.WithResource("logicalresourcenodes")
 
-var logicalresourcenodesKind = schema.GroupVersionKind{Group: "scheduling.koordinator.sh", Version: "v1alpha1", Kind: "LogicalResourceNode"}
+var logicalresourcenodesKind = v1alpha1.SchemeGroupVersion.WithKind("LogicalResourceNode")
 
 // Get takes name of the logicalResourceNode, and returns the corresponding logicalResourceNode object, and an error if there is any.
 func (c *FakeLogicalResourceNodes) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.LogicalResourceNode, err error) {

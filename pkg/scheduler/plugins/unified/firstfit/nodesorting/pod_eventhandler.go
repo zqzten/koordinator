@@ -39,7 +39,7 @@ func registerPodEventHandler(collection *baseNodeCollection, factory informers.S
 	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), factory, nodeInformer, eventHandler)
 }
 
-func (h *podEventHandler) OnAdd(obj interface{}) {
+func (h *podEventHandler) OnAdd(obj interface{}, isInInitialList bool) {
 	pod, _ := obj.(*corev1.Pod)
 	if pod == nil {
 		return

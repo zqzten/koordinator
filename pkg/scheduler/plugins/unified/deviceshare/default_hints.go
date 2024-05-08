@@ -45,7 +45,7 @@ func fillDefaultDeviceAllocateHint(pod *corev1.Pod) (*corev1.Pod, error) {
 		hints = apiext.DeviceAllocateHints{}
 	}
 
-	requests, _ := resource.PodRequestsAndLimits(pod)
+	requests := resource.PodRequests(pod, resource.PodResourcesOptions{})
 
 	// RunD 不仅需要直通 GPU，还要根据型号决定是否直通 NVSwitch，比如 A100/A800 都可以直通 NVSwitch 实现 GPU 间互联
 	if !declareNVSwitchHint(hints) &&

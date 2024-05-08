@@ -25,28 +25,24 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
-	storagev1beta1 "k8s.io/api/storage/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/apiserver/pkg/storage/etcd3"
+	"k8s.io/apiserver/pkg/storage"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	storageinformers "k8s.io/client-go/informers/storage/v1"
-	storageinformersv1beta1 "k8s.io/client-go/informers/storage/v1beta1"
 	clientset "k8s.io/client-go/kubernetes"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	storagelisters "k8s.io/client-go/listers/storage/v1"
-	storagelistersv1beta1 "k8s.io/client-go/listers/storage/v1beta1"
 	"k8s.io/client-go/tools/events"
 	storagehelpers "k8s.io/component-helpers/storage/volume"
 	csitrans "k8s.io/csi-translation-lib"
 	csiplugins "k8s.io/csi-translation-lib/plugins"
 	"k8s.io/klog/v2"
 	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
-	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/volumebinding/metrics"
 
 	"github.com/koordinator-sh/koordinator/apis/extension/unified"
@@ -219,7 +215,7 @@ type volumeBinder struct {
 
 	capacityCheckEnabled     bool
 	csiDriverLister          storagelisters.CSIDriverLister
-	csiStorageCapacityLister storagelistersv1beta1.CSIStorageCapacityLister
+	csiStorageCapacityLister storagelisters.CSIStorageCapacityLister
 
 	eventRecorder    events.EventRecorder
 	nodeStorageCache *NodeStorageInfoCache
@@ -230,7 +226,7 @@ type volumeBinder struct {
 // capacity is desired.
 type CapacityCheck struct {
 	CSIDriverInformer          storageinformers.CSIDriverInformer
-	CSIStorageCapacityInformer storageinformersv1beta1.CSIStorageCapacityInformer
+	CSIStorageCapacityInformer storageinformers.CSIStorageCapacityInformer
 }
 
 // NewVolumeBinder sets up all the caches needed for the scheduler to make volume binding decisions.
@@ -623,7 +619,7 @@ func (b *volumeBinder) bindAPIUpdate(assumedPod *v1.Pod, podName string, binding
 }
 
 var (
-	versioner = etcd3.APIObjectVersioner{}
+	versioner = storage.APIObjectVersioner{}
 )
 
 // checkBindings runs through all the PVCs in the Pod and checks:
@@ -790,7 +786,7 @@ func (b *volumeBinder) isVolumeBound(pod *v1.Pod, vol *v1.Volume) (bound bool, p
 	case vol.PersistentVolumeClaim != nil:
 		pvcName = vol.PersistentVolumeClaim.ClaimName
 	case vol.Ephemeral != nil:
-		if !utilfeature.DefaultFeatureGate.Enabled(features.GenericEphemeralVolume) {
+		if !utilfeature.DefaultFeatureGate.Enabled(koordfeature.GenericEphemeralVolume) {
 			return false, nil, fmt.Errorf(
 				"volume %s is a generic ephemeral volume, but that feature is disabled in kube-scheduler",
 				vol.Name,
@@ -1227,7 +1223,7 @@ func (b *volumeBinder) hasEnoughCapacity(provisioner string, claim *v1.Persisten
 	return false, nil
 }
 
-func capacitySufficient(capacity *storagev1beta1.CSIStorageCapacity, sizeInBytes int64) bool {
+func capacitySufficient(capacity *storagev1.CSIStorageCapacity, sizeInBytes int64) bool {
 	limit := capacity.Capacity
 	if capacity.MaximumVolumeSize != nil {
 		// Prefer MaximumVolumeSize if available, it is more precise.
@@ -1236,7 +1232,7 @@ func capacitySufficient(capacity *storagev1beta1.CSIStorageCapacity, sizeInBytes
 	return limit != nil && limit.Value() >= sizeInBytes
 }
 
-func (b *volumeBinder) nodeHasAccess(node *v1.Node, capacity *storagev1beta1.CSIStorageCapacity) bool {
+func (b *volumeBinder) nodeHasAccess(node *v1.Node, capacity *storagev1.CSIStorageCapacity) bool {
 	if capacity.NodeTopology == nil {
 		// Unavailable
 		return false
@@ -1272,13 +1268,13 @@ func (a byPVCSize) Less(i, j int) bool {
 func isCSIMigrationOnForPlugin(pluginName string) bool {
 	switch pluginName {
 	case csiplugins.AWSEBSInTreePluginName:
-		return utilfeature.DefaultFeatureGate.Enabled(features.CSIMigrationAWS)
+		return true
 	case csiplugins.GCEPDInTreePluginName:
-		return utilfeature.DefaultFeatureGate.Enabled(features.CSIMigrationGCE)
+		return true
 	case csiplugins.AzureDiskInTreePluginName:
-		return utilfeature.DefaultFeatureGate.Enabled(features.CSIMigrationAzureDisk)
+		return true
 	case csiplugins.CinderInTreePluginName:
-		return utilfeature.DefaultFeatureGate.Enabled(features.CSIMigrationOpenStack)
+		return true
 	}
 	return false
 }
@@ -1309,10 +1305,6 @@ func isPluginMigratedToCSIOnNode(pluginName string, csiNode *storagev1.CSINode) 
 // tryTranslatePVToCSI will translate the in-tree PV to CSI if it meets the criteria. If not, it returns the unmodified in-tree PV.
 func (b *volumeBinder) tryTranslatePVToCSI(pv *v1.PersistentVolume, csiNode *storagev1.CSINode) (*v1.PersistentVolume, error) {
 	if !b.translator.IsPVMigratable(pv) {
-		return pv, nil
-	}
-
-	if !utilfeature.DefaultFeatureGate.Enabled(features.CSIMigration) {
 		return pv, nil
 	}
 

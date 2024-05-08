@@ -19,6 +19,7 @@ package volumebinding
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -80,6 +81,14 @@ func newTestSharedLister(pods []*v1.Pod, nodes []*v1.Node) *testSharedLister {
 		nodeInfos:   nodeInfos,
 		nodeInfoMap: nodeInfoMap,
 	}
+}
+
+func (f *testSharedLister) StorageInfos() framework.StorageInfoLister {
+	return f
+}
+
+func (f *testSharedLister) IsPVCUsedByPods(key string) bool {
+	return false
 }
 
 func (f *testSharedLister) NodeInfos() framework.NodeInfoLister {
@@ -747,7 +756,7 @@ func TestVolumeBindingWithLocalPV(t *testing.T) {
 				runtime.WithClientSet(client),
 				runtime.WithInformerFactory(informerFactory),
 			}
-			fh, err := runtime.NewFramework(nil, nil, opts...)
+			fh, err := runtime.NewFramework(context.TODO(), nil, nil, opts...)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -975,7 +984,7 @@ func TestVolumeBindingWithLocalPVPreemption(t *testing.T) {
 				runtime.WithClientSet(client),
 				runtime.WithInformerFactory(informerFactory),
 			}
-			fh, err := runtime.NewFramework(nil, nil, opts...)
+			fh, err := runtime.NewFramework(context.TODO(), nil, nil, opts...)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1080,7 +1089,8 @@ func TestVolumeBindingWithLocalPVPreemption(t *testing.T) {
 			volume.PersistentVolumeClaim.ClaimName = "fake"
 			item.existingPod.Spec.Volumes = append(item.existingPod.Spec.Volumes, volume)
 
-			pl.(*VolumeBinding).RemovePod(ctx, state, item.pod, framework.NewPodInfo(item.existingPod), nodeInfo)
+			podInfo, _ := framework.NewPodInfo(item.existingPod)
+			pl.(*VolumeBinding).RemovePod(ctx, state, item.pod, podInfo, nodeInfo)
 
 			t.Logf("Verify: check state after prefilterRemove phase")
 			stateData, err = getStateData(state)
@@ -1099,7 +1109,8 @@ func TestVolumeBindingWithLocalPVPreemption(t *testing.T) {
 				t.Errorf("filter status does not match: %v, want: %v", gotStatus, item.wantFilterStatusAfterPreFilterRemove)
 			}
 
-			pl.(*VolumeBinding).AddPod(ctx, state, item.pod, framework.NewPodInfo(item.existingPod), nodeInfo)
+			podInfo, _ = framework.NewPodInfo(item.existingPod)
+			pl.(*VolumeBinding).AddPod(ctx, state, item.pod, podInfo, nodeInfo)
 
 			t.Logf("Verify: check state after prefilterAdd phase")
 			stateData, err = getStateData(state)
@@ -1417,7 +1428,7 @@ func TestVolumePreAssignFilterForLocalPV(t *testing.T) {
 				runtime.WithClientSet(client),
 				runtime.WithInformerFactory(informerFactory),
 			}
-			fh, err := runtime.NewFramework(nil, nil, opts...)
+			fh, err := runtime.NewFramework(context.TODO(), nil, nil, opts...)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1675,7 +1686,7 @@ func TestCloudStorageAdapterScheduling(t *testing.T) {
 			pvcs: []*v1.PersistentVolumeClaim{
 				makePVC("cloud-storage-pvc1", "", "cloud-storage-sc1"),
 			},
-			wantAssignStatus: framework.NewStatus(1, string(ErrReasonNodeConflict)),
+			wantAssignStatus: framework.AsStatus(errors.New(string(ErrReasonNodeConflict))),
 		},
 		{
 			name: "pvc is pending and node has different disk type",
@@ -1713,7 +1724,7 @@ func TestCloudStorageAdapterScheduling(t *testing.T) {
 			pvcs: []*v1.PersistentVolumeClaim{
 				makePVC("cloud-storage-pvc1", "", "cloud-storage-sc2"),
 			},
-			wantAssignStatus: framework.NewStatus(1, string(ErrReasonNodeConflict)),
+			wantAssignStatus: framework.AsStatus(errors.New(string(ErrReasonNodeConflict))),
 		},
 		{
 			name: "pvc is pending and node doesn't have disk type",
@@ -1813,7 +1824,7 @@ func TestCloudStorageAdapterScheduling(t *testing.T) {
 				runtime.WithClientSet(client),
 				runtime.WithInformerFactory(informerFactory),
 			}
-			fh, err := runtime.NewFramework(nil, nil, opts...)
+			fh, err := runtime.NewFramework(context.TODO(), nil, nil, opts...)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2387,7 +2398,7 @@ func TestVolumeAssignAndUnAssignLocalPVAndMultiVolumeLocalPV(t *testing.T) {
 				runtime.WithInformerFactory(informerFactory),
 				runtime.WithSnapshotSharedLister(newTestSharedLister(nil, []*v1.Node{item.node})),
 			}
-			fh, err := runtime.NewFramework(nil, nil, opts...)
+			fh, err := runtime.NewFramework(context.TODO(), nil, nil, opts...)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2620,7 +2631,7 @@ func TestVolumeBinding_replaceStorageClassNameIfNeeded(t *testing.T) {
 				runtime.WithInformerFactory(informerFactory),
 				runtime.WithSnapshotSharedLister(newTestSharedLister(nil, []*v1.Node{tt.node})),
 			}
-			fh, err := runtime.NewFramework(nil, nil, opts...)
+			fh, err := runtime.NewFramework(context.TODO(), nil, nil, opts...)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2677,7 +2688,7 @@ func TestVolumeBinding_setProvisionDeniedIfNeed(t *testing.T) {
 				runtime.WithInformerFactory(informerFactory),
 				runtime.WithSnapshotSharedLister(newTestSharedLister(nil, []*v1.Node{tt.node})),
 			}
-			fh, err := runtime.NewFramework(nil, nil, opts...)
+			fh, err := runtime.NewFramework(context.TODO(), nil, nil, opts...)
 			if err != nil {
 				t.Fatal(err)
 			}

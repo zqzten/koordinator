@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Koordinator Authors.
+Copyright 2022 The Koordinator Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,7 +30,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
@@ -146,14 +145,12 @@ func (r *LogicalResourceNodeReconciler) setup(mgr ctrl.Manager, cfg *lrnutil.Con
 	builder := ctrl.NewControllerManagedBy(mgr).
 		For(&schedulingv1alpha1.LogicalResourceNode{}).
 		WithOptions(controller.Options{MaxConcurrentReconciles: *workerNumFlag}).
-		Watches(&source.Kind{Type: &schedulingv1alpha1.Reservation{}}, &handler.EnqueueRequestForOwner{
-			OwnerType:    &schedulingv1alpha1.LogicalResourceNode{},
-			IsController: true,
-		}).
-		Watches(&source.Kind{Type: &corev1.Node{}}, &nodeEventHandler{cache: mgr.GetCache()}).
+		Watches(&schedulingv1alpha1.Reservation{}, handler.EnqueueRequestForOwner(
+			mgr.GetScheme(), mgr.GetRESTMapper(), &schedulingv1alpha1.LogicalResourceNode{}, handler.OnlyControllerOwner())).
+		Watches(&corev1.Node{}, &nodeEventHandler{cache: mgr.GetCache()}).
 		Named("logicalresourcenode")
 	if cfg.Common.EnableQoSGroup {
-		builder.Watches(&source.Kind{Type: &terwayapis.ENIQosGroup{}}, &qosGroupEventHandler{})
+		builder.Watches(&terwayapis.ENIQosGroup{}, &qosGroupEventHandler{})
 	}
 	return builder.Complete(r)
 }

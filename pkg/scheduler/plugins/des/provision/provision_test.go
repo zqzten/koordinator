@@ -1,3 +1,19 @@
+/*
+Copyright 2022 The Koordinator Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package provision
 
 import (
@@ -54,6 +70,14 @@ func (f *testSharedLister) Get(nodeName string) (*framework.NodeInfo, error) {
 	return f.nodeInfoMap[nodeName], nil
 }
 
+func (f *testSharedLister) StorageInfos() framework.StorageInfoLister {
+	return f
+}
+
+func (f *testSharedLister) IsPVCUsedByPods(key string) bool {
+	return false
+}
+
 func newTestSharedLister(pods []*corev1.Pod, nodes []*corev1.Node) *testSharedLister {
 	nodeInfoMap := make(map[string]*framework.NodeInfo)
 	nodeInfos := make([]*framework.NodeInfo, 0)
@@ -98,7 +122,7 @@ func TestNew(t *testing.T) {
 		schedulertesting.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 		schedulertesting.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 	}
-	fh, err := schedulertesting.NewFramework(registeredPlugins, "koord-scheduler",
+	fh, err := schedulertesting.NewFramework(context.TODO(), registeredPlugins, "koord-scheduler",
 		frameworkruntime.WithClientSet(cs),
 		frameworkruntime.WithInformerFactory(informerFactory),
 		frameworkruntime.WithSnapshotSharedLister(snapshot),
@@ -212,7 +236,7 @@ func newPluginTestCtrl(t *testing.T, pod []*corev1.Pod, nodes []*corev1.Node) *P
 		schedulertesting.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 		schedulertesting.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 	}
-	fh, err := schedulertesting.NewFramework(registeredPlugins, "koord-scheduler",
+	fh, err := schedulertesting.NewFramework(context.TODO(), registeredPlugins, "koord-scheduler",
 		frameworkruntime.WithClientSet(cs),
 		frameworkruntime.WithInformerFactory(informerFactory),
 		frameworkruntime.WithSnapshotSharedLister(snapshot),

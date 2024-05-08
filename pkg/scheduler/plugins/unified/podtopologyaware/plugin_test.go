@@ -135,6 +135,7 @@ func TestPreFilter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			snapshot := newTestSharedLister(nodes)
 			fh, err := schedulertesting.NewFramework(
+				context.TODO(),
 				[]schedulertesting.RegisterPluginFunc{
 					schedulertesting.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 					schedulertesting.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),

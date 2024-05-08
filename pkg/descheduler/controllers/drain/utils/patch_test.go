@@ -344,7 +344,9 @@ func TestToggleDrainNodeState(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(tt.fields.objs...).Build()
+			c := fake.NewClientBuilder().WithScheme(scheme).
+				WithStatusSubresource(&v1alpha1.DrainNode{}).
+				WithRuntimeObjects(tt.fields.objs...).Build()
 			eventBroadcaster := record.NewBroadcaster()
 			recorder := eventBroadcaster.NewRecorder(scheme, v1.EventSource{Component: "patch_test"})
 			eventRecorder := record.NewEventRecorderAdapter(recorder)

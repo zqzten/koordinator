@@ -45,7 +45,7 @@ import (
 	schedulingv1alpha1listers "github.com/koordinator-sh/koordinator/pkg/client/listers/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/features"
 	schedulingconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
-	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta2"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta3"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/deviceshare"
 )
@@ -112,13 +112,13 @@ func getDeviceShareArgs(obj runtime.Object) (*schedulingconfig.DeviceShareArgs, 
 	if !ok {
 		return nil, fmt.Errorf("got args of type %T, want *DeviceShareArgs", obj)
 	}
-	var v1beta2args v1beta2.DeviceShareArgs
-	v1beta2.SetDefaults_DeviceShareArgs(&v1beta2args)
-	if err := frameworkruntime.DecodeInto(unknownObj, &v1beta2args); err != nil {
+	var v1beta3args v1beta3.DeviceShareArgs
+	v1beta3.SetDefaults_DeviceShareArgs(&v1beta3args)
+	if err := frameworkruntime.DecodeInto(unknownObj, &v1beta3args); err != nil {
 		return nil, err
 	}
 	var args schedulingconfig.DeviceShareArgs
-	err := v1beta2.Convert_v1beta2_DeviceShareArgs_To_config_DeviceShareArgs(&v1beta2args, &args, nil)
+	err := v1beta3.Convert_v1beta3_DeviceShareArgs_To_config_DeviceShareArgs(&v1beta3args, &args, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -126,10 +126,10 @@ func getDeviceShareArgs(obj runtime.Object) (*schedulingconfig.DeviceShareArgs, 
 }
 
 func getDefaultDeviceShareArgs() (*schedulingconfig.DeviceShareArgs, error) {
-	var v1beta2args v1beta2.DeviceShareArgs
-	v1beta2.SetDefaults_DeviceShareArgs(&v1beta2args)
+	var v1beta3args v1beta3.DeviceShareArgs
+	v1beta3.SetDefaults_DeviceShareArgs(&v1beta3args)
 	var defaultDeviceShareArgs schedulingconfig.DeviceShareArgs
-	err := v1beta2.Convert_v1beta2_DeviceShareArgs_To_config_DeviceShareArgs(&v1beta2args, &defaultDeviceShareArgs, nil)
+	err := v1beta3.Convert_v1beta3_DeviceShareArgs_To_config_DeviceShareArgs(&v1beta3args, &defaultDeviceShareArgs, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -384,7 +384,7 @@ func appendKoordGPUMemoryRatioIfNeeded(pod *corev1.Pod, deviceAllocations apiext
 		return nil
 	}
 
-	podRequests, _ := resource.PodRequestsAndLimits(pod)
+	podRequests := resource.PodRequests(pod, resource.PodResourcesOptions{})
 	if quantity := podRequests[ack.ResourceAliyunGPUMemory]; quantity.IsZero() {
 		return nil
 	}

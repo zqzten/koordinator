@@ -53,7 +53,7 @@ import (
 	koordinatorinformers "github.com/koordinator-sh/koordinator/pkg/client/informers/externalversions"
 	"github.com/koordinator-sh/koordinator/pkg/features"
 	schedulingconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
-	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta2"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta3"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 	frameworkexttesting "github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/testing"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/nodenumaresource"
@@ -98,6 +98,14 @@ func newTestSharedLister(pods []*corev1.Pod, nodes []*corev1.Node) *testSharedLi
 	}
 }
 
+func (f *testSharedLister) StorageInfos() framework.StorageInfoLister {
+	return f
+}
+
+func (f *testSharedLister) IsPVCUsedByPods(key string) bool {
+	return false
+}
+
 func (f *testSharedLister) NodeInfos() framework.NodeInfoLister {
 	return f
 }
@@ -132,10 +140,10 @@ type pluginTestSuit struct {
 }
 
 func newPluginTestSuit(t *testing.T, pods []*corev1.Pod, nodes []*corev1.Node) *pluginTestSuit {
-	var v1beta2args v1beta2.NodeNUMAResourceArgs
-	v1beta2.SetDefaults_NodeNUMAResourceArgs(&v1beta2args)
+	var v1beta3args v1beta3.NodeNUMAResourceArgs
+	v1beta3.SetDefaults_NodeNUMAResourceArgs(&v1beta3args)
 	var nodeNUMAResourceArgs schedulingconfig.NodeNUMAResourceArgs
-	err := v1beta2.Convert_v1beta2_NodeNUMAResourceArgs_To_config_NodeNUMAResourceArgs(&v1beta2args, &nodeNUMAResourceArgs, nil)
+	err := v1beta3.Convert_v1beta3_NodeNUMAResourceArgs_To_config_NodeNUMAResourceArgs(&v1beta3args, &nodeNUMAResourceArgs, nil)
 	assert.NoError(t, err)
 
 	nrtClientSet := nrtfake.NewSimpleClientset()
@@ -173,6 +181,7 @@ func newPluginTestSuit(t *testing.T, pods []*corev1.Pod, nodes []*corev1.Node) *
 	informerFactory := informers.NewSharedInformerFactory(cs, 0)
 	snapshot := newTestSharedLister(pods, nodes)
 	fh, err := schedulertesting.NewFramework(
+		context.TODO(),
 		registeredPlugins,
 		"koord-scheduler",
 		frameworkruntime.WithClientSet(cs),

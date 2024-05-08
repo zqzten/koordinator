@@ -16,14 +16,14 @@ limitations under the License.
 
 package main
 
-import (
-	unifiedjoboversold "github.com/koordinator-sh/scheduler-plugins/pkg/plugins/joboversold"
-	unifiednetworktopology "github.com/koordinator-sh/scheduler-plugins/pkg/plugins/networktopology"
-	unifiedscheduleadmission "github.com/koordinator-sh/scheduler-plugins/pkg/plugins/scheduleadmission"
-)
-
-func init() {
-	koordinatorPlugins[unifiednetworktopology.Name] = unifiednetworktopology.New
-	koordinatorPlugins[unifiedjoboversold.Name] = unifiedjoboversold.New
-	koordinatorPlugins[unifiedscheduleadmission.Name] = unifiedscheduleadmission.New
-}
+//import (
+//	unifiedjoboversold "github.com/koordinator-sh/scheduler-plugins/pkg/plugins/joboversold"
+//	unifiednetworktopology "github.com/koordinator-sh/scheduler-plugins/pkg/plugins/networktopology"
+//	unifiedscheduleadmission "github.com/koordinator-sh/scheduler-plugins/pkg/plugins/scheduleadmission"
+//)
+//
+//func init() {
+//	koordinatorPlugins[unifiednetworktopology.Name] = unifiednetworktopology.New
+//	koordinatorPlugins[unifiedjoboversold.Name] = unifiedjoboversold.New
+//	koordinatorPlugins[unifiedscheduleadmission.Name] = unifiedscheduleadmission.New
+//}

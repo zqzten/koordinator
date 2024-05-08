@@ -27,8 +27,9 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	schedclientsetfake "sigs.k8s.io/scheduler-plugins/pkg/generated/clientset/versioned/fake"
-	schedinformer "sigs.k8s.io/scheduler-plugins/pkg/generated/informers/externalversions"
+
+	schedclientsetfake "github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/generated/clientset/versioned/fake"
+	schedinformer "github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/generated/informers/externalversions"
 )
 
 func TestQuotaSyncControllerReconcile(t *testing.T) {

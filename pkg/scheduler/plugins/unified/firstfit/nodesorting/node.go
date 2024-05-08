@@ -79,7 +79,7 @@ func (n *Node) AddPod(pod *corev1.Pod) {
 		return
 	}
 
-	requests, _ := resource.PodRequestsAndLimits(pod)
+	requests := resource.PodRequests(pod, resource.PodResourcesOptions{})
 	n.requested = quotav1.Add(n.requested, requests)
 	n.pods.Insert(podKey)
 }
@@ -97,11 +97,11 @@ func (n *Node) UpdatePod(oldPod, newPod *corev1.Pod) {
 	}
 
 	if oldPod != nil {
-		requests, _ := resource.PodRequestsAndLimits(oldPod)
+		requests := resource.PodRequests(oldPod, resource.PodResourcesOptions{})
 		n.requested = quotav1.SubtractWithNonNegativeResult(n.requested, requests)
 	}
 
-	requests, _ := resource.PodRequestsAndLimits(newPod)
+	requests := resource.PodRequests(newPod, resource.PodResourcesOptions{})
 	n.requested = quotav1.Add(n.requested, requests)
 }
 
@@ -117,6 +117,6 @@ func (n *Node) DeletePod(pod *corev1.Pod) {
 		return
 	}
 
-	requests, _ := resource.PodRequestsAndLimits(pod)
+	requests := resource.PodRequests(pod, resource.PodResourcesOptions{})
 	n.requested = quotav1.SubtractWithNonNegativeResult(n.requested, requests)
 }

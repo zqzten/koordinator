@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"log"
 	"net"
+	"time"
 
 	cachepodapis "gitlab.alibaba-inc.com/cache/api/pb/generated"
 	"google.golang.org/grpc"
@@ -61,7 +62,7 @@ func New(obj runtime.Object, handle framework.Handle) (framework.Plugin, error) 
 	isLeader := false
 	extendHandle := handle.(frameworkext.ExtendedHandle)
 	addInQFn := func(pod *corev1.Pod) error {
-		return extendHandle.Scheduler().GetSchedulingQueue().Add(pod)
+		return extendHandle.Scheduler().GetSchedulingQueue().Add(klog.Background(), pod)
 	}
 	deleteFromQFn := func(pod *corev1.Pod) error {
 		return extendHandle.Scheduler().GetSchedulingQueue().Delete(pod)
@@ -115,13 +116,13 @@ func (pl *Plugin) Start() {
 	*pl.isLeader = true
 }
 
-func (pl *Plugin) ErrorHandler(podInfo *framework.QueuedPodInfo, err error) bool {
+func (pl *Plugin) ErrorHandler(ctx context.Context, fwk framework.Framework, podInfo *framework.QueuedPodInfo, status *framework.Status, nominatingInfo *framework.NominatingInfo, start time.Time) bool {
 	if !IsPodFromGRPC(podInfo.Pod) {
 		return false
 	}
 
-	klog.V(4).InfoS("failed to find available cached pods, try to return the failed result", "pod", klog.KObj(podInfo.Pod), "err", err)
-	pl.server.completeRequest(podInfo.Pod, nil, err)
+	klog.V(4).InfoS("failed to find available cached pods, try to return the failed result", "pod", klog.KObj(podInfo.Pod), "err", status.AsError())
+	pl.server.completeRequest(podInfo.Pod, nil, status.AsError())
 	return true
 }
 

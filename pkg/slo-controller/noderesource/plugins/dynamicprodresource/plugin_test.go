@@ -26,7 +26,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/clock"
+	clock "k8s.io/utils/clock/testing"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -333,7 +333,7 @@ type fakeCtrlClient struct {
 	cachedObj *unified.Machine
 }
 
-func (f *fakeCtrlClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+func (f *fakeCtrlClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 	machine, ok := obj.(*unified.Machine)
 	if !ok {
 		return fmt.Errorf("unexpected obj type %T", obj)
@@ -1338,7 +1338,7 @@ func TestPlugin_getNodeDynamicProdResourceConfig(t *testing.T) {
 func TestPlugin_isDegradeNeeded(t *testing.T) {
 	const degradeTimeoutMinutes = 10
 	type fields struct {
-		Clock clock.Clock
+		Clock *clock.FakeClock
 	}
 	type args struct {
 		strategy   *configuration.ColocationStrategy

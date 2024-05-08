@@ -60,7 +60,7 @@ func RegisterPodConstraintEventHandler(handle framework.Handle, podConstraintCac
 	return nil
 }
 
-func (p podConstraintEventHandler) OnAdd(obj interface{}) {
+func (p podConstraintEventHandler) OnAdd(obj interface{}, isInInitialList bool) {
 	constraint := toPodConstraint(obj)
 	if constraint == nil {
 		return

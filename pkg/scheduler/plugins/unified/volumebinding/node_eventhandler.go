@@ -36,7 +36,7 @@ func registerNodeEventHandler(informerFactory informers.SharedInformerFactory, c
 	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), informerFactory, nodeInformer, &nodeEventHandler{cache: cache})
 }
 
-func (e *nodeEventHandler) OnAdd(obj interface{}) {
+func (e *nodeEventHandler) OnAdd(obj interface{}, isInInitialList bool) {
 	node, ok := obj.(*v1.Node)
 	if !ok {
 		return

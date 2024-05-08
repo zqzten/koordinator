@@ -77,6 +77,14 @@ func newTestSharedLister(pods []*corev1.Pod, nodes []*corev1.Node) *testSharedLi
 	}
 }
 
+func (f *testSharedLister) StorageInfos() framework.StorageInfoLister {
+	return f
+}
+
+func (f *testSharedLister) IsPVCUsedByPods(key string) bool {
+	return false
+}
+
 func (f *testSharedLister) NodeInfos() framework.NodeInfoLister {
 	return f
 }
@@ -125,6 +133,7 @@ func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
 	informerFactory := informers.NewSharedInformerFactory(cs, 0)
 	snapshot := newTestSharedLister(nil, nodes)
 	fh, err := schedulertesting.NewFramework(
+		context.TODO(),
 		registeredPlugins,
 		"koord-scheduler",
 		runtime.WithClientSet(cs),

@@ -25,9 +25,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
-	scheduledconfigv1beta2config "k8s.io/kube-scheduler/config/v1beta2"
+	scheduledconfigv1beta3 "k8s.io/kube-scheduler/config/v1beta3"
 	schedconfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
-	"k8s.io/kubernetes/pkg/scheduler/apis/config/v1beta2"
+	"k8s.io/kubernetes/pkg/scheduler/apis/config/v1beta3"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	kubenodeaffinity "k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeaffinity"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
@@ -92,14 +92,14 @@ func (pl *NodeAffinity) PreFilter(ctx context.Context, cycleState *framework.Cyc
 
 	// Check if there is affinity to a specific node and return it.
 	terms := affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
-	var nodeNames sets.String
+	var nodeNames sets.Set[string]
 	for _, t := range terms {
-		var termNodeNames sets.String
+		var termNodeNames sets.Set[string]
 		for _, r := range t.MatchFields {
 			if r.Key == metav1.ObjectNameField && r.Operator == corev1.NodeSelectorOpIn {
 				// The requirements represent ANDed constraints, and so we need to
 				// find the intersection of nodes.
-				s := sets.NewString(r.Values...)
+				s := sets.New[string](r.Values...)
 				if termNodeNames == nil {
 					termNodeNames = s
 				} else {
@@ -189,12 +189,12 @@ func getArgs(obj runtime.Object) (*schedconfig.NodeAffinityArgs, error) {
 		return nil, fmt.Errorf("got args of type %T, want *NodeAffinityArgs", obj)
 	}
 
-	var v1beta2args scheduledconfigv1beta2config.NodeAffinityArgs
-	if err := frameworkruntime.DecodeInto(unknownObj, &v1beta2args); err != nil {
+	var v1beta3args scheduledconfigv1beta3.NodeAffinityArgs
+	if err := frameworkruntime.DecodeInto(unknownObj, &v1beta3args); err != nil {
 		return nil, err
 	}
 	var nodeAffinityArgs schedconfig.NodeAffinityArgs
-	err := v1beta2.Convert_v1beta2_NodeAffinityArgs_To_config_NodeAffinityArgs(&v1beta2args, &nodeAffinityArgs, nil)
+	err := v1beta3.Convert_v1beta3_NodeAffinityArgs_To_config_NodeAffinityArgs(&v1beta3args, &nodeAffinityArgs, nil)
 	if err != nil {
 		return nil, err
 	}

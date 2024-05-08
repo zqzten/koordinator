@@ -35,7 +35,7 @@ import (
 var NowFn = time.Now
 
 func AppendAckAnnotationsIfHasGPUCompute(pod *corev1.Pod, device *schedulingv1alpha1.Device, allocations extension.DeviceAllocations) {
-	requests, _ := k8sresource.PodRequestsAndLimits(pod)
+	requests := k8sresource.PodRequests(pod, k8sresource.PodResourcesOptions{})
 	if quantity := requests[ResourceAliyunGPUCompute]; quantity.IsZero() {
 		return
 	}

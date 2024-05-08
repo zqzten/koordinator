@@ -72,7 +72,7 @@ func TestGetRundStats(t *testing.T) {
 
 	got, err := GetRundStats(sandboxID)
 	assert.NoError(t, err)
-	assert.Equal(t, expected, got)
+	assert.Equal(t, expected.String(), got.String())
 }
 
 func TestGetRundPodStats(t *testing.T) {

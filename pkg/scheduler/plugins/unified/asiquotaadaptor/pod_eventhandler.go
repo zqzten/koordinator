@@ -39,7 +39,7 @@ func registerPodEventHandler(cache *ASIQuotaCache, factory informers.SharedInfor
 	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), factory, podInformer, handler)
 }
 
-func (h *podEventHandler) OnAdd(obj interface{}) {
+func (h *podEventHandler) OnAdd(obj interface{}, isInInitialList bool) {
 	pod, _ := obj.(*corev1.Pod)
 	if pod == nil {
 		return

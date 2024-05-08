@@ -38,6 +38,7 @@ import (
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 
 	"github.com/koordinator-sh/koordinator/apis/extension/unified"
+	koordfeature "github.com/koordinator-sh/koordinator/pkg/features"
 )
 
 const (
@@ -121,28 +122,28 @@ func (pl *VolumeBinding) Name() string {
 
 // EventsToRegister returns the possible events that may make a Pod
 // failed by this plugin schedulable.
-func (pl *VolumeBinding) EventsToRegister() []framework.ClusterEvent {
-	events := []framework.ClusterEvent{
+func (pl *VolumeBinding) EventsToRegister() []framework.ClusterEventWithHint {
+	events := []framework.ClusterEventWithHint{
 		// Pods may fail because of missing or mis-configured storage class
 		// (e.g., allowedTopologies, volumeBindingMode), and hence may become
 		// schedulable upon StorageClass Add or Update events.
-		{Resource: framework.StorageClass, ActionType: framework.Add | framework.Update},
+		{Event: framework.ClusterEvent{Resource: framework.StorageClass, ActionType: framework.Add | framework.Update}},
 		// We bind PVCs with PVs, so any changes may make the pods schedulable.
-		{Resource: framework.PersistentVolumeClaim, ActionType: framework.Add | framework.Update},
-		{Resource: framework.PersistentVolume, ActionType: framework.Add | framework.Update},
+		{Event: framework.ClusterEvent{Resource: framework.PersistentVolumeClaim, ActionType: framework.Add | framework.Update}},
+		{Event: framework.ClusterEvent{Resource: framework.PersistentVolume, ActionType: framework.Add | framework.Update}},
 		// Pods may fail to find available PVs because the node labels do not
 		// match the storage class's allowed topologies or PV's node affinity.
 		// A new or updated node may make pods schedulable.
-		{Resource: framework.Node, ActionType: framework.Add | framework.Update},
+		{Event: framework.ClusterEvent{Resource: framework.Node, ActionType: framework.Add | framework.Update}},
 		// We rely on CSI node to translate in-tree PV to CSI.
-		{Resource: framework.CSINode, ActionType: framework.Add | framework.Update},
+		{Event: framework.ClusterEvent{Resource: framework.CSINode, ActionType: framework.Add | framework.Update}},
 	}
-	if utilfeature.DefaultFeatureGate.Enabled(features.CSIStorageCapacity) {
+	if utilfeature.DefaultFeatureGate.Enabled(koordfeature.CSIStorageCapacity) {
 		// When CSIStorageCapacity is enabled, pods may become schedulable
 		// on CSI driver & storage capacity changes.
-		events = append(events, []framework.ClusterEvent{
-			{Resource: framework.CSIDriver, ActionType: framework.Add | framework.Update},
-			{Resource: framework.CSIStorageCapacity, ActionType: framework.Add | framework.Update},
+		events = append(events, []framework.ClusterEventWithHint{
+			{Event: framework.ClusterEvent{Resource: framework.CSIDriver, ActionType: framework.Add | framework.Update}},
+			{Event: framework.ClusterEvent{Resource: framework.CSIStorageCapacity, ActionType: framework.Add | framework.Update}},
 		}...)
 	}
 	return events
@@ -442,10 +443,10 @@ func New(plArgs runtime.Object, fh framework.Handle) (framework.Plugin, error) {
 	csiNodeInformer := fh.SharedInformerFactory().Storage().V1().CSINodes()
 	csiDriverInformer := fh.SharedInformerFactory().Storage().V1().CSIDrivers()
 	var capacityCheck *CapacityCheck
-	if utilfeature.DefaultFeatureGate.Enabled(features.CSIStorageCapacity) {
+	if utilfeature.DefaultFeatureGate.Enabled(koordfeature.CSIStorageCapacity) {
 		capacityCheck = &CapacityCheck{
 			CSIDriverInformer:          csiDriverInformer,
-			CSIStorageCapacityInformer: fh.SharedInformerFactory().Storage().V1beta1().CSIStorageCapacities(),
+			CSIStorageCapacityInformer: fh.SharedInformerFactory().Storage().V1().CSIStorageCapacities(),
 		}
 	}
 	binder := NewVolumeBinder(fh.ClientSet(), podInformer, nodeInformer, csiNodeInformer, csiDriverInformer, pvcInformer, pvInformer, storageClassInformer, capacityCheck, time.Duration(args.BindTimeoutSeconds)*time.Second, fh.EventRecorder(), nodeStorageCache)
@@ -465,7 +466,7 @@ func New(plArgs runtime.Object, fh framework.Handle) (framework.Plugin, error) {
 	return &VolumeBinding{
 		Binder:                               binder,
 		PVCLister:                            pvcInformer.Lister(),
-		GenericEphemeralVolumeFeatureEnabled: utilfeature.DefaultFeatureGate.Enabled(features.GenericEphemeralVolume),
+		GenericEphemeralVolumeFeatureEnabled: utilfeature.DefaultFeatureGate.Enabled(koordfeature.GenericEphemeralVolume),
 		scorer:                               scorer,
 
 		handle:           fh,

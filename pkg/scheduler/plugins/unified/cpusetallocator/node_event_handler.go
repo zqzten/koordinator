@@ -45,7 +45,7 @@ func registerNodeEventHandler(handle framework.Handle, topologyManager nodenumar
 	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), handle.SharedInformerFactory(), nodeInformer, eventHandler)
 }
 
-func (c *nodeEventHandler) OnAdd(obj interface{}) {
+func (c *nodeEventHandler) OnAdd(obj interface{}, isInInitialList bool) {
 	node, ok := obj.(*corev1.Node)
 	if !ok {
 		return

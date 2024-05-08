@@ -51,7 +51,7 @@ func registerPVCEventHandler(informerFactory informers.SharedInformerFactory, ca
 	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), informerFactory, pvcInformer, eventHandler)
 }
 
-func (e *pvcEventHandler) OnAdd(obj interface{}) {
+func (e *pvcEventHandler) OnAdd(obj interface{}, isInInitialList bool) {
 	pvc, ok := obj.(*v1.PersistentVolumeClaim)
 	if !ok {
 		return

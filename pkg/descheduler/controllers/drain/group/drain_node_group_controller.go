@@ -74,14 +74,12 @@ func NewDrainNodeGroupController(args runtime.Object, handle framework.Handle) (
 		return nil, err
 	}
 
-	if err = c.Watch(&source.Kind{Type: &v1alpha1.DrainNodeGroup{}}, &handler.EnqueueRequestForObject{}); err != nil {
+	if err = c.Watch(source.Kind(options.Manager.GetCache(), &v1alpha1.DrainNodeGroup{}), &handler.EnqueueRequestForObject{}); err != nil {
 		return nil, err
 	}
 
-	if err = c.Watch(&source.Kind{Type: &v1alpha1.DrainNode{}}, &handler.EnqueueRequestForOwner{
-		IsController: true,
-		OwnerType:    &v1alpha1.DrainNodeGroup{},
-	}); err != nil {
+	if err = c.Watch(source.Kind(options.Manager.GetCache(), &v1alpha1.DrainNode{}), handler.EnqueueRequestForOwner(
+		options.Manager.GetScheme(), options.Manager.GetRESTMapper(), &v1alpha1.DrainNode{}, handler.OnlyControllerOwner())); err != nil {
 		return nil, err
 	}
 	return r, nil

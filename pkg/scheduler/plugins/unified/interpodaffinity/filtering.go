@@ -184,7 +184,7 @@ func (pl *InterPodAffinity) getExistingAntiAffinityCounts(pod *v1.Pod, nsLabels 
 			topoMaps[atomic.AddInt32(&index, 1)] = topoMap
 		}
 	}
-	pl.handle.Parallelizer().Until(context.Background(), len(nodes), processNode)
+	pl.handle.Parallelizer().Until(context.Background(), len(nodes), processNode, pl.Name())
 
 	result := make(topologyToMatchedTermCount)
 	for i := 0; i <= int(index); i++ {
@@ -230,7 +230,7 @@ func (pl *InterPodAffinity) getIncomingAffinityAntiAffinityCounts(podInfo *frame
 			antiAffinityCountsList[k] = antiAffinity
 		}
 	}
-	pl.handle.Parallelizer().Until(context.Background(), len(allNodes), processNode)
+	pl.handle.Parallelizer().Until(context.Background(), len(allNodes), processNode, pl.Name())
 
 	for i := 0; i <= int(index); i++ {
 		affinityCounts.append(affinityCountsList[i])
@@ -256,9 +256,9 @@ func (pl *InterPodAffinity) PreFilter(ctx context.Context, cycleState *framework
 		enableNamespaceSelector: pl.enableNamespaceSelector,
 	}
 
-	s.podInfo = framework.NewPodInfo(pod)
-	if s.podInfo.ParseError != nil {
-		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, fmt.Sprintf("parsing pod: %+v", s.podInfo.ParseError))
+	s.podInfo, err = framework.NewPodInfo(pod)
+	if err != nil {
+		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, fmt.Sprintf("parsing pod: %+v", err))
 	}
 
 	if pl.enableNamespaceSelector {
@@ -272,7 +272,8 @@ func (pl *InterPodAffinity) PreFilter(ctx context.Context, cycleState *framework
 				return nil, framework.AsStatus(err)
 			}
 		}
-		s.namespaceLabels = interpodaffinity.GetNamespaceLabelsSnapshot(pod.Namespace, pl.nsLister)
+		logger := klog.FromContext(ctx)
+		s.namespaceLabels = interpodaffinity.GetNamespaceLabelsSnapshot(logger, pod.Namespace, pl.nsLister)
 	}
 
 	s.existingAntiAffinityCounts = pl.getExistingAntiAffinityCounts(pod, s.namespaceLabels, nodesWithRequiredAntiAffinityPods, pl.enableNamespaceSelector)

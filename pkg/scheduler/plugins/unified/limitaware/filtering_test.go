@@ -41,7 +41,7 @@ import (
 	koordfake "github.com/koordinator-sh/koordinator/pkg/client/clientset/versioned/fake"
 	koordinatorinformers "github.com/koordinator-sh/koordinator/pkg/client/informers/externalversions"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
-	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta2"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta3"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 )
 
@@ -81,6 +81,14 @@ func newTestSharedLister(pods []*corev1.Pod, nodes []*corev1.Node) *testSharedLi
 	}
 }
 
+func (f *testSharedLister) StorageInfos() framework.StorageInfoLister {
+	return f
+}
+
+func (f *testSharedLister) IsPVCUsedByPods(key string) bool {
+	return false
+}
+
 func (f *testSharedLister) NodeInfos() framework.NodeInfoLister {
 	return f
 }
@@ -108,10 +116,10 @@ type pluginTestSuit struct {
 }
 
 func newPluginTestSuitWith(t *testing.T, pods []*corev1.Pod, nodes []*corev1.Node, limitToAllocatable extension.LimitToAllocatable) *pluginTestSuit {
-	var v1beta2args v1beta2.LimitAwareArgs
-	v1beta2.SetDefaults_LimitAwareArgs(&v1beta2args)
+	var v1beta3args v1beta3.LimitAwareArgs
+	v1beta3.SetDefaults_LimitAwareArgs(&v1beta3args)
 	var limitAwareArgs config.LimitAwareArgs
-	err := v1beta2.Convert_v1beta2_LimitAwareArgs_To_config_LimitAwareArgs(&v1beta2args, &limitAwareArgs, nil)
+	err := v1beta3.Convert_v1beta3_LimitAwareArgs_To_config_LimitAwareArgs(&v1beta3args, &limitAwareArgs, nil)
 	assert.NoError(t, err)
 	limitAwareArgs.DefaultLimitToAllocatable = limitToAllocatable
 
@@ -137,6 +145,7 @@ func newPluginTestSuitWith(t *testing.T, pods []*corev1.Pod, nodes []*corev1.Nod
 	eventRecorder := record.NewEventRecorderAdapter(fakeRecorder)
 
 	fw, err := st.NewFramework(
+		context.TODO(),
 		registeredPlugins,
 		"koord-scheduler",
 		runtime.WithClientSet(cs),

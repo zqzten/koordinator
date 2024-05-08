@@ -31,10 +31,10 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/api/v1/resource"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
-	schedclientset "sigs.k8s.io/scheduler-plugins/pkg/generated/clientset/versioned"
-	schedinformer "sigs.k8s.io/scheduler-plugins/pkg/generated/informers/externalversions"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
+	schedclientset "github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/generated/clientset/versioned"
+	schedinformer "github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/generated/informers/externalversions"
 	"github.com/koordinator-sh/koordinator/pkg/features"
 	schedulerconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/validation"
@@ -143,12 +143,12 @@ func (pl *Plugin) Start() {
 	pl.startSyncTaskQuota()
 }
 
-func (pl *Plugin) EventsToRegister() []framework.ClusterEvent {
+func (pl *Plugin) EventsToRegister() []framework.ClusterEventWithHint {
 	// To register a custom event, follow the naming convention at:
 	// https://github.com/kubernetes/kubernetes/blob/e1ad9bee5bba8fbe85a6bf6201379ce8b1a611b1/pkg/scheduler/eventhandlers.go#L415-L422
 	gvk := fmt.Sprintf("quotas.%v.%v", asiquotav1.GroupVersion.Version, asiquotav1.GroupVersion.Group)
-	return []framework.ClusterEvent{
-		{Resource: framework.GVK(gvk), ActionType: framework.Add | framework.Update | framework.Delete},
+	return []framework.ClusterEventWithHint{
+		{Event: framework.ClusterEvent{Resource: framework.GVK(gvk), ActionType: framework.Add | framework.Update | framework.Delete}},
 	}
 }
 
@@ -190,7 +190,7 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 		return nil, nil
 	}
 
-	podRequests, _ := resource.PodRequestsAndLimits(pod)
+	podRequests := resource.PodRequests(pod, resource.PodResourcesOptions{})
 	if quotav1.IsZero(podRequests) {
 		return nil, nil
 	}

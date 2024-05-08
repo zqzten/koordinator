@@ -35,9 +35,10 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 	schedulertesting "k8s.io/kubernetes/pkg/scheduler/testing"
 	st "k8s.io/kubernetes/pkg/scheduler/testing"
-	schedv1alpha1 "sigs.k8s.io/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
-	schedclientset "sigs.k8s.io/scheduler-plugins/pkg/generated/clientset/versioned"
-	schedfake "sigs.k8s.io/scheduler-plugins/pkg/generated/clientset/versioned/fake"
+
+	schedv1alpha1 "github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
+	schedclientset "github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/generated/clientset/versioned"
+	schedfake "github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/generated/clientset/versioned/fake"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
 	koordfake "github.com/koordinator-sh/koordinator/pkg/client/clientset/versioned/fake"
@@ -80,6 +81,14 @@ func newTestSharedLister(pods []*corev1.Pod, nodes []*corev1.Node) *testSharedLi
 		nodeInfos:   nodeInfos,
 		nodeInfoMap: nodeInfoMap,
 	}
+}
+
+func (f *testSharedLister) StorageInfos() framework.StorageInfoLister {
+	return f
+}
+
+func (f *testSharedLister) IsPVCUsedByPods(key string) bool {
+	return false
 }
 
 func (f *testSharedLister) NodeInfos() framework.NodeInfoLister {
@@ -140,6 +149,7 @@ func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
 	snapshot := newTestSharedLister(nil, nodes)
 
 	fh, err := schedulertesting.NewFramework(
+		context.TODO(),
 		registeredPlugins,
 		"koord-scheduler",
 		runtime.WithClientSet(cs),

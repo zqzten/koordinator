@@ -79,6 +79,7 @@ func TestBeforePreFilter(t *testing.T) {
 				schedulertesting.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 			}
 			fh, err := schedulertesting.NewFramework(
+				context.TODO(),
 				registeredPlugins,
 				"koord-scheduler",
 				frameworkruntime.WithInformerFactory(informerFactory),

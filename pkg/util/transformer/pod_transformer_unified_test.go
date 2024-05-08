@@ -714,7 +714,8 @@ func TestTransformHugePageToMemory(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			TransformHugePageToMemory(tt.pod)
-			requests, limits := apiresource.PodRequestsAndLimits(tt.pod)
+			requests := apiresource.PodRequests(tt.pod, apiresource.PodResourcesOptions{})
+			limits := apiresource.PodLimits(tt.pod, apiresource.PodResourcesOptions{})
 			assert.Equal(t, tt.wantResources, corev1.ResourceRequirements{Limits: limits, Requests: requests})
 		})
 	}

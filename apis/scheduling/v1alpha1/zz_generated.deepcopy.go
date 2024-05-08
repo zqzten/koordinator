@@ -627,7 +627,8 @@ func (in LogicalResourceNodeDevices) DeepCopyInto(out *LogicalResourceNodeDevice
 			if val == nil {
 				(*out)[key] = nil
 			} else {
-				in, out := &val, &outVal
+				inVal := (*in)[key]
+				in, out := &inVal, &outVal
 				*out = make([]LogicalResourceNodeDeviceInfo, len(*in))
 				copy(*out, *in)
 			}
@@ -1328,7 +1329,8 @@ func (in *ResourceFlavorConfStatus) DeepCopyInto(out *ResourceFlavorConfStatus) 
 			if val == nil {
 				(*out)[key] = nil
 			} else {
-				in, out := &val, &outVal
+				inVal := (*in)[key]
+				in, out := &inVal, &outVal
 				*out = new(SelectedNodeMeta)
 				(*in).DeepCopyInto(*out)
 			}
@@ -1390,7 +1392,8 @@ func (in *ResourceFlavorSpec) DeepCopyInto(out *ResourceFlavorSpec) {
 			if val == nil {
 				(*out)[key] = nil
 			} else {
-				in, out := &val, &outVal
+				inVal := (*in)[key]
+				in, out := &inVal, &outVal
 				*out = new(ResourceFlavorConf)
 				(*in).DeepCopyInto(*out)
 			}
@@ -1420,7 +1423,8 @@ func (in *ResourceFlavorStatus) DeepCopyInto(out *ResourceFlavorStatus) {
 			if val == nil {
 				(*out)[key] = nil
 			} else {
-				in, out := &val, &outVal
+				inVal := (*in)[key]
+				in, out := &inVal, &outVal
 				*out = new(ResourceFlavorConfStatus)
 				(*in).DeepCopyInto(*out)
 			}

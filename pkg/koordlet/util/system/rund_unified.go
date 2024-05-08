@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/containerd/ttrpc"
-	"github.com/gogo/protobuf/types"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	"k8s.io/klog/v2"
 
 	"gitlab.alibaba-inc.com/virtcontainers/agent-protocols/protos/extends"
@@ -109,7 +109,7 @@ func GetRundStats(sandboxID string) (*grpc.ExtendedStatsResponse, error) {
 	}()
 
 	// TBD: add containerd namespace for context
-	ctx, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout*100)
 	defer cancel()
 
 	extendsClient := extends.NewExtendedStatusClient(client)
@@ -137,22 +137,24 @@ func connectExtendedStats(sandboxID string) (net.Conn, error) {
 	return nil, fmt.Errorf("cannot connect to ttrpc server, err: %s", err)
 }
 
+var _ extends.ExtendedStatusService = &FakeExtendedStatusService{}
+
 type FakeExtendedStatusService struct {
 	extends.ExtendedStatusService
 	FakeExtendedStats             func(ctx context.Context, req *grpc.ExtendedStatsRequest) (*grpc.ExtendedStatsResponse, error)
-	FakeReclaimMemory             func(ctx context.Context, req *grpc.ReclaimMemoryRequest) (*types.Empty, error)
-	FakeConfigureMemoryCompaction func(ctx context.Context, req *grpc.ConfigureMemoryCompactionRequest) (*types.Empty, error)
+	FakeReclaimMemory             func(ctx context.Context, req *grpc.ReclaimMemoryRequest) (*emptypb.Empty, error)
+	FakeConfigureMemoryCompaction func(ctx context.Context, req *grpc.ConfigureMemoryCompactionRequest) (*emptypb.Empty, error)
 }
 
 func (c *FakeExtendedStatusService) ExtendedStats(ctx context.Context, req *grpc.ExtendedStatsRequest) (*grpc.ExtendedStatsResponse, error) {
 	return c.FakeExtendedStats(ctx, req)
 }
 
-func (c *FakeExtendedStatusService) ReclaimMemory(ctx context.Context, req *grpc.ReclaimMemoryRequest) (*types.Empty, error) {
+func (c *FakeExtendedStatusService) ReclaimMemory(ctx context.Context, req *grpc.ReclaimMemoryRequest) (*emptypb.Empty, error) {
 	return c.FakeReclaimMemory(ctx, req)
 }
 
-func (c *FakeExtendedStatusService) ConfigureMemoryCompaction(ctx context.Context, req *grpc.ConfigureMemoryCompactionRequest) (*types.Empty, error) {
+func (c *FakeExtendedStatusService) ConfigureMemoryCompaction(ctx context.Context, req *grpc.ConfigureMemoryCompactionRequest) (*emptypb.Empty, error) {
 	return c.FakeConfigureMemoryCompaction(ctx, req)
 }
 

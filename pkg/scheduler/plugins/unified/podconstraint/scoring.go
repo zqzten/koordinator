@@ -183,7 +183,7 @@ func (p *Plugin) PreScore(ctx context.Context, cycleState *framework.CycleState,
 			}
 		}
 	}
-	p.handle.Parallelizer().Until(context.Background(), len(allNodes), processNode)
+	p.handle.Parallelizer().Until(context.Background(), len(allNodes), processNode, p.Name())
 	cycleState.Write(preScoreStateKey, state)
 	return nil
 }

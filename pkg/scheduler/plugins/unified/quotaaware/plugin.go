@@ -19,6 +19,7 @@ package quotaaware
 import (
 	"context"
 	"fmt"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -29,9 +30,9 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/helper"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/interpodaffinity"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/nodeaffinity"
-	schedlisters "sigs.k8s.io/scheduler-plugins/pkg/generated/listers/scheduling/v1alpha1"
 
 	apiext "github.com/koordinator-sh/koordinator/apis/extension"
+	schedlisters "github.com/koordinator-sh/koordinator/apis/thirdparty/scheduler-plugins/pkg/generated/listers/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota"
 	elasticquotacore "github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/elasticquota/core"
@@ -98,7 +99,7 @@ func (pl *Plugin) PreFilter(ctx context.Context, cycleState *framework.CycleStat
 		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, err.Error())
 	}
 
-	podRequests, _ := elasticquotacore.PodRequestsAndLimits(pod)
+	podRequests := elasticquotacore.PodRequests(pod)
 	if quotav1.IsZero(podRequests) {
 		return nil, nil
 	}
@@ -302,19 +303,19 @@ func (pl *Plugin) PreBind(ctx context.Context, cycleState *framework.CycleState,
 	return nil
 }
 
-func (pl *Plugin) preErrorHandlerFilter(podInfo *framework.QueuedPodInfo, scheduleErr error) bool {
+func (pl *Plugin) preErrorHandlerFilter(ctx context.Context, fwk framework.Framework, podInfo *framework.QueuedPodInfo, status *framework.Status, nominatingInfo *framework.NominatingInfo, start time.Time) bool {
 	pod := podInfo.Pod
 	if pod.Labels[LabelQuotaID] == "" {
 		return false
 	}
 
+	scheduleErr := status.AsError()
 	fitErr, ok := scheduleErr.(*framework.FitError)
 	if !ok {
 		// TODO:后续需要等 Coscheduling 的PreFilter error 纠正后这里要加上一个判断，专门处理 framework.Error 的情况。
 		return false
 	}
 
-	fwk := pl.handle.(framework.Framework)
 	quotaAffinity, err := newQuotaAffinity(pod)
 	if err != nil {
 		klog.Warningf("Unexpected scheduling error, pod: %q, err: %v", klog.KObj(pod), "failed to parse pod")
@@ -342,7 +343,7 @@ func (pl *Plugin) preErrorHandlerFilter(podInfo *framework.QueuedPodInfo, schedu
 		return false
 	}
 
-	podRequests, _ := elasticquotacore.PodRequestsAndLimits(pod)
+	podRequests := elasticquotacore.PodRequests(pod)
 	requestsNames := quotav1.ResourceNames(podRequests)
 	reservedZones := sets.NewString()
 	for _, v := range elasticQuotas {

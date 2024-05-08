@@ -76,6 +76,14 @@ func newTestSharedLister(pods []*corev1.Pod, nodes []*corev1.Node) *testSharedLi
 	}
 }
 
+func (f *testSharedLister) StorageInfos() framework.StorageInfoLister {
+	return f
+}
+
+func (f *testSharedLister) IsPVCUsedByPods(key string) bool {
+	return false
+}
+
 func (f *testSharedLister) NodeInfos() framework.NodeInfoLister {
 	return f
 }
@@ -122,6 +130,7 @@ func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
 	informerFactory := informers.NewSharedInformerFactory(cs, 0)
 	snapshot := newTestSharedLister(nil, nodes)
 	fh, err := schedulertesting.NewFramework(
+		context.TODO(),
 		registeredPlugins,
 		"koord-scheduler",
 		runtime.WithClientSet(cs),
@@ -597,7 +606,8 @@ func TestPlugin_PreFilterExtensions(t *testing.T) {
 	assert.Equal(t, expectedState.preemptivePods, state.preemptivePods)
 
 	// check RemovePod
-	status = plg.RemovePod(context.TODO(), cycleState, testPod, framework.NewPodInfo(assignedPods[0]), nodeInfo)
+	podInfo, _ := framework.NewPodInfo(assignedPods[0])
+	status = plg.RemovePod(context.TODO(), cycleState, testPod, podInfo, nodeInfo)
 	assert.Nil(t, status)
 	state, status = getPreFilterState(cycleState)
 	assert.Nil(t, status)
@@ -614,7 +624,8 @@ func TestPlugin_PreFilterExtensions(t *testing.T) {
 	assert.Equal(t, expectedState.preemptivePods, state.preemptivePods)
 
 	// check AddPod
-	status = plg.AddPod(context.TODO(), cycleState, testPod, framework.NewPodInfo(assignedPods[0]), nodeInfo)
+	podInfo, _ = framework.NewPodInfo(assignedPods[0])
+	status = plg.AddPod(context.TODO(), cycleState, testPod, podInfo, nodeInfo)
 	assert.Nil(t, status)
 	state, status = getPreFilterState(cycleState)
 	assert.Nil(t, status)
@@ -631,7 +642,8 @@ func TestPlugin_PreFilterExtensions(t *testing.T) {
 	assert.Equal(t, expectedState.preemptivePods, state.preemptivePods)
 
 	// check AddDuplicatePod
-	status = plg.AddPod(context.TODO(), cycleState, testPod, framework.NewPodInfo(assignedPods[0]), nodeInfo)
+	podInfo, _ = framework.NewPodInfo(assignedPods[0])
+	status = plg.AddPod(context.TODO(), cycleState, testPod, podInfo, nodeInfo)
 	assert.Nil(t, status)
 	state, status = getPreFilterState(cycleState)
 	assert.Nil(t, status)
@@ -648,15 +660,15 @@ func TestPlugin_PreFilterExtensions(t *testing.T) {
 	assert.Equal(t, expectedState.preemptivePods, state.preemptivePods)
 
 	// check Delete-NoMatch Pod
-	status = plg.RemovePod(context.TODO(), cycleState, testPod, framework.NewPodInfo(
-		&corev1.Pod{ObjectMeta: metav1.ObjectMeta{
-			Namespace: "default",
-			Name:      "assigned-pod-3",
+	podInfo, _ = framework.NewPodInfo(&corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Namespace: "default",
+		Name:      "assigned-pod-3",
+	},
+		Spec: corev1.PodSpec{
+			NodeName: nodes[0].Name,
 		},
-			Spec: corev1.PodSpec{
-				NodeName: nodes[0].Name,
-			},
-		}), nodeInfo)
+	})
+	status = plg.RemovePod(context.TODO(), cycleState, testPod, podInfo, nodeInfo)
 	assert.Nil(t, status)
 	state, status = getPreFilterState(cycleState)
 	assert.Nil(t, status)

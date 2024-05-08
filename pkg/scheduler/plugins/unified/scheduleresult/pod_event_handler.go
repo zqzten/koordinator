@@ -35,7 +35,7 @@ func registersPodEventHandler(handle framework.Handle) {
 type podEventHandler struct {
 }
 
-func (p *podEventHandler) OnAdd(obj interface{}) {
+func (p *podEventHandler) OnAdd(obj interface{}, _ bool) {
 }
 
 func (p *podEventHandler) OnUpdate(oldObj, newObj interface{}) {

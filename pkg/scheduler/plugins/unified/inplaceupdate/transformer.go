@@ -1,3 +1,19 @@
+/*
+Copyright 2022 The Koordinator Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package inplaceupdate
 
 import (
@@ -7,7 +23,6 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
-	"github.com/koordinator-sh/koordinator/pkg/descheduler/controllers/drain/node"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 )
 
@@ -31,9 +46,10 @@ func (p *Plugin) AfterPreFilter(ctx context.Context, cycleState *framework.Cycle
 	if extendedHandle == nil {
 		return framework.NewStatus(framework.Error, "handle can't convert to FrameworkExtender")
 	}
-	err = extendedHandle.Scheduler().GetCache().InvalidNodeInfo(pod.Spec.NodeName)
+	logger := klog.FromContext(ctx)
+	err = extendedHandle.Scheduler().GetCache().InvalidNodeInfo(logger, pod.Spec.NodeName)
 	if err != nil {
-		klog.ErrorS(err, "Failed to InvalidNodeInfo", "node", node.Name)
+		klog.ErrorS(err, "Failed to InvalidNodeInfo", "node", pod.Spec.NodeName)
 		return framework.AsStatus(err)
 	}
 	err = nodeInfo.RemovePod(state.targetPod.Pod)

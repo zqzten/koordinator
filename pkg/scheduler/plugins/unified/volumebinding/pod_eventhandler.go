@@ -46,7 +46,7 @@ func registerPodEventHandler(sharedInformerFactory informers.SharedInformerFacto
 	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), sharedInformerFactory, podInformer, eventHandler)
 }
 
-func (e *podEventHandler) OnAdd(obj interface{}) {
+func (e *podEventHandler) OnAdd(obj interface{}, isInInitialList bool) {
 	pod, ok := obj.(*corev1.Pod)
 	if !ok {
 		return
@@ -94,12 +94,12 @@ func (e *podEventHandler) setPod(oldPod *corev1.Pod, newPod *corev1.Pod) {
 	var oldEphemeralStorageSize resource.Quantity
 	var oldLocalInlineVolumeSize int64
 	if oldPod != nil {
-		oldRequests, _ := resourcehelper.PodRequestsAndLimits(oldPod)
+		oldRequests := resourcehelper.PodRequests(oldPod, resourcehelper.PodResourcesOptions{})
 		oldEphemeralStorageSize = oldRequests[corev1.ResourceEphemeralStorage]
 		oldLocalInlineVolumeSize = unified.CalcLocalInlineVolumeSize(oldPod.Spec.Volumes, e.classLister)
 	}
 
-	requests, _ := resourcehelper.PodRequestsAndLimits(newPod)
+	requests := resourcehelper.PodRequests(newPod, resourcehelper.PodResourcesOptions{})
 	ephemeralStorageSize := requests[corev1.ResourceEphemeralStorage]
 	localInlineVolumeSize := unified.CalcLocalInlineVolumeSize(newPod.Spec.Volumes, nil)
 
@@ -114,7 +114,7 @@ func (e *podEventHandler) setPod(oldPod *corev1.Pod, newPod *corev1.Pod) {
 }
 
 func (e *podEventHandler) deletePod(pod *corev1.Pod) {
-	requests, _ := resourcehelper.PodRequestsAndLimits(pod)
+	requests := resourcehelper.PodRequests(pod, resourcehelper.PodResourcesOptions{})
 	ephemeralStorageSize := requests[corev1.ResourceEphemeralStorage]
 	localInlineVolumeSize := unified.CalcLocalInlineVolumeSize(pod.Spec.Volumes, e.classLister)
 	if ephemeralStorageSize.IsZero() && localInlineVolumeSize == 0 {

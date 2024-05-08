@@ -21,15 +21,12 @@ import (
 
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	listersv1 "k8s.io/client-go/listers/core/v1"
-	scheduledconfigv1beta2config "k8s.io/kube-scheduler/config/v1beta2"
-	"k8s.io/kubernetes/pkg/features"
+	scheduledconfigv1beta3 "k8s.io/kube-scheduler/config/v1beta3"
 	schedconfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
-	"k8s.io/kubernetes/pkg/scheduler/apis/config/v1beta2"
+	"k8s.io/kubernetes/pkg/scheduler/apis/config/v1beta3"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config/validation"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
-	plfeature "k8s.io/kubernetes/pkg/scheduler/framework/plugins/feature"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/interpodaffinity"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 )
@@ -61,13 +58,10 @@ func (pl *InterPodAffinity) Name() string {
 
 // New initializes a new plugin and returns it.
 func New(plArgs runtime.Object, h framework.Handle) (framework.Plugin, error) {
-	fts := plfeature.Features{
-		EnablePodAffinityNamespaceSelector: utilfeature.DefaultFeatureGate.Enabled(features.PodAffinityNamespaceSelector),
-	}
-	return NewWithFeature(plArgs, h, fts)
+	return NewWithFeature(plArgs, h)
 }
 
-func NewWithFeature(obj runtime.Object, h framework.Handle, fts plfeature.Features) (framework.Plugin, error) {
+func NewWithFeature(obj runtime.Object, h framework.Handle) (framework.Plugin, error) {
 	if h.SnapshotSharedLister() == nil {
 		return nil, fmt.Errorf("SnapshotSharedlister is nil")
 	}
@@ -109,13 +103,13 @@ func getArgs(obj runtime.Object) (*schedconfig.InterPodAffinityArgs, error) {
 		return nil, fmt.Errorf("got args of type %T, want *InterPodAffinityArgs", obj)
 	}
 
-	var v1beta2args scheduledconfigv1beta2config.InterPodAffinityArgs
-	v1beta2.SetDefaults_InterPodAffinityArgs(&v1beta2args)
-	if err := frameworkruntime.DecodeInto(unknownObj, &v1beta2args); err != nil {
+	var v1beta3args scheduledconfigv1beta3.InterPodAffinityArgs
+	v1beta3.SetDefaults_InterPodAffinityArgs(&v1beta3args)
+	if err := frameworkruntime.DecodeInto(unknownObj, &v1beta3args); err != nil {
 		return nil, err
 	}
 	var interPodAffinityArgs schedconfig.InterPodAffinityArgs
-	err := v1beta2.Convert_v1beta2_InterPodAffinityArgs_To_config_InterPodAffinityArgs(&v1beta2args, &interPodAffinityArgs, nil)
+	err := v1beta3.Convert_v1beta3_InterPodAffinityArgs_To_config_InterPodAffinityArgs(&v1beta3args, &interPodAffinityArgs, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -123,10 +117,10 @@ func getArgs(obj runtime.Object) (*schedconfig.InterPodAffinityArgs, error) {
 }
 
 func getDefaultInterPodAffinityArgs() (*schedconfig.InterPodAffinityArgs, error) {
-	var v1beta2args scheduledconfigv1beta2config.InterPodAffinityArgs
-	v1beta2.SetDefaults_InterPodAffinityArgs(&v1beta2args)
+	var v1beta3args scheduledconfigv1beta3.InterPodAffinityArgs
+	v1beta3.SetDefaults_InterPodAffinityArgs(&v1beta3args)
 	var interPodAffinityArgs schedconfig.InterPodAffinityArgs
-	err := v1beta2.Convert_v1beta2_InterPodAffinityArgs_To_config_InterPodAffinityArgs(&v1beta2args, &interPodAffinityArgs, nil)
+	err := v1beta3.Convert_v1beta3_InterPodAffinityArgs_To_config_InterPodAffinityArgs(&v1beta3args, &interPodAffinityArgs, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -17,6 +17,8 @@ limitations under the License.
 package resourceflavor
 
 import (
+	"context"
+
 	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -27,14 +29,14 @@ var _ handler.EventHandler = &enqueueForEvent{}
 type enqueueForEvent struct {
 }
 
-func (e *enqueueForEvent) Create(evt event.CreateEvent, q workqueue.RateLimitingInterface) {
+func (e *enqueueForEvent) Create(ctx context.Context, evt event.CreateEvent, q workqueue.RateLimitingInterface) {
 }
 
-func (e *enqueueForEvent) Delete(evt event.DeleteEvent, q workqueue.RateLimitingInterface) {
+func (e *enqueueForEvent) Delete(ctx context.Context, evt event.DeleteEvent, q workqueue.RateLimitingInterface) {
 }
 
-func (e *enqueueForEvent) Generic(evt event.GenericEvent, q workqueue.RateLimitingInterface) {
+func (e *enqueueForEvent) Generic(ctx context.Context, evt event.GenericEvent, q workqueue.RateLimitingInterface) {
 }
 
-func (e *enqueueForEvent) Update(evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (e *enqueueForEvent) Update(ctx context.Context, evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
 }

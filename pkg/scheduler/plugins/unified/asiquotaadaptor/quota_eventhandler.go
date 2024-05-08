@@ -39,7 +39,7 @@ func registerASIQuotaEventHandler(cache *ASIQuotaCache, asiQuotaInformerFactory 
 	frameworkexthelper.ForceSyncFromInformer(context.TODO().Done(), asiQuotaInformerFactory, asiQuotaInformer, handler)
 }
 
-func (h *asiQuotaEventHandler) OnAdd(obj interface{}) {
+func (h *asiQuotaEventHandler) OnAdd(obj interface{}, isInInitialList bool) {
 	asiQuota := toASIQuota(obj)
 	if asiQuota == nil {
 		return

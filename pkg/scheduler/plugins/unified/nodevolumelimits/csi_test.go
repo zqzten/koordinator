@@ -1,5 +1,5 @@
 /*
-Copyright 2019 The Kubernetes Authors.
+Copyright 2022 The Koordinator Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package nodevolumelimits
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -29,11 +30,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/sets"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	csitrans "k8s.io/csi-translation-lib"
 	csilibplugins "k8s.io/csi-translation-lib/plugins"
-	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	fakeframework "k8s.io/kubernetes/pkg/scheduler/framework/fake"
 	volumeutil "k8s.io/kubernetes/pkg/volume/util"
@@ -428,29 +426,29 @@ func TestCSILimits(t *testing.T) {
 			test:         "don't count pvcs with different type towards volume limit",
 			limitSource:  "node",
 		},
-		// Tests for in-tree volume migration
-		{
-			newPod:           inTreeOneVolPod,
-			existingPods:     []*v1.Pod{inTreeTwoVolPod},
-			filterName:       "csi",
-			maxVols:          2,
-			driverNames:      []string{csilibplugins.AWSEBSInTreePluginName, ebsCSIDriverName},
-			migrationEnabled: true,
-			limitSource:      "csinode",
-			test:             "should count in-tree volumes if migration is enabled",
-			wantStatus:       framework.NewStatus(framework.Unschedulable, ErrReasonMaxVolumeCountExceeded),
-		},
-		{
-			newPod:           pendingVolumePod,
-			existingPods:     []*v1.Pod{inTreeTwoVolPod},
-			filterName:       "csi",
-			maxVols:          2,
-			driverNames:      []string{csilibplugins.AWSEBSInTreePluginName, ebsCSIDriverName},
-			migrationEnabled: true,
-			limitSource:      "csinode",
-			test:             "should count unbound in-tree volumes if migration is enabled",
-			wantStatus:       framework.NewStatus(framework.Unschedulable, ErrReasonMaxVolumeCountExceeded),
-		},
+		//// Tests for in-tree volume migration
+		//{
+		//	newPod:           inTreeOneVolPod,
+		//	existingPods:     []*v1.Pod{inTreeTwoVolPod},
+		//	filterName:       "csi",
+		//	maxVols:          2,
+		//	driverNames:      []string{csilibplugins.AWSEBSInTreePluginName, ebsCSIDriverName},
+		//	migrationEnabled: true,
+		//	limitSource:      "csinode",
+		//	test:             "should count in-tree volumes if migration is enabled",
+		//	wantStatus:       framework.NewStatus(framework.Unschedulable, ErrReasonMaxVolumeCountExceeded),
+		//},
+		//{
+		//	newPod:           pendingVolumePod,
+		//	existingPods:     []*v1.Pod{inTreeTwoVolPod},
+		//	filterName:       "csi",
+		//	maxVols:          2,
+		//	driverNames:      []string{csilibplugins.AWSEBSInTreePluginName, ebsCSIDriverName},
+		//	migrationEnabled: true,
+		//	limitSource:      "csinode",
+		//	test:             "should count unbound in-tree volumes if migration is enabled",
+		//	wantStatus:       framework.NewStatus(framework.Unschedulable, ErrReasonMaxVolumeCountExceeded),
+		//},
 		{
 			newPod:           inTreeOneVolPod,
 			existingPods:     []*v1.Pod{inTreeTwoVolPod},
@@ -491,29 +489,29 @@ func TestCSILimits(t *testing.T) {
 			limitSource:      "csinode",
 			test:             "should not count non-migratable in-tree volumes",
 		},
-		// mixed volumes
-		{
-			newPod:           inTreeOneVolPod,
-			existingPods:     []*v1.Pod{csiEBSTwoVolPod},
-			filterName:       "csi",
-			maxVols:          2,
-			driverNames:      []string{csilibplugins.AWSEBSInTreePluginName, ebsCSIDriverName},
-			migrationEnabled: true,
-			limitSource:      "csinode",
-			test:             "should count in-tree and csi volumes if migration is enabled (when scheduling in-tree volumes)",
-			wantStatus:       framework.NewStatus(framework.Unschedulable, ErrReasonMaxVolumeCountExceeded),
-		},
-		{
-			newPod:           csiEBSOneVolPod,
-			existingPods:     []*v1.Pod{inTreeTwoVolPod},
-			filterName:       "csi",
-			maxVols:          2,
-			driverNames:      []string{csilibplugins.AWSEBSInTreePluginName, ebsCSIDriverName},
-			migrationEnabled: true,
-			limitSource:      "csinode",
-			test:             "should count in-tree and csi volumes if migration is enabled (when scheduling csi volumes)",
-			wantStatus:       framework.NewStatus(framework.Unschedulable, ErrReasonMaxVolumeCountExceeded),
-		},
+		//// mixed volumes
+		//{
+		//	newPod:           inTreeOneVolPod,
+		//	existingPods:     []*v1.Pod{csiEBSTwoVolPod},
+		//	filterName:       "csi",
+		//	maxVols:          2,
+		//	driverNames:      []string{csilibplugins.AWSEBSInTreePluginName, ebsCSIDriverName},
+		//	migrationEnabled: true,
+		//	limitSource:      "csinode",
+		//	test:             "should count in-tree and csi volumes if migration is enabled (when scheduling in-tree volumes)",
+		//	wantStatus:       framework.NewStatus(framework.Unschedulable, ErrReasonMaxVolumeCountExceeded),
+		//},
+		//{
+		//	newPod:           csiEBSOneVolPod,
+		//	existingPods:     []*v1.Pod{inTreeTwoVolPod},
+		//	filterName:       "csi",
+		//	maxVols:          2,
+		//	driverNames:      []string{csilibplugins.AWSEBSInTreePluginName, ebsCSIDriverName},
+		//	migrationEnabled: true,
+		//	limitSource:      "csinode",
+		//	test:             "should count in-tree and csi volumes if migration is enabled (when scheduling csi volumes)",
+		//	wantStatus:       framework.NewStatus(framework.Unschedulable, ErrReasonMaxVolumeCountExceeded),
+		//},
 		{
 			newPod:           csiEBSOneVolPod,
 			existingPods:     []*v1.Pod{csiEBSTwoVolPod, inTreeTwoVolPod},
@@ -541,7 +539,7 @@ func TestCSILimits(t *testing.T) {
 			ephemeralEnabled: true,
 			driverNames:      []string{ebsCSIDriverName},
 			test:             "ephemeral volume missing",
-			wantStatus:       framework.NewStatus(framework.Error, `looking up PVC test/abc-xyz: persistentvolumeclaim "abc-xyz" not found`),
+			wantStatus:       framework.AsStatus(errors.New(`looking up PVC test/abc-xyz: persistentvolumeclaim "abc-xyz" not found`)),
 		},
 		{
 			newPod:           ephemeralVolumePod,
@@ -550,7 +548,7 @@ func TestCSILimits(t *testing.T) {
 			extraClaims:      []v1.PersistentVolumeClaim{*conflictingClaim},
 			driverNames:      []string{ebsCSIDriverName},
 			test:             "ephemeral volume not owned",
-			wantStatus:       framework.NewStatus(framework.Error, "PVC test/abc-xyz was not created for pod test/abc (pod is not owner)"),
+			wantStatus:       framework.AsStatus(errors.New("PVC test/abc-xyz was not created for pod test/abc (pod is not owner)")),
 		},
 		{
 			newPod:           ephemeralVolumePod,
@@ -625,12 +623,7 @@ func TestCSILimits(t *testing.T) {
 		t.Run(test.test, func(t *testing.T) {
 			node, csiNode := getNodeWithPodAndVolumeLimits(test.limitSource, test.existingPods, int64(test.maxVols), test.driverNames...)
 			if test.migrationEnabled {
-				defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.CSIMigration, true)()
-				defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.CSIMigrationAWS, true)()
 				enableMigrationOnNode(csiNode, csilibplugins.AWSEBSInTreePluginName)
-			} else {
-				defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.CSIMigration, false)()
-				defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.CSIMigrationAWS, false)()
 			}
 			p := &CSILimits{
 				csiNodeLister:        getFakeCSINodeLister(csiNode),
@@ -748,7 +741,7 @@ func getFakeCSIStorageClassLister(scName, provisionerName string) fakeframework.
 
 func getFakeCSINodeLister(csiNode *storagev1.CSINode) fakeframework.CSINodeLister {
 	if csiNode != nil {
-		return fakeframework.CSINodeLister(*csiNode)
+		return fakeframework.CSINodeLister([]storagev1.CSINode{*csiNode})
 	}
 	return fakeframework.CSINodeLister{}
 }

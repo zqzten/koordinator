@@ -1,5 +1,5 @@
 /*
-Copyright 2019 The Kubernetes Authors.
+Copyright 2022 The Koordinator Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -262,7 +262,7 @@ func (pl *PodTopologySpread) calPreFilterState(cycleState *framework.CycleState,
 			atomic.AddInt32(tpCount, int32(count))
 		}
 	}
-	pl.handle.Parallelizer().Until(context.Background(), len(allNodes), processNode)
+	pl.handle.Parallelizer().Until(context.Background(), len(allNodes), processNode, pl.Name())
 
 	// calculate min match for each topology pair
 	for i := 0; i < len(constraints); i++ {

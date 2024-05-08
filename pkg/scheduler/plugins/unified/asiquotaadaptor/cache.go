@@ -86,13 +86,13 @@ func (c *ASIQuotaCache) updatePod(oldPod, newPod *corev1.Pod) {
 	var oldRequests corev1.ResourceList
 	var oldQuotaName string
 	if oldPod != nil {
-		oldRequests, _ = resource.PodRequestsAndLimits(oldPod)
+		oldRequests = resource.PodRequests(oldPod, resource.PodResourcesOptions{})
 		if apiext.GetPodQoSClassRaw(oldPod) == apiext.QoSBE {
 			oldRequests = convertToBatchRequests(oldRequests)
 		}
 		oldQuotaName = oldPod.Labels[asiquotav1.LabelQuotaName]
 	}
-	newRequests, _ := resource.PodRequestsAndLimits(newPod)
+	newRequests := resource.PodRequests(newPod, resource.PodResourcesOptions{})
 	if apiext.GetPodQoSClassRaw(newPod) == apiext.QoSBE {
 		newRequests = convertToBatchRequests(newRequests)
 	}
@@ -112,7 +112,7 @@ func (c *ASIQuotaCache) deletePod(pod *corev1.Pod) {
 		return
 	}
 	quotaName := pod.Labels[asiquotav1.LabelQuotaName]
-	requests, _ := resource.PodRequestsAndLimits(pod)
+	requests := resource.PodRequests(pod, resource.PodResourcesOptions{})
 	if apiext.GetPodQoSClassRaw(pod) == apiext.QoSBE {
 		requests = convertToBatchRequests(requests)
 	}

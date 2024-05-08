@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Koordinator Authors.
+Copyright 2022 The Koordinator Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -37,7 +37,6 @@ import (
 	apiscorev1 "k8s.io/kubernetes/pkg/apis/core/v1"
 	corevalidation "k8s.io/kubernetes/pkg/apis/core/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
@@ -169,7 +168,7 @@ func quantityMustUint100(name corev1.ResourceName, quantity resource.Quantity) e
 	return nil
 }
 
-var _ inject.Client = &LogicalResourceNodeValidatingHandler{}
+// var _ inject.Client = &LogicalResourceNodeValidatingHandler{}
 
 // InjectClient injects the client into the LogicalResourceNodeValidatingHandler
 func (h *LogicalResourceNodeValidatingHandler) InjectClient(c client.Client) error {
@@ -177,7 +176,7 @@ func (h *LogicalResourceNodeValidatingHandler) InjectClient(c client.Client) err
 	return nil
 }
 
-var _ admission.DecoderInjector = &LogicalResourceNodeValidatingHandler{}
+// var _ admission.DecoderInjector = &LogicalResourceNodeValidatingHandler{}
 
 // InjectDecoder injects the decoder into the LogicalResourceNodeValidatingHandler
 func (h *LogicalResourceNodeValidatingHandler) InjectDecoder(d *admission.Decoder) error {

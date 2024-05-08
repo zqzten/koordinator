@@ -73,6 +73,14 @@ func newTestSharedLister(pods []*corev1.Pod, nodes []*corev1.Node) *testSharedLi
 	}
 }
 
+func (f *testSharedLister) StorageInfos() framework.StorageInfoLister {
+	return f
+}
+
+func (f *testSharedLister) IsPVCUsedByPods(key string) bool {
+	return false
+}
+
 func (f *testSharedLister) NodeInfos() framework.NodeInfoLister {
 	return f
 }
@@ -142,6 +150,7 @@ func TestPodConstraintCache_AddConstraint(t *testing.T) {
 	informerFactory := informers.NewSharedInformerFactory(cs, 0)
 	snapshot := newTestSharedLister(nil, nodes)
 	fh, err := schedulertesting.NewFramework(
+		context.TODO(),
 		[]schedulertesting.RegisterPluginFunc{
 			schedulertesting.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			schedulertesting.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
@@ -257,6 +266,7 @@ func TestPodConstraintCache_AddConstraintWithNewConstraint(t *testing.T) {
 	informerFactory := informers.NewSharedInformerFactory(cs, 0)
 	snapshot := newTestSharedLister(nil, nodes)
 	fh, err := schedulertesting.NewFramework(
+		context.TODO(),
 		[]schedulertesting.RegisterPluginFunc{
 			schedulertesting.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			schedulertesting.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
@@ -407,6 +417,7 @@ func TestPodConstraintCache_AddConstraintWithDeleteOneConstraint(t *testing.T) {
 	informerFactory := informers.NewSharedInformerFactory(cs, 0)
 	snapshot := newTestSharedLister(nil, nodes)
 	fh, err := schedulertesting.NewFramework(
+		context.TODO(),
 		[]schedulertesting.RegisterPluginFunc{
 			schedulertesting.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			schedulertesting.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
@@ -562,6 +573,7 @@ func TestPodConstraintCache_DelPodConstraint(t *testing.T) {
 	informerFactory := informers.NewSharedInformerFactory(cs, 0)
 	snapshot := newTestSharedLister(nil, nil)
 	fh, err := schedulertesting.NewFramework(
+		context.TODO(),
 		[]schedulertesting.RegisterPluginFunc{
 			schedulertesting.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			schedulertesting.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
@@ -630,6 +642,7 @@ func TestConstraintTopologyValue(t *testing.T) {
 	informerFactory := informers.NewSharedInformerFactory(cs, 0)
 	snapshot := newTestSharedLister(nil, nil)
 	fh, err := schedulertesting.NewFramework(
+		context.TODO(),
 		[]schedulertesting.RegisterPluginFunc{
 			schedulertesting.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			schedulertesting.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),

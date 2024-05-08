@@ -34,7 +34,7 @@ import (
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 	"github.com/koordinator-sh/koordinator/pkg/features"
 	schedulingconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
-	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta2"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta3"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/nodenumaresource"
 	"github.com/koordinator-sh/koordinator/pkg/util/cpuset"
@@ -98,15 +98,15 @@ func getNodeNUMAResourceArgs(obj runtime.Object) (*schedulingconfig.NodeNUMAReso
 	if !ok {
 		return nil, fmt.Errorf("got args of type %T, want *NodeNUMAResourceArgs", obj)
 	}
-	var v1beta2args v1beta2.NodeNUMAResourceArgs
+	var v1beta3args v1beta3.NodeNUMAResourceArgs
 	// Disable default CPUBindPolicy
-	v1beta2args.DefaultCPUBindPolicy = pointer.String("")
-	v1beta2.SetDefaults_NodeNUMAResourceArgs(&v1beta2args)
-	if err := frameworkruntime.DecodeInto(unknownObj, &v1beta2args); err != nil {
+	v1beta3args.DefaultCPUBindPolicy = pointer.String("")
+	v1beta3.SetDefaults_NodeNUMAResourceArgs(&v1beta3args)
+	if err := frameworkruntime.DecodeInto(unknownObj, &v1beta3args); err != nil {
 		return nil, err
 	}
 	var args schedulingconfig.NodeNUMAResourceArgs
-	err := v1beta2.Convert_v1beta2_NodeNUMAResourceArgs_To_config_NodeNUMAResourceArgs(&v1beta2args, &args, nil)
+	err := v1beta3.Convert_v1beta3_NodeNUMAResourceArgs_To_config_NodeNUMAResourceArgs(&v1beta3args, &args, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -114,12 +114,12 @@ func getNodeNUMAResourceArgs(obj runtime.Object) (*schedulingconfig.NodeNUMAReso
 }
 
 func getDefaultNodeNUMAResourceArgs() (*schedulingconfig.NodeNUMAResourceArgs, error) {
-	var v1beta2args v1beta2.NodeNUMAResourceArgs
+	var v1beta3args v1beta3.NodeNUMAResourceArgs
 	// Disable default CPUBindPolicy
-	v1beta2args.DefaultCPUBindPolicy = pointer.String("")
-	v1beta2.SetDefaults_NodeNUMAResourceArgs(&v1beta2args)
+	v1beta3args.DefaultCPUBindPolicy = pointer.String("")
+	v1beta3.SetDefaults_NodeNUMAResourceArgs(&v1beta3args)
 	var defaultNodeNUMAResourceArgs schedulingconfig.NodeNUMAResourceArgs
-	err := v1beta2.Convert_v1beta2_NodeNUMAResourceArgs_To_config_NodeNUMAResourceArgs(&v1beta2args, &defaultNodeNUMAResourceArgs, nil)
+	err := v1beta3.Convert_v1beta3_NodeNUMAResourceArgs_To_config_NodeNUMAResourceArgs(&v1beta3args, &defaultNodeNUMAResourceArgs, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +168,7 @@ func filterWithDisableCPUSetOversold(pod *corev1.Pod, nodeInfo *framework.NodeIn
 	if err != nil {
 		return framework.NewStatus(framework.UnschedulableAndUnresolvable, err.Error())
 	}
-	podRequests, _ := resource.PodRequestsAndLimits(pod)
+	podRequests := resource.PodRequests(pod, resource.PodResourcesOptions{})
 
 	freeCPUs := nodeInfo.Allocatable.MilliCPU - nodeInfo.Requested.MilliCPU
 	freeCPUs -= int64(allocatedCPUSets.CPUs().Size()*1000*(int(cpuOverQuota)-100)) / 100

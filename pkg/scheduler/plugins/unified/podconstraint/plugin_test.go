@@ -35,8 +35,8 @@ import (
 	"k8s.io/utils/pointer"
 
 	schedulingconfig "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
-	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta2"
-	schedulingconfigv1beta2 "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta2"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta3"
+	schedulingconfigv1beta3 "github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta3"
 )
 
 var _ framework.SharedLister = &testSharedLister{}
@@ -71,6 +71,14 @@ func newTestSharedLister(pods []*corev1.Pod, nodes []*corev1.Node) *testSharedLi
 		nodeInfos:   nodeInfos,
 		nodeInfoMap: nodeInfoMap,
 	}
+}
+
+func (f *testSharedLister) StorageInfos() framework.StorageInfoLister {
+	return f
+}
+
+func (f *testSharedLister) IsPVCUsedByPods(key string) bool {
+	return false
 }
 
 func (f *testSharedLister) NodeInfos() framework.NodeInfoLister {
@@ -115,10 +123,10 @@ type pluginTestSuit struct {
 }
 
 func newPluginTestSuit(t *testing.T, nodes []*corev1.Node, pods []*corev1.Pod) *pluginTestSuit {
-	var v1beta2args v1beta2.UnifiedPodConstraintArgs
-	schedulingconfigv1beta2.SetDefaults_UnifiedPodConstraintArgs(&v1beta2args)
+	var v1beta3args v1beta3.UnifiedPodConstraintArgs
+	schedulingconfigv1beta3.SetDefaults_UnifiedPodConstraintArgs(&v1beta3args)
 	var unifiedPodConstraintArgs schedulingconfig.UnifiedPodConstraintArgs
-	err := schedulingconfigv1beta2.Convert_v1beta2_UnifiedPodConstraintArgs_To_config_UnifiedPodConstraintArgs(&v1beta2args, &unifiedPodConstraintArgs, nil)
+	err := schedulingconfigv1beta3.Convert_v1beta3_UnifiedPodConstraintArgs_To_config_UnifiedPodConstraintArgs(&v1beta3args, &unifiedPodConstraintArgs, nil)
 	assert.NoError(t, err)
 	unifiedPodConstraintArgs.EnableDefaultPodConstraint = pointer.BoolPtr(true)
 	unifiedCPUSetAllocatorPluginConfig := scheduledconfig.PluginConfig{
@@ -144,6 +152,7 @@ func newPluginTestSuit(t *testing.T, nodes []*corev1.Node, pods []*corev1.Pod) *
 	informerFactory := informers.NewSharedInformerFactory(cs, 0)
 	snapshot := newTestSharedLister(pods, nodes)
 	fh, err := st.NewFramework(
+		context.TODO(),
 		registeredPlugins,
 		"koord-scheduler",
 		runtime.WithClientSet(cs),

@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	cachepodapis "gitlab.alibaba-inc.com/cache/api/pb/generated"
@@ -39,7 +40,7 @@ import (
 	koordfake "github.com/koordinator-sh/koordinator/pkg/client/clientset/versioned/fake"
 	koordinatorinformers "github.com/koordinator-sh/koordinator/pkg/client/informers/externalversions"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config"
-	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta2"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/apis/config/v1beta3"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext"
 	frameworkexttesting "github.com/koordinator-sh/koordinator/pkg/scheduler/frameworkext/testing"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/unified/hijack"
@@ -81,6 +82,14 @@ func newFakeSharedLister(pods []*corev1.Pod, nodes []*corev1.Node, listErr bool)
 		nodeInfoMap: nodeInfoMap,
 		listErr:     listErr,
 	}
+}
+
+func (f *fakeSharedLister) StorageInfos() framework.StorageInfoLister {
+	return f
+}
+
+func (f *fakeSharedLister) IsPVCUsedByPods(key string) bool {
+	return false
 }
 
 func (f *fakeSharedLister) NodeInfos() framework.NodeInfoLister {
@@ -136,6 +145,7 @@ func newPluginTestSuitWith(t testing.TB, pods []*corev1.Pod, nodes []*corev1.Nod
 	eventRecorder := record.NewEventRecorderAdapter(fakeRecorder)
 
 	fw, err := schedulertesting.NewFramework(
+		context.TODO(),
 		registeredPlugins,
 		"koord-scheduler",
 		frameworkruntime.WithClientSet(cs),
@@ -168,11 +178,11 @@ func (s *pluginTestSuit) start() {
 }
 
 func getDefaultArgsForTest(t *testing.T) *config.CachedPodArgs {
-	var v1beta2args v1beta2.CachedPodArgs
-	v1beta2args.Address = ":0"
-	v1beta2.SetDefaults_CachedPodArgs(&v1beta2args)
+	var v1beta3args v1beta3.CachedPodArgs
+	v1beta3args.Address = ":0"
+	v1beta3.SetDefaults_CachedPodArgs(&v1beta3args)
 	var cachedPodArgs config.CachedPodArgs
-	err := v1beta2.Convert_v1beta2_CachedPodArgs_To_config_CachedPodArgs(&v1beta2args, &cachedPodArgs, nil)
+	err := v1beta3.Convert_v1beta3_CachedPodArgs_To_config_CachedPodArgs(&v1beta3args, &cachedPodArgs, nil)
 	assert.NoError(t, err)
 	return &cachedPodArgs
 }
@@ -200,17 +210,19 @@ func TestErrorHandler(t *testing.T) {
 		server: fs,
 	}
 	requestPod := NewFakePod("123456", &corev1.PodTemplateSpec{}, 0)
+	podInfo, _ := framework.NewPodInfo(requestPod)
 	queuedPodInfo := &framework.QueuedPodInfo{
-		PodInfo: framework.NewPodInfo(requestPod),
+		PodInfo: podInfo,
 	}
 	err := fmt.Errorf("fake error")
-	assert.True(t, pl.ErrorHandler(queuedPodInfo, err))
+	assert.True(t, pl.ErrorHandler(context.TODO(), nil, queuedPodInfo, framework.AsStatus(err), nil, time.Now()))
 
 	assert.Equal(t, requestPod, fs.completeRequestPod)
 	assert.Nil(t, fs.cachedPod)
 	assert.Equal(t, err, fs.err)
 
-	assert.False(t, pl.ErrorHandler(&framework.QueuedPodInfo{PodInfo: framework.NewPodInfo(&corev1.Pod{})}, err))
+	podInfo, _ = framework.NewPodInfo(&corev1.Pod{})
+	assert.False(t, pl.ErrorHandler(context.TODO(), nil, &framework.QueuedPodInfo{PodInfo: podInfo}, framework.AsStatus(err), nil, time.Now()))
 }
 
 func TestPostFilter(t *testing.T) {

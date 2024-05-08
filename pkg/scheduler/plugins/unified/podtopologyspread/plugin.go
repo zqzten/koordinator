@@ -1,5 +1,5 @@
 /*
-Copyright 2019 The Kubernetes Authors.
+Copyright 2022 The Koordinator Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,9 +29,9 @@ import (
 	"k8s.io/client-go/informers"
 	appslisters "k8s.io/client-go/listers/apps/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
-	scheduledconfigv1beta2config "k8s.io/kube-scheduler/config/v1beta2"
+	scheduledconfigv1beta3 "k8s.io/kube-scheduler/config/v1beta3"
 	schedconfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
-	"k8s.io/kubernetes/pkg/scheduler/apis/config/v1beta2"
+	"k8s.io/kubernetes/pkg/scheduler/apis/config/v1beta3"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config/validation"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
@@ -146,13 +146,13 @@ func getArgs(obj runtime.Object) (*schedconfig.PodTopologySpreadArgs, error) {
 		return nil, fmt.Errorf("got args of type %T, want *PodTopologySpreadArgs", obj)
 	}
 
-	var v1beta2args scheduledconfigv1beta2config.PodTopologySpreadArgs
-	v1beta2.SetDefaults_PodTopologySpreadArgs(&v1beta2args)
-	if err := frameworkruntime.DecodeInto(unknownObj, &v1beta2args); err != nil {
+	var v1beta3args scheduledconfigv1beta3.PodTopologySpreadArgs
+	v1beta3.SetDefaults_PodTopologySpreadArgs(&v1beta3args)
+	if err := frameworkruntime.DecodeInto(unknownObj, &v1beta3args); err != nil {
 		return nil, err
 	}
 	var podTopologySpreadArgs schedconfig.PodTopologySpreadArgs
-	err := v1beta2.Convert_v1beta2_PodTopologySpreadArgs_To_config_PodTopologySpreadArgs(&v1beta2args, &podTopologySpreadArgs, nil)
+	err := v1beta3.Convert_v1beta3_PodTopologySpreadArgs_To_config_PodTopologySpreadArgs(&v1beta3args, &podTopologySpreadArgs, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -160,10 +160,10 @@ func getArgs(obj runtime.Object) (*schedconfig.PodTopologySpreadArgs, error) {
 }
 
 func getDefaultPodTopologySpreadArgs() (*schedconfig.PodTopologySpreadArgs, error) {
-	var v1beta2args scheduledconfigv1beta2config.PodTopologySpreadArgs
-	v1beta2.SetDefaults_PodTopologySpreadArgs(&v1beta2args)
+	var v1beta3args scheduledconfigv1beta3.PodTopologySpreadArgs
+	v1beta3.SetDefaults_PodTopologySpreadArgs(&v1beta3args)
 	var podTopologySpreadArgs schedconfig.PodTopologySpreadArgs
-	err := v1beta2.Convert_v1beta2_PodTopologySpreadArgs_To_config_PodTopologySpreadArgs(&v1beta2args, &podTopologySpreadArgs, nil)
+	err := v1beta3.Convert_v1beta3_PodTopologySpreadArgs_To_config_PodTopologySpreadArgs(&v1beta3args, &podTopologySpreadArgs, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -179,8 +179,8 @@ func (pl *PodTopologySpread) setListers(factory informers.SharedInformerFactory)
 
 // EventsToRegister returns the possible events that may make a Pod
 // failed by this plugin schedulable.
-func (pl *PodTopologySpread) EventsToRegister() []framework.ClusterEvent {
-	return []framework.ClusterEvent{
+func (pl *PodTopologySpread) EventsToRegister() []framework.ClusterEventWithHint {
+	return []framework.ClusterEventWithHint{
 		// All ActionType includes the following events:
 		// - Add. An unschedulable Pod may fail due to violating topology spread constraints,
 		// adding an assigned Pod may make it schedulable.
@@ -188,9 +188,9 @@ func (pl *PodTopologySpread) EventsToRegister() []framework.ClusterEvent {
 		// an unschedulable Pod schedulable.
 		// - Delete. An unschedulable Pod may fail due to violating an existing Pod's topology spread constraints,
 		// deleting an existing Pod may make it schedulable.
-		{Resource: framework.Pod, ActionType: framework.All},
+		{Event: framework.ClusterEvent{Resource: framework.Pod, ActionType: framework.All}},
 		// Node add|delete|updateLabel maybe lead an topology key changed,
 		// and make these pod in scheduling schedulable or unschedulable.
-		{Resource: framework.Node, ActionType: framework.Add | framework.Delete | framework.UpdateNodeLabel},
+		{Event: framework.ClusterEvent{Resource: framework.Node, ActionType: framework.Add | framework.Delete | framework.UpdateNodeLabel}},
 	}
 }

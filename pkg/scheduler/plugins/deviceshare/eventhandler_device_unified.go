@@ -69,7 +69,7 @@ type unifiedDeviceEventHandler struct {
 	deviceCache *nodeDeviceCache
 }
 
-func (n *unifiedDeviceEventHandler) OnAdd(obj interface{}) {
+func (n *unifiedDeviceEventHandler) OnAdd(obj interface{}, isInInitializeList bool) {
 	device, ok := obj.(*cosv1beta1.Device)
 	if !ok {
 		klog.Errorf("device cache add failed to parse, obj %T", obj)

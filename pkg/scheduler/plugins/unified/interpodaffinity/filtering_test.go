@@ -31,7 +31,6 @@ import (
 	k8sfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
-	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/feature"
 	plugintesting "k8s.io/kubernetes/pkg/scheduler/framework/plugins/testing"
 	"k8s.io/utils/pointer"
 
@@ -143,6 +142,14 @@ func createImageExistenceMap(nodes []*v1.Node) map[string]sets.String {
 		}
 	}
 	return imageExistenceMap
+}
+
+func (s *Snapshot) StorageInfos() framework.StorageInfoLister {
+	return s
+}
+
+func (s *Snapshot) IsPVCUsedByPods(key string) bool {
+	return false
 }
 
 // NodeInfos returns a NodeInfoLister.
@@ -1221,9 +1228,7 @@ func TestRequiredAffinitySingleNode(t *testing.T) {
 			ctx := context.Background()
 			snapshot := NewSnapshot(test.pods, []*v1.Node{test.node})
 			n := func(plArgs runtime.Object, fh framework.Handle) (framework.Plugin, error) {
-				return NewWithFeature(plArgs, fh, feature.Features{
-					EnablePodAffinityNamespaceSelector: !test.disableNSSelector,
-				})
+				return NewWithFeature(plArgs, fh)
 			}
 			p := plugintesting.SetupPluginWithInformers(ctx, t, n, &config.InterPodAffinityArgs{}, snapshot, namespaces)
 			state := framework.NewCycleState()
@@ -1346,9 +1351,7 @@ func TestRequiredAffinitySingleECINode(t *testing.T) {
 			ctx := context.Background()
 			snapshot := NewSnapshot(test.pods, []*v1.Node{test.node})
 			n := func(plArgs runtime.Object, fh framework.Handle) (framework.Plugin, error) {
-				return NewWithFeature(plArgs, fh, feature.Features{
-					EnablePodAffinityNamespaceSelector: !test.disableNSSelector,
-				})
+				return NewWithFeature(plArgs, fh)
 			}
 			p := plugintesting.SetupPluginWithInformers(ctx, t, n, &config.InterPodAffinityArgs{}, snapshot, namespaces)
 			state := framework.NewCycleState()
@@ -2215,7 +2218,7 @@ func TestRequiredAffinityMultipleNodes(t *testing.T) {
 			ctx := context.Background()
 			snapshot := NewSnapshot(test.pods, test.nodes)
 			n := func(plArgs runtime.Object, fh framework.Handle) (framework.Plugin, error) {
-				return NewWithFeature(plArgs, fh, feature.Features{})
+				return NewWithFeature(plArgs, fh)
 			}
 			p := plugintesting.SetupPluginWithInformers(ctx, t, n, &config.InterPodAffinityArgs{}, snapshot,
 				[]runtime.Object{
@@ -2523,7 +2526,8 @@ func TestPreFilterStateAddRemovePod(t *testing.T) {
 
 			// Add test.addedPod to state1 and verify it is equal to allPodsState.
 			nodeInfo := mustGetNodeInfo(t, snapshot, test.addedPod.Spec.NodeName)
-			if err := ipa.AddPod(ctx, cycleState, test.pendingPod, framework.NewPodInfo(test.addedPod), nodeInfo); err != nil {
+			podInfo, _ := framework.NewPodInfo(test.addedPod)
+			if err := ipa.AddPod(ctx, cycleState, test.pendingPod, podInfo, nodeInfo); err != nil {
 				t.Errorf("error adding pod to meta: %v", err)
 			}
 
@@ -2545,7 +2549,8 @@ func TestPreFilterStateAddRemovePod(t *testing.T) {
 			}
 
 			// Remove the added pod pod and make sure it is equal to the original state.
-			if err := ipa.RemovePod(context.Background(), cycleState, test.pendingPod, framework.NewPodInfo(test.addedPod), nodeInfo); err != nil {
+			podInfo, _ = framework.NewPodInfo(test.addedPod)
+			if err := ipa.RemovePod(context.Background(), cycleState, test.pendingPod, podInfo, nodeInfo); err != nil {
 				t.Errorf("error removing pod from meta: %v", err)
 			}
 			if !reflect.DeepEqual(originalState, state) {
@@ -2784,7 +2789,8 @@ func TestGetTPMapMatchingIncomingAffinityAntiAffinity(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			p := plugintesting.SetupPluginWithInformers(ctx, t, New, &config.InterPodAffinityArgs{}, snapshot, nil)
-			gotAffinityPodsMap, gotAntiAffinityPodsMap := p.(*InterPodAffinity).getIncomingAffinityAntiAffinityCounts(framework.NewPodInfo(tt.pod), l, true)
+			podInfo, _ := framework.NewPodInfo(tt.pod)
+			gotAffinityPodsMap, gotAntiAffinityPodsMap := p.(*InterPodAffinity).getIncomingAffinityAntiAffinityCounts(podInfo, l, true)
 			if !reflect.DeepEqual(gotAffinityPodsMap, tt.wantAffinityPodsMap) {
 				t.Errorf("getTPMapMatchingIncomingAffinityAntiAffinity() gotAffinityPodsMap = %#v, want %#v", gotAffinityPodsMap, tt.wantAffinityPodsMap)
 			}

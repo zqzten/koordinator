@@ -96,11 +96,11 @@ func New(args runtime.Object, handle framework.Handle) (framework.Plugin, error)
 		return nil, err
 	}
 
-	if err = c.Watch(&source.Kind{Type: &koordsev1alpha1.PodMigrationJob{}}, &handler.Funcs{}); err != nil {
+	if err = c.Watch(source.Kind(options.Manager.GetCache(), &koordsev1alpha1.PodMigrationJob{}), &handler.Funcs{}); err != nil {
 		return nil, err
 	}
 
-	err = c.Watch(&source.Kind{Type: &unifiedsev1.OrchestratingSLO{}}, &handler.EnqueueRequestForObject{},
+	err = c.Watch(source.Kind(options.Manager.GetCache(), &unifiedsev1.OrchestratingSLO{}), &handler.EnqueueRequestForObject{},
 		predicate.Funcs{
 			UpdateFunc: func(event event.UpdateEvent) bool {
 				oldOrchestratingSLO := event.ObjectOld.(*unifiedsev1.OrchestratingSLO)

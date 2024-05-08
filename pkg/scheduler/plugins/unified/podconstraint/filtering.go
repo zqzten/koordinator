@@ -253,7 +253,7 @@ func (p *Plugin) calPrefilterState(cycleState *framework.CycleState, pod *corev1
 			}
 		}
 	}
-	p.handle.Parallelizer().Until(context.Background(), len(allNodes), processNode)
+	p.handle.Parallelizer().Until(context.Background(), len(allNodes), processNode, p.Name())
 	for _, stateItem := range state.items {
 		func() {
 			for _, c := range stateItem.RequiredSpreadConstraints {

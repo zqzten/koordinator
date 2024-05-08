@@ -200,7 +200,7 @@ func (ni *NodeInfo) addPodToCache(p *v1.Pod) *PodInfo {
 	pi.UID = p.UID
 	pi.Pod = p
 	if pi.Request == nil {
-		podRequests, _ := resourceapi.PodRequestsAndLimits(p)
+		podRequests := resourceapi.PodRequests(p, resourceapi.PodResourcesOptions{})
 		pi.Request = podRequests
 	}
 	if utils.IsStaticPod(p) ||

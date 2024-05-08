@@ -20,7 +20,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
@@ -32,12 +31,12 @@ import (
 	recommender "gitlab.alibaba-inc.com/cos/recommender/pkg/controllers"
 
 	deschedulerinformers "github.com/koordinator-sh/koordinator/pkg/descheduler/informers"
-	"github.com/koordinator-sh/koordinator/pkg/features"
-	utilfeature "github.com/koordinator-sh/koordinator/pkg/util/feature"
 	"github.com/koordinator-sh/koordinator/pkg/util/sloconfig"
 )
 
-const RecommenderControllerName = "recommender"
+const (
+	RecommenderControllerName = "recommender"
+)
 
 var _ manager.Runnable = (*RecommenderRunner)(nil)
 
@@ -92,14 +91,6 @@ func (r *RecommenderRunner) Start(ctx context.Context) error {
 }
 
 func AddRecommender(mgr ctrl.Manager) error {
-	if !utilfeature.DefaultFeatureGate.Enabled(features.RecommenderControl) {
-		return nil
-	}
-
 	recommenderRunner := newRecommenderRunner(mgr)
-	err := mgr.AddMetricsExtraHandler("/default-metrics", promhttp.Handler())
-	if err != nil {
-		return err
-	}
 	return mgr.Add(recommenderRunner)
 }

@@ -65,6 +65,14 @@ func newTestSharedLister(nodes []*corev1.Node) *testSharedLister {
 	}
 }
 
+func (f *testSharedLister) StorageInfos() framework.StorageInfoLister {
+	return f
+}
+
+func (f *testSharedLister) IsPVCUsedByPods(key string) bool {
+	return false
+}
+
 func (f *testSharedLister) NodeInfos() framework.NodeInfoLister {
 	return f
 }
@@ -135,6 +143,7 @@ func Test_partitionTopologies(t *testing.T) {
 	snapshot := newTestSharedLister(nodes)
 
 	fh, err := schedulertesting.NewFramework(
+		context.TODO(),
 		[]schedulertesting.RegisterPluginFunc{
 			schedulertesting.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			schedulertesting.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
@@ -216,6 +225,7 @@ func Test_partitionTopologies_with_selector(t *testing.T) {
 	snapshot := newTestSharedLister(nodes)
 
 	fh, err := schedulertesting.NewFramework(
+		context.TODO(),
 		[]schedulertesting.RegisterPluginFunc{
 			schedulertesting.RegisterBindPlugin(defaultbinder.Name, defaultbinder.New),
 			schedulertesting.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),

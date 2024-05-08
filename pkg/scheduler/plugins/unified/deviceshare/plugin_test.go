@@ -209,6 +209,14 @@ func newTestSharedLister(pods []*corev1.Pod, nodes []*corev1.Node) *testSharedLi
 	}
 }
 
+func (f *testSharedLister) StorageInfos() framework.StorageInfoLister {
+	return f
+}
+
+func (f *testSharedLister) IsPVCUsedByPods(key string) bool {
+	return false
+}
+
 func (f *testSharedLister) NodeInfos() framework.NodeInfoLister {
 	return f
 }
@@ -262,6 +270,7 @@ func newPluginTestSuit(t *testing.T, nodes []*corev1.Node) *pluginTestSuit {
 	snapshot := newTestSharedLister(nil, nodes)
 
 	fh, err := schedulertesting.NewFramework(
+		context.TODO(),
 		registeredPlugins,
 		"koord-scheduler",
 		frameworkruntime.WithClientSet(cs),
@@ -296,6 +305,7 @@ func Test_New(t *testing.T) {
 	informerFactory := informers.NewSharedInformerFactory(cs, 0)
 	snapshot := newTestSharedLister(nil, nil)
 	fh, err := schedulertesting.NewFramework(
+		context.TODO(),
 		registeredPlugins,
 		"koord-scheduler",
 		frameworkruntime.WithClientSet(cs),
@@ -305,7 +315,7 @@ func Test_New(t *testing.T) {
 	assert.Nil(t, err)
 	args := &apiruntime.Unknown{
 		ContentType: apiruntime.ContentTypeJSON,
-		Raw:         []byte(`{"apiVersion":"kubescheduler.config.k8s.io/v1beta2", "allocator": "default","scoringStrategy":{"type":"LeastAllocated","resources":[{"Name":"koordinator.sh/gpu-memory-ratio", "Weight":1}]}}`),
+		Raw:         []byte(`{"apiVersion":"kubescheduler.config.k8s.io/v1beta3", "allocator": "default","scoringStrategy":{"type":"LeastAllocated","resources":[{"Name":"koordinator.sh/gpu-memory-ratio", "Weight":1}]}}`),
 	}
 
 	p, err := proxyNew(args, fh)
@@ -745,7 +755,7 @@ func Test_getDeviceShareArgs(t *testing.T) {
 		{
 			name: "configured args",
 			obj: &runtime.Unknown{
-				Raw:         []byte(`{"allocator": "autopilotAllocator", "apiVersion": "kubescheduler.config.k8s.io/v1beta2"}`),
+				Raw:         []byte(`{"allocator": "autopilotAllocator", "apiVersion": "kubescheduler.config.k8s.io/v1beta3"}`),
 				ContentType: runtime.ContentTypeJSON,
 			},
 			want: &schedulingconfig.DeviceShareArgs{

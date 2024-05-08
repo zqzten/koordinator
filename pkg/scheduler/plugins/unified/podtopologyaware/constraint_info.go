@@ -136,7 +136,7 @@ func (s *constraintInfo) partitionNodeByTopologies(ctx context.Context, handle f
 		index := atomic.AddInt32(&nodeIndex, 1)
 		topologies[index-1] = &topology
 	}
-	handle.Parallelizer().Until(ctx, len(allNodeInfos), partitionFn)
+	handle.Parallelizer().Until(ctx, len(allNodeInfos), partitionFn, Name)
 	topologies = topologies[:nodeIndex]
 	if len(topologies) == 0 {
 		return nil

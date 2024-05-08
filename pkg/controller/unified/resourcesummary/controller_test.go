@@ -37,6 +37,7 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/koordinator-sh/koordinator/apis/extension"
@@ -1232,7 +1233,15 @@ func TestResourceSummaryReconciler_Reconcile(t *testing.T) {
 	metav1.AddToGroupVersion(scheme, cosv1beta1.GroupVersion)
 
 	assert.NoError(t, err)
-	client := fake.NewClientBuilder().WithScheme(scheme).Build()
+	client := fake.NewClientBuilder().WithScheme(scheme).
+		WithStatusSubresource(&v1beta1.ResourceSummary{}).
+		WithIndex(&corev1.Pod{}, "spec.nodeName", func(object client.Object) []string {
+			return []string{object.(*corev1.Pod).Spec.NodeName}
+		}).
+		WithIndex(&schedulingv1alpha1.Reservation{}, "status.nodeName", func(object client.Object) []string {
+			return []string{object.(*schedulingv1alpha1.Reservation).Status.NodeName}
+		}).
+		Build()
 	r := &Reconciler{
 		Client: client,
 	}
@@ -1304,6 +1313,7 @@ func TestResourceSummaryReconciler_Reconcile(t *testing.T) {
 					Name:      fmt.Sprintf("pod-%d-%d", 0, 1),
 				},
 			},
+			NodeName: nodeName,
 		},
 	}
 	assert.NoError(t, r.Client.Create(context.Background(), reservation))
