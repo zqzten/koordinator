@@ -8,6 +8,8 @@ import (
 )
 
 const (
+	DomainPrefix = "alibabacloud.com"
+
 	ACSType = "virtual-cluster-node"
 
 	AnnotationTenancyOwnerReferences = "tenancy.x-k8s.io/ownerReferences"

@@ -48,6 +48,7 @@ const (
 	ResourcePPU        corev1.ResourceName = "alibabacloud.com/ppu"
 
 	LabelGPUModelSeries       string = extension.NodeDomainPrefix + "/gpu-model-series"
+	LabelACSGPUModelSeries           = DomainPrefix + "/gpu-model-series"
 	LabelEnableSharedNVSwitch string = extension.NodeDomainPrefix + "/enable-shared-nvswitch"
 	LabelRDMANICType          string = extension.NodeDomainPrefix + "/rdma-nic-type"
 )
