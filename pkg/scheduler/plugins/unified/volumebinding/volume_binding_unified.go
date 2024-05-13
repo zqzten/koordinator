@@ -256,14 +256,7 @@ func (pl *VolumeBinding) AddPod(ctx context.Context, cycleState *framework.Cycle
 	if err != nil {
 		return framework.AsStatus(err)
 	}
-	if !state.skip {
-		// 不支持使用了 PVC 的 Pod 抢占别的 Pod
-		return nil
-	}
-	if hasPVC, _ := pl.podHasPVCs(podInfoToAdd.Pod); hasPVC {
-		// 不支持带有 PVC 的同时使用了本地盘的 Pod 被抢占
-		return nil
-	}
+
 	nodePreemptiveUsedStorage := state.preemptiveUsedStorage[node.Name]
 	if len(nodePreemptiveUsedStorage) == 0 {
 		return nil
@@ -291,14 +284,7 @@ func (pl *VolumeBinding) RemovePod(ctx context.Context, cycleState *framework.Cy
 	if err != nil {
 		return framework.AsStatus(err)
 	}
-	if !state.skip {
-		// 不支持使用了 PVC 的同时使用了本地盘的 Pod 抢占别的 Pod
-		return nil
-	}
-	if hasPVC, _ := pl.podHasPVCs(podInfoToRemove.Pod); hasPVC {
-		// 不支持带有 PVC 的 Pod 被抢占
-		return nil
-	}
+
 	requiredStorageInBytes := GetRequestedStorageInBytes(podInfoToRemove.Pod, pl.classLister)
 	if requiredStorageInBytes == 0 {
 		return nil

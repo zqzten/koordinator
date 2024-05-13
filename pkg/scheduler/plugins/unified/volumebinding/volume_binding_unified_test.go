@@ -1075,6 +1075,11 @@ func TestVolumeBindingWithLocalPVPreemption(t *testing.T) {
 				t.Errorf("state got after filter does not match: %v, want: %v", stateData, item.wantStateAfterFilter)
 			}
 
+			volume := v1.Volume{}
+			volume.PersistentVolumeClaim = &v1.PersistentVolumeClaimVolumeSource{}
+			volume.PersistentVolumeClaim.ClaimName = "fake"
+			item.existingPod.Spec.Volumes = append(item.existingPod.Spec.Volumes, volume)
+
 			pl.(*VolumeBinding).RemovePod(ctx, state, item.pod, framework.NewPodInfo(item.existingPod), nodeInfo)
 
 			t.Logf("Verify: check state after prefilterRemove phase")
