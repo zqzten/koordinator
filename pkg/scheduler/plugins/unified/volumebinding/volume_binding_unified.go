@@ -67,8 +67,16 @@ func (pl *VolumeBinding) filterWithoutPVC(state *stateData, pod *v1.Pod, nodeInf
 	if nodeStorageInfo != nil {
 		nodeStorageInfo.lock.RLock()
 		defer nodeStorageInfo.lock.RUnlock()
+		state.RLock()
 		preemptivePodUsedStorage := state.preemptiveUsedStorage[nodeInfo.Node().Name]
-		return HasEnoughStorageCapacity(nodeStorageInfo, pod, 0, nil, pl.classLister, preemptivePodUsedStorage)
+		preemptiveUsedStorage := int64(0)
+		for podName, podUsedStorage := range preemptivePodUsedStorage {
+			if _, ok := nodeStorageInfo.allocSet[podName]; ok {
+				preemptiveUsedStorage += podUsedStorage
+			}
+		}
+		state.RUnlock()
+		return HasEnoughStorageCapacity(nodeStorageInfo, pod, 0, nil, pl.classLister, preemptiveUsedStorage)
 	}
 	return nil
 }
@@ -257,6 +265,8 @@ func (pl *VolumeBinding) AddPod(ctx context.Context, cycleState *framework.Cycle
 		return framework.AsStatus(err)
 	}
 
+	state.Lock()
+	defer state.Unlock()
 	nodePreemptiveUsedStorage := state.preemptiveUsedStorage[node.Name]
 	if len(nodePreemptiveUsedStorage) == 0 {
 		return nil
@@ -285,6 +295,8 @@ func (pl *VolumeBinding) RemovePod(ctx context.Context, cycleState *framework.Cy
 		return framework.AsStatus(err)
 	}
 
+	state.Lock()
+	defer state.Unlock()
 	requiredStorageInBytes := GetRequestedStorageInBytes(podInfoToRemove.Pod, pl.classLister)
 	if requiredStorageInBytes == 0 {
 		return nil

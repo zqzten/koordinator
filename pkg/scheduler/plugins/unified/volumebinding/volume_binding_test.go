@@ -712,7 +712,7 @@ func TestVolumeBinding(t *testing.T) {
 			}
 			stateCmpOpts := []cmp.Option{
 				cmp.AllowUnexported(stateData{}),
-				cmpopts.IgnoreFields(stateData{}, "Mutex"),
+				cmpopts.IgnoreFields(stateData{}, "RWMutex"),
 			}
 			if diff := cmp.Diff(item.wantStateAfterPreFilter, got, stateCmpOpts...); diff != "" {
 				t.Errorf("state got after prefilter does not match (-want,+got):\n%s", diff)

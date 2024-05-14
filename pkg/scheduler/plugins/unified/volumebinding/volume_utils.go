@@ -72,15 +72,8 @@ func ReplaceStorageClassIfVirtualKubelet(node *corev1.Node, pod *corev1.Pod, cla
 	return claim
 }
 
-func HasEnoughStorageCapacity(nodeStorageInfo *NodeStorageInfo, pod *v1.Pod, systemDiskInBytes int64, localVolumesInBytes map[string]int64, storageClassLister storagelisters.StorageClassLister, preemptivePodUsedStorage map[string]int64) *framework.Status {
+func HasEnoughStorageCapacity(nodeStorageInfo *NodeStorageInfo, pod *v1.Pod, systemDiskInBytes int64, localVolumesInBytes map[string]int64, storageClassLister storagelisters.StorageClassLister, preemptiveUsedStorage int64) *framework.Status {
 	requiredStorageInBytes := systemDiskInBytes + GetRequestedStorageInBytes(pod, storageClassLister)
-
-	preemptiveUsedStorage := int64(0)
-	for podName, podUsedStorage := range preemptivePodUsedStorage {
-		if _, ok := nodeStorageInfo.allocSet[podName]; ok {
-			preemptiveUsedStorage += podUsedStorage
-		}
-	}
 
 	localVolumeFree := nodeStorageInfo.GetFree()
 	if requiredStorageInBytes > 0 {
