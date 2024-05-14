@@ -62,10 +62,12 @@ type stateData struct {
 	// it's initialized in the PreFilter phase
 	podVolumesByNode      map[string]*PodVolumes
 	preemptiveUsedStorage map[string]map[string]int64
-	sync.Mutex
+	sync.RWMutex
 }
 
 func (d *stateData) Clone() framework.StateData {
+	d.RLock()
+	defer d.RUnlock()
 	if len(d.preemptiveUsedStorage) == 0 {
 		return d
 	}
@@ -83,6 +85,7 @@ func (d *stateData) Clone() framework.StateData {
 			clonedNodePreemptiveStorage[podKey] = podPreemptiveStorage
 		}
 	}
+	d.preemptiveUsedStorage = clonedPreemptivePodUsedStorage
 	return d
 }
 

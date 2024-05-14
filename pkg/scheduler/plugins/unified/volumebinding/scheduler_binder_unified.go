@@ -289,7 +289,7 @@ func (b *volumeBinder) checkLocalVolumeStorageAndIOCapacity(nodeName string, pod
 	nodeStorageInfo.lock.RLock()
 	defer nodeStorageInfo.lock.RUnlock()
 
-	status := HasEnoughStorageCapacity(nodeStorageInfo, pod, requestSystemDiskInBytes, localVolumesInBytes, b.classLister, nil)
+	status := HasEnoughStorageCapacity(nodeStorageInfo, pod, requestSystemDiskInBytes, localVolumesInBytes, b.classLister, 0)
 	if !status.IsSuccess() {
 		return false, true, nil
 	}
