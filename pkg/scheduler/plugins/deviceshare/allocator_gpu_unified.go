@@ -27,6 +27,11 @@ import (
 	schedulingv1alpha1 "github.com/koordinator-sh/koordinator/apis/scheduling/v1alpha1"
 )
 
+const (
+	ErrInsufficientPartitionedDevice = "Insufficient Partitioned GPU Devices"
+	ErrNotSupportedGPURequests       = "node(s) Unsupported number of GPU requests"
+)
+
 func init() {
 	deviceAllocators[schedulingv1alpha1.GPU] = &GPUAllocator{}
 }
@@ -109,13 +114,13 @@ func (a *GPUAllocator) allocateResourcesByPartition(requestCtx *requestContext, 
 		return allocations, nil
 	}
 
-	return nil, framework.NewStatus(framework.Unschedulable, "Insufficient gpu devices")
+	return nil, framework.NewStatus(framework.Unschedulable, ErrInsufficientPartitionedDevice)
 }
 
 func sortCandidatePartition(partitionTable unified.GPUPartitionTable, desiredCount int, nodeDevice *nodeDevice) ([]unified.GPUPartition, *framework.Status) {
 	partitions, ok := partitionTable[desiredCount]
 	if !ok {
-		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, "node(s) Unsupported number of GPU requests")
+		return nil, framework.NewStatus(framework.UnschedulableAndUnresolvable, ErrNotSupportedGPURequests)
 	}
 	if desiredCount == 8 || desiredCount == 4 {
 		return partitions, nil
