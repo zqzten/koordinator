@@ -555,34 +555,12 @@ func TestPlugin_CPUSetProtocols(t *testing.T) {
 			p, err := suit.proxyNew(nil, suit.Handle)
 			assert.NotNil(t, p)
 			assert.Nil(t, err)
-			cpuTopology := extension.CPUTopology{
-				Detail: []extension.CPUInfo{
-					{ID: 0, Core: 0, Socket: 0, Node: 0},
-					{ID: 1, Core: 0, Socket: 0, Node: 0},
-					{ID: 2, Core: 1, Socket: 0, Node: 0},
-					{ID: 3, Core: 1, Socket: 0, Node: 0},
-					{ID: 4, Core: 2, Socket: 0, Node: 0},
-					{ID: 5, Core: 2, Socket: 0, Node: 0},
-					{ID: 6, Core: 3, Socket: 0, Node: 0},
-					{ID: 7, Core: 3, Socket: 0, Node: 0},
-				},
-			}
-			cpuTopologyData, err := json.Marshal(cpuTopology)
 			assert.NoError(t, err)
-			resourceTopology := &v1alpha1.NodeResourceTopology{
-				TypeMeta: metav1.TypeMeta{},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        "test-node-1",
-					Annotations: map[string]string{extension.AnnotationNodeCPUTopology: string(cpuTopologyData)},
-				},
-				TopologyPolicies: nil,
-				Zones:            nil,
-			}
-			_, err = suit.NRTClientset.TopologyV1alpha1().NodeResourceTopologies().Create(context.TODO(), resourceTopology, metav1.CreateOptions{})
-			assert.Nil(t, err)
 			plg := p.(*Plugin)
+			plg.GetTopologyOptionsManager().UpdateTopologyOptions("test-node-1", func(options *nodenumaresource.TopologyOptions) {
+				options.CPUTopology = buildCPUTopologyForTest(1, 1, 4, 2)
+			})
 			suit.start()
-			time.Sleep(100 * time.Millisecond)
 			nodeInfo, err := suit.Handle.SnapshotSharedLister().NodeInfos().Get("test-node-1")
 			assert.NoError(t, err)
 			assert.NotNil(t, nodeInfo)
