@@ -307,7 +307,7 @@ replace (
 	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.24.15
 	k8s.io/kubectl => k8s.io/kubectl v0.24.15
 	k8s.io/kubelet => k8s.io/kubelet v0.24.15
-	k8s.io/kubernetes => gitlab.alibaba-inc.com/koordinator-sh/kubernetes v1.24.15-internal
+	k8s.io/kubernetes => gitlab.alibaba-inc.com/koordinator-sh/kubernetes v1.24.15-internal-release
 	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.24.15
 	k8s.io/metrics => k8s.io/metrics v0.24.15
 	k8s.io/mount-utils => k8s.io/mount-utils v0.24.15
