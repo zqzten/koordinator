@@ -1,0 +1,13 @@
+# More info: https://docs.docker.com/engine/reference/builder/#dockerignore-file
+# Ignore build and test binaries.
+bin/
+testbin/
+#vendor/
+
+!bin/disable-dsa.sh
+!bin/enable-dsa.sh
+!bin/conf/
+
+!bin/start-koord-manager.sh
+!bin/kubectl*
+!bin/logrotate*

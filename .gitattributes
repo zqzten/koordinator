@@ -1,0 +1,7 @@
+cmd/koord-cachedpod/koord-cachedpod filter=lfs diff=lfs merge=lfs -text
+bin/kubectl-arm64 filter=lfs diff=lfs merge=lfs -text
+bin/kubectl-amd64 filter=lfs diff=lfs merge=lfs -text
+bin filter=lfs diff=lfs merge=lfs -text
+bin/& filter=lfs diff=lfs merge=lfs -text
+bin/* filter=lfs diff=lfs merge=lfs -text
+bin/** filter=lfs diff=lfs merge=lfs -text

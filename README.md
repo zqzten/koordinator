@@ -1,31 +1,80 @@
-## README的意义
+<h1 align="center">
+  <p align="center">Koordinator</p>
+  <a href="https://koordinator.sh"><img src="https://github.com/koordinator-sh/koordinator/raw/main/docs/images/koordinator-logo.jpeg" alt="Koordinator"></a>
+</h1>
 
-README 文件通常是项目的第一个入口点。你应该通过 README 明确地告诉大家，为什么他们应该使用你的项目，以及安装和使用的方法。
+[![License](https://img.shields.io/github/license/koordinator-sh/koordinator.svg?color=4EB1BA&style=flat-square)](https://opensource.org/licenses/Apache-2.0)
+[![GitHub release](https://img.shields.io/github/v/release/koordinator-sh/koordinator.svg?style=flat-square)](https://github.com/koordinator-sh/koordinator/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/koordinator-sh/koordinator/ci.yaml?label=CI&logo=github&style=flat-square&branch=main)](https://github.com/koordinator-sh/koordinator/actions/workflows/ci.yaml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/koordinator-sh/koordinator?style=flat-square)](https://goreportcard.com/report/github.com/koordinator-sh/koordinator)
+[![codecov](https://img.shields.io/codecov/c/github/koordinator-sh/koordinator?logo=codecov&style=flat-square)](https://codecov.io/github/koordinator-sh/koordinator)
+[![PRs Welcome](https://badgen.net/badge/PRs/welcome/green?icon=https://api.iconify.design/octicon:git-pull-request.svg?color=white&style=flat-square)](CONTRIBUTING.md)
+[![Slack](https://badgen.net/badge/slack/join/4A154B?icon=slack&style=flat-square)](https://join.slack.com/t/koordinator-sh/shared_invite/zt-1756qoub4-Cn4~esfdlfAPsD7cwO2NzA)
 
-如果在仅仅看文档而不看代码的情况下就可以使用你的项目，该文档就完成了。 这个非常重要，因为这将使项目的文档接口与其内部实现分开，只要接口保持不变，就可以自由更改项目的内部结构。 
+English | [简体中文](./README-zh_CN.md)
+## Introduction
 
-**文档，而不是代码定义了项目的使用方式。**
+Koordinator is a QoS based scheduling system for hybrid orchestration workloads on Kubernetes. Its goal is to improve the
+runtime efficiency and reliability of both latency sensitive workloads and batch jobs, simplify the complexity of
+resource-related configuration tuning, and increase pod deployment density to improve resource utilization.
 
-一个规范的README文档能减少用户检索信息的时间。
+Koordinator enhances the kubernetes user experiences in the workload management by providing the following:
 
-## 标准 README
+- Improved Resource Utilization: Koordinator is designed to optimize the utilization of cluster resources, ensuring that all nodes are used effectively and efficiently.
+- Enhanced Performance: By using advanced algorithms and techniques, Koordinator aims to improve the performance of Kubernetes clusters, reducing interference between containers and increasing the overall speed of the system.
+- Flexible Scheduling Policies: Koordinator provides a range of options for customizing scheduling policies, allowing administrators to fine-tune the behavior of the system to suit their specific needs.
+- Easy Integration: Koordinator is designed to be easy to integrate into existing Kubernetes clusters, allowing users to start using it quickly and with minimal hassle.
 
-一个标准的README文件应当至少包含以下的内容：
+## Quick Start
 
-- 项目背景：说明创建本项目的背景与动机，创建本项目试图解决的问题 
-- 安装方法：说明如何快速上手使用该项目
-- 使用方法：列出本项目能够提供的功能以及使用这些功能的方法
-- 文档：现阶段antcode鼓励用户使用语雀组织项目文档，在README上应当放入项目的语雀文档链接
+You can view the full documentation from the [Koordinator website](https://koordinator.sh/docs).
 
-## 附加内容
+- Install or upgrade Koordinator with [the latest version](https://koordinator.sh/docs/installation).
+- Referring to [best practices](https://koordinator.sh/docs/best-practices/colocation-of-spark-jobs), there will be
+  examples on running co-located workloads.
 
-视项目的实际情况，同样也应该包含以下内容：
+## Code of conduct
 
-- 项目特性：说明本项目相较于其他同类项目所具有的特性
-- 兼容环境：说明本项目能够在什么平台上运行
-- 使用示例：展示一些使用本项目的小demo
-- 主要项目负责人：使用“@”标注出本项目的主要负责人，方便项目的用户沟通
-- 参与贡献的方式：规定好其他用户参与本项目并贡献代码的方式
-- 项目的参与者：列出项目主要的参与人
-- 已知用户：列出已经在生产环境中使用了本项目的全部或部分组件的公司或组织
-- 赞助者：列出为本项目提供赞助的用户
+The Koordinator community is guided by our [Code of Conduct](CODE_OF_CONDUCT.md), which we encourage everybody to read
+before participating.
+
+In the interest of fostering an open and welcoming environment, we as contributors and maintainers pledge to making
+participation in our project and our community a harassment-free experience for everyone, regardless of age, body size,
+disability, ethnicity, level of experience, education, socio-economic status,
+nationality, personal appearance, race, religion, or sexual identity and orientation.
+
+## Contributing
+
+You are warmly welcome to hack on Koordinator. We have prepared a detailed guide [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Community
+
+The [koordinator-sh/community repository](https://github.com/koordinator-sh/community) hosts all information about
+the community, membership and how to become them, developing inspection, who to contact about what, etc.
+
+We encourage all contributors to become members. We aim to grow an active, healthy community of contributors, reviewers,
+and code owners. Learn more about requirements and responsibilities of membership in
+the [community membership](https://github.com/koordinator-sh/community/blob/main/community-membership.md) page.
+
+Active communication channels:
+
+- Bi-weekly Community Meeting (APAC, *Chinese*):
+  - Tuesday 19:30 GMT+8 (Asia/Shanghai)
+  - [Meeting Link(DingTalk)](https://meeting.dingtalk.com/j/cgTTojEI8Zy)
+  - [Notes and agenda](https://shimo.im/docs/m4kMLdgO1LIma9qD)
+- Slack(English): [koordinator channel](https://kubernetes.slack.com/channels/koordinator) in Kubernetes workspace
+- DingTalk(Chinese): Search Group ID `33383887` or scan the following QR Code
+
+<div>
+  <img src="https://github.com/koordinator-sh/koordinator/raw/main/docs/images/dingtalk.png" width="300" alt="Dingtalk QRCode">
+</div>
+
+## License
+
+Koordinator is licensed under the Apache License, Version 2.0. See [LICENSE](./LICENSE) for the full license text.
+<!--
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=koordinator-sh/koordinator&type=Date)](https://star-history.com/#koordinator-sh/koordinator&Date)
+-->
