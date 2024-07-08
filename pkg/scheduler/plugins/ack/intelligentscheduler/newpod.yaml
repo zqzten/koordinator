@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-pod
+spec:
+  containers:
+    - name: gpu-container
+      image: nvidia/cuda:11.0-base
+      resources:
+        limits:
+          alipay.com/virtual.gpu.specification: "T4.small"
+          alipay.com/virtual.gpu.count: "2"
+        requests:
+          alipay.com/virtual.gpu.specification: "T4.small"
+          alipay.com/virtual.gpu.count: "2"
+      command: ["nvidia-smi"]
