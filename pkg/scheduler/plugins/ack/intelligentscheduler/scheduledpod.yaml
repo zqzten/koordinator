@@ -110,15 +110,15 @@ spec:
         requests:
           alipay.com/virtual.gpu.specification: "T4.small"
           alipay.com/virtual.gpu.count: "2"
-        virtualGpus:
-          - name: T4.small
-            node:
-            gpuIndex:
-            physicalGpuSpecification: "NVIDIA T4"
-          - name: T4.small
-            node:
-            gpuIndex:
-            physicalGpuSpecification: "NVIDIA T4"
+#        virtualGpus:
+#          - name: T4.small
+#            node:
+#            gpuIndex:
+#            physicalGpuSpecification: "NVIDIA T4"
+#          - name: T4.small
+#            node:
+#            gpuIndex:
+#            physicalGpuSpecification: "NVIDIA T4"
       terminationMessagePath: /dev/termination-log
       terminationMessagePolicy: File
       volumeMounts:

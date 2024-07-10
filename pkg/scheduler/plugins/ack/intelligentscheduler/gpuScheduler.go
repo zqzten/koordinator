@@ -24,13 +24,16 @@ const (
 type IntelligentScheduler struct {
 	engine *IntelligentSchedulerRuntime
 	args   IntelligentSchedulerArgs
+	cache  *intelligentCache
+	handle framework.Handle
 }
 
 func New(obj apiruntime.Object, handle framework.Handle) (framework.Plugin, error) {
 	klog.Infof("start to create gpuscheduler plugin")
 	unknownObj := obj.(*apiruntime.Unknown)
 	intelligentscheduler := &IntelligentScheduler{
-		args: IntelligentSchedulerArgs{},
+		args:   IntelligentSchedulerArgs{},
+		handle: handle,
 	}
 	if err := frameworkruntime.DecodeInto(unknownObj, &intelligentscheduler.args); err != nil {
 		return nil, err
@@ -40,6 +43,8 @@ func New(obj apiruntime.Object, handle framework.Handle) (framework.Plugin, erro
 		return nil, err
 	}
 	klog.Infof("succeed to validate IntelligentScheduler args")
+	intelligentscheduler.engine = NewIntelligentSchedulerRuntime(IntelligentSchedulerName, intelligentscheduler.args.NodeSelectorPolicy, intelligentscheduler.args.GpuSelectorPolicy)
+	intelligentscheduler.cache = newIntelligentCache()
 	if err := intelligentscheduler.Init(); err != nil {
 		return nil, err
 	}
@@ -51,8 +56,26 @@ func (i *IntelligentScheduler) Name() string {
 	return IntelligentSchedulerName
 }
 
+// Init 初始化cache，engine
 func (i *IntelligentScheduler) Init() error {
-	// TODO implement me
+	//nodes, err := i.handle.SharedInformerFactory().Core().V1().Nodes().Lister().List(labels.Everything())
+	//if err != nil {
+	//	return err
+	//}
+	//pods, err := i.handle.SharedInformerFactory().Core().V1().Pods().Lister().List(labels.Everything())
+	//if err != nil {
+	//	return err
+	//}
+	//// TODO 实现下面这两个函数
+	//for _, node := range nodes {
+	//	AddOrUpdateNode(node, i.cache)
+	//}
+	//// recover use resources from pod
+	//for _, pod := range pods {
+	//	AddPod(g.resourceNames, pod, g.nodeCache)
+	//}
+
+	//TODO
 	return i.engine.Init()
 }
 
