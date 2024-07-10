@@ -64,7 +64,7 @@ require (
 	sigs.k8s.io/descheduler v0.26.0
 	sigs.k8s.io/scheduler-plugins v0.22.6
 	sigs.k8s.io/yaml v1.3.0
-	code.alipay.com/cnstack/intelligent-operator v1.0.0
+	//code.alipay.com/cnstack/intelligent-operator v1.0.0
 )
 
 require (
