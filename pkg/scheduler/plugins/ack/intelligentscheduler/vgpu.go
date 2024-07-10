@@ -21,7 +21,7 @@ type VirtualGpuSpecification struct {
 }
 
 type VirtualGpuSpecificationSpec struct {
-	VirtualGpuSpecification   string   `json:"nickName"`                  //虚拟GPU名称
+	NickName                  string   `json:"nickName"`                  //虚拟GPU名称
 	PhysicalGpuSpecifications []string `json:"physicalGpuSpecifications"` // 虚拟GPU所指定的物理GPU型号
 	Description               string   `json:"description"`               // 规格描述
 	GPUMemory                 int      `json:"gpuMemory"`                 // 显存大小
