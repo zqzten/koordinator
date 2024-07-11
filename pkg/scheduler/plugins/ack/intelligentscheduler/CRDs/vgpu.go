@@ -1,4 +1,4 @@
-package intelligentscheduler
+package CRDs
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,6 +35,15 @@ type VirtualGpuSpecificationStatus struct {
 }
 
 // +kubebuilder:object:root=true
+
+// VirtualGpuSpecificationList contains a list of VirtualGpuSpecification
+type VirtualGpuSpecificationList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []VirtualGpuSpecification `json:"items"`
+}
+
+// +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:subresource:spec
 // +kubebuilder:printcolumn:name="Specification",type="string",JSONPath=".spec.virtualGpuSpecification.",description="VirtualGpuSpecification"
@@ -55,10 +64,43 @@ type VirtualGpuInstanceSpec struct {
 }
 
 type VirtualGpuInstanceStatus struct {
-	Pod                      string `json:"podUid"`                   // 虚拟GPU实例所属的pod
-	Node                     string `json:"node"`                     // 虚拟GPU实例所在节点, 只有Running的时候有值
-	Status                   string `json:"status"`                   // 状态信息, NoQuota/Pending/Allocated/Running/Releasing
-	GPUIndex                 int    `json:"gpuIndex"`                 // 使用哪张物理卡
-	GPUDeviceId              string `json:"gpuDeviceId"`              // 唯一标识某张物理卡
-	PhysicalGpuSpecification string `json:"physicalGpuSpecification"` // 使用的物理卡型号
+	Pod                      string `json:"podUid,omitempty"`                   // 虚拟GPU实例所属的pod
+	Node                     string `json:"node,omitempty"`                     // 虚拟GPU实例所在节点, 只有Running的时候有值
+	Status                   string `json:"status,omitempty"`                   // 状态信息, NoQuota/Pending/Allocated/Running/Releasing 后端设置
+	GPUIndex                 int    `json:"gpuIndex,omitempty"`                 // 使用哪张物理卡
+	GPUDeviceId              string `json:"gpuDeviceId,omitempty"`              // 唯一标识某张物理卡
+	PhysicalGpuSpecification string `json:"physicalGpuSpecification,omitempty"` // 使用的物理卡型号
+}
+
+type VirtualGpuInstanceList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []VirtualGpuInstance `json:"items"`
+}
+
+type PhysicalGpuInstance struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+	Spec              PhysicalGpuInstanceSpec   `json:"spec"`
+	Status            PhysicalGpuInstanceStatus `json:"status"`
+}
+
+type PhysicalGpuInstanceSpec struct {
+	Node                     string `json:"node"`                     // 所在node
+	PhysicalGpuSpecification string `json:"physicalGpuSpecification"` // 物理GPU型号
+	Index                    int    `json:"index"`                    // 在所在node上的index
+	TotalMemory              int    `json:"totalMemory"`
+}
+
+type PhysicalGpuInstanceStatus struct {
+	UsedMemory           int  `json:"usedMemory"`           // 已分配显存
+	UsedUtilization      int  `json:"usedUtilization"`      // 已分配算力
+	MemoryIsolation      bool `json:"memoryIsolation"`      // 是否显存隔离
+	UtilizationIsolation bool `json:"utilizationIsolation"` // 是否算力隔离
+}
+
+type PhysicalGpuInstanceList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []PhysicalGpuInstance `json:"items"`
 }

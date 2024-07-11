@@ -7,7 +7,7 @@ const (
 )
 
 func getNodeGPUCount(node *v1.Node) int {
-	val, ok := node.Status.Allocatable[v1.ResourceName(GPUResourceCountName)]
+	val, ok := node.Status.Capacity[v1.ResourceName(GPUResourceCountName)]
 	if !ok {
 		return int(0)
 	}
