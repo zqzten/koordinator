@@ -10,17 +10,15 @@ import (
 
 type intelligentCache struct {
 	lock                     *sync.RWMutex
-	intelligentNodes         map[string]struct{}                // 所有的智算调度node的name
-	nodeInfos                map[string]*NodeInfo               // 所有node的GPU资源
-	virtualGpuInstances      map[string]*VirtualGpuInstanceInfo // 所有已经分配出去的虚拟GPU
+	intelligentNodes         map[string]*NodeInfo               // 所有的智算调度node的name
+	virtualGpuInstances      map[string]*VirtualGpuInstanceInfo // 所有Virtual GPU Instance
 	virtualGpuSpecifications map[string]*VirtualGpuSpecInfo     // 虚拟规格
 }
 
 func newIntelligentCache() *intelligentCache {
 	return &intelligentCache{
 		lock:                     new(sync.RWMutex),
-		intelligentNodes:         make(map[string]struct{}),  // 所有拥有物理GPU的智算调度node
-		nodeInfos:                make(map[string]*NodeInfo), // 所有智算调度node上的所有GPU资源
+		intelligentNodes:         make(map[string]*NodeInfo), // 所有拥有物理GPU的智算调度node
 		virtualGpuInstances:      make(map[string]*VirtualGpuInstanceInfo),
 		virtualGpuSpecifications: make(map[string]*VirtualGpuSpecInfo),
 	}
@@ -29,9 +27,16 @@ func newIntelligentCache() *intelligentCache {
 func (c *intelligentCache) addOrUpdateNode(node *corev1.Node) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	_, ok := c.intelligentNodes[node.Name]
+	nodeOversellInfo, ok := c.intelligentNodes[node.Name]
 	if !ok {
-		c.intelligentNodes[node.Name] = struct{}{}
+		nodeInfo, err := NewNodeInfo(node)
+		if err != nil {
+			klog.Errorf("Failed to create new oversellInfo for node %v, err: %v", node.Name, err)
+		}
+		c.intelligentNodes[node.Name] = nodeInfo
+	} else {
+		nodeOversellInfo.Reset(node)
+		klog.Infof("update oversellInfo for node %v", node.Name)
 	}
 }
 
@@ -62,22 +67,78 @@ func (c *intelligentCache) addOrUpdateVgiInfo(vgi *CRDs.VirtualGpuInstance) {
 	}
 }
 
-func (c *intelligentCache) addOrUpdatePgiInfo(pgi *CRDs.PhysicalGpuInstance) {
+func (c *intelligentCache) deleteNode(node *corev1.Node) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	node := pgi.Spec.Node
-	_, ok := c.intelligentNodes[node]
+	_, ok := c.intelligentNodes[node.Name]
 	if !ok {
 		return
 	}
-	nodeInfo, ok := c.nodeInfos[node]
+	delete(c.intelligentNodes, node.Name)
+}
+
+func (c *intelligentCache) deleteVgsInfo(vgs *CRDs.VirtualGpuSpecification) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	_, ok := c.virtualGpuSpecifications[vgs.Spec.NickName]
 	if !ok {
-		newNodeInfo := NewNodeInfo(node)
-		newNodeInfo.Reset(pgi)
-		c.nodeInfos[node] = newNodeInfo
+		return
+	}
+	delete(c.virtualGpuSpecifications, vgs.Spec.NickName)
+}
+
+func (c *intelligentCache) deleteVgiInfo(vgi *CRDs.VirtualGpuInstance) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	_, ok := c.virtualGpuInstances[vgi.Name]
+	if !ok {
+		return
+	}
+	delete(c.virtualGpuInstances, vgi.Name)
+}
+
+// 判断node是否为智算调度node
+func (c *intelligentCache) getIntelligentNode(name string) bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	_, ok := c.intelligentNodes[name]
+	if !ok {
+		return false
 	} else {
-		nodeInfo.Reset(pgi)
-		klog.Infof("update physical gpu instance %s of the node %s to the intelligence cache", pgi.Name, node)
+		return true
+	}
+}
+
+func (c *intelligentCache) getNewNodeInfo(name string) *NodeInfo {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	node, ok := c.intelligentNodes[name]
+	if !ok {
+		return nil
+	} else {
+		return node.Clone()
+	}
+}
+
+func (c *intelligentCache) getNodeInfo(name string) *NodeInfo {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	node, ok := c.intelligentNodes[name]
+	if !ok {
+		return nil
+	} else {
+		return node
+	}
+}
+
+func (c *intelligentCache) getNewVgsInfo(nickName string) *VirtualGpuSpecInfo {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	vi, ok := c.virtualGpuSpecifications[nickName]
+	if ok {
+		return vi.Clone()
+	} else {
+		return nil
 	}
 }
 
@@ -92,21 +153,43 @@ func (c *intelligentCache) getVgsInfo(nickName string) *VirtualGpuSpecInfo {
 	}
 }
 
-func (c *intelligentCache) getNodeInfo(name string) *NodeInfo {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	ni, ok := c.nodeInfos[name]
+func (c *intelligentCache) getNewVgiInfo(name string) *VirtualGpuInstanceInfo {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	vi, ok := c.virtualGpuInstances[name]
 	if ok {
-		return ni
+		return vi.Clone()
+	} else {
+		return nil
 	}
-	ni = NewIntelligentSchedulerNodeInfo(name)
-	return ni
 }
 
-func NewIntelligentSchedulerNodeInfo(name string) *NodeInfo {
-	return &NodeInfo{
-		lock:     new(sync.RWMutex),
-		name:     name,
-		GpuInfos: make(map[int]*PhysicalGpuInfo),
+func (c *intelligentCache) getVgiInfo(name string) *VirtualGpuInstanceInfo {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	vi, ok := c.virtualGpuInstances[name]
+	if ok {
+		return vi
+	} else {
+		return nil
 	}
+}
+
+func (c *intelligentCache) getVgiInfoNamesByPod(pod *corev1.Pod) []string {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	var viNames []string
+	podUid := string(pod.UID)
+	for name, vi := range c.virtualGpuInstances {
+		if vi.Pod == podUid {
+			viNames = append(viNames, name)
+		}
+	}
+	return viNames
+}
+
+func (c *intelligentCache) getAllVgiInfo() map[string]*VirtualGpuInstanceInfo {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.virtualGpuInstances
 }

@@ -34,15 +34,6 @@ func handleAddOrUpdateVgi(cr unstructured.Unstructured, ic *intelligentCache) {
 	ic.addOrUpdateVgiInfo(&vgi)
 }
 
-func handleAddOrUpdatePgi(cr unstructured.Unstructured, ic *intelligentCache) {
-	var pgi CRDs.PhysicalGpuInstance
-	err := runtime.DefaultUnstructuredConverter.FromUnstructured(cr.Object, &pgi)
-	if err != nil {
-		klog.Error("Failed to convert fetched physical gpu instance to CRD")
-	}
-	ic.addOrUpdatePgiInfo(&pgi)
-}
-
 func handleAddOrUpdateNode(node *corev1.Node, ic *intelligentCache) {
 	// check node is a device sharing node
 	if !isIntelligentNode(node) {
@@ -54,4 +45,21 @@ func handleAddOrUpdateNode(node *corev1.Node, ic *intelligentCache) {
 		return
 	}
 	ic.addOrUpdateNode(node)
+}
+
+func updateNode(ic *intelligentCache, oldNode *corev1.Node, newNode *corev1.Node) {
+	//if isIntelligentNode(newNode) == isIntelligentNode(oldNode) {
+	//	return
+	//}
+	if isIntelligentNode(newNode) {
+		handleAddOrUpdateNode(newNode, ic)
+	} else {
+		if isIntelligentNode(oldNode) {
+			ic.deleteNode(oldNode)
+		}
+	}
+}
+
+func deleteNode(ic *intelligentCache, node *corev1.Node) {
+	ic.deleteNode(node)
 }

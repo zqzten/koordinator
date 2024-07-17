@@ -7,25 +7,11 @@ metadata:
     kubeadm.alpha.kubernetes.io/cri-socket: unix:///run/containerd/containerd.sock
     node.alpha.kubernetes.io/ttl: "0"
     volumes.kubernetes.io/controller-managed-attach-detach: "true"
-#    gpus: # 每个gpu的状态
-#      - index: 0
-#        physicalGpuSpecification: "T4"
-#        totalMemory: 16
-#        usedMemory: 8
-#        usedUtilization: 60
-#        memoryIsolation: true
-#        utilizationIsolation: true
-#      - index: 1
-#        physicalGpuSpecification: "T4"
-#        totalMemory: 16
-#        usedMemory: 8
-#        usedUtilization: 60
-#        memoryIsolation: true
-#        utilizationIsolation: true
   creationTimestamp: "2024-06-26T06:29:06Z"
   labels:
     ack-d.alibabacloud.com/managed-node: "true"
-    ack.node.gpu.schedule: default
+    ack.node.gpu.schedule: default # 根据这个字段确定调度方式
+    ack.node.gpu.schedule.oversell: '2'
     aliyun.accelerator/nvidia_count: "2"
     aliyun.accelerator/nvidia_mem: 15360MiB
     aliyun.accelerator/nvidia_name: Tesla-T4
@@ -40,7 +26,6 @@ metadata:
     node-role.kubernetes.io/node: ""
     node-role.kubernetes.io/proxy: ""
     topology.hostpath.csi/node: izbp1d4234a33qmpjumcp2z
-    alipay/intelligent-schedule: "true"  # 用于标识这个node是否是智能调度
   name: izbp1d4234a33qmpjumcp2z
   resourceVersion: "22885893"
   uid: 3abb85b5-6736-4cb2-9529-b8ba5e7b74c2

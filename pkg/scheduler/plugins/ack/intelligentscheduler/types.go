@@ -1,7 +1,11 @@
 package intelligentscheduler
 
 import (
+	"fmt"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/ack/intelligentscheduler/CRDs"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/klog/v2"
+	"strconv"
 	"sync"
 )
 
@@ -16,63 +20,149 @@ type IntelligentSchedulerArgs struct {
 	GpuSelectorPolicy string `json:"gpuSelectorPolicy"`
 }
 
-// IntelligentSchedulerGpuInfo反映node上每个GPU的状态信息
-type PhysicalGpuInfo struct {
-	lock                 *sync.RWMutex
-	Node                 string `json:"node"`                     // 该GPU所在的node
-	Index                int    `json:"index"`                    //GPU在该node上的index
-	PhysicalType         string `json:"physicalGpuSpecification"` //GPU物理型号，如A100
-	TotalMemory          int    `json:"totalMemory"`              //GPU总显存
-	UsedMemory           int    `json:"usedMemory"`               //GPU以占用的显存
-	UsedUtilization      int    `json:"usedUtilization"`          //GPU以占用的算力
-	MemoryIsolation      bool   `json:"memoryIsolation"`          //是否显存隔离
-	UtilizationIsolation bool   `json:"utilizationIsolation"`     //是否算力隔离
-}
-
 type NodeInfo struct {
-	lock     *sync.RWMutex
-	name     string
-	GpuInfos map[int]*PhysicalGpuInfo // {idx: PhysicalGpuInfo}
+	lock         sync.RWMutex
+	isOversell   bool
+	oversellRate int
+	gpuCount     int
+	gpuType      string
+	gpuMem       int
 }
 
-func NewNodeInfo(name string) *NodeInfo {
-	return &NodeInfo{
-		lock: new(sync.RWMutex),
-		name: name,
+func NewNodeInfo(node *corev1.Node) (*NodeInfo, error) {
+	rateVal, ok := node.Labels[OversellRateNodeLabel]
+	var isOversell bool
+	var oversellRate int
+	if !ok {
+		isOversell = false
+	} else {
+		isOversell = true
+		rate, err := strconv.Atoi(rateVal)
+		if err != nil {
+			return nil, err
+		}
+		oversellRate = rate
 	}
+	gpuCount, ok := node.Labels[PhysicalGpuCountNodeLabel]
+	if !ok {
+		return nil, fmt.Errorf("gpu count not found in node %v", node.Name)
+	}
+	count, err := strconv.Atoi(gpuCount)
+	if err != nil {
+		return nil, err
+	}
+	gpuType, ok := node.Labels[PhysicalGpuTypeNodeLabel]
+	if !ok {
+		return nil, fmt.Errorf("physical gpu type not found in node %v", node.Name)
+	}
+	memVal, ok := node.Labels[PhysicalGpuMemNodeLabel]
+	if !ok {
+		return nil, fmt.Errorf("physical gpu mem node not found in node %v", node.Name)
+	}
+	mem, err := strconv.Atoi(memVal[:len(memVal)-3])
+	if err != nil {
+		return nil, err
+	}
+	memGiB := int(float64(mem) / float64(1024))
+	return &NodeInfo{
+		isOversell:   isOversell,
+		oversellRate: oversellRate,
+		gpuCount:     count,
+		gpuType:      gpuType,
+		gpuMem:       memGiB,
+	}, nil
+}
+
+func (info *NodeInfo) Reset(node *corev1.Node) {
+	info.lock.Lock()
+	defer info.lock.Unlock()
+	rateVal, ok := node.Labels[OversellRateNodeLabel]
+	var isOversell bool
+	var oversellRate int
+	if !ok {
+		isOversell = false
+	} else {
+		isOversell = true
+		rate, err := strconv.Atoi(rateVal)
+		if err != nil {
+			klog.Errorf("failed to parse oversell rate %v, err: %v", rate, err)
+			return
+		}
+		oversellRate = rate
+	}
+	gpuCount, ok := node.Labels[PhysicalGpuCountNodeLabel]
+	if !ok {
+		klog.Errorf("gpu count not found in node %v", node.Name)
+		return
+	}
+	count, err := strconv.Atoi(gpuCount)
+	if err != nil {
+		klog.Errorf("failed to parse gpu count %v, err: %v", gpuCount, err)
+		return
+	}
+	gpuType, ok := node.Labels[PhysicalGpuTypeNodeLabel]
+	if !ok {
+		klog.Errorf("physical gpu type not found in node %v", node.Name)
+		return
+	}
+	memVal, ok := node.Labels[PhysicalGpuMemNodeLabel]
+	if !ok {
+		klog.Errorf("physical gpu mem not found in node %v", node.Name)
+		return
+	}
+	mem, err := strconv.Atoi(memVal[:len(memVal)-3])
+	if err != nil {
+		klog.Errorf("failed to parse physical gpu mem %v, err: %v", memVal, err)
+		return
+	}
+	memGiB := int(float64(mem) / float64(1024))
+	info.isOversell = isOversell
+	info.oversellRate = oversellRate
+	info.gpuCount = count
+	info.gpuType = gpuType
+	info.gpuMem = memGiB
 }
 
 func (info *NodeInfo) Clone() *NodeInfo {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
 	return &NodeInfo{
-		lock: info.lock,
-		name: info.name,
+		isOversell:   info.isOversell,
+		oversellRate: info.oversellRate,
+		gpuCount:     info.gpuCount,
+		gpuType:      info.gpuType,
+		gpuMem:       info.gpuMem,
 	}
 }
 
-func (info *NodeInfo) Reset(pgi *CRDs.PhysicalGpuInstance) {
-	info.lock.Lock()
-	defer info.lock.Unlock()
-	physicalGpuInfo, ok := info.GpuInfos[pgi.Spec.Index]
-	if !ok {
-		info.GpuInfos[pgi.Spec.Index] = &PhysicalGpuInfo{
-			lock:                 new(sync.RWMutex),
-			Node:                 pgi.Spec.Node,
-			Index:                pgi.Spec.Index,
-			PhysicalType:         pgi.Spec.PhysicalGpuSpecification,
-			TotalMemory:          pgi.Spec.TotalMemory,
-			UsedMemory:           pgi.Status.UsedMemory,
-			UsedUtilization:      pgi.Status.UsedUtilization,
-			MemoryIsolation:      pgi.Status.MemoryIsolation,
-			UtilizationIsolation: pgi.Status.UtilizationIsolation,
-		}
-	} else {
-		physicalGpuInfo.lock.Lock()
-		defer physicalGpuInfo.lock.Unlock()
-		physicalGpuInfo.UsedMemory = pgi.Status.UsedMemory
-		physicalGpuInfo.UsedUtilization = pgi.Status.UsedUtilization
-		physicalGpuInfo.MemoryIsolation = pgi.Status.MemoryIsolation
-		physicalGpuInfo.UtilizationIsolation = pgi.Status.UtilizationIsolation
-	}
+func (info *NodeInfo) getIsOversell() bool {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return info.isOversell
+}
+
+func (info *NodeInfo) getOversellRate() int {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return info.oversellRate
+}
+
+func (info *NodeInfo) getGpuCount() int {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return info.gpuCount
+}
+
+func (info *NodeInfo) getGpuType() string {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return info.gpuType
+}
+
+func (info *NodeInfo) getGpuMem() int {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return info.gpuMem
 }
 
 type VirtualGpuSpecInfo struct {
@@ -84,6 +174,7 @@ type VirtualGpuSpecInfo struct {
 	gpuMemoryIsolation        bool
 	gpuUtilization            int
 	gpuUtilizationIsolation   bool
+	isOversell                bool
 	isActive                  bool
 }
 
@@ -97,6 +188,7 @@ func NewVirtualGpuSpecInfo(vgs *CRDs.VirtualGpuSpecification) *VirtualGpuSpecInf
 		gpuMemoryIsolation:        vgs.Spec.GPUMemoryIsolation,
 		gpuUtilization:            vgs.Spec.GPUUtilization,
 		gpuUtilizationIsolation:   vgs.Spec.GPUUtilizationIsolation,
+		isOversell:                vgs.Spec.IsOversell,
 		isActive:                  vgs.Status.IsActive,
 	}
 }
@@ -111,7 +203,49 @@ func (info *VirtualGpuSpecInfo) Reset(vgs *CRDs.VirtualGpuSpecification) {
 	info.gpuMemoryIsolation = vgs.Spec.GPUMemoryIsolation
 	info.gpuUtilization = vgs.Spec.GPUUtilization
 	info.gpuUtilizationIsolation = vgs.Spec.GPUUtilizationIsolation
+	info.isOversell = vgs.Spec.IsOversell
 	info.isActive = vgs.Status.IsActive
+}
+
+func (info *VirtualGpuSpecInfo) Clone() *VirtualGpuSpecInfo {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return &VirtualGpuSpecInfo{
+		lock:                      new(sync.RWMutex),
+		nickName:                  info.nickName,
+		physicalGpuSpecifications: info.physicalGpuSpecifications,
+		description:               info.description,
+		gpuMemory:                 info.gpuMemory,
+		gpuMemoryIsolation:        info.gpuMemoryIsolation,
+		gpuUtilization:            info.gpuUtilization,
+		gpuUtilizationIsolation:   info.gpuUtilizationIsolation,
+		isOversell:                info.isOversell,
+		isActive:                  info.isActive,
+	}
+}
+
+func (info *VirtualGpuSpecInfo) getPhysicalGpuSpecifications() []string {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return info.physicalGpuSpecifications
+}
+
+func (info *VirtualGpuSpecInfo) getDescription() string {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return info.description
+}
+
+func (info *VirtualGpuSpecInfo) getGpuMemoryIsolation() bool {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return info.gpuMemoryIsolation
+}
+
+func (info *VirtualGpuSpecInfo) getGpuUtilizationIsolation() bool {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return info.gpuUtilizationIsolation
 }
 
 type VirtualGpuInstanceInfo struct {
@@ -122,7 +256,9 @@ type VirtualGpuInstanceInfo struct {
 	Node                     string // 虚拟GPU实例所在节点, 只有Running的时候有值
 	Status                   string // 状态信息, NoQuota/Pending/Allocated/Running/Releasing
 	GPUIndex                 int    // 使用哪张物理卡
-	GPUDeviceId              string // 唯一标识某张物理卡
+	MemAllocated             int
+	PercentageAllocated      int
+	IsOversell               bool
 	PhysicalGpuSpecification string // 使用的物理卡型号
 }
 
@@ -134,9 +270,11 @@ func NewVirtualGpuInstanceInfo(vgi *CRDs.VirtualGpuInstance) *VirtualGpuInstance
 		Pod:                      vgi.Status.Pod,
 		Node:                     vgi.Status.Node,
 		GPUIndex:                 vgi.Status.GPUIndex,
-		GPUDeviceId:              vgi.Status.GPUDeviceId,
 		PhysicalGpuSpecification: vgi.Status.PhysicalGpuSpecification,
-		Status:                   vgi.Status.Status,
+		IsOversell:               vgi.Status.IsOversell,
+		Status:                   vgi.Status.Phase,
+		MemAllocated:             vgi.Status.MemAllocated,
+		PercentageAllocated:      vgi.Status.PercentageAllocated,
 	}
 }
 
@@ -148,7 +286,135 @@ func (info *VirtualGpuInstanceInfo) Reset(vgi *CRDs.VirtualGpuInstance) {
 	info.Pod = vgi.Status.Pod
 	info.Node = vgi.Status.Node
 	info.GPUIndex = vgi.Status.GPUIndex
-	info.GPUDeviceId = vgi.Status.GPUDeviceId
 	info.PhysicalGpuSpecification = vgi.Status.PhysicalGpuSpecification
-	info.Status = vgi.Status.Status
+	info.IsOversell = vgi.Status.IsOversell
+	info.Status = vgi.Status.Phase
+	info.MemAllocated = vgi.Status.MemAllocated
+	info.PercentageAllocated = vgi.Status.PercentageAllocated
 }
+
+func (info *VirtualGpuInstanceInfo) Clone() *VirtualGpuInstanceInfo {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return &VirtualGpuInstanceInfo{
+		lock:                     new(sync.RWMutex),
+		Name:                     info.Name,
+		VirtualGpuSpecification:  info.VirtualGpuSpecification,
+		Pod:                      info.Pod,
+		Node:                     info.Node,
+		GPUIndex:                 info.GPUIndex,
+		PhysicalGpuSpecification: info.PhysicalGpuSpecification,
+		IsOversell:               info.IsOversell,
+		Status:                   info.Status,
+		MemAllocated:             info.MemAllocated,
+		PercentageAllocated:      info.PercentageAllocated,
+	}
+}
+
+func (info *VirtualGpuInstanceInfo) getGPUIndex() int {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return info.GPUIndex
+}
+
+func (info *VirtualGpuInstanceInfo) getPod() string {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return info.Pod
+}
+
+func (info *VirtualGpuInstanceInfo) getNode() string {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return info.Node
+}
+
+func (info *VirtualGpuInstanceInfo) getName() string {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return info.Name
+}
+
+func (info *VirtualGpuInstanceInfo) getStatus() string {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return info.Status
+}
+
+func (info *VirtualGpuInstanceInfo) getMemAllocated() int {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return info.MemAllocated
+}
+
+func (info *VirtualGpuInstanceInfo) getPercentageAllocated() int {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return info.PercentageAllocated
+}
+
+func (info *VirtualGpuInstanceInfo) getVgs() string {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return info.VirtualGpuSpecification
+}
+
+func (info *VirtualGpuInstanceInfo) getIsOversell() bool {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return info.IsOversell
+}
+
+func (info *VirtualGpuInstanceInfo) setGPUIndex(i int) {
+	info.lock.Lock()
+	defer info.lock.Unlock()
+	info.GPUIndex = i
+}
+
+func (info *VirtualGpuInstanceInfo) setNode(nodeName string) {
+	info.lock.Lock()
+	defer info.lock.Unlock()
+	info.Node = nodeName
+}
+
+func (info *VirtualGpuInstanceInfo) setStatus(status string) {
+	info.lock.Lock()
+	defer info.lock.Unlock()
+	info.Status = status
+}
+
+func (info *VirtualGpuInstanceInfo) setPhysicalGpuSpecification(physicalGpuSpecification string) {
+	info.lock.Lock()
+	defer info.lock.Unlock()
+	info.PhysicalGpuSpecification = physicalGpuSpecification
+}
+
+//type PhysicalGpuInfo struct {
+//	lock                 *sync.RWMutex
+//	Node                 string // 该GPU所在的node
+//	Index                int    //GPU在该node上的index
+//	PhysicalType         string //GPU物理型号，如A100
+//	TotalMemory          int    //GPU总显存
+//	UsedMemory           int    //GPU以占用的显存
+//	UsedUtilization      int    //GPU以占用的算力
+//	MemoryIsolation      bool   //是否显存隔离
+//	UtilizationIsolation bool   //是否算力隔离
+//	IsOversell           bool   //是否超卖
+//}
+//
+//func (info *PhysicalGpuInfo) Clone() *PhysicalGpuInfo {
+//	info.lock.RLock()
+//	defer info.lock.RUnlock()
+//	return &PhysicalGpuInfo{
+//		lock:                 new(sync.RWMutex),
+//		Node:                 info.Node,
+//		Index:                info.Index,
+//		PhysicalType:         info.PhysicalType,
+//		TotalMemory:          info.TotalMemory,
+//		UsedMemory:           info.UsedMemory,
+//		UsedUtilization:      info.UsedUtilization,
+//		MemoryIsolation:      info.MemoryIsolation,
+//		UtilizationIsolation: info.UtilizationIsolation,
+//		IsOversell:           info.IsOversell,
+//	}
+//}

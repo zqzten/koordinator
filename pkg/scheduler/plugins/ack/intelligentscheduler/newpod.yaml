@@ -2,15 +2,21 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: gpu-pod
+  annotations:
+    intelligent.sofastack.io/vgpu-specification: "T4.small"
+    alipay.com/virtual.gpu.count: "2"
+    # 指定具体哪张物理卡
 spec:
   containers:
     - name: gpu-container
       image: nvidia/cuda:11.0-base
       resources:
         limits:
-          alipay.com/virtual.gpu.specification: "T4.small"
-          alipay.com/virtual.gpu.count: "2"
+          sofastack.io/intelligent-vgpu: "2"  # webhook注入
+          cpu: "4"
+          memory: "16Gi"
         requests:
-          alipay.com/virtual.gpu.specification: "T4.small"
-          alipay.com/virtual.gpu.count: "2"
+          sofastack.io/intelligent-vgpu: "2"
+          cpu: "4"
+          memory: "16Gi"
       command: ["nvidia-smi"]

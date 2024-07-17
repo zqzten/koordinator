@@ -28,6 +28,7 @@ type VirtualGpuSpecificationSpec struct {
 	GPUMemoryIsolation        bool     `json:"gpuMemoryIsolation"`        // 显存隔离
 	GPUUtilization            int      `json:"gpuUtilization"`            // 算力比例
 	GPUUtilizationIsolation   bool     `json:"gpuUtilizationIsolation"`   // 算力隔离
+	IsOversell                bool     `json:"isOversell"`                // 是否超卖
 }
 
 type VirtualGpuSpecificationStatus struct {
@@ -64,11 +65,13 @@ type VirtualGpuInstanceSpec struct {
 }
 
 type VirtualGpuInstanceStatus struct {
-	Pod                      string `json:"podUid,omitempty"`                   // 虚拟GPU实例所属的pod
-	Node                     string `json:"node,omitempty"`                     // 虚拟GPU实例所在节点, 只有Running的时候有值
-	Status                   string `json:"status,omitempty"`                   // 状态信息, NoQuota/Pending/Allocated/Running/Releasing 后端设置
-	GPUIndex                 int    `json:"gpuIndex,omitempty"`                 // 使用哪张物理卡
-	GPUDeviceId              string `json:"gpuDeviceId,omitempty"`              // 唯一标识某张物理卡
+	Pod                      string `json:"podUid,omitempty"`   // 虚拟GPU实例所属的pod
+	Node                     string `json:"node,omitempty"`     // 虚拟GPU实例所在节点, 只有Running的时候有值
+	Phase                    string `json:"phase,omitempty"`    // 状态信息, NoQuota/Pending/Allocated/Running/Releasing 后端设置
+	GPUIndex                 int    `json:"gpuIndex,omitempty"` // 使用哪张物理卡
+	MemAllocated             int    `json:"memAllocated,omitempty"`
+	PercentageAllocated      int    `json:"percentageAllocated,omitempty"`
+	IsOversell               bool   `json:"isOversell"`
 	PhysicalGpuSpecification string `json:"physicalGpuSpecification,omitempty"` // 使用的物理卡型号
 }
 
@@ -78,29 +81,29 @@ type VirtualGpuInstanceList struct {
 	Items           []VirtualGpuInstance `json:"items"`
 }
 
-type PhysicalGpuInstance struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              PhysicalGpuInstanceSpec   `json:"spec"`
-	Status            PhysicalGpuInstanceStatus `json:"status"`
-}
-
-type PhysicalGpuInstanceSpec struct {
-	Node                     string `json:"node"`                     // 所在node
-	PhysicalGpuSpecification string `json:"physicalGpuSpecification"` // 物理GPU型号
-	Index                    int    `json:"index"`                    // 在所在node上的index
-	TotalMemory              int    `json:"totalMemory"`
-}
-
-type PhysicalGpuInstanceStatus struct {
-	UsedMemory           int  `json:"usedMemory"`           // 已分配显存
-	UsedUtilization      int  `json:"usedUtilization"`      // 已分配算力
-	MemoryIsolation      bool `json:"memoryIsolation"`      // 是否显存隔离
-	UtilizationIsolation bool `json:"utilizationIsolation"` // 是否算力隔离
-}
-
-type PhysicalGpuInstanceList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []PhysicalGpuInstance `json:"items"`
-}
+//type PhysicalGpuInstance struct {
+//	metav1.TypeMeta   `json:",inline"`
+//	metav1.ObjectMeta `json:"metadata,omitempty"`
+//	Spec              PhysicalGpuInstanceSpec   `json:"spec"`
+//	Status            PhysicalGpuInstanceStatus `json:"status"`
+//}
+//
+//type PhysicalGpuInstanceSpec struct {
+//	PhysicalGpuSpecification string `json:"physicalGpuSpecification"` // 物理GPU型号
+//	TotalMemory              int    `json:"gpuMem"`
+//}
+//
+//type PhysicalGpuInstanceStatus struct {
+//	Node                 string `json:"node"`                 // 所在node
+//	Index                int    `json:"index"`                // 在所在node上的index
+//	UsedMemory           int    `json:"usedMemory"`           // 已分配显存
+//	UsedUtilization      int    `json:"usedUtilization"`      // 已分配算力
+//	MemoryIsolation      bool   `json:"memoryIsolation"`      // 是否显存隔离
+//	UtilizationIsolation bool   `json:"utilizationIsolation"` // 是否算力隔离
+//}
+//
+//type PhysicalGpuInstanceList struct {
+//	metav1.TypeMeta `json:",inline"`
+//	metav1.ListMeta `json:"metadata,omitempty"`
+//	Items           []PhysicalGpuInstance `json:"items"`
+//}
