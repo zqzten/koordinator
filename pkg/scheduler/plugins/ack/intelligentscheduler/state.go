@@ -5,10 +5,6 @@ import (
 	"sync"
 )
 
-//type VirtualGpuSpecifications struct {
-//	VirtualGpuSpecification string
-//}
-
 type VirtualGpuPodState struct {
 	lock              sync.RWMutex
 	VGpuCount         int

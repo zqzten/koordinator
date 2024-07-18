@@ -24,7 +24,6 @@ const IntelligentSchedulerName = "intelligent-scheduler"
 
 // VirtualGpuSpecification found in annotation means a pod needed to be process by IntelligencePlugin
 const (
-	GPUResourceCountName       = "aliyun.com/gpu-count"
 	VirtualGpuSpecificationKey = "intelligent.sofastack.io/vgpu-specification"
 	VirtualGpuCountKey         = "alipay.com/virtual.gpu.count"
 	VirtualGpuPodResourceKey   = "sofastack.io/intelligent-vgpu"
@@ -39,7 +38,6 @@ const (
 	IntelligentVersion         = "v1"
 	VgsResourceName            = "VirtualGpuSpecification"
 	VgiResourceName            = "VirtualGpuInstance"
-	PgiResourceName            = "PhysicalGpuInstance"
 )
 
 type IntelligentScheduler struct {
@@ -84,7 +82,7 @@ func (i *IntelligentScheduler) Name() string {
 func (i *IntelligentScheduler) Init() error {
 	cfg := i.handle.KubeConfig()
 	i.client = dynamic.NewForConfigOrDie(cfg)
-	// TODO 将所有可用的vgs存入cache
+	// 将所有可用的vgs存入cache
 	vgsGvr := schema.GroupVersionResource{
 		Group:    IntelligentGroupName,
 		Version:  IntelligentVersion,
@@ -278,7 +276,7 @@ func (i *IntelligentScheduler) PreFilter(ctx context.Context, state *framework.C
 	}
 
 	// Check vgpu count and spec
-	vGpuCount, vGpuSpec, err := GetVirtualGPUCountAndSpec(pod, i.cache) // TODO pod中spec和count都在annotation里面吗？？
+	vGpuCount, vGpuSpec, err := GetVirtualGPUCountAndSpec(pod) // TODO pod中spec和count都在annotation里面吗？？
 	if err != nil {
 		return framework.NewStatus(framework.UnschedulableAndUnresolvable, err.Error())
 	}
@@ -328,7 +326,7 @@ func (i *IntelligentScheduler) AddPod(ctx context.Context, state *framework.Cycl
 	var nodeInfos *NodeInfo
 	nodeState, er := i.GetNodeState(state, nodeInfo.Node().Name)
 	if er != nil {
-		nodeInfos = i.cache.getNewNodeInfo(nodeInfo.Node().Name)
+		nodeInfos = i.cache.getNodeInfo(nodeInfo.Node().Name).Clone()
 	} else {
 		nodeInfos = nodeState.getNodeInfo()
 	}
@@ -446,9 +444,57 @@ func (i *IntelligentScheduler) Score(ctx context.Context, state *framework.Cycle
 }
 
 func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) *framework.Status {
-	// TODO patch VGIs信息，同步cache中的vgi信息
-	// TODO save nodeInfo to cycleState
-	panic("implement me")
+	var requestGpuCount int
+	podState, err := i.GetVGpuPodState(state, string(pod.UID))
+	if err != nil {
+		gpuCount, _, er := GetVirtualGPUCountAndSpec(pod)
+		if er != nil {
+			return framework.NewStatus(framework.Error, er.Error())
+		}
+		requestGpuCount = gpuCount
+	} else {
+		requestGpuCount = podState.getCount()
+	}
+	var vgiNames []string
+	vgiState, err := i.GetVgiState(state, string(pod.UID))
+	if err != nil {
+		vgiNames = i.cache.getVgiInfoNamesByPod(pod)
+	} else {
+		vgiNames = vgiState.getVgiNames()
+	}
+	var nodeInfos *NodeInfo
+	nodeState, err := i.GetNodeState(state, nodeName)
+	if err != nil {
+		nodeInfos = i.cache.getNodeInfo(nodeName)
+	} else {
+		nodeInfos = nodeState.getNodeInfo()
+	}
+	vgi := i.cache.getVgiInfo(vgiNames[0])
+	nodeGpuState, totalMem := getNodeGpuState(nodeName, nodeInfos, i.cache)
+	var availableGpuIndexSet []int
+	for idx := 0; idx < len(nodeGpuState); idx++ {
+		available, _, _ := isAvailableForVgi(i.cache, nodeGpuState[idx], vgi, totalMem)
+		if available {
+			availableGpuIndexSet = append(availableGpuIndexSet, idx)
+		}
+	}
+	availableGpuCombines := combine(availableGpuIndexSet, requestGpuCount)
+	if len(availableGpuCombines) <= 0 {
+		return framework.NewStatus(framework.Unschedulable, "in Reserve step, the node does not have enough available GPU resources for pod [%v]", pod.Namespace+"/"+pod.Name)
+	}
+	result := i.engine.findBestGpuCombination(i.cache, availableGpuCombines, vgi, nodeGpuState, totalMem)
+	if result == nil || len(result) != len(vgiNames) {
+		return framework.NewStatus(framework.Unschedulable, "couldn't find proper gpus from node [%v] for pod [%v]", nodeName, pod.Namespace+"/"+pod.Name)
+	}
+	for idx, vgiName := range vgiNames {
+		gpuIdx := result[idx]
+		er := patchVgi(i.client, vgiName, nodeName, gpuIdx, "Allocated", nodeInfos.getGpuType())
+		if er != nil {
+			return framework.NewStatus(framework.Unschedulable, er.Error())
+		}
+	}
+	i.SaveNodeState(state, nodeInfos, nodeName)
+	return framework.NewStatus(framework.Success, "")
 }
 
 func (i *IntelligentScheduler) nodeAvailableForPod(nodeName string, nodeInfos *NodeInfo, vGpuPodState *VirtualGpuPodState, vgiNames []string) bool {
@@ -466,6 +512,9 @@ func (i *IntelligentScheduler) nodeAvailableForPod(nodeName string, nodeInfos *N
 		if spec == nodeInfos.getGpuType() {
 			ok = true
 		}
+	}
+	if len(requestPGpuSpecs) == 0 {
+		ok = true
 	}
 	if !ok {
 		return false

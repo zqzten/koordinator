@@ -1,8 +1,14 @@
 package intelligentscheduler
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/klog/v2"
 	"reflect"
 	"strconv"
@@ -37,6 +43,44 @@ func (r *IntelligentSchedulerRuntime) getGPUScorePolicy() string {
 func (r *IntelligentSchedulerRuntime) Init() error {
 	//TODO
 	return nil
+}
+
+func (r *IntelligentSchedulerRuntime) findBestGpuCombination(cache *intelligentCache, combinations [][]int, vgi *VirtualGpuInstanceInfo, nodeGpuState map[int][]*VirtualGpuInstanceInfo, totalMem int) []int {
+	scores := make(map[int]float64, len(combinations))
+	requestCount := len(combinations[0])
+	requestMem := vgi.getMemAllocated()
+	requestUtilization := vgi.getPercentageAllocated()
+	for idx, combination := range combinations {
+		var score float64
+		usedMem := 0
+		usedUtilization := 0
+		totalUtilization := 0
+		totalGpuMem := 0
+		for _, gpuIdx := range combination {
+			_, mem, utilization := isAvailableForVgi(cache, nodeGpuState[gpuIdx], vgi, totalMem)
+			totalGpuMem += totalMem
+			totalUtilization += 100
+			usedMem += mem
+			usedUtilization += utilization
+		}
+		if r.getGPUScorePolicy() == "binpack" {
+			score = 0.5*(float64(usedMem+requestCount*requestMem)/float64(totalGpuMem)) + 0.5*(float64(usedUtilization+requestCount*requestUtilization)/float64(totalUtilization))
+		} else if r.getGPUScorePolicy() == "spread" {
+			score = 0.5*(1.0-float64(usedMem+requestCount*requestMem)/float64(totalGpuMem)) + 0.5*(1.0-float64(usedUtilization+requestCount*requestUtilization)/float64(totalUtilization))
+		}
+		scores[idx] = score
+	}
+	var found bool
+	var maxValue float64
+	var maxIndex int
+	for index, value := range scores {
+		if !found || value > maxValue {
+			maxValue = value
+			maxIndex = index
+			found = true
+		}
+	}
+	return combinations[maxIndex]
 }
 
 func (r *IntelligentSchedulerRuntime) calculateNodeScore(cache *intelligentCache, nodeName string, nodeInfos *NodeInfo, vgiNames []string) float64 {
@@ -93,7 +137,7 @@ func isIntelligentNode(node *v1.Node) bool {
 	return false
 }
 
-func GetVirtualGPUCountAndSpec(pod *v1.Pod, cache *intelligentCache) (int, string, error) {
+func GetVirtualGPUCountAndSpec(pod *v1.Pod) (int, string, error) {
 	vGpuSpecName, ok := pod.Annotations[VirtualGpuSpecificationKey]
 	if !ok {
 		return 0, "", fmt.Errorf("unable to find %v in pod annotation", VirtualGpuSpecificationKey)
@@ -184,4 +228,51 @@ func addPod(cache *intelligentCache, vgiNames []string, pod *v1.Pod, nodeName st
 		return fmt.Errorf("node %v has limit GPU for pod %v", nodeName, pod.Name)
 	}
 	return nil
+}
+
+func patchVgi(client dynamic.Interface, vgiName string, nodeName string, gpuIdx int, phase string, physicalGpuSpec string) error {
+	vgiGvr := schema.GroupVersionResource{
+		Group:    IntelligentGroupName,
+		Version:  IntelligentVersion,
+		Resource: VgiResourceName,
+	}
+	patchData := map[string]interface{}{
+		"status": map[string]interface{}{
+			"node":     nodeName,
+			"phase":    phase,
+			"gpuIndex": gpuIdx,
+			"gpuSpec":  physicalGpuSpec,
+		},
+	}
+	patchBytes, err := json.Marshal(patchData)
+	if err != nil {
+		return err
+	}
+	_, err = client.Resource(vgiGvr).Namespace(NameSpace).Patch(
+		context.TODO(),
+		vgiName,
+		types.MergePatchType,
+		patchBytes,
+		metav1.PatchOptions{})
+	return err
+}
+
+func combine(nums []int, m int) [][]int {
+	var result [][]int
+	comb := make([]int, m)
+	var helper func(int, int)
+	helper = func(start, depth int) {
+		if depth == m {
+			combination := make([]int, m)
+			copy(combination, comb)
+			result = append(result, combination)
+			return
+		}
+		for i := start; i < len(nums); i++ {
+			comb[depth] = nums[i]
+			helper(i+1, depth+1)
+		}
+	}
+	helper(0, 0)
+	return result
 }

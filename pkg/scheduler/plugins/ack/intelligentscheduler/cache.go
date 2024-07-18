@@ -4,7 +4,6 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/ack/intelligentscheduler/CRDs"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
-
 	"sync"
 )
 
@@ -109,17 +108,6 @@ func (c *intelligentCache) getIntelligentNode(name string) bool {
 	}
 }
 
-func (c *intelligentCache) getNewNodeInfo(name string) *NodeInfo {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
-	node, ok := c.intelligentNodes[name]
-	if !ok {
-		return nil
-	} else {
-		return node.Clone()
-	}
-}
-
 func (c *intelligentCache) getNodeInfo(name string) *NodeInfo {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
@@ -131,34 +119,12 @@ func (c *intelligentCache) getNodeInfo(name string) *NodeInfo {
 	}
 }
 
-func (c *intelligentCache) getNewVgsInfo(nickName string) *VirtualGpuSpecInfo {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	vi, ok := c.virtualGpuSpecifications[nickName]
-	if ok {
-		return vi.Clone()
-	} else {
-		return nil
-	}
-}
-
 func (c *intelligentCache) getVgsInfo(nickName string) *VirtualGpuSpecInfo {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	vi, ok := c.virtualGpuSpecifications[nickName]
 	if ok {
 		return vi
-	} else {
-		return nil
-	}
-}
-
-func (c *intelligentCache) getNewVgiInfo(name string) *VirtualGpuInstanceInfo {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
-	vi, ok := c.virtualGpuInstances[name]
-	if ok {
-		return vi.Clone()
 	} else {
 		return nil
 	}
