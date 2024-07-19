@@ -20,6 +20,7 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/ack/besteffortscheduling"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/ack/devicesharing/gpushare"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/ack/gputopology"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/ack/intelligentscheduler"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/cpusetallocator"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/firstfit"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/gpuoversell"
@@ -47,5 +48,5 @@ func init() {
 	)
 	koordinatorPlugins[gputopology.GPUTopologyName] = gputopology.New
 	koordinatorPlugins[gpuoversell.GPUOversellName] = gpuoversell.New
-
+	koordinatorPlugins[intelligentscheduler.IntelligentSchedulerName] = intelligentscheduler.New
 }

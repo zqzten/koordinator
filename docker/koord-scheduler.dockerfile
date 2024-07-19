@@ -13,10 +13,11 @@ COPY vendor/ vendor/
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64  \
     GO111MODULE=on GOPROXY=https://goproxy.cn,direct \
-    go build -a -mod=vendor -o koord-descheduler cmd/koord-descheduler/main.go
+    go build -a -mod=vendor -o koord-scheduler cmd/koord-scheduler/main.go
 
-FROM reg.docker.alibaba-inc.com/jiming/alpine-network:3.14_9521469
+#FROM reg.docker.alibaba-inc.com/jiming/alpine-network:3.14_9521469
+FROM gcr.io/distroless/static:latest
 WORKDIR /
-COPY --from=builder /go/src/github.com/koordinator-sh/koordinator/koord-descheduler .
+COPY --from=builder /go/src/github.com/koordinator-sh/koordinator/koord-scheduler .
 
-ENTRYPOINT ["/koord-descheduler"]
+ENTRYPOINT ["/koord-scheduler"]
