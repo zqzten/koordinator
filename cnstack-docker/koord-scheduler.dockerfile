@@ -1,4 +1,4 @@
-FROM --platform=$TARGETPLATFORM golang:1.17 as builder
+FROM ant-cnstack-registry.cn-hangzhou.cr.aliyuncs.com/adp-7abed7fbca/intelligent-computing/golang:1.17 as builder
 WORKDIR /go/src/github.com/koordinator-sh/koordinator
 
 ARG VERSION
@@ -28,7 +28,7 @@ RUN cp bin/logrotate-$TARGETARCH bin/logrotate
 RUN CGO_ENABLED=0 GOOS=linux go build -a -o koord-scheduler ./cmd/koord-scheduler
 
 
-FROM --platform=$TARGETPLATFORM alpine:3.16
+FROM ant-cnstack-registry.cn-hangzhou.cr.aliyuncs.com/adp-7abed7fbca/intelligent-computing/alpine:3.16
 WORKDIR /
 RUN apk --no-cache --update upgrade && rm -rf /var/cache/apk/*
 RUN apk add --update bash net-tools iproute2 logrotate less rsync util-linux lvm2
