@@ -2,7 +2,6 @@ version: "2.0"
 
 stages:
   - image-build
-  - multi-arch-merge
 
 jobs:
   x86_64镜像构建:
