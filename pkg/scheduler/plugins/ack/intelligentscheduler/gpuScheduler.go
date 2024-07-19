@@ -1,6 +1,7 @@
 package intelligentscheduler
 
 import (
+	//CRDs "code.alipay.com/cnstack/intelligent-operator/api/v1"
 	"context"
 	"fmt"
 	frameworkruntime "github.com/koordinator-sh/koordinator/pkg/descheduler/framework/runtime"
@@ -33,7 +34,7 @@ const (
 	PhysicalGpuCountNodeLabel  = "aliyun.accelerator/nvidia_count"
 	PhysicalGpuMemNodeLabel    = "aliyun.accelerator/nvidia_mem"
 	PhysicalGpuTypeNodeLabel   = "aliyun.accelerator/nvidia_name"
-	NameSpace                  = "Intelligent-Computing"
+	NameSpace                  = "intelligent-computing"
 	IntelligentGroupName       = "intelligent.sofastack.io"
 	IntelligentVersion         = "v1"
 	VgsResourceName            = "VirtualGpuSpecification"

@@ -1,6 +1,7 @@
 package intelligentscheduler
 
 import (
+	//CRDs "code.alipay.com/cnstack/intelligent-operator/api/v1"
 	"fmt"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/ack/intelligentscheduler/CRDs"
 	corev1 "k8s.io/api/core/v1"
@@ -388,33 +389,3 @@ func (info *VirtualGpuInstanceInfo) setPhysicalGpuSpecification(physicalGpuSpeci
 	defer info.lock.Unlock()
 	info.PhysicalGpuSpecification = physicalGpuSpecification
 }
-
-//type PhysicalGpuInfo struct {
-//	lock                 *sync.RWMutex
-//	Node                 string // 该GPU所在的node
-//	Index                int    //GPU在该node上的index
-//	PhysicalType         string //GPU物理型号，如A100
-//	TotalMemory          int    //GPU总显存
-//	UsedMemory           int    //GPU以占用的显存
-//	UsedUtilization      int    //GPU以占用的算力
-//	MemoryIsolation      bool   //是否显存隔离
-//	UtilizationIsolation bool   //是否算力隔离
-//	IsOversell           bool   //是否超卖
-//}
-//
-//func (info *PhysicalGpuInfo) Clone() *PhysicalGpuInfo {
-//	info.lock.RLock()
-//	defer info.lock.RUnlock()
-//	return &PhysicalGpuInfo{
-//		lock:                 new(sync.RWMutex),
-//		Node:                 info.Node,
-//		Index:                info.Index,
-//		PhysicalType:         info.PhysicalType,
-//		TotalMemory:          info.TotalMemory,
-//		UsedMemory:           info.UsedMemory,
-//		UsedUtilization:      info.UsedUtilization,
-//		MemoryIsolation:      info.MemoryIsolation,
-//		UtilizationIsolation: info.UtilizationIsolation,
-//		IsOversell:           info.IsOversell,
-//	}
-//}
