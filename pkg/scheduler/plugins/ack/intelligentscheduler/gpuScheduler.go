@@ -498,6 +498,39 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 	return framework.NewStatus(framework.Success, "")
 }
 
+func (i *IntelligentScheduler) Unreserve(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) {
+	if !runtime.IsMyPod(pod, i.resourceNames...) {
+		return
+	}
+	if !i.cache.getIntelligentNode(nodeName) {
+		return
+	}
+	var vgiNames []string
+	vgiState, err := i.GetVgiState(state, string(pod.UID))
+	if err != nil {
+		vgiNames = i.cache.getVgiInfoNamesByPod(pod)
+	} else {
+		vgiNames = vgiState.getVgiNames()
+	}
+	for _, vgiName := range vgiNames {
+		vgiInfo := i.cache.getVgiInfo(vgiName)
+		if vgiInfo == nil {
+			klog.Warningf("Failed to find vgs info of [%v] for pod [%v] in unreserve plugin", vgiName, pod.Namespace+"/"+pod.Name)
+			continue
+		}
+		vgiInfo.lock.Lock()
+		vgiInfo.setStatus("Pending")
+		vgiInfo.setNode("")
+		vgiInfo.setGPUIndex(-1)
+		vgiInfo.setPhysicalGpuSpecification("")
+		vgiInfo.lock.Unlock()
+	}
+	klog.Warningf("Plugin=%v, Phase=UnReserve, Pod=%v, Node=%v, Message: succeed to rollback assumed podresource",
+		i.Name(),
+		pod.Namespace+"/"+pod.Name,
+		nodeName)
+}
+
 func (i *IntelligentScheduler) nodeAvailableForPod(nodeName string, nodeInfos *NodeInfo, vGpuPodState *VirtualGpuPodState, vgiNames []string) bool {
 	requestVGpuCount := vGpuPodState.getCount()
 	requestVGpuSpec := vGpuPodState.getSpec()
