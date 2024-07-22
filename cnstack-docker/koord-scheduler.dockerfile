@@ -1,9 +1,10 @@
 FROM ant-cnstack-registry.cn-hangzhou.cr.aliyuncs.com/adp-7abed7fbca/intelligent-computing/golang:1.17 as builder
 WORKDIR /go/src/github.com/koordinator-sh/koordinator
 
-ARG VERSION
-ARG TARGETARCH
-ENV VERSION $VERSION
+#ARG VERSION
+#ARG TARGETARCH
+#ENV VERSION $VERSION
+ENV TARGETARCH amd64
 ENV GOOS linux
 ENV GOARCH $TARGETARCH
 
