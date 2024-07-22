@@ -56,8 +56,8 @@ type VirtualGpuSpecificationList struct {
 type VirtualGpuInstance struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              VirtualGpuInstanceSpec   `json:"spec"`
-	Status            VirtualGpuInstanceStatus `json:"status"`
+	Spec              VirtualGpuInstanceSpec   `json:"spec,omitempty"`
+	Status            VirtualGpuInstanceStatus `json:"status,omitempty"`
 }
 
 type VirtualGpuInstanceSpec struct {
@@ -65,14 +65,14 @@ type VirtualGpuInstanceSpec struct {
 }
 
 type VirtualGpuInstanceStatus struct {
-	Pod                      string `json:"podUid,omitempty"`   // 虚拟GPU实例所属的pod
-	Node                     string `json:"node,omitempty"`     // 虚拟GPU实例所在节点, 只有Running的时候有值
-	Phase                    string `json:"phase,omitempty"`    // 状态信息, NoQuota/Pending/Allocated/Running/Releasing 后端设置
-	GPUIndex                 int    `json:"gpuIndex,omitempty"` // 使用哪张物理卡
-	MemAllocated             int    `json:"memAllocated,omitempty"`
-	PercentageAllocated      int    `json:"percentageAllocated,omitempty"`
+	Pod                      string `json:"podUid"`   // 虚拟GPU实例所属的pod
+	Node                     string `json:"node"`     // 虚拟GPU实例所在节点, 只有Running的时候有值
+	Phase                    string `json:"phase"`    // 状态信息, NoQuota/Pending/Allocated/Running/Releasing 后端设置
+	GPUIndex                 int    `json:"gpuIndex"` // 使用哪张物理卡
+	MemAllocated             int    `json:"memAllocated"`
+	PercentageAllocated      int    `json:"percentageAllocated"`
 	IsOversell               bool   `json:"isOversell"`
-	PhysicalGpuSpecification string `json:"physicalGpuSpecification,omitempty"` // 使用的物理卡型号
+	PhysicalGpuSpecification string `json:"physicalGpuSpecification"` // 使用的物理卡型号
 }
 
 type VirtualGpuInstanceList struct {

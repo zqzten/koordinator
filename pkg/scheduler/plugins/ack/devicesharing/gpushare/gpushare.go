@@ -68,7 +68,7 @@ type GPUShareArgs struct {
 
 // New initializes a new plugin and returns it.
 func New(obj apiruntime.Object, handle framework.Handle) (framework.Plugin, error) {
-	klog.Infof("start to create gpushare plugin")
+	klog.Infof("start to create gpushare plugin...")
 	unknownObj, ok := obj.(*apiruntime.Unknown)
 	if !ok {
 		return nil, fmt.Errorf("want args to be of type *runtime.Unknown, got %T", obj)

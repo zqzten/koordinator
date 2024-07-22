@@ -168,6 +168,7 @@ func (info *NodeInfo) getGpuMem() int {
 
 type VirtualGpuSpecInfo struct {
 	lock                      *sync.RWMutex
+	name                      string
 	nickName                  string
 	physicalGpuSpecifications []string
 	description               string
@@ -182,6 +183,7 @@ type VirtualGpuSpecInfo struct {
 func NewVirtualGpuSpecInfo(vgs *CRDs.VirtualGpuSpecification) *VirtualGpuSpecInfo {
 	return &VirtualGpuSpecInfo{
 		lock:                      new(sync.RWMutex),
+		name:                      vgs.Name,
 		nickName:                  vgs.Spec.NickName,
 		physicalGpuSpecifications: vgs.Spec.PhysicalGpuSpecifications,
 		description:               vgs.Spec.Description,
@@ -197,6 +199,7 @@ func NewVirtualGpuSpecInfo(vgs *CRDs.VirtualGpuSpecification) *VirtualGpuSpecInf
 func (info *VirtualGpuSpecInfo) Reset(vgs *CRDs.VirtualGpuSpecification) {
 	info.lock.Lock()
 	defer info.lock.Unlock()
+	info.name = vgs.Name
 	info.nickName = vgs.Spec.NickName
 	info.physicalGpuSpecifications = vgs.Spec.PhysicalGpuSpecifications
 	info.description = vgs.Spec.Description
@@ -213,6 +216,7 @@ func (info *VirtualGpuSpecInfo) Clone() *VirtualGpuSpecInfo {
 	defer info.lock.RUnlock()
 	return &VirtualGpuSpecInfo{
 		lock:                      new(sync.RWMutex),
+		name:                      info.name,
 		nickName:                  info.nickName,
 		physicalGpuSpecifications: info.physicalGpuSpecifications,
 		description:               info.description,
@@ -252,7 +256,7 @@ func (info *VirtualGpuSpecInfo) getGpuUtilizationIsolation() bool {
 type VirtualGpuInstanceInfo struct {
 	lock                     *sync.RWMutex
 	Name                     string // 虚拟GPU实例对应vgi crd的name
-	VirtualGpuSpecification  string // 虚拟GPU实例的规格名称
+	VirtualGpuSpecification  string // 虚拟GPU实例的规格crd名称
 	Pod                      string // 虚拟GPU实例所属的pod
 	Node                     string // 虚拟GPU实例所在节点, 只有Running的时候有值
 	Status                   string // 状态信息, NoQuota/Pending/Allocated/Running/Releasing
@@ -268,7 +272,7 @@ func NewVirtualGpuInstanceInfo(vgi *CRDs.VirtualGpuInstance) *VirtualGpuInstance
 		lock:                     new(sync.RWMutex),
 		Name:                     vgi.Name,
 		VirtualGpuSpecification:  vgi.Spec.VirtualGpuSpecification,
-		Pod:                      vgi.Status.Pod,
+		Pod:                      vgi.Labels[VgiPodNameLabel] + "/" + vgi.Labels[VgiPodNamespaceLabel],
 		Node:                     vgi.Status.Node,
 		GPUIndex:                 vgi.Status.GPUIndex,
 		PhysicalGpuSpecification: vgi.Status.PhysicalGpuSpecification,

@@ -138,11 +138,11 @@ func isIntelligentNode(node *v1.Node) bool {
 }
 
 func GetVirtualGPUCountAndSpec(pod *v1.Pod) (int, string, error) {
-	vGpuSpecName, ok := pod.Annotations[VirtualGpuSpecificationKey]
+	vGpuSpecName, ok := pod.Labels[VirtualGpuSpecificationKey]
 	if !ok {
 		return 0, "", fmt.Errorf("unable to find %v in pod annotation", VirtualGpuSpecificationKey)
 	}
-	vGpuCount, err := strconv.Atoi(pod.Annotations[VirtualGpuCountKey])
+	vGpuCount, err := strconv.Atoi(pod.Labels[VirtualGpuCountKey])
 	if err != nil {
 		return 0, "", fmt.Errorf("unable to parse %v %v into integer", VirtualGpuCountKey, pod.Annotations[VirtualGpuCountKey])
 	}
@@ -230,7 +230,7 @@ func addPod(cache *intelligentCache, vgiNames []string, pod *v1.Pod, nodeName st
 	return nil
 }
 
-func patchVgi(client dynamic.Interface, vgiName string, nodeName string, gpuIdx int, phase string, physicalGpuSpec string) error {
+func patchVgi(client dynamic.Interface, vgiName string, nodeName string, gpuIdx int, phase string, physicalGpuSpec string, podName string, podNamespace string) error {
 	vgiGvr := schema.GroupVersionResource{
 		Group:    IntelligentGroupName,
 		Version:  IntelligentVersion,
@@ -238,10 +238,11 @@ func patchVgi(client dynamic.Interface, vgiName string, nodeName string, gpuIdx 
 	}
 	patchData := map[string]interface{}{
 		"status": map[string]interface{}{
-			"node":     nodeName,
-			"phase":    phase,
-			"gpuIndex": gpuIdx,
-			"gpuSpec":  physicalGpuSpec,
+			"pod":             podName + "/" + podNamespace,
+			"physicalGpuSpec": physicalGpuSpec,
+			"node":            nodeName,
+			"phase":           phase,
+			"gpuIndex":        gpuIdx,
 		},
 	}
 	patchBytes, err := json.Marshal(patchData)

@@ -27,30 +27,31 @@ func newIntelligentCache() *intelligentCache {
 func (c *intelligentCache) addOrUpdateNode(node *corev1.Node) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	nodeOversellInfo, ok := c.intelligentNodes[node.Name]
+	nodeInfo, ok := c.intelligentNodes[node.Name]
 	if !ok {
 		nodeInfo, err := NewNodeInfo(node)
 		if err != nil {
-			klog.Errorf("Failed to create new oversellInfo for node %v, err: %v", node.Name, err)
+			klog.Errorf("Failed to create new nodeInfo for node %v, err: %v", node.Name, err)
 		}
 		c.intelligentNodes[node.Name] = nodeInfo
+		klog.Infof("add new intelligent node %v to cache", node.Name)
 	} else {
-		nodeOversellInfo.Reset(node)
-		klog.Infof("update oversellInfo for node %v", node.Name)
+		nodeInfo.Reset(node)
+		//klog.Infof("update nodeInfo for node %v", node.Name)
 	}
 }
 
 func (c *intelligentCache) addOrUpdateVgsInfo(vgs *CRDs.VirtualGpuSpecification) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	vs, ok := c.virtualGpuSpecifications[vgs.Spec.NickName]
+	vs, ok := c.virtualGpuSpecifications[vgs.Name]
 	if !ok {
 		newVsInfo := NewVirtualGpuSpecInfo(vgs)
-		c.virtualGpuSpecifications[vgs.Spec.NickName] = newVsInfo
-		klog.Info("add new virtual gpu specification to the intelligent scheduler cache")
+		c.virtualGpuSpecifications[vgs.Name] = newVsInfo
+		klog.Infof("add new virtual gpu specification %v to the intelligent scheduler cache", vgs.Name)
 	} else {
 		vs.Reset(vgs)
-		klog.Infof("update virtual gpu specification %s to the intelligent scheduler cache", vgs.Spec.NickName)
+		klog.Infof("update virtual gpu specification %v to the intelligent scheduler cache", vgs.Name)
 	}
 }
 
@@ -61,9 +62,10 @@ func (c *intelligentCache) addOrUpdateVgiInfo(vgi *CRDs.VirtualGpuInstance) {
 	if !ok {
 		newViInfo := NewVirtualGpuInstanceInfo(vgi)
 		c.virtualGpuInstances[vgi.Name] = newViInfo
+		klog.Infof("add new virtual gpu instance %v in the intelligent scheduler cache", vgi.Name)
 	} else {
 		vi.Reset(vgi)
-		klog.Infof("update virtual gpu instance %s to the intelligence cache", vgi.Name)
+		klog.Infof("update virtual gpu instance %v to the intelligence cache", vgi.Name)
 	}
 }
 
@@ -75,16 +77,17 @@ func (c *intelligentCache) deleteNode(node *corev1.Node) {
 		return
 	}
 	delete(c.intelligentNodes, node.Name)
+	klog.Infof("delete node %v from cache", node.Name)
 }
 
 func (c *intelligentCache) deleteVgsInfo(vgs *CRDs.VirtualGpuSpecification) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	_, ok := c.virtualGpuSpecifications[vgs.Spec.NickName]
+	_, ok := c.virtualGpuSpecifications[vgs.Name]
 	if !ok {
 		return
 	}
-	delete(c.virtualGpuSpecifications, vgs.Spec.NickName)
+	delete(c.virtualGpuSpecifications, vgs.Name)
 }
 
 func (c *intelligentCache) deleteVgiInfo(vgi *CRDs.VirtualGpuInstance) {
@@ -120,10 +123,10 @@ func (c *intelligentCache) getNodeInfo(name string) *NodeInfo {
 	}
 }
 
-func (c *intelligentCache) getVgsInfo(nickName string) *VirtualGpuSpecInfo {
+func (c *intelligentCache) getVgsInfo(name string) *VirtualGpuSpecInfo {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	vi, ok := c.virtualGpuSpecifications[nickName]
+	vi, ok := c.virtualGpuSpecifications[name]
 	if ok {
 		return vi
 	} else {
@@ -146,9 +149,9 @@ func (c *intelligentCache) getVgiInfoNamesByPod(pod *corev1.Pod) []string {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	var viNames []string
-	podUid := string(pod.UID)
+	podNameNamespace := pod.Name + "/" + pod.Namespace
 	for name, vi := range c.virtualGpuInstances {
-		if vi.Pod == podUid {
+		if vi.Pod == podNameNamespace {
 			viNames = append(viNames, name)
 		}
 	}

@@ -36,6 +36,7 @@ type GPUOversell struct {
 }
 
 func New(_ apiruntime.Object, handle framework.Handle) (framework.Plugin, error) {
+	klog.Info("Create GPUOversell plugin")
 	g := &GPUOversell{
 		resourceNames:   []v1.ResourceName{"aliyun.com/gpu-mem-oversell"},
 		frameworkHandle: handle,
