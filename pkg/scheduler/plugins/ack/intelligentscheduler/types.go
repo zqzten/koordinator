@@ -288,7 +288,7 @@ func (info *VirtualGpuInstanceInfo) Reset(vgi *CRDs.VirtualGpuInstance) {
 	defer info.lock.Unlock()
 	info.Name = vgi.Name
 	info.VirtualGpuSpecification = vgi.Spec.VirtualGpuSpecification
-	info.Pod = vgi.Status.Pod
+	info.Pod = vgi.Labels[VgiPodNameLabel] + "/" + vgi.Labels[VgiPodNamespaceLabel]
 	info.Node = vgi.Status.Node
 	info.GPUIndex = vgi.Status.GPUIndex
 	info.PhysicalGpuSpecification = vgi.Status.PhysicalGpuSpecification

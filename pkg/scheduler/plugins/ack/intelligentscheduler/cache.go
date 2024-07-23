@@ -151,6 +151,7 @@ func (c *intelligentCache) getVgiInfoNamesByPod(pod *corev1.Pod) []string {
 	var viNames []string
 	podNameNamespace := pod.Name + "/" + pod.Namespace
 	for name, vi := range c.virtualGpuInstances {
+		klog.Infof("vgipod=[%v], podnamenamespace=[%v]", vi.Pod, podNameNamespace)
 		if vi.Pod == podNameNamespace {
 			viNames = append(viNames, name)
 		}

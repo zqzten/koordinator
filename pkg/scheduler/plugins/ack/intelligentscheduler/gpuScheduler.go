@@ -8,7 +8,6 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/ack/devicesharing/runtime"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/ack/intelligentscheduler/CRDs"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
@@ -19,7 +18,7 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"reflect"
-	"time"
+	"sync"
 )
 
 const IntelligentSchedulerName = "intelligent-scheduler"
@@ -28,8 +27,9 @@ const IntelligentSchedulerName = "intelligent-scheduler"
 const (
 	VirtualGpuSpecificationKey = "intelligent.sofastack.io/vgpu-specification"
 	//VirtualGpuCountKey         = "alipay.com/virtual.gpu.count"
-	VirtualGpuCountKey        = "aliyun.com/gpu-count"
-	VirtualGpuPodResourceKey  = "intelligent.sofastack.io/intelligent-vgpu"
+	VirtualGpuCountKey       = "aliyun.com/gpu-count"
+	VirtualGpuPodResourceKey = "intelligent.sofastack.io/intelligent-vgpu"
+	//VirtualGpuPodResourceKey  = "aliyun.com/gpu-count"
 	MsgNoNeedToHandlePod      = "no need to handle this pod cause it does not contain specified annotation key"
 	SchedulerNodeLabel        = "ack.node.gpu.schedule"
 	OversellRateNodeLabel     = "ack.node.gpu.schedule.oversell"
@@ -53,6 +53,11 @@ type IntelligentScheduler struct {
 	handle        framework.Handle
 	client        dynamic.Interface
 }
+
+var _ framework.PreFilterPlugin = &IntelligentScheduler{}
+var _ framework.FilterPlugin = &IntelligentScheduler{}
+var _ framework.ScorePlugin = &IntelligentScheduler{}
+var _ framework.ReservePlugin = &IntelligentScheduler{}
 
 func New(obj apiruntime.Object, handle framework.Handle) (framework.Plugin, error) {
 	klog.Infof("start to create gpu-intelligent-scheduler plugin")
@@ -91,134 +96,181 @@ func (i *IntelligentScheduler) Init() error {
 	cfg := i.handle.KubeConfig()
 	//klog.Infof("succeed to get kubeconfig for gpu-intelligent-scheduler plugin [%v]", cfg)
 	i.client = dynamic.NewForConfigOrDie(cfg)
-	klog.Infof("dynamic client for intelligent-scheduler plugin initialized")
+	//klog.Infof("dynamic client for intelligent-scheduler plugin initialized")
 	// 将所有可用的vgs存入cache
 	vgsGvr := schema.GroupVersionResource{
 		Group:    IntelligentGroupName,
 		Version:  IntelligentVersion,
 		Resource: VgsResourceName,
 	}
-	vgsCrs, err := i.client.Resource(vgsGvr).Namespace(NameSpace).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		klog.Errorf("failed to list gpu-intelligent-scheduler vgs resources: %v", err)
-		return err
-	}
-	for _, cr := range vgsCrs.Items {
-		handleAddOrUpdateVgs(cr, i.cache)
-	}
-	klog.Info("init vgs to the cache")
 	vgiGvr := schema.GroupVersionResource{
 		Group:    IntelligentGroupName,
 		Version:  IntelligentVersion,
 		Resource: VgiResourceName,
 	}
-	vgiCrs, err := i.client.Resource(vgiGvr).Namespace(NameSpace).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		return err
-	}
-	for _, cr := range vgiCrs.Items {
-		handleAddOrUpdateVgi(cr, i.cache)
-	}
-	klog.Info("init vgi to the cache")
-	nodes, err := i.handle.SharedInformerFactory().Core().V1().Nodes().Lister().List(labels.Everything())
-	if err != nil {
-		return err
-	}
-	for _, node := range nodes {
-		handleAddOrUpdateNode(node, i.cache)
-	}
-	klog.Info("init intelligent nodes to the cache")
-	nodeInformer := i.handle.SharedInformerFactory().Core().V1().Nodes().Informer()
-	nodeInformer.AddEventHandler(cache.FilteringResourceEventHandler{
-		FilterFunc: func(obj interface{}) bool {
-			switch t := obj.(type) {
-			case *v1.Node:
-				return true
-			case cache.DeletedFinalStateUnknown:
-				if _, ok := t.Obj.(*v1.Node); ok {
-					return true
-				}
-				return false
-			default:
-				return false
-			}
-		},
-		Handler: cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) {
-				node, ok := obj.(*v1.Node)
-				if !ok {
-					klog.Errorf("failed to convert %v to *v1.Node", reflect.TypeOf(obj))
-					return
-				}
-				handleAddOrUpdateNode(node, i.cache)
-				//klog.Infof("succeed to add intelligent node %v to the cache", node.Name)
-			},
-			UpdateFunc: func(old, new interface{}) {
-				oldNode, ok := old.(*v1.Node)
-				if !ok {
-					klog.Errorf("failed to convert %v to *v1.Node", reflect.TypeOf(old))
-					return
-				}
-				newNode, ok := new.(*v1.Node)
-				if !ok {
-					klog.Errorf("failed to convert %v to *v1.Node", reflect.TypeOf(new))
-					return
-				}
-				updateNode(i.cache, oldNode, newNode)
-				//klog.Infof("succeed to update intelligent node %v to the cache", newNode.Name)
-			},
-			DeleteFunc: func(obj interface{}) {
-				node, ok := obj.(*v1.Node)
-				if !ok {
-					klog.Errorf("failed to convert %v to *v1.Node", reflect.TypeOf(obj))
-					return
-				}
-				deleteNode(i.cache, node)
-				//klog.Infof("succeed to delete intelligent node %v from the cache", node.Name)
-			},
-		},
-	})
 
-	factory := dynamicinformer.NewDynamicSharedInformerFactory(i.client, 15*time.Second)
-	vgsInformer := factory.ForResource(vgsGvr).Informer()
-	//vgsInformer.AddEventHandler(
-	//	cache.ResourceEventHandlerFuncs{
-	//		AddFunc: func(obj interface{}) {
-	//			vgs, ok := obj.(*CRDs.VirtualGpuSpecification)
-	//			if !ok {
-	//				klog.Errorf("failed to convert %v to VirtualGpuSpecification", reflect.TypeOf(obj))
-	//				return
-	//			}
-	//			i.cache.addOrUpdateVgsInfo(vgs)
-	//			klog.Infof("succeed to add VirtualGpuSpecification %v to the cache", vgs.Name)
-	//		},
-	//		UpdateFunc: func(old, new interface{}) {
-	//			_, ok := old.(*CRDs.VirtualGpuSpecification)
-	//			if !ok {
-	//				klog.Errorf("failed to convert %v to VirtualGpuSpecification", reflect.TypeOf(old))
-	//				return
-	//			}
-	//			newVgs, ok := new.(*CRDs.VirtualGpuSpecification)
-	//			if !ok {
-	//				klog.Errorf("failed to convert old vgs %v to VirtualGpuSpecification", reflect.TypeOf(new))
-	//				return
-	//			}
-	//			i.cache.addOrUpdateVgsInfo(newVgs)
-	//			klog.Infof("succeed to update VirtualGpuSpecification %v to the cache", newVgs.Name)
-	//		},
-	//		DeleteFunc: func(obj interface{}) {
-	//			vgs, ok := obj.(*CRDs.VirtualGpuSpecification)
-	//			if !ok {
-	//				klog.Errorf("failed to convert old vgs %v to VirtualGpuSpecification", reflect.TypeOf(obj))
-	//				return
-	//			}
-	//			i.cache.deleteVgsInfo(vgs)
-	//			klog.Infof("succeed to delete VirtualGpuSpecification %v from the cache", vgs.Name)
-	//		},
-	//	})
-	vgsInformer.AddEventHandler(
-		cache.FilteringResourceEventHandler{
+	//vgsCrs, err := i.client.Resource(vgsGvr).Namespace(NameSpace).List(context.TODO(), metav1.ListOptions{})
+	//if err != nil {
+	//	klog.Errorf("failed to list gpu-intelligent-scheduler vgs resources: %v", err)
+	//	return err
+	//}
+	//for _, cr := range vgsCrs.Items {
+	//	handleAddOrUpdateVgs(cr, i.cache)
+	//}
+	//klog.Info("init vgs to the cache")
+	//vgiCrs, err := i.client.Resource(vgiGvr).Namespace(NameSpace).List(context.TODO(), metav1.ListOptions{})
+	//if err != nil {
+	//	return err
+	//}
+	//for _, cr := range vgiCrs.Items {
+	//	handleAddOrUpdateVgi(cr, i.cache)
+	//}
+	//klog.Info("init vgi to the cache")
+	var once sync.Once
+	once.Do(func() {
+		stop := make(chan struct{})
+		nodes, err := i.handle.SharedInformerFactory().Core().V1().Nodes().Lister().List(labels.Everything())
+		if err != nil {
+			klog.Errorf("failed to list nodes: %v", err)
+			return
+		}
+		for _, node := range nodes {
+			handleAddOrUpdateNode(node, i.cache)
+		}
+		klog.Info("init intelligent nodes to the cache")
+		nodeInformer := i.handle.SharedInformerFactory().Core().V1().Nodes().Informer()
+		nodeInformer.AddEventHandler(cache.FilteringResourceEventHandler{
 			FilterFunc: func(obj interface{}) bool {
+				switch t := obj.(type) {
+				case *v1.Node:
+					return true
+				case cache.DeletedFinalStateUnknown:
+					if _, ok := t.Obj.(*v1.Node); ok {
+						return true
+					}
+					return false
+				default:
+					return false
+				}
+			},
+			Handler: cache.ResourceEventHandlerFuncs{
+				AddFunc: func(obj interface{}) {
+					node, ok := obj.(*v1.Node)
+					if !ok {
+						klog.Errorf("failed to convert %v to *v1.Node", reflect.TypeOf(obj))
+						return
+					}
+					handleAddOrUpdateNode(node, i.cache)
+					//klog.Infof("succeed to add intelligent node %v to the cache", node.Name)
+				},
+				UpdateFunc: func(old, new interface{}) {
+					oldNode, ok := old.(*v1.Node)
+					if !ok {
+						klog.Errorf("failed to convert %v to *v1.Node", reflect.TypeOf(old))
+						return
+					}
+					newNode, ok := new.(*v1.Node)
+					if !ok {
+						klog.Errorf("failed to convert %v to *v1.Node", reflect.TypeOf(new))
+						return
+					}
+					updateNode(i.cache, oldNode, newNode)
+					//klog.Infof("succeed to update intelligent node %v to the cache", newNode.Name)
+				},
+				DeleteFunc: func(obj interface{}) {
+					node, ok := obj.(*v1.Node)
+					if !ok {
+						klog.Errorf("failed to convert %v to *v1.Node", reflect.TypeOf(obj))
+						return
+					}
+					deleteNode(i.cache, node)
+					//klog.Infof("succeed to delete intelligent node %v from the cache", node.Name)
+				},
+			},
+		})
+
+		factory := dynamicinformer.NewDynamicSharedInformerFactory(i.client, 0)
+		vgsInformer := factory.ForResource(vgsGvr).Informer()
+		vgsInformer.AddEventHandler(
+			cache.FilteringResourceEventHandler{
+				FilterFunc: func(obj interface{}) bool {
+					//klog.Info("in vgs informer filter")
+					switch t := obj.(type) {
+					case *unstructured.Unstructured:
+						return true
+					case cache.DeletedFinalStateUnknown:
+						if _, ok := t.Obj.(*unstructured.Unstructured); ok {
+							return true
+						}
+						return false
+					default:
+						return false
+					}
+				},
+				Handler: cache.ResourceEventHandlerFuncs{
+					AddFunc: func(obj interface{}) {
+						//klog.Info("in vgs AddFunc")
+						var vgs *CRDs.VirtualGpuSpecification
+						unstructuredObj, ok := obj.(*unstructured.Unstructured)
+						if !ok {
+							klog.Errorf("failed to convert %v to *unstructured.Unstructured", reflect.TypeOf(obj))
+						}
+						er := apiruntime.DefaultUnstructuredConverter.FromUnstructured(unstructuredObj.Object, &vgs)
+						if er != nil {
+							klog.Errorf("failed to convert unstruct to VirtualGpuSpecification: %v", er)
+							return
+						}
+						i.cache.addOrUpdateVgsInfo(vgs)
+						klog.Infof("succeed to add VirtualGpuSpecification %v to the cache", vgs.Name)
+					},
+					UpdateFunc: func(old, new interface{}) {
+						//klog.Info("in vgs UpdateFunc")
+						var oldVgs *CRDs.VirtualGpuSpecification
+						var newVgs *CRDs.VirtualGpuSpecification
+						oldUnstructuredObj, ok := old.(*unstructured.Unstructured)
+						if !ok {
+							klog.Errorf("failed to convert %v to *unstructured.Unstructured", reflect.TypeOf(old))
+						}
+						oldEr := apiruntime.DefaultUnstructuredConverter.FromUnstructured(oldUnstructuredObj.Object, &oldVgs)
+						if oldEr != nil {
+							klog.Errorf("failed to convert oldUnstruct to VirtualGpuSpecification: %v", oldEr)
+							return
+						}
+						newUnstructuredObj, ok := old.(*unstructured.Unstructured)
+						if !ok {
+							klog.Errorf("failed to convert %v to *unstructured.Unstructured", reflect.TypeOf(new))
+						}
+						newEr := apiruntime.DefaultUnstructuredConverter.FromUnstructured(newUnstructuredObj.Object, &newVgs)
+						if newEr != nil {
+							klog.Errorf("failed to convert newUnstruct to VirtualGpuSpecification: %v", newEr)
+							return
+						}
+
+						i.cache.addOrUpdateVgsInfo(newVgs)
+						klog.Infof("succeed to update VirtualGpuSpecification %v to the cache", newVgs.Name)
+					},
+					DeleteFunc: func(obj interface{}) {
+						//klog.Info("in vgs DeleteFunc")
+						var vgs *CRDs.VirtualGpuSpecification
+						unstructuredObj, ok := obj.(*unstructured.Unstructured)
+						if !ok {
+							klog.Errorf("failed to convert %v to *unstructured.Unstructured", reflect.TypeOf(obj))
+						}
+						er := apiruntime.DefaultUnstructuredConverter.FromUnstructured(unstructuredObj.Object, &vgs)
+						if er != nil {
+							klog.Errorf("failed to convert unstruct to VirtualGpuSpecification: %v", er)
+							return
+						}
+						i.cache.deleteVgsInfo(vgs)
+						klog.Infof("succeed to delete VirtualGpuSpecification %v from the cache", vgs.Name)
+					},
+				},
+			})
+
+		vgiInformer := factory.ForResource(vgiGvr).Informer()
+		vgiInformer.AddEventHandler(cache.FilteringResourceEventHandler{
+			FilterFunc: func(obj interface{}) bool {
+				//klog.Info("in vgi informer filter")
 				switch t := obj.(type) {
 				case *unstructured.Unstructured:
 					return true
@@ -233,29 +285,27 @@ func (i *IntelligentScheduler) Init() error {
 			},
 			Handler: cache.ResourceEventHandlerFuncs{
 				AddFunc: func(obj interface{}) {
-					klog.Info("in vgs AddFunc")
-					var vgs *CRDs.VirtualGpuSpecification
+					var vgi *CRDs.VirtualGpuInstance
 					unstructuredObj, ok := obj.(*unstructured.Unstructured)
 					if !ok {
 						klog.Errorf("failed to convert %v to *unstructured.Unstructured", reflect.TypeOf(obj))
 					}
-					er := apiruntime.DefaultUnstructuredConverter.FromUnstructured(unstructuredObj.Object, &vgs)
+					er := apiruntime.DefaultUnstructuredConverter.FromUnstructured(unstructuredObj.Object, &vgi)
 					if er != nil {
 						klog.Errorf("failed to convert unstruct to VirtualGpuSpecification: %v", er)
 						return
 					}
-					i.cache.addOrUpdateVgsInfo(vgs)
-					klog.Infof("succeed to add VirtualGpuSpecification %v to the cache", vgs.Name)
+					i.cache.addOrUpdateVgiInfo(vgi)
+					klog.Infof("succeed to add VirtualGpuInstance %v to the cache", vgi.Name)
 				},
 				UpdateFunc: func(old, new interface{}) {
-					klog.Info("in vgs UpdateFunc")
-					var oldVgs *CRDs.VirtualGpuSpecification
-					var newVgs *CRDs.VirtualGpuSpecification
+					var oldVgi *CRDs.VirtualGpuInstance
+					var newVgi *CRDs.VirtualGpuInstance
 					oldUnstructuredObj, ok := old.(*unstructured.Unstructured)
 					if !ok {
 						klog.Errorf("failed to convert %v to *unstructured.Unstructured", reflect.TypeOf(old))
 					}
-					oldEr := apiruntime.DefaultUnstructuredConverter.FromUnstructured(oldUnstructuredObj.Object, &oldVgs)
+					oldEr := apiruntime.DefaultUnstructuredConverter.FromUnstructured(oldUnstructuredObj.Object, &oldVgi)
 					if oldEr != nil {
 						klog.Errorf("failed to convert oldUnstruct to VirtualGpuSpecification: %v", oldEr)
 						return
@@ -264,158 +314,44 @@ func (i *IntelligentScheduler) Init() error {
 					if !ok {
 						klog.Errorf("failed to convert %v to *unstructured.Unstructured", reflect.TypeOf(new))
 					}
-					newEr := apiruntime.DefaultUnstructuredConverter.FromUnstructured(newUnstructuredObj.Object, &newVgs)
+					newEr := apiruntime.DefaultUnstructuredConverter.FromUnstructured(newUnstructuredObj.Object, &newVgi)
 					if newEr != nil {
 						klog.Errorf("failed to convert newUnstruct to VirtualGpuSpecification: %v", newEr)
 						return
 					}
-
-					i.cache.addOrUpdateVgsInfo(newVgs)
-					klog.Infof("succeed to update VirtualGpuSpecification %v to the cache", newVgs.Name)
+					i.cache.addOrUpdateVgiInfo(newVgi)
+					klog.Infof("succeed to update VirtualGpuInstance %v to the cache", newVgi.Name)
 				},
 				DeleteFunc: func(obj interface{}) {
-					klog.Info("in vgs DeleteFunc")
-					var vgs *CRDs.VirtualGpuSpecification
+					var vgi *CRDs.VirtualGpuInstance
 					unstructuredObj, ok := obj.(*unstructured.Unstructured)
 					if !ok {
 						klog.Errorf("failed to convert %v to *unstructured.Unstructured", reflect.TypeOf(obj))
 					}
-					er := apiruntime.DefaultUnstructuredConverter.FromUnstructured(unstructuredObj.Object, &vgs)
+					er := apiruntime.DefaultUnstructuredConverter.FromUnstructured(unstructuredObj.Object, &vgi)
 					if er != nil {
 						klog.Errorf("failed to convert unstruct to VirtualGpuSpecification: %v", er)
 						return
 					}
-					i.cache.deleteVgsInfo(vgs)
-					klog.Infof("succeed to delete VirtualGpuSpecification %v from the cache", vgs.Name)
+					i.cache.deleteVgiInfo(vgi)
+					klog.Infof("succeed to delete VirtualGpuInstance %v from the cache", vgi.Name)
 				},
 			},
 		})
-
-	vgiInformer := factory.ForResource(vgiGvr).Informer()
-	//vgiInformer.AddEventHandler(
-	//	cache.ResourceEventHandlerFuncs{
-	//		AddFunc: func(obj interface{}) {
-	//			var vgi *CRDs.VirtualGpuInstance
-	//			unstructuredObj, ok := obj.(*unstructured.Unstructured)
-	//			if !ok {
-	//				klog.Errorf("failed to convert %v to Unstructed", reflect.TypeOf(unstructuredObj))
-	//				return
-	//			}
-	//			er := apiruntime.DefaultUnstructuredConverter.FromUnstructured(unstructuredObj.Object, &vgi)
-	//			i.cache.addOrUpdateVgiInfo(vgi)
-	//			klog.Infof("succeed to add VirtualGpuInstance %v to the cache", vgi.Name)
-	//		},
-	//		UpdateFunc: func(old, new interface{}) {
-	//			_, ok := old.(*CRDs.VirtualGpuInstance)
-	//			if !ok {
-	//				klog.Errorf("failed to convert old vgi %v to VirtualGpuInstance", reflect.TypeOf(old))
-	//				return
-	//			}
-	//			newVgs, ok := new.(*CRDs.VirtualGpuInstance)
-	//			if !ok {
-	//				klog.Errorf("failed to convert new vgs %v to VirtualGpuInstance", reflect.TypeOf(new))
-	//				return
-	//			}
-	//			i.cache.addOrUpdateVgiInfo(newVgs)
-	//			klog.Infof("succeed to update VirtualGpuInstance %v to the cache", newVgs.Name)
-	//		},
-	//		DeleteFunc: func(obj interface{}) {
-	//			vgi, ok := obj.(*CRDs.VirtualGpuInstance)
-	//			if !ok {
-	//				klog.Errorf("failed to convert %v to VirtualGpuInstance", reflect.TypeOf(obj))
-	//				return
-	//			}
-	//			i.cache.deleteVgiInfo(vgi)
-	//			klog.Infof("succeed to delete VirtualGpuInstance %v from the cache", vgi.Name)
-	//		},
-	//	})
-	vgiInformer.AddEventHandler(cache.FilteringResourceEventHandler{
-		FilterFunc: func(obj interface{}) bool {
-			switch t := obj.(type) {
-			case *unstructured.Unstructured:
-				return true
-			case cache.DeletedFinalStateUnknown:
-				if _, ok := t.Obj.(*unstructured.Unstructured); ok {
-					return true
-				}
-				return false
-			default:
-				return false
-			}
-		},
-		Handler: cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) {
-				var vgi *CRDs.VirtualGpuInstance
-				unstructuredObj, ok := obj.(*unstructured.Unstructured)
-				if !ok {
-					klog.Errorf("failed to convert %v to *unstructured.Unstructured", reflect.TypeOf(obj))
-				}
-				er := apiruntime.DefaultUnstructuredConverter.FromUnstructured(unstructuredObj.Object, &vgi)
-				if er != nil {
-					klog.Errorf("failed to convert unstruct to VirtualGpuSpecification: %v", er)
-					return
-				}
-				i.cache.addOrUpdateVgiInfo(vgi)
-				klog.Infof("succeed to add VirtualGpuInstance %v to the cache", vgi.Name)
-			},
-			UpdateFunc: func(old, new interface{}) {
-				var oldVgi *CRDs.VirtualGpuInstance
-				var newVgi *CRDs.VirtualGpuInstance
-				oldUnstructuredObj, ok := old.(*unstructured.Unstructured)
-				if !ok {
-					klog.Errorf("failed to convert %v to *unstructured.Unstructured", reflect.TypeOf(old))
-				}
-				oldEr := apiruntime.DefaultUnstructuredConverter.FromUnstructured(oldUnstructuredObj.Object, &oldVgi)
-				if oldEr != nil {
-					klog.Errorf("failed to convert oldUnstruct to VirtualGpuSpecification: %v", oldEr)
-					return
-				}
-				newUnstructuredObj, ok := old.(*unstructured.Unstructured)
-				if !ok {
-					klog.Errorf("failed to convert %v to *unstructured.Unstructured", reflect.TypeOf(new))
-				}
-				newEr := apiruntime.DefaultUnstructuredConverter.FromUnstructured(newUnstructuredObj.Object, &newVgi)
-				if newEr != nil {
-					klog.Errorf("failed to convert newUnstruct to VirtualGpuSpecification: %v", newEr)
-					return
-				}
-				i.cache.addOrUpdateVgiInfo(newVgi)
-				klog.Infof("succeed to update VirtualGpuInstance %v to the cache", newVgi.Name)
-			},
-			DeleteFunc: func(obj interface{}) {
-				var vgi *CRDs.VirtualGpuInstance
-				unstructuredObj, ok := obj.(*unstructured.Unstructured)
-				if !ok {
-					klog.Errorf("failed to convert %v to *unstructured.Unstructured", reflect.TypeOf(obj))
-				}
-				er := apiruntime.DefaultUnstructuredConverter.FromUnstructured(unstructuredObj.Object, &vgi)
-				if er != nil {
-					klog.Errorf("failed to convert unstruct to VirtualGpuSpecification: %v", er)
-					return
-				}
-				i.cache.deleteVgiInfo(vgi)
-				klog.Infof("succeed to delete VirtualGpuInstance %v from the cache", vgi.Name)
-			},
-		},
+		factory.Start(stop)
+		factory.WaitForCacheSync(stop)
 	})
-	//stopCh := make(chan struct{})
-	//defer close(stopCh)
-	//factory.Start(stopCh)
-	//factory.WaitForCacheSync(stopCh)
-
-	klog.Infof("intelligent node: %d, vgs: %d, vgi: %d", len(i.cache.intelligentNodes), len(i.cache.virtualGpuSpecifications), len(i.cache.virtualGpuInstances))
+	klog.Info("init finished")
 	return i.engine.Init()
 }
 
 func (i *IntelligentScheduler) PreFilter(ctx context.Context, state *framework.CycleState, pod *v1.Pod) *framework.Status {
-	klog.Infof("IntelligentSchedulePlugin starts to prefilter pod with name [%v]", pod.Name)
-
 	// Check if we need to handle this pod
 	needToHandle := runtime.IsMyPod(pod, i.resourceNames...)
 	if !needToHandle {
 		return framework.NewStatus(framework.Success, MsgNoNeedToHandlePod)
 	}
-
+	klog.Infof("IntelligentSchedulePlugin starts to prefilter pod with name [%v]", pod.Name)
 	// Check vgpu count and spec
 	vGpuCount, vGpuSpec, err := GetVirtualGPUCountAndSpec(pod) // TODO pod中spec和count都在annotation里面吗？？
 	if err != nil {
@@ -451,15 +387,16 @@ func (i *IntelligentScheduler) PreFilter(ctx context.Context, state *framework.C
 	}
 	i.SaveVGpuPodState(state, vGpuCount, vGpuSpec, string(pod.UID))
 	i.SaveVgiState(state, vgiInfoNames, string(pod.UID))
+	// TODO set VGIs ownerReference to the Pod
 	return nil
 }
 
 func (i *IntelligentScheduler) AddPod(ctx context.Context, state *framework.CycleState, podToSchedule *v1.Pod, podToAdd *framework.PodInfo, nodeInfo *framework.NodeInfo) *framework.Status {
-	klog.Infof("start to run intelligent AddPod function, pod name %s", podToAdd.Pod.Name)
 	p := podToAdd.Pod
 	if !runtime.IsMyPod(p, i.resourceNames...) {
 		return framework.NewStatus(framework.Success, "")
 	}
+	klog.Infof("start to run intelligent AddPod function, pod name %s", podToAdd.Pod.Name)
 	if p.Spec.NodeName == "" {
 		return framework.NewStatus(framework.Success, "")
 	}
@@ -493,6 +430,7 @@ func (i *IntelligentScheduler) RemovePod(ctx context.Context, state *framework.C
 	if !runtime.IsMyPod(p, i.resourceNames...) {
 		return framework.NewStatus(framework.Success, "")
 	}
+	klog.Infof("start to run intelligent RemovePod function, pod name %s", podToRemove.Pod.Name)
 	if p.Spec.NodeName == "" {
 		return framework.NewStatus(framework.Success, "")
 	}
@@ -524,6 +462,11 @@ func (i *IntelligentScheduler) PreFilterExtensions() framework.PreFilterExtensio
 }
 
 func (i *IntelligentScheduler) Filter(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
+	needToHandle := runtime.IsMyPod(pod, i.resourceNames...)
+	if !needToHandle {
+		return framework.NewStatus(framework.Success, "")
+	}
+	klog.Infof("IntelligentSchedulePlugin starts to filter pod with name [%v], node with name [%v]", pod.Name, nodeInfo.Node().Name)
 	node := nodeInfo.Node()
 	if node == nil {
 		klog.Error("node not found, it may be deleted")
@@ -566,6 +509,11 @@ func (i *IntelligentScheduler) Filter(ctx context.Context, state *framework.Cycl
 }
 
 func (i *IntelligentScheduler) Score(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (int64, *framework.Status) {
+	needToHandle := runtime.IsMyPod(pod, i.resourceNames...)
+	if !needToHandle {
+		return int64(0), framework.NewStatus(framework.Success, "")
+	}
+	klog.Infof("IntelligentSchedulePlugin starts to score node [%v] for pod [%v]", nodeName, pod.Name)
 	var vgiNames []string
 	vgiState, err := i.GetVgiState(state, string(pod.UID))
 	if err != nil {
@@ -589,6 +537,11 @@ func (i *IntelligentScheduler) ScoreExtensions() framework.ScoreExtensions {
 }
 
 func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) *framework.Status {
+	needToHandle := runtime.IsMyPod(pod, i.resourceNames...)
+	if !needToHandle {
+		return framework.NewStatus(framework.Success, "")
+	}
+	klog.Infof("IntelligentSchedulePlugin starts to reserve node [%v] for pod [%v]", nodeName, pod.Name)
 	var requestGpuCount int
 	podState, err := i.GetVGpuPodState(state, string(pod.UID))
 	if err != nil {
@@ -617,7 +570,7 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 	vgi := i.cache.getVgiInfo(vgiNames[0])
 	nodeGpuState, totalMem := getNodeGpuState(nodeName, nodeInfos, i.cache)
 	var availableGpuIndexSet []int
-	for idx := 0; idx < len(nodeGpuState); idx++ {
+	for idx := 0; idx < nodeInfos.getGpuCount(); idx++ {
 		available, _, _ := isAvailableForVgi(i.cache, nodeGpuState[idx], vgi, totalMem)
 		if available {
 			availableGpuIndexSet = append(availableGpuIndexSet, idx)
@@ -648,6 +601,7 @@ func (i *IntelligentScheduler) Unreserve(ctx context.Context, state *framework.C
 	if !runtime.IsMyPod(pod, i.resourceNames...) {
 		return
 	}
+	klog.Infof("IntelligentSchedulePlugin starts to unreserve node [%v] for pod [%v]", nodeName, pod.Name)
 	if !i.cache.getIntelligentNode(nodeName) {
 		return
 	}
@@ -682,6 +636,7 @@ func (i *IntelligentScheduler) nodeAvailableForPod(nodeName string, nodeInfos *N
 	requestVGpuSpec := vGpuPodState.getSpec()
 	// 判断总数量是否满足
 	if requestVGpuCount > nodeInfos.getGpuCount() {
+		klog.Infof("gpu count of the node is less than the number of GPU resources for pod")
 		return false
 	}
 	// 判断物理规格是否满足
@@ -697,17 +652,20 @@ func (i *IntelligentScheduler) nodeAvailableForPod(nodeName string, nodeInfos *N
 		ok = true
 	}
 	if !ok {
+		klog.Infof("no vgs for pod")
 		return false
 	}
 	vgi := i.cache.getVgiInfo(vgiNames[0]).Clone()
 	// 判断oversell
 	if nodeInfos.getIsOversell() != vgi.getIsOversell() {
+		klog.Infof("vgi oversell[%v], node oversell[%v]", vgi.getIsOversell(), nodeInfos.getIsOversell())
 		return false
 	}
 	// 判断available数量是否满足
 	nodeGpuState, totalMem := getNodeGpuState(nodeName, nodeInfos, i.cache)
+	//klog.Infof("[%v], [%v]", nodeGpuState, totalMem)
 	availableGpuCount := 0
-	for idx := 0; idx < len(nodeGpuState); idx++ {
+	for idx := 0; idx < nodeInfos.getGpuCount(); idx++ {
 		available, _, _ := isAvailableForVgi(i.cache, nodeGpuState[idx], vgi, totalMem)
 		if available {
 			availableGpuCount++
@@ -716,6 +674,7 @@ func (i *IntelligentScheduler) nodeAvailableForPod(nodeName string, nodeInfos *N
 	if availableGpuCount >= requestVGpuCount {
 		return true
 	} else {
+		klog.Infof("available gpus[%v] are fewer than the requested[%v]", availableGpuCount, requestVGpuCount)
 		return false
 	}
 }

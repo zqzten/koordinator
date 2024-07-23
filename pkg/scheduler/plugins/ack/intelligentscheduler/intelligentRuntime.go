@@ -94,7 +94,7 @@ func (r *IntelligentSchedulerRuntime) calculateNodeScore(cache *intelligentCache
 	totalAvailableUtilization := 0
 	totalUsedMem := 0
 	totalUsedUtilization := 0
-	for idx := 0; idx < len(nodeGpuState); idx++ {
+	for idx := 0; idx < nodeInfos.getGpuCount(); idx++ {
 		available, mem, utilization := isAvailableForVgi(cache, nodeGpuState[idx], vgi, totalMem)
 		if available {
 			totalAvailableUtilization += 100
@@ -178,7 +178,8 @@ func getNodeGpuState(nodeName string, nodeInfos *NodeInfo, cache *intelligentCac
 
 // 判断vgi是否还能够被分配到某张物理卡上，返回判断结果、分配前的总占用mem，utilization
 func isAvailableForVgi(cache *intelligentCache, gpuState []*VirtualGpuInstanceInfo, vgi *VirtualGpuInstanceInfo, totalMem int) (bool, int, int) {
-	if len(gpuState) == 0 {
+	if len(gpuState) == 0 || gpuState == nil {
+		//klog.Info("in func isAvailableForVgi, return true, 0, 0")
 		return true, 0, 0
 	}
 	tmpVgi := gpuState[0]
@@ -213,7 +214,7 @@ func addPod(cache *intelligentCache, vgiNames []string, pod *v1.Pod, nodeName st
 	}
 	vgiNameIdx := 0
 	nodeGpuState, totalMem := getNodeGpuState(nodeName, nodeInfos, cache)
-	for idx := 0; idx < len(nodeGpuState); idx++ {
+	for idx := 0; idx < nodeInfos.getGpuCount(); idx++ {
 		vgi := cache.getVgiInfo(vgiNames[vgiNameIdx])
 		ok, _, _ := isAvailableForVgi(cache, nodeGpuState[idx], vgi, totalMem)
 		if ok {
