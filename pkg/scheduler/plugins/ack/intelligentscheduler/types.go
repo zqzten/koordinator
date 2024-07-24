@@ -273,11 +273,11 @@ func NewVirtualGpuInstanceInfo(vgi *CRDs.VirtualGpuInstance) *VirtualGpuInstance
 		Name:                     vgi.Name,
 		VirtualGpuSpecification:  vgi.Spec.VirtualGpuSpecification,
 		Pod:                      vgi.Labels[VgiPodNameLabel] + "/" + vgi.Labels[VgiPodNamespaceLabel],
+		Status:                   vgi.Status.Phase,
 		Node:                     vgi.Status.Node,
 		GPUIndex:                 vgi.Status.GPUIndex,
 		PhysicalGpuSpecification: vgi.Status.PhysicalGpuSpecification,
 		IsOversell:               vgi.Spec.IsOversell,
-		Status:                   vgi.Status.Phase,
 		MemAllocated:             vgi.Spec.GPUMemory,
 		PercentageAllocated:      vgi.Spec.GPUUtilization,
 	}
@@ -289,11 +289,11 @@ func (info *VirtualGpuInstanceInfo) Reset(vgi *CRDs.VirtualGpuInstance) {
 	info.Name = vgi.Name
 	info.VirtualGpuSpecification = vgi.Spec.VirtualGpuSpecification
 	info.Pod = vgi.Labels[VgiPodNameLabel] + "/" + vgi.Labels[VgiPodNamespaceLabel]
+	info.Status = vgi.Status.Phase
 	info.Node = vgi.Status.Node
 	info.GPUIndex = vgi.Status.GPUIndex
 	info.PhysicalGpuSpecification = vgi.Status.PhysicalGpuSpecification
 	info.IsOversell = vgi.Spec.IsOversell
-	info.Status = vgi.Status.Phase
 	info.MemAllocated = vgi.Spec.GPUMemory
 	info.PercentageAllocated = vgi.Spec.GPUUtilization
 }
