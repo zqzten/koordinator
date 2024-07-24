@@ -237,14 +237,16 @@ func patchVgi(client dynamic.Interface, vgiName string, nodeName string, gpuIdx 
 		Version:  IntelligentVersion,
 		Resource: VgiResourceName,
 	}
+	statusData := map[string]interface{}{
+		"pod":                      fmt.Sprintf("%s/%s", podName, podNamespace),
+		"physicalGpuSpecification": physicalGpuSpec,
+		"node":                     nodeName,
+		"phase":                    phase,
+		"gpuIndex":                 gpuIdx,
+		"containerIndex":           0,
+	}
 	patchData := map[string]interface{}{
-		"status": map[string]interface{}{
-			"pod":             podName + "/" + podNamespace,
-			"physicalGpuSpec": physicalGpuSpec,
-			"node":            nodeName,
-			"phase":           phase,
-			"gpuIndex":        gpuIdx,
-		},
+		"status": statusData,
 	}
 	patchBytes, err := json.Marshal(patchData)
 	if err != nil {
@@ -255,9 +257,22 @@ func patchVgi(client dynamic.Interface, vgiName string, nodeName string, gpuIdx 
 		vgiName,
 		types.MergePatchType,
 		patchBytes,
-		metav1.PatchOptions{})
+		metav1.PatchOptions{},
+		"status")
 	return err
 }
+
+//func setCacheVgis(cache *intelligentCache, pod *v1.Pod, vgiName string, nodeName string, gpuIdx int, phase string, physicalGpuSpec string, podName string, podNamespace string) error {
+//	vgiInfo := cache.getVgiInfo(vgiName)
+//	if vgiInfo == nil {
+//		klog.Warningf("Failed to find vgs info of [%v] for pod [%v] in unreserve plugin", vgiName, pod.Namespace+"/"+pod.Name)
+//		return fmt.Errorf("VGI %v does not exist", vgiName)
+//	}
+//	vgiInfo.lock.Lock()
+//	vgiInfo.setStatus("Allocated")
+//
+//	vgiInfo.lock.Unlock()
+//}
 
 func combine(nums []int, m int) [][]int {
 	var result [][]int

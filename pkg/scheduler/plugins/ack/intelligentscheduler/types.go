@@ -172,9 +172,9 @@ type VirtualGpuSpecInfo struct {
 	nickName                  string
 	physicalGpuSpecifications []string
 	description               string
-	gpuMemory                 int
+	gpuMemory                 int32
 	gpuMemoryIsolation        bool
-	gpuUtilization            int
+	gpuUtilization            int32
 	gpuUtilizationIsolation   bool
 	isOversell                bool
 	isActive                  bool
@@ -261,8 +261,8 @@ type VirtualGpuInstanceInfo struct {
 	Node                     string // 虚拟GPU实例所在节点, 只有Running的时候有值
 	Status                   string // 状态信息, NoQuota/Pending/Allocated/Running/Releasing
 	GPUIndex                 int    // 使用哪张物理卡
-	MemAllocated             int
-	PercentageAllocated      int
+	MemAllocated             int32
+	PercentageAllocated      int32
 	IsOversell               bool
 	PhysicalGpuSpecification string // 使用的物理卡型号
 }
@@ -276,10 +276,10 @@ func NewVirtualGpuInstanceInfo(vgi *CRDs.VirtualGpuInstance) *VirtualGpuInstance
 		Node:                     vgi.Status.Node,
 		GPUIndex:                 vgi.Status.GPUIndex,
 		PhysicalGpuSpecification: vgi.Status.PhysicalGpuSpecification,
-		IsOversell:               vgi.Status.IsOversell,
+		IsOversell:               vgi.Spec.IsOversell,
 		Status:                   vgi.Status.Phase,
-		MemAllocated:             vgi.Status.MemAllocated,
-		PercentageAllocated:      vgi.Status.PercentageAllocated,
+		MemAllocated:             vgi.Spec.GPUMemory,
+		PercentageAllocated:      vgi.Spec.GPUUtilization,
 	}
 }
 
@@ -291,11 +291,11 @@ func (info *VirtualGpuInstanceInfo) Reset(vgi *CRDs.VirtualGpuInstance) {
 	info.Pod = vgi.Labels[VgiPodNameLabel] + "/" + vgi.Labels[VgiPodNamespaceLabel]
 	info.Node = vgi.Status.Node
 	info.GPUIndex = vgi.Status.GPUIndex
-	info.PhysicalGpuSpecification = vgi.Status.PhysicalGpuSpecification
-	info.IsOversell = vgi.Status.IsOversell
+	info.PhysicalGpuSpecification = *vgi.Status.PhysicalGpuSpecification
+	info.IsOversell = vgi.Spec.IsOversell
 	info.Status = vgi.Status.Phase
-	info.MemAllocated = vgi.Status.MemAllocated
-	info.PercentageAllocated = vgi.Status.PercentageAllocated
+	info.MemAllocated = vgi.Spec.GPUMemory
+	info.PercentageAllocated = vgi.Spec.GPUUtilization
 }
 
 func (info *VirtualGpuInstanceInfo) Clone() *VirtualGpuInstanceInfo {
@@ -349,13 +349,13 @@ func (info *VirtualGpuInstanceInfo) getStatus() string {
 func (info *VirtualGpuInstanceInfo) getMemAllocated() int {
 	info.lock.RLock()
 	defer info.lock.RUnlock()
-	return info.MemAllocated
+	return int(info.MemAllocated)
 }
 
 func (info *VirtualGpuInstanceInfo) getPercentageAllocated() int {
 	info.lock.RLock()
 	defer info.lock.RUnlock()
-	return info.PercentageAllocated
+	return int(info.PercentageAllocated)
 }
 
 func (info *VirtualGpuInstanceInfo) getVgs() string {

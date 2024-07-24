@@ -24,9 +24,9 @@ type VirtualGpuSpecificationSpec struct {
 	NickName                  string   `json:"nickName"`                  //虚拟GPU名称
 	PhysicalGpuSpecifications []string `json:"physicalGpuSpecifications"` // 虚拟GPU所指定的物理GPU型号
 	Description               string   `json:"description"`               // 规格描述
-	GPUMemory                 int      `json:"gpuMemory"`                 // 显存大小
+	GPUMemory                 int32    `json:"gpuMemory"`                 // 显存大小
 	GPUMemoryIsolation        bool     `json:"gpuMemoryIsolation"`        // 显存隔离
-	GPUUtilization            int      `json:"gpuUtilization"`            // 算力比例
+	GPUUtilization            int32    `json:"gpuUtilization"`            // 算力比例
 	GPUUtilizationIsolation   bool     `json:"gpuUtilizationIsolation"`   // 算力隔离
 	IsOversell                bool     `json:"isOversell"`                // 是否超卖
 }
@@ -62,17 +62,18 @@ type VirtualGpuInstance struct {
 
 type VirtualGpuInstanceSpec struct {
 	VirtualGpuSpecification string `json:"virtualGpuSpecification"` // 虚拟GPU实例的规格
+	GPUMemory               int32  `json:"gpuMemory,omitempty"`
+	GPUUtilization          int32  `json:"gpuUtilization,omitempty"`
+	IsOversell              bool   `json:"isOversell,omitempty"`
 }
 
 type VirtualGpuInstanceStatus struct {
-	Pod                      string `json:"podUid"`   // 虚拟GPU实例所属的pod
-	Node                     string `json:"node"`     // 虚拟GPU实例所在节点, 只有Running的时候有值
-	Phase                    string `json:"phase"`    // 状态信息, NoQuota/Pending/Allocated/Running/Releasing 后端设置
-	GPUIndex                 int    `json:"gpuIndex"` // 使用哪张物理卡
-	MemAllocated             int    `json:"memAllocated"`
-	PercentageAllocated      int    `json:"percentageAllocated"`
-	IsOversell               bool   `json:"isOversell"`
-	PhysicalGpuSpecification string `json:"physicalGpuSpecification"` // 使用的物理卡型号
+	Pod                      string `json:"podUid,omitempty"`                   // 虚拟GPU实例所属的pod
+	Node                     string `json:"node,omitempty"`                     // 虚拟GPU实例所在节点, 只有Running的时候有值
+	Phase                    string `json:"phase"`                              // 状态信息, NoQuota/Pending/Allocated/Running/Releasing 后端设置
+	GPUIndex                 int    `json:"gpuIndex,omitempty"`                 // 使用哪张物理卡
+	PhysicalGpuSpecification string `json:"physicalGpuSpecification,omitempty"` // 使用的物理卡型号
+	ContainerIndex           int    `json:"countainerIndex,omitempty"`
 }
 
 type VirtualGpuInstanceList struct {

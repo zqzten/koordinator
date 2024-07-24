@@ -590,9 +590,11 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 		gpuIdx := result[idx]
 		er := patchVgi(i.client, vgiName, nodeName, gpuIdx, "Allocated", nodeInfos.getGpuType(), podName, podNamespace)
 		if er != nil {
+			klog.Infof("in reserve: failed to patch vgi[%v]: [%v]", vgiName, er)
 			return framework.NewStatus(framework.Unschedulable, er.Error())
 		}
 	}
+	klog.Infof("in reserve, patch vgis successfully")
 	i.SaveNodeState(state, nodeInfos, nodeName)
 	return framework.NewStatus(framework.Success, "")
 }
@@ -603,6 +605,7 @@ func (i *IntelligentScheduler) Unreserve(ctx context.Context, state *framework.C
 	}
 	klog.Infof("IntelligentSchedulePlugin starts to unreserve node [%v] for pod [%v]", nodeName, pod.Name)
 	if !i.cache.getIntelligentNode(nodeName) {
+		klog.Infof("node[%v] is not an intelligent node in cache", nodeName)
 		return
 	}
 	var vgiNames []string
@@ -618,12 +621,10 @@ func (i *IntelligentScheduler) Unreserve(ctx context.Context, state *framework.C
 			klog.Warningf("Failed to find vgs info of [%v] for pod [%v] in unreserve plugin", vgiName, pod.Namespace+"/"+pod.Name)
 			continue
 		}
-		vgiInfo.lock.Lock()
 		vgiInfo.setStatus("Pending")
 		vgiInfo.setNode("")
 		vgiInfo.setGPUIndex(-1)
 		vgiInfo.setPhysicalGpuSpecification("")
-		vgiInfo.lock.Unlock()
 	}
 	klog.Warningf("Plugin=%v, Phase=UnReserve, Pod=%v, Node=%v, Message: succeed to rollback assumed podresource",
 		i.Name(),
