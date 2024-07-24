@@ -291,7 +291,7 @@ func (info *VirtualGpuInstanceInfo) Reset(vgi *CRDs.VirtualGpuInstance) {
 	info.Pod = vgi.Labels[VgiPodNameLabel] + "/" + vgi.Labels[VgiPodNamespaceLabel]
 	info.Node = vgi.Status.Node
 	info.GPUIndex = vgi.Status.GPUIndex
-	info.PhysicalGpuSpecification = *vgi.Status.PhysicalGpuSpecification
+	info.PhysicalGpuSpecification = vgi.Status.PhysicalGpuSpecification
 	info.IsOversell = vgi.Spec.IsOversell
 	info.Status = vgi.Status.Phase
 	info.MemAllocated = vgi.Spec.GPUMemory
