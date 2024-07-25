@@ -12,6 +12,7 @@ import (
 	"k8s.io/klog/v2"
 	"reflect"
 	"strconv"
+	"time"
 )
 
 // score的计算可以放在这里
@@ -104,9 +105,9 @@ func (r *IntelligentSchedulerRuntime) calculateNodeScore(cache *intelligentCache
 		}
 	}
 	if r.getGPUScorePolicy() == "binpack" {
-		nodeScore = 0.5*(float64(totalUsedMem+requestCount*requestMem)/float64(totalAvailableMem)) + 0.5*(float64(totalUsedUtilization+requestCount*requestUtilization)/float64(totalUsedUtilization))
+		nodeScore = 0.5*(float64(totalUsedMem+requestCount*requestMem)/float64(totalAvailableMem)) + 0.5*(float64(totalUsedUtilization+requestCount*requestUtilization)/float64(totalAvailableUtilization))
 	} else if r.getGPUScorePolicy() == "spread" {
-		nodeScore = 0.5*(1.0-float64(totalUsedMem+requestCount*requestMem)/float64(totalAvailableMem)) + 0.5*(1.0-float64(totalUsedUtilization+requestCount*requestUtilization)/float64(totalUsedUtilization))
+		nodeScore = 0.5*(1.0-float64(totalUsedMem+requestCount*requestMem)/float64(totalAvailableMem)) + 0.5*(1.0-float64(totalUsedUtilization+requestCount*requestUtilization)/float64(totalAvailableUtilization))
 	}
 	return nodeScore
 }
@@ -262,18 +263,6 @@ func patchVgi(client dynamic.Interface, vgiName string, nodeName string, gpuIdx 
 	return err
 }
 
-//func setCacheVgis(cache *intelligentCache, pod *v1.Pod, vgiName string, nodeName string, gpuIdx int, phase string, physicalGpuSpec string, podName string, podNamespace string) error {
-//	vgiInfo := cache.getVgiInfo(vgiName)
-//	if vgiInfo == nil {
-//		klog.Warningf("Failed to find vgs info of [%v] for pod [%v] in unreserve plugin", vgiName, pod.Namespace+"/"+pod.Name)
-//		return fmt.Errorf("VGI %v does not exist", vgiName)
-//	}
-//	vgiInfo.lock.Lock()
-//	vgiInfo.setStatus("Allocated")
-//
-//	vgiInfo.lock.Unlock()
-//}
-
 func combine(nums []int, m int) [][]int {
 	var result [][]int
 	comb := make([]int, m)
@@ -292,4 +281,41 @@ func combine(nums []int, m int) [][]int {
 	}
 	helper(0, 0)
 	return result
+}
+
+func buildPodAnnotations() map[string]string {
+	return map[string]string{
+		IntelligentPodAnnoAssumeTimeFlag: fmt.Sprintf("%d", time.Now().UnixNano()),
+		IntelligentPodAnnoAssignFlag:     "false",
+	}
+}
+
+func patchPodAnnotations(client dynamic.Interface, pod *v1.Pod) error {
+	podName := pod.Name
+	podNamespace := pod.Namespace
+	annotations := buildPodAnnotations()
+	patchData := map[string]interface{}{
+		"metadata": map[string]interface{}{
+			"annotations": annotations,
+		},
+	}
+	patchBytes, err := json.Marshal(patchData)
+	podGVR := schema.GroupVersionResource{
+		Group:    "",
+		Version:  pod.APIVersion,
+		Resource: "pods",
+	}
+	if err != nil {
+		klog.Errorf("Error marshaling patch data: %v", err)
+	}
+	_, er := client.Resource(podGVR).Namespace(podNamespace).Patch(
+		context.TODO(),
+		podName,
+		types.MergePatchType,
+		patchBytes,
+		metav1.PatchOptions{})
+	if er != nil {
+		klog.Errorf("Error patching pod: %v", er)
+	}
+	return er
 }

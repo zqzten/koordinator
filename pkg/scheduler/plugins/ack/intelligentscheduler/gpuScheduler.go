@@ -25,24 +25,24 @@ const IntelligentSchedulerName = "intelligent-scheduler"
 
 // VirtualGpuSpecification found in annotation means a pod needed to be process by IntelligencePlugin
 const (
-	VirtualGpuSpecificationKey = "intelligent.sofastack.io/vgpu-specification"
-	//VirtualGpuCountKey         = "alipay.com/virtual.gpu.count"
-	VirtualGpuCountKey       = "aliyun.com/gpu-count"
-	VirtualGpuPodResourceKey = "intelligent.sofastack.io/intelligent-vgpu"
-	//VirtualGpuPodResourceKey  = "aliyun.com/gpu-count"
-	MsgNoNeedToHandlePod      = "no need to handle this pod cause it does not contain specified annotation key"
-	SchedulerNodeLabel        = "ack.node.gpu.schedule"
-	OversellRateNodeLabel     = "ack.node.gpu.schedule.oversell"
-	PhysicalGpuCountNodeLabel = "aliyun.accelerator/nvidia_count"
-	PhysicalGpuMemNodeLabel   = "aliyun.accelerator/nvidia_mem"
-	PhysicalGpuTypeNodeLabel  = "aliyun.accelerator/nvidia_name"
-	NameSpace                 = "intelligent-computing"
-	IntelligentGroupName      = "intelligent.sofastack.io"
-	IntelligentVersion        = "v1"
-	VgsResourceName           = "virtualgpuspecifications"
-	VgiResourceName           = "virtualgpuinstances"
-	VgiPodNameLabel           = "podName"
-	VgiPodNamespaceLabel      = "podNamespace"
+	VirtualGpuSpecificationKey       = "intelligent.sofastack.io/vgpu-specification"
+	VirtualGpuCountKey               = "aliyun.com/gpu-count"
+	VirtualGpuPodResourceKey         = "intelligent.sofastack.io/intelligent-vgpu"
+	MsgNoNeedToHandlePod             = "no need to handle this pod cause it does not contain specified annotation key"
+	SchedulerNodeLabel               = "ack.node.gpu.schedule"
+	OversellRateNodeLabel            = "ack.node.gpu.schedule.oversell"
+	PhysicalGpuCountNodeLabel        = "aliyun.accelerator/nvidia_count"
+	PhysicalGpuMemNodeLabel          = "aliyun.accelerator/nvidia_mem"
+	PhysicalGpuTypeNodeLabel         = "aliyun.accelerator/nvidia_name"
+	NameSpace                        = "intelligent-computing"
+	IntelligentGroupName             = "intelligent.sofastack.io"
+	IntelligentVersion               = "v1"
+	VgsResourceName                  = "virtualgpuspecifications"
+	VgiResourceName                  = "virtualgpuinstances"
+	VgiPodNameLabel                  = "podName"
+	VgiPodNamespaceLabel             = "podNamespace"
+	IntelligentPodAnnoAssignFlag     = "scheduler.framework.intelligent.assigned"
+	IntelligentPodAnnoAssumeTimeFlag = "scheduler.framework.Intelligent.assume-time"
 )
 
 type IntelligentScheduler struct {
@@ -76,9 +76,9 @@ func New(obj apiruntime.Object, handle framework.Handle) (framework.Plugin, erro
 	}
 	klog.Infof("succeed to validate IntelligentScheduler args")
 	intelligentscheduler.engine = NewIntelligentSchedulerRuntime(IntelligentSchedulerName, intelligentscheduler.args.NodeSelectorPolicy, intelligentscheduler.args.GpuSelectorPolicy)
-	klog.Infof("succeed to create gpu-intelligent-scheduler plugin runtime")
+	//klog.Infof("succeed to create gpu-intelligent-scheduler plugin runtime")
 	intelligentscheduler.cache = newIntelligentCache()
-	klog.Infof("succeed to create gpu-intelligent-scheduler plugin cache")
+	//klog.Infof("succeed to create gpu-intelligent-scheduler plugin cache")
 	if err := intelligentscheduler.Init(); err != nil {
 		return nil, err
 	}
@@ -595,6 +595,13 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 		}
 	}
 	klog.Infof("in reserve, patch vgis successfully")
+	er := patchPodAnnotations(i.client, pod)
+	if er != nil {
+		klog.Errorf("in reserve: failed to patch pod annotations: [%v]", er)
+		return framework.NewStatus(framework.Unschedulable, er.Error())
+	} else {
+		klog.Info("in reserve, patch pod annotations successfully")
+	}
 	i.SaveNodeState(state, nodeInfos, nodeName)
 	return framework.NewStatus(framework.Success, "")
 }
