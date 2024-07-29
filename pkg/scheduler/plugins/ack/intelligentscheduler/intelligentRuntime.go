@@ -12,7 +12,6 @@ import (
 	"k8s.io/klog/v2"
 	"reflect"
 	"strconv"
-	"time"
 )
 
 // score的计算可以放在这里
@@ -386,40 +385,69 @@ func combine(nums []int, m int) [][]int {
 	return result
 }
 
-func buildPodAnnotations() map[string]string {
-	return map[string]string{
-		IntelligentPodAnnoAssumeTimeFlag: fmt.Sprintf("%d", time.Now().UnixNano()),
-		IntelligentPodAnnoAssignFlag:     "false",
+func patchConfigMap(client dynamic.Interface, pod *v1.Pod, data string) error {
+	cmName, ok := pod.Labels[PodConfigMapLabel]
+	if !ok {
+		return fmt.Errorf("pod %v has no label %v", pod.Name, PodConfigMapLabel)
 	}
-}
-
-func patchPodAnnotations(client dynamic.Interface, pod *v1.Pod) error {
-	podName := pod.Name
-	podNamespace := pod.Namespace
-	annotations := buildPodAnnotations()
+	gvr := schema.GroupVersionResource{
+		Group:    "",
+		Version:  "v1",
+		Resource: "configmaps",
+	}
 	patchData := map[string]interface{}{
-		"metadata": map[string]interface{}{
-			"annotations": annotations,
+		"data": map[string]interface{}{
+			"TODO": data,
 		},
 	}
 	patchBytes, err := json.Marshal(patchData)
-	podGVR := schema.GroupVersionResource{
-		Group:    "",
-		Version:  pod.APIVersion,
-		Resource: "pods",
-	}
 	if err != nil {
-		klog.Errorf("Error marshaling patch data: %v", err)
+		return err
 	}
-	_, er := client.Resource(podGVR).Namespace(podNamespace).Patch(
+	_, err = client.Resource(gvr).Namespace(pod.Namespace).Patch(
 		context.TODO(),
-		podName,
+		cmName,
 		types.MergePatchType,
 		patchBytes,
 		metav1.PatchOptions{},
-		"metadata")
-	if er != nil {
-		klog.Errorf("Error patching pod: %v", er)
-	}
-	return er
+		"spec")
+	return err
 }
+
+//func buildPodAnnotations() map[string]string {
+//	return map[string]string{
+//		IntelligentPodAnnoAssumeTimeFlag: fmt.Sprintf("%d", time.Now().UnixNano()),
+//		IntelligentPodAnnoAssignFlag:     "false",
+//	}
+//}
+//
+//func patchPodAnnotations(client dynamic.Interface, pod *v1.Pod) error {
+//	podName := pod.Name
+//	podNamespace := pod.Namespace
+//	annotations := buildPodAnnotations()
+//	patchData := map[string]interface{}{
+//		"metadata": map[string]interface{}{
+//			"annotations": annotations,
+//		},
+//	}
+//	patchBytes, err := json.Marshal(patchData)
+//	podGVR := schema.GroupVersionResource{
+//		Group:    "",
+//		Version:  pod.APIVersion,
+//		Resource: "pods",
+//	}
+//	if err != nil {
+//		klog.Errorf("Error marshaling patch data: %v", err)
+//	}
+//	_, er := client.Resource(podGVR).Namespace(podNamespace).Patch(
+//		context.TODO(),
+//		podName,
+//		types.MergePatchType,
+//		patchBytes,
+//		metav1.PatchOptions{},
+//		"metadata")
+//	if er != nil {
+//		klog.Errorf("Error patching pod: %v", er)
+//	}
+//	return er
+//}

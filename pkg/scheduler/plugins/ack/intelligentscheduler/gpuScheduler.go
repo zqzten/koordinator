@@ -41,6 +41,7 @@ const (
 	VgiResourceName                  = "virtualgpuinstances"
 	VgiPodNameLabel                  = "podName"
 	VgiPodNamespaceLabel             = "podNamespace"
+	PodConfigMapLabel                = "vgpu-env-cm"
 	IntelligentPodAnnoAssignFlag     = "scheduler.framework.intelligent.assigned"
 	IntelligentPodAnnoAssumeTimeFlag = "scheduler.framework.Intelligent.assume-time"
 )
@@ -348,7 +349,7 @@ func (i *IntelligentScheduler) PreFilter(ctx context.Context, state *framework.C
 	}
 	klog.Infof("IntelligentSchedulePlugin starts to prefilter pod with name [%v]", pod.Name)
 	// Check vgpu count and spec
-	vGpuCount, vGpuSpec, err := GetVirtualGPUCountAndSpec(pod) // TODO pod中spec和count都在annotation里面吗？？
+	vGpuCount, vGpuSpec, err := GetVirtualGPUCountAndSpec(pod)
 	if err != nil {
 		return framework.NewStatus(framework.UnschedulableAndUnresolvable, err.Error())
 	}
@@ -364,6 +365,7 @@ func (i *IntelligentScheduler) PreFilter(ctx context.Context, state *framework.C
 	}
 	i.SaveVGpuPodState(state, vGpuCount, vGpuSpec, string(pod.UID))
 	i.SaveVgiState(state, vgiInfoNames, string(pod.UID))
+	klog.Infof("finished prefilting")
 	return nil
 }
 
@@ -575,6 +577,11 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 		}
 	}
 	klog.Infof("in reserve, patch vgis status successfully")
+	err = patchConfigMap(i.client, pod, "patch successfully!")
+	if err != nil {
+		return framework.NewStatus(framework.Unschedulable, err.Error())
+	}
+	klog.Infof("in reserve, patch ConfigMap successfully")
 	i.SaveNodeState(state, nodeInfos, nodeName)
 	return framework.NewStatus(framework.Success, "")
 }
