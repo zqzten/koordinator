@@ -75,10 +75,8 @@ func New(obj apiruntime.Object, handle framework.Handle) (framework.Plugin, erro
 		return nil, err
 	}
 	klog.Infof("succeed to validate IntelligentScheduler args")
-	intelligentscheduler.engine = NewIntelligentSchedulerRuntime(IntelligentSchedulerName, intelligentscheduler.args.NodeSelectorPolicy, intelligentscheduler.args.GpuSelectorPolicy)
-	//klog.Infof("succeed to create gpu-intelligent-scheduler plugin runtime")
+	intelligentscheduler.engine = NewIntelligentSchedulerRuntime(IntelligentSchedulerName, intelligentscheduler.args.NodeSelectorPolicy, intelligentscheduler.args.GpuSelectorPolicy, int(*intelligentscheduler.args.GPUMemoryScoreWeight), int(*intelligentscheduler.args.GPUUtilizationScoreWeight))
 	intelligentscheduler.cache = newIntelligentCache()
-	//klog.Infof("succeed to create gpu-intelligent-scheduler plugin cache")
 	if err := intelligentscheduler.Init(); err != nil {
 		return nil, err
 	}
@@ -94,9 +92,7 @@ func (i *IntelligentScheduler) Name() string {
 func (i *IntelligentScheduler) Init() error {
 	klog.Infof("start to init gpu-intelligent-scheduler plugin")
 	cfg := i.handle.KubeConfig()
-	//klog.Infof("succeed to get kubeconfig for gpu-intelligent-scheduler plugin [%v]", cfg)
 	i.client = dynamic.NewForConfigOrDie(cfg)
-	//klog.Infof("dynamic client for intelligent-scheduler plugin initialized")
 	// 将所有可用的vgs存入cache
 	vgsGvr := schema.GroupVersionResource{
 		Group:    IntelligentGroupName,
@@ -362,24 +358,6 @@ func (i *IntelligentScheduler) PreFilter(ctx context.Context, state *framework.C
 	if len(vgiInfoNames) == 0 {
 		klog.Errorf("unable to find VGI infos for pod [%s]", pod.Name)
 		return framework.NewStatus(framework.Error, "unable to find VGI infos for the pod")
-		//vgiGvr := schema.GroupVersionResource{
-		//	Group:    IntelligentGroupName,
-		//	Version:  IntelligentVersion,
-		//	Resource: VgiResourceName,
-		//}
-		//vgiCrs, er := i.client.Resource(vgiGvr).Namespace(NameSpace).List(context.TODO(), metav1.ListOptions{})
-		//if er != nil {
-		//	return framework.NewStatus(framework.UnschedulableAndUnresolvable, er.Error())
-		//}
-		//for _, item := range vgiCrs.Items {
-		//	if item.GetOwnerReferences() != nil {
-		//		for _, owner := range item.GetOwnerReferences() {
-		//			if owner.UID == pod.UID {
-		//				vgiInfoNames = append(vgiInfoNames, item.GetName())
-		//			}
-		//		}
-		//	}
-		//}
 	}
 	if len(vgiInfoNames) != vGpuCount {
 		klog.Errorf("the count of vgi is not equal to the requested vGPU count for pod [%s]", pod.Name)
@@ -387,7 +365,6 @@ func (i *IntelligentScheduler) PreFilter(ctx context.Context, state *framework.C
 	}
 	i.SaveVGpuPodState(state, vGpuCount, vGpuSpec, string(pod.UID))
 	i.SaveVgiState(state, vgiInfoNames, string(pod.UID))
-	// TODO set VGIs ownerReference to the Pod
 	return nil
 }
 
@@ -567,11 +544,17 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 	} else {
 		nodeInfos = nodeState.getNodeInfo()
 	}
+	var oversellRate int
+	if nodeInfos.getIsOversell() {
+		oversellRate = nodeInfos.getOversellRate()
+	} else {
+		oversellRate = 1
+	}
 	vgi := i.cache.getVgiInfo(vgiNames[0])
 	nodeGpuState, totalMem := getNodeGpuState(nodeName, nodeInfos, i.cache)
 	var availableGpuIndexSet []int
 	for idx := 0; idx < nodeInfos.getGpuCount(); idx++ {
-		available, _, _ := isAvailableForVgi(i.cache, nodeGpuState[idx], vgi, totalMem)
+		available, _, _ := isAvailableForVgi(i.cache, nodeGpuState[idx], vgi, totalMem, oversellRate)
 		if available {
 			availableGpuIndexSet = append(availableGpuIndexSet, idx)
 		}
@@ -580,28 +563,19 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 	if len(availableGpuCombines) <= 0 {
 		return framework.NewStatus(framework.Unschedulable, "in Reserve step, the node does not have enough available GPU resources for pod [%v]", pod.Namespace+"/"+pod.Name)
 	}
-	result := i.engine.findBestGpuCombination(i.cache, availableGpuCombines, vgi, nodeGpuState, totalMem)
+	result := i.engine.findBestGpuCombination(i.cache, availableGpuCombines, vgi, nodeGpuState, totalMem, oversellRate)
 	if result == nil || len(result) != len(vgiNames) {
 		return framework.NewStatus(framework.Unschedulable, "couldn't find proper gpus from node [%v] for pod [%v]", nodeName, pod.Namespace+"/"+pod.Name)
 	}
-	podName := pod.Name
-	podNamespace := pod.Namespace
 	for idx, vgiName := range vgiNames {
 		gpuIdx := result[idx]
-		er := patchVgi(i.client, vgiName, nodeName, gpuIdx, "Allocated", nodeInfos.getGpuType(), podName, podNamespace)
+		er := patchVgi(i.client, vgiName, nodeName, gpuIdx, "PreAllocated", nodeInfos.getGpuType(), pod)
 		if er != nil {
 			klog.Infof("in reserve: failed to patch vgi[%v]: [%v]", vgiName, er)
 			return framework.NewStatus(framework.Unschedulable, er.Error())
 		}
 	}
-	klog.Infof("in reserve, patch vgis successfully")
-	er := patchPodAnnotations(i.client, pod)
-	if er != nil {
-		klog.Errorf("in reserve: failed to patch pod annotations: [%v]", er)
-		return framework.NewStatus(framework.Unschedulable, er.Error())
-	} else {
-		klog.Info("in reserve, patch pod annotations successfully")
-	}
+	klog.Infof("in reserve, patch vgis status successfully")
 	i.SaveNodeState(state, nodeInfos, nodeName)
 	return framework.NewStatus(framework.Success, "")
 }
@@ -650,13 +624,15 @@ func (i *IntelligentScheduler) nodeAvailableForPod(nodeName string, nodeInfos *N
 	// 判断物理规格是否满足
 	vgs := i.cache.getVgsInfo(requestVGpuSpec)
 	requestPGpuSpecs := vgs.getPhysicalGpuSpecifications()
+	//klog.Infof("vgs physical gpu specs: %v, len: [%v]", requestPGpuSpecs, len(requestPGpuSpecs))
 	ok := false
 	for _, spec := range requestPGpuSpecs {
 		if spec == nodeInfos.getGpuType() {
 			ok = true
 		}
 	}
-	if len(requestPGpuSpecs) == 0 {
+	if len(requestPGpuSpecs) == 0 || (len(requestPGpuSpecs) == 1 && requestPGpuSpecs[0] == "") {
+		//klog.Info("len(requestPGpuSpecs) == 0")
 		ok = true
 	}
 	if !ok {
@@ -669,12 +645,17 @@ func (i *IntelligentScheduler) nodeAvailableForPod(nodeName string, nodeInfos *N
 		klog.Infof("vgi oversell[%v], node oversell[%v]", vgi.getIsOversell(), nodeInfos.getIsOversell())
 		return false
 	}
+	var oversellRate int
+	if nodeInfos.getIsOversell() {
+		oversellRate = nodeInfos.getOversellRate()
+	} else {
+		oversellRate = 1
+	}
 	// 判断available数量是否满足
 	nodeGpuState, totalMem := getNodeGpuState(nodeName, nodeInfos, i.cache)
-	//klog.Infof("[%v], [%v]", nodeGpuState, totalMem)
 	availableGpuCount := 0
 	for idx := 0; idx < nodeInfos.getGpuCount(); idx++ {
-		available, _, _ := isAvailableForVgi(i.cache, nodeGpuState[idx], vgi, totalMem)
+		available, _, _ := isAvailableForVgi(i.cache, nodeGpuState[idx], vgi, totalMem, oversellRate)
 		if available {
 			availableGpuCount++
 		}
@@ -759,20 +740,3 @@ func (i *IntelligentScheduler) GetNodeState(state *framework.CycleState, name st
 	}
 	return nodeState, nil
 }
-
-//
-//func (i *IntelligentScheduler) getVgiInfoNamesByPod(pod *v1.Pod) []string {
-//	var vgiNamse []string
-//	vgiGvr := schema.GroupVersionResource{
-//		Group:    IntelligentGroupName,
-//		Version:  IntelligentVersion,
-//		Resource: VgiResourceName,
-//	}
-//	vgiCrs, err := i.client.Resource(vgiGvr).Namespace(NameSpace).List(context.TODO(), metav1.ListOptions{})
-//	if err != nil {
-//		return nil
-//	}
-//	for _, vgiCr := range vgiCrs.Items {
-//
-//	}
-//}
