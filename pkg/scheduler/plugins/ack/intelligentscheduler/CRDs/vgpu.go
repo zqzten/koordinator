@@ -70,7 +70,7 @@ type VirtualGpuInstanceSpec struct {
 type VirtualGpuInstanceStatus struct {
 	Pod                      string `json:"podUid,omitempty"`                   // 虚拟GPU实例所属的pod
 	Node                     string `json:"node,omitempty"`                     // 虚拟GPU实例所在节点, 只有Running的时候有值
-	Phase                    string `json:"phase"`                              // 状态信息, NoQuota/Pending/Allocated/Running/Releasing 后端设置
+	Phase                    string `json:"phase"`                              // 状态信息, Pending/PreAllocated/Allocated/Running 后端设置
 	GPUIndex                 int    `json:"gpuIndex,omitempty"`                 // 使用哪张物理卡
 	PhysicalGpuSpecification string `json:"physicalGpuSpecification,omitempty"` // 使用的物理卡型号
 	ContainerIndex           int    `json:"countainerIndex,omitempty"`

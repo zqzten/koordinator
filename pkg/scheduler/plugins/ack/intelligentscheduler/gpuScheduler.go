@@ -93,7 +93,6 @@ func (i *IntelligentScheduler) Init() error {
 	klog.Infof("start to init gpu-intelligent-scheduler plugin")
 	cfg := i.handle.KubeConfig()
 	i.client = dynamic.NewForConfigOrDie(cfg)
-	// 将所有可用的vgs存入cache
 	vgsGvr := schema.GroupVersionResource{
 		Group:    IntelligentGroupName,
 		Version:  IntelligentVersion,
@@ -217,7 +216,7 @@ func (i *IntelligentScheduler) Init() error {
 							return
 						}
 						i.cache.addOrUpdateVgsInfo(vgs)
-						klog.Infof("succeed to add VirtualGpuSpecification %v to the cache", vgs.Name)
+						//klog.Infof("succeed to add VirtualGpuSpecification %v to the cache", vgs.Name)
 					},
 					UpdateFunc: func(old, new interface{}) {
 						//klog.Info("in vgs UpdateFunc")
@@ -243,7 +242,7 @@ func (i *IntelligentScheduler) Init() error {
 						}
 
 						i.cache.addOrUpdateVgsInfo(newVgs)
-						klog.Infof("succeed to update VirtualGpuSpecification %v to the cache", newVgs.Name)
+						//klog.Infof("succeed to update VirtualGpuSpecification %v to the cache", newVgs.Name)
 					},
 					DeleteFunc: func(obj interface{}) {
 						//klog.Info("in vgs DeleteFunc")
@@ -258,7 +257,7 @@ func (i *IntelligentScheduler) Init() error {
 							return
 						}
 						i.cache.deleteVgsInfo(vgs)
-						klog.Infof("succeed to delete VirtualGpuSpecification %v from the cache", vgs.Name)
+						//klog.Infof("succeed to delete VirtualGpuSpecification %v from the cache", vgs.Name)
 					},
 				},
 			})
