@@ -202,6 +202,13 @@ func isAvailableForVgi(cache *intelligentCache, gpuState []*VirtualGpuInstanceIn
 	vgs := cache.getVgsInfo(vgsName)
 	memIsolation := vgs.getGpuMemoryIsolation()
 	utilizationIsolation := vgs.getGpuUtilizationIsolation()
+
+	isOversell := vgs.getIsOversell()
+	requestOversell := vgi.getIsOversell()
+	if isOversell != requestOversell {
+		return false, 0, 0
+	}
+
 	requestVgsName := vgi.getVgs()
 	requestVgs := cache.getVgsInfo(requestVgsName)
 	if memIsolation != requestVgs.getGpuMemoryIsolation() || utilizationIsolation != requestVgs.getGpuUtilizationIsolation() {

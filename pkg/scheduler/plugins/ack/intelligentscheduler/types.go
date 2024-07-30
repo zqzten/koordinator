@@ -253,6 +253,12 @@ func (info *VirtualGpuSpecInfo) getGpuUtilizationIsolation() bool {
 	return info.gpuUtilizationIsolation
 }
 
+func (info *VirtualGpuSpecInfo) getIsOversell() bool {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return info.isOversell
+}
+
 type VirtualGpuInstanceInfo struct {
 	lock                     *sync.RWMutex
 	Name                     string // 虚拟GPU实例对应vgi crd的name

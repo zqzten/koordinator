@@ -652,10 +652,13 @@ func (i *IntelligentScheduler) nodeAvailableForPod(nodeName string, nodeInfos *N
 	}
 	vgi := i.cache.getVgiInfo(vgiNames[0]).Clone()
 	// 判断oversell
-	if nodeInfos.getIsOversell() != vgi.getIsOversell() {
-		klog.Infof("vgi oversell[%v], node oversell[%v]", vgi.getIsOversell(), nodeInfos.getIsOversell())
+	if !nodeInfos.getIsOversell() && vgi.getIsOversell() {
 		return false
 	}
+	//if nodeInfos.getIsOversell() != vgi.getIsOversell() {
+	//	//klog.Infof("vgi oversell[%v], node oversell[%v]", vgi.getIsOversell(), nodeInfos.getIsOversell())
+	//	return false
+	//}
 	var oversellRate int
 	if nodeInfos.getIsOversell() {
 		oversellRate = nodeInfos.getOversellRate()
