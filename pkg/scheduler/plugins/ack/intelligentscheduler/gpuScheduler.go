@@ -577,7 +577,8 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 		}
 	}
 	klog.Infof("in reserve, patch vgis status successfully")
-	err = patchConfigMap(i.client, pod, "patch successfully!")
+	cmData := buildEnvVars(vgi, result, totalMem)
+	err = patchConfigMap(i.client, pod, cmData)
 	if err != nil {
 		return framework.NewStatus(framework.Unschedulable, err.Error())
 	}
@@ -612,6 +613,10 @@ func (i *IntelligentScheduler) Unreserve(ctx context.Context, state *framework.C
 		vgiInfo.setNode("")
 		vgiInfo.setGPUIndex(-1)
 		vgiInfo.setPhysicalGpuSpecification("")
+	}
+	err = patchConfigMap(i.client, pod, nil)
+	if err != nil {
+		klog.Errorf("Failed to patch pod [%v] in Unreserve with err: %v", pod.Name, err)
 	}
 	klog.Warningf("Plugin=%v, Phase=UnReserve, Pod=%v, Node=%v, Message: succeed to rollback assumed podresource",
 		i.Name(),

@@ -12,6 +12,7 @@ import (
 	"k8s.io/klog/v2"
 	"reflect"
 	"strconv"
+	"strings"
 )
 
 // score的计算可以放在这里
@@ -385,7 +386,7 @@ func combine(nums []int, m int) [][]int {
 	return result
 }
 
-func patchConfigMap(client dynamic.Interface, pod *v1.Pod, data string) error {
+func patchConfigMap(client dynamic.Interface, pod *v1.Pod, data map[string]interface{}) error {
 	cmName, ok := pod.Labels[PodConfigMapLabel]
 	if !ok {
 		return fmt.Errorf("pod %v has no label %v", pod.Name, PodConfigMapLabel)
@@ -395,13 +396,46 @@ func patchConfigMap(client dynamic.Interface, pod *v1.Pod, data string) error {
 		Version:  "v1",
 		Resource: "configmaps",
 	}
-	patchData := map[string]interface{}{
-		"data": map[string]interface{}{
-			"TODO": data,
+	var apiVersion, kind string
+	lastAppliedConfig, ok := pod.Annotations["kubectl.kubernetes.io/last-applied-configuration"]
+	if !ok {
+		apiVersion = "v1"
+		kind = "Pod"
+	} else {
+		var lastConfig map[string]interface{}
+		err := json.Unmarshal([]byte(lastAppliedConfig), &lastConfig)
+		if err != nil {
+			apiVersion = "v1"
+			kind = "Pod"
+		}
+		apiVersion, ok = lastConfig["apiVersion"].(string)
+		if !ok {
+			apiVersion = "v1"
+		}
+		kind, ok = lastConfig["kind"].(string)
+		if !ok {
+			kind = "Pod"
+		}
+	}
+	ownerReferences := []metav1.OwnerReference{
+		{
+			APIVersion: apiVersion,
+			Kind:       kind,
+			Name:       pod.Name,
+			UID:        pod.UID,
 		},
 	}
+	//klog.Infof("DATA: [%v]", data)
+	patchData := map[string]interface{}{
+		"metadata": map[string]interface{}{
+			"ownerReferences": ownerReferences,
+		},
+		"data": data,
+	}
+	//klog.Infof("PATCHDATA: [%v]", patchData)
 	patchBytes, err := json.Marshal(patchData)
 	if err != nil {
+		klog.Errorf("failed to marshal patchData: %v", err)
 		return err
 	}
 	_, err = client.Resource(gvr).Namespace(pod.Namespace).Patch(
@@ -410,8 +444,36 @@ func patchConfigMap(client dynamic.Interface, pod *v1.Pod, data string) error {
 		types.MergePatchType,
 		patchBytes,
 		metav1.PatchOptions{},
-		"spec")
+	)
+	if err != nil {
+		klog.Errorf("failed to patchConfigMap: %v", err)
+	}
 	return err
+}
+
+func buildEnvVars(vgi *VirtualGpuInstanceInfo, gpuIdx []int, totalMem int) map[string]interface{} {
+	result := make(map[string]interface{})
+	var gpuIdxStr []string
+	weight := vgi.getPercentageAllocated() / 5
+	for _, idx := range gpuIdx {
+		gpuIdxStr = append(gpuIdxStr, strconv.Itoa(idx))
+	}
+	if vgi.getIsOversell() {
+		result["AMP_VGPU_DEV_COUNT"] = strings.Join(gpuIdxStr, ",")
+		result["ALIYUN_COM_GPU_MEM_DEV"] = fmt.Sprintf("%d", totalMem)
+		result["ALIYUN_COM_GPU_MEM_CONTAINER"] = fmt.Sprintf("%d", vgi.getMemAllocated())
+		result["ALIYUN_COM_GPU_MEM_UNIT"] = "GB"
+		result["ALIYUN_COM_GPU_SCHD_WEIGHT"] = fmt.Sprintf("%d", weight)
+		result["GPU_UTIL_PER_DEVICE"] = fmt.Sprintf("%d", vgi.getPercentageAllocated())
+	} else {
+		result["NVIDIA_VISIBLE_DEVICES"] = strings.Join(gpuIdxStr, ",")
+		result["ALIYUN_COM_GPU_MEM_DEV"] = fmt.Sprintf("%d", totalMem)
+		result["ALIYUN_COM_GPU_MEM_CONTAINER"] = fmt.Sprintf("%d", vgi.getMemAllocated())
+		result["ALIYUN_COM_GPU_MEM_UNIT"] = "GB"
+		result["ALIYUN_COM_GPU_SCHD_WEIGHT"] = fmt.Sprintf("%d", weight)
+		result["GPU_UTIL_PER_DEVICE"] = fmt.Sprintf("%d", vgi.getPercentageAllocated())
+	}
+	return result
 }
 
 //func buildPodAnnotations() map[string]string {
