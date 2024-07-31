@@ -146,10 +146,15 @@ func validateGPUSchedulerArgs(args IntelligentSchedulerArgs) error {
 
 func isIntelligentNode(node *v1.Node) bool {
 	// TODO 这个label需要在设置node gpu调度方式时设置
-	if node.Labels[SchedulerNodeLabel] == "intelligent" {
-		return true
+	if node.Labels[SchedulerNodeLabel] != "intelligent" {
+		return false
 	}
-	return false
+	// 因为目前eGPU只支持nvidia卡，所以非n卡pod不会被intelligent scheduler调度。增加了判断该节点GPU是否为n卡的逻辑，否则不会被intelligent scheduler考虑
+	_, ok := node.Labels["aliyun.accelerator/nvidia_name"]
+	if !ok {
+		return false
+	}
+	return true
 }
 
 func GetVirtualGPUCountAndSpec(pod *v1.Pod) (int, string, error) {
