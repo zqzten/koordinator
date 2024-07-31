@@ -10,8 +10,8 @@ metadata:
   creationTimestamp: "2024-06-26T06:29:06Z"
   labels:
     ack-d.alibabacloud.com/managed-node: "true"
-    ack.node.gpu.schedule: default # 根据这个字段确定调度方式
-    ack.node.gpu.schedule.oversell: '2'
+    ack.node.gpu.schedule: intelligent # 根据这个字段确定调度方式
+    ack.node.gpu.schedule.oversell: 2
     aliyun.accelerator/nvidia_count: "2"
     aliyun.accelerator/nvidia_mem: 15360MiB
     aliyun.accelerator/nvidia_name: Tesla-T4

@@ -202,7 +202,7 @@ func isAvailableForVgi(cache *intelligentCache, gpuState []*VirtualGpuInstanceIn
 	vgs := cache.getVgsInfo(vgsName)
 	memIsolation := vgs.getGpuMemoryIsolation()
 	utilizationIsolation := vgs.getGpuUtilizationIsolation()
-
+	// 卡维度超卖
 	isOversell := vgs.getIsOversell()
 	requestOversell := vgi.getIsOversell()
 	if isOversell != requestOversell {
@@ -363,13 +363,82 @@ func patchVgi(client dynamic.Interface, vgiName string, nodeName string, gpuIdx 
 		return err
 	}
 	_, err = client.Resource(vgiGvr).Namespace(NameSpace).Patch(
-		context.TODO(),
+		context.Background(),
 		vgiName,
 		types.MergePatchType,
 		patchBytes,
 		metav1.PatchOptions{},
 		"status",
 	)
+	//// patch onwerReference to vgi
+	//var apiVersion, kind string
+	//lastAppliedConfig, ok := pod.Annotations["kubectl.kubernetes.io/last-applied-configuration"]
+	//if !ok {
+	//	apiVersion = "v1"
+	//	kind = "Pod"
+	//} else {
+	//	var lastConfig map[string]interface{}
+	//	err := json.Unmarshal([]byte(lastAppliedConfig), &lastConfig)
+	//	if err != nil {
+	//		apiVersion = "v1"
+	//		kind = "Pod"
+	//	}
+	//	apiVersion, ok = lastConfig["apiVersion"].(string)
+	//	if !ok {
+	//		apiVersion = "v1"
+	//	}
+	//	kind, ok = lastConfig["kind"].(string)
+	//	if !ok {
+	//		kind = "Pod"
+	//	}
+	//}
+	//newOwnerReferenceData := metav1.OwnerReference{
+	//	APIVersion: apiVersion,
+	//	Kind:       kind,
+	//	Name:       pod.Name,
+	//	UID:        pod.UID,
+	//}
+	//
+	//vgiCrs, err := client.Resource(vgiGvr).Namespace(NameSpace).Get(context.Background(), vgiName, metav1.GetOptions{})
+	//if err != nil {
+	//	return err
+	//}
+	//existingOwnerReferences, found, err := unstructured.NestedSlice(vgiCrs.Object, "metadata", "ownerReferences")
+	//if err != nil {
+	//	return err
+	//}
+	//if !found {
+	//	existingOwnerReferences = []interface{}{}
+	//}
+	//newOwnerReferenceMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&newOwnerReferenceData)
+	//if err != nil {
+	//	return fmt.Errorf("failed to convert ownerReference: %v", err)
+	//}
+	//existingOwnerReferences = append(existingOwnerReferences, newOwnerReferenceMap)
+	//
+	//patchData = map[string]interface{}{
+	//	"metadata": map[string]interface{}{
+	//		"ownerReferences": existingOwnerReferences,
+	//	},
+	//}
+	//klog.Infof("patch ownerReferences: %v", patchData)
+	//patchBytes, err = json.Marshal(patchData)
+	//if err != nil {
+	//	return err
+	//}
+	//_, err = client.Resource(vgiGvr).Namespace(NameSpace).Patch(
+	//	context.Background(),
+	//	vgiName,
+	//	types.MergePatchType,
+	//	patchBytes,
+	//	metav1.PatchOptions{},
+	//)
+	//if err != nil {
+	//	klog.Errorf("Failed to patch owner reference data for pod %v/%v, [%v]", pod.Name, pod.UID, err)
+	//} else {
+	//	klog.Infof("patch vgi[%v] owner successfully", vgiName)
+	//}
+
 	return err
 }
 
@@ -446,7 +515,7 @@ func patchConfigMap(client dynamic.Interface, pod *v1.Pod, data map[string]inter
 		return err
 	}
 	_, err = client.Resource(gvr).Namespace(pod.Namespace).Patch(
-		context.TODO(),
+		context.Background(),
 		cmName,
 		types.MergePatchType,
 		patchBytes,
@@ -481,6 +550,39 @@ func buildEnvVars(vgi *VirtualGpuInstanceInfo, gpuIdx []int, totalMem int) map[s
 		result["GPU_UTIL_PER_DEVICE"] = fmt.Sprintf("%d", vgi.getPercentageAllocated())
 	}
 	return result
+}
+
+// IsMyPod determines the pod is a pod that we care or not
+func IsMyPod(pod *v1.Pod, resourceNames ...v1.ResourceName) bool {
+	return len(GetPodRequestResourcesByNames(pod, resourceNames...)) != 0
+}
+
+// GetPodRequestResourcesByNames gets the value for target resource name
+func GetPodRequestResourcesByNames(pod *v1.Pod, resourceNames ...v1.ResourceName) map[v1.ResourceName]int {
+	result := map[v1.ResourceName]int{}
+	for _, resourceName := range resourceNames {
+		total := 0
+		for _, containerRequest := range GetContainerRequestResourceByName(resourceName, pod) {
+			total += containerRequest
+		}
+		// warning: only care value is large than 0
+		if total != 0 {
+			result[resourceName] = total
+		}
+	}
+	return result
+}
+
+// GetContainerRequestResourceByName gets the value of containers for target resource name
+func GetContainerRequestResourceByName(resourceName v1.ResourceName, pod *v1.Pod) map[int]int {
+	total := map[int]int{}
+	containers := pod.Spec.Containers
+	for index, container := range containers {
+		if val, ok := container.Resources.Limits[resourceName]; ok && int(val.Value()) != 0 {
+			total[int(index)] = int(val.Value())
+		}
+	}
+	return total
 }
 
 //func buildPodAnnotations() map[string]string {

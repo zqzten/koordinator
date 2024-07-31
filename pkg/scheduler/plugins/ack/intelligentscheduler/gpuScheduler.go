@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	frameworkruntime "github.com/koordinator-sh/koordinator/pkg/descheduler/framework/runtime"
-	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/ack/devicesharing/runtime"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/ack/intelligentscheduler/CRDs"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -34,7 +33,6 @@ const (
 	PhysicalGpuCountNodeLabel        = "aliyun.accelerator/nvidia_count"
 	PhysicalGpuMemNodeLabel          = "aliyun.accelerator/nvidia_mem"
 	PhysicalGpuTypeNodeLabel         = "aliyun.accelerator/nvidia_name"
-	NameSpace                        = "intelligent-computing"
 	IntelligentGroupName             = "intelligent.sofastack.io"
 	IntelligentVersion               = "v1"
 	VgsResourceName                  = "virtualgpuspecifications"
@@ -42,6 +40,7 @@ const (
 	VgiPodNameLabel                  = "podName"
 	VgiPodNamespaceLabel             = "podNamespace"
 	PodConfigMapLabel                = "vgpu-env-cm"
+	NameSpace                        = "intelligent-computing"
 	IntelligentPodAnnoAssignFlag     = "scheduler.framework.intelligent.assigned"
 	IntelligentPodAnnoAssumeTimeFlag = "scheduler.framework.Intelligent.assume-time"
 )
@@ -343,7 +342,7 @@ func (i *IntelligentScheduler) Init() error {
 
 func (i *IntelligentScheduler) PreFilter(ctx context.Context, state *framework.CycleState, pod *v1.Pod) *framework.Status {
 	// Check if we need to handle this pod
-	needToHandle := runtime.IsMyPod(pod, i.resourceNames...)
+	needToHandle := IsMyPod(pod, i.resourceNames...)
 	if !needToHandle {
 		return framework.NewStatus(framework.Success, MsgNoNeedToHandlePod)
 	}
@@ -371,7 +370,7 @@ func (i *IntelligentScheduler) PreFilter(ctx context.Context, state *framework.C
 
 func (i *IntelligentScheduler) AddPod(ctx context.Context, state *framework.CycleState, podToSchedule *v1.Pod, podToAdd *framework.PodInfo, nodeInfo *framework.NodeInfo) *framework.Status {
 	p := podToAdd.Pod
-	if !runtime.IsMyPod(p, i.resourceNames...) {
+	if !IsMyPod(p, i.resourceNames...) {
 		return framework.NewStatus(framework.Success, "")
 	}
 	klog.Infof("start to run intelligent AddPod function, pod name %s", podToAdd.Pod.Name)
@@ -395,9 +394,11 @@ func (i *IntelligentScheduler) AddPod(ctx context.Context, state *framework.Cycl
 	} else {
 		vgiNames = vgiState.getVgiNames()
 	}
+	if len(vgiNames) == 0 {
+		return framework.NewStatus(framework.Error, "not find vgis for pod [%s] in AddPod plugin", podToAdd.Pod.Name)
+	}
 	er = addPod(i.cache, vgiNames, p, nodeName, nodeInfos)
 	if er != nil {
-		klog.Errorf("failed to add pod [%s] to node [%s] in AddPod interface", p.Name, nodeName)
 		return framework.NewStatus(framework.Error, er.Error())
 	}
 	return framework.NewStatus(framework.Success, "")
@@ -405,7 +406,7 @@ func (i *IntelligentScheduler) AddPod(ctx context.Context, state *framework.Cycl
 
 func (i *IntelligentScheduler) RemovePod(ctx context.Context, state *framework.CycleState, podToSchedule *v1.Pod, podToRemove *framework.PodInfo, nodeInfo *framework.NodeInfo) *framework.Status {
 	p := podToRemove.Pod
-	if !runtime.IsMyPod(p, i.resourceNames...) {
+	if !IsMyPod(p, i.resourceNames...) {
 		return framework.NewStatus(framework.Success, "")
 	}
 	klog.Infof("start to run intelligent RemovePod function, pod name %s", podToRemove.Pod.Name)
@@ -432,6 +433,10 @@ func (i *IntelligentScheduler) RemovePod(ctx context.Context, state *framework.C
 		vgiInfo.setGPUIndex(-1)
 		vgiInfo.lock.Unlock()
 	}
+	err = patchConfigMap(i.client, p, nil)
+	if err != nil {
+		return framework.NewStatus(framework.Error, err.Error())
+	}
 	return framework.NewStatus(framework.Success, "")
 }
 
@@ -440,7 +445,7 @@ func (i *IntelligentScheduler) PreFilterExtensions() framework.PreFilterExtensio
 }
 
 func (i *IntelligentScheduler) Filter(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
-	needToHandle := runtime.IsMyPod(pod, i.resourceNames...)
+	needToHandle := IsMyPod(pod, i.resourceNames...)
 	if !needToHandle {
 		return framework.NewStatus(framework.Success, "")
 	}
@@ -487,7 +492,7 @@ func (i *IntelligentScheduler) Filter(ctx context.Context, state *framework.Cycl
 }
 
 func (i *IntelligentScheduler) Score(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (int64, *framework.Status) {
-	needToHandle := runtime.IsMyPod(pod, i.resourceNames...)
+	needToHandle := IsMyPod(pod, i.resourceNames...)
 	if !needToHandle {
 		return int64(0), framework.NewStatus(framework.Success, "")
 	}
@@ -515,7 +520,7 @@ func (i *IntelligentScheduler) ScoreExtensions() framework.ScoreExtensions {
 }
 
 func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) *framework.Status {
-	needToHandle := runtime.IsMyPod(pod, i.resourceNames...)
+	needToHandle := IsMyPod(pod, i.resourceNames...)
 	if !needToHandle {
 		return framework.NewStatus(framework.Success, "")
 	}
@@ -588,7 +593,7 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 }
 
 func (i *IntelligentScheduler) Unreserve(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) {
-	if !runtime.IsMyPod(pod, i.resourceNames...) {
+	if !IsMyPod(pod, i.resourceNames...) {
 		return
 	}
 	klog.Infof("IntelligentSchedulePlugin starts to unreserve node [%v] for pod [%v]", nodeName, pod.Name)

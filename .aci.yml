@@ -9,8 +9,8 @@ jobs:
     id: image-build
     component: docker-image-build
     inputs:
-      imageName: reg.docker.alibaba-inc.com/antcnstack/koord-scheduler
-      imageTag: dev # 构建产物镜像 tag
+      imageName: ant-cnstack-registry.cn-hangzhou.cr.aliyuncs.com/antcnstack/intelligent-computing-scheduler
+      imageTag: v1.0.0 # 构建产物镜像 tag
       dockerfile: ./cnstack-docker/koord-scheduler.dockerfile # dockerfile 路径，不传默认为 ./Dockerfile (即: ${ACB_BUILD_DIR}/code-repo/Dockerfile)
       contextDir: ./ # docker build 的 context 目录，不传默认为 ./ (即: ${ACB_BUILD_DIR}/code-repo 目录)
       buildArgs: TARGETARCH=amd64 # docker build 的 args 参数，格式为 key1=value1,key2=value2，注意key/value的格式，不能有空格等特殊字符
@@ -31,8 +31,8 @@ jobs:
 #    id: image-build-aarch64
 #    component: docker-image-build-aarch64
 #    inputs:
-#      imageName: reg.docker.alibaba-inc.com/antcnstack/koord-scheduler
-#      imageTag: ${{pipeline.currentTimestamp}}_${{vcs.commitShortSha}}_arm64 # 构建产物镜像 tag
+#      imageName: ant-cnstack-registry.cn-hangzhou.cr.aliyuncs.com/antcnstack/intelligent-computing-scheduler
+#      imageTag: v1.0.0_arm64 # 构建产物镜像 tag
 #      dockerfile: ./cnstack-docker/koord-scheduler.dockerfile # dockerfile 路径，不传默认为 ./Dockerfile (即: ${ACB_BUILD_DIR}/code-repo/Dockerfile)
 #      contextDir: ./ # docker build 的 context 目录，不传默认为 ./ (即: ${ACB_BUILD_DIR}/code-repo 目录)
 #      buildArgs: TARGETARCH=arm64 # docker build 的 args 参数，格式为 key1=value1,key2=value2，注意key/value的格式，不能有空格等特殊字符
@@ -48,7 +48,7 @@ jobs:
 #      cacheStrategy: never # 镜像构建是否使用缓存，默认 always
 #      extraTags: null # 可指定多个 (当前最多支持5个) 额外的构建镜像Tag, 格式参考下方文档描述 (如需推送到其他镜像中心，还需要配置对应的账密)
 #      timeoutInSec: 600 # 构建任务执行超时时间，单位(秒)
-
+#
 #  多架构镜像合并:
 #    stage: multi-arch-merge
 #    id: multi-arch-merge
