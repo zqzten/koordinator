@@ -3,6 +3,34 @@ kind: ClusterRole
 metadata:
   name: cnstack-koord-scheduler-role
 rules:
+#- apiGroups:
+#  - ""
+#  resources:
+#  - configmaps
+#  verbs:
+#  - update
+#  - patch
+#  - get
+#  - list
+#  - watch
+#  - create
+#  - delete
+#- apiGroups:
+#  - intelligent.sofastack.io
+#  resources:
+#  - virtualgpuinstances
+#  - virtualgpuinstances/status
+#  - virtualgpuspecifications
+#  verbs:
+#  - list
+#  - get
+#  - watch
+#  - create
+#  - delete
+#  - update
+#  - patch
+#  - proxy
+#  - exec
 - apiGroups:
   - ""
   resources:

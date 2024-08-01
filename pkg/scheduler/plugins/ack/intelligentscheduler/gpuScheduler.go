@@ -643,11 +643,11 @@ func (i *IntelligentScheduler) nodeAvailableForPod(nodeName string, nodeInfos *N
 	//klog.Infof("vgs physical gpu specs: %v, len: [%v]", requestPGpuSpecs, len(requestPGpuSpecs))
 	ok := false
 	for _, spec := range requestPGpuSpecs {
-		if spec == nodeInfos.getGpuType() {
+		if spec.getName() == nodeInfos.getGpuType() {
 			ok = true
 		}
 	}
-	if len(requestPGpuSpecs) == 0 || (len(requestPGpuSpecs) == 1 && requestPGpuSpecs[0] == "") {
+	if len(requestPGpuSpecs) == 0 || (len(requestPGpuSpecs) == 1 && requestPGpuSpecs[0].getName() == "") {
 		//klog.Info("len(requestPGpuSpecs) == 0")
 		ok = true
 	}

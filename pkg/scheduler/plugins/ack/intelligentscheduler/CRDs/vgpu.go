@@ -21,14 +21,21 @@ type VirtualGpuSpecification struct {
 }
 
 type VirtualGpuSpecificationSpec struct {
-	NickName                  string   `json:"nickName"`                  //虚拟GPU名称
-	PhysicalGpuSpecifications []string `json:"physicalGpuSpecifications"` // 虚拟GPU所指定的物理GPU型号
-	Description               string   `json:"description"`               // 规格描述
-	GPUMemory                 int32    `json:"gpuMemory"`                 // 显存大小
-	GPUMemoryIsolation        bool     `json:"gpuMemoryIsolation"`        // 显存隔离
-	GPUUtilization            int32    `json:"gpuUtilization"`            // 算力比例
-	GPUUtilizationIsolation   bool     `json:"gpuUtilizationIsolation"`   // 算力隔离
-	IsOversell                bool     `json:"isOversell"`                // 是否超卖
+	NickName string `json:"nickName"` //虚拟GPU名称
+	//PhysicalGpuSpecifications []string `json:"physicalGpuSpecifications"` // 虚拟GPU所指定的物理GPU型号
+	PhysicalGpuSpecifications []PhysicalGpuSpecification `json:"physicalGpuSpecifications"`
+	Description               string                     `json:"description"`             // 规格描述
+	GPUMemory                 int32                      `json:"gpuMemory"`               // 显存大小
+	GPUMemoryIsolation        bool                       `json:"gpuMemoryIsolation"`      // 显存隔离
+	GPUUtilization            int32                      `json:"gpuUtilization"`          // 算力比例
+	GPUUtilizationIsolation   bool                       `json:"gpuUtilizationIsolation"` // 算力隔离
+	IsOversell                bool                       `json:"isOversell"`              // 是否超卖
+}
+
+type PhysicalGpuSpecification struct {
+	Vendor       string `json:"vendor"`
+	ResourceName string `json:"resourceName"`
+	Name         string `json:"name"`
 }
 
 type VirtualGpuSpecificationStatus struct {

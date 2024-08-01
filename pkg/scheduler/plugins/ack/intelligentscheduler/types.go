@@ -166,11 +166,56 @@ func (info *NodeInfo) getGpuMem() int {
 	return info.gpuMem
 }
 
+type PhysicalGpuSpecInfo struct {
+	lock         *sync.RWMutex
+	name         string
+	vendor       string
+	resourceName string
+}
+
+func NewPhysicalGpuSpecInfo(pgs *CRDs.PhysicalGpuSpecification) *PhysicalGpuSpecInfo {
+	return &PhysicalGpuSpecInfo{
+		lock:         new(sync.RWMutex),
+		name:         pgs.Name,
+		vendor:       pgs.Vendor,
+		resourceName: pgs.ResourceName,
+	}
+}
+
+func (info *PhysicalGpuSpecInfo) getName() string {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return info.name
+}
+
+func (info *PhysicalGpuSpecInfo) getVendor() string {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return info.vendor
+}
+
+func (info *PhysicalGpuSpecInfo) getResourceName() string {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return info.resourceName
+}
+
+func (info *PhysicalGpuSpecInfo) Clone() *PhysicalGpuSpecInfo {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return &PhysicalGpuSpecInfo{
+		lock:         new(sync.RWMutex),
+		name:         info.name,
+		vendor:       info.vendor,
+		resourceName: info.resourceName,
+	}
+}
+
 type VirtualGpuSpecInfo struct {
 	lock                      *sync.RWMutex
 	name                      string
 	nickName                  string
-	physicalGpuSpecifications []string
+	physicalGpuSpecifications []*PhysicalGpuSpecInfo
 	description               string
 	gpuMemory                 int32
 	gpuMemoryIsolation        bool
@@ -181,11 +226,16 @@ type VirtualGpuSpecInfo struct {
 }
 
 func NewVirtualGpuSpecInfo(vgs *CRDs.VirtualGpuSpecification) *VirtualGpuSpecInfo {
+	pgs := vgs.Spec.PhysicalGpuSpecifications
+	var physicalGpuSpecs []*PhysicalGpuSpecInfo
+	for _, pg := range pgs {
+		physicalGpuSpecs = append(physicalGpuSpecs, NewPhysicalGpuSpecInfo(&pg))
+	}
 	return &VirtualGpuSpecInfo{
 		lock:                      new(sync.RWMutex),
 		name:                      vgs.Name,
 		nickName:                  vgs.Spec.NickName,
-		physicalGpuSpecifications: vgs.Spec.PhysicalGpuSpecifications,
+		physicalGpuSpecifications: physicalGpuSpecs,
 		description:               vgs.Spec.Description,
 		gpuMemory:                 vgs.Spec.GPUMemory,
 		gpuMemoryIsolation:        vgs.Spec.GPUMemoryIsolation,
@@ -199,9 +249,14 @@ func NewVirtualGpuSpecInfo(vgs *CRDs.VirtualGpuSpecification) *VirtualGpuSpecInf
 func (info *VirtualGpuSpecInfo) Reset(vgs *CRDs.VirtualGpuSpecification) {
 	info.lock.Lock()
 	defer info.lock.Unlock()
+	pgs := vgs.Spec.PhysicalGpuSpecifications
+	var physicalGpuSpecs []*PhysicalGpuSpecInfo
+	for _, pg := range pgs {
+		physicalGpuSpecs = append(physicalGpuSpecs, NewPhysicalGpuSpecInfo(&pg))
+	}
 	info.name = vgs.Name
 	info.nickName = vgs.Spec.NickName
-	info.physicalGpuSpecifications = vgs.Spec.PhysicalGpuSpecifications
+	info.physicalGpuSpecifications = physicalGpuSpecs
 	info.description = vgs.Spec.Description
 	info.gpuMemory = vgs.Spec.GPUMemory
 	info.gpuMemoryIsolation = vgs.Spec.GPUMemoryIsolation
@@ -229,7 +284,7 @@ func (info *VirtualGpuSpecInfo) Clone() *VirtualGpuSpecInfo {
 	}
 }
 
-func (info *VirtualGpuSpecInfo) getPhysicalGpuSpecifications() []string {
+func (info *VirtualGpuSpecInfo) getPhysicalGpuSpecifications() []*PhysicalGpuSpecInfo {
 	info.lock.RLock()
 	defer info.lock.RUnlock()
 	return info.physicalGpuSpecifications
