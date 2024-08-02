@@ -184,6 +184,36 @@ func (i *IntelligentScheduler) Init() error {
 			},
 		})
 
+		podInformer := i.handle.SharedInformerFactory().Core().V1().Pods().Informer()
+		podInformer.AddEventHandler(cache.FilteringResourceEventHandler{
+			FilterFunc: func(obj interface{}) bool {
+				switch t := obj.(type) {
+				case *v1.Pod:
+					return true
+				case cache.DeletedFinalStateUnknown:
+					if _, ok := t.Obj.(*v1.Pod); ok {
+						return true
+					}
+					return false
+				default:
+					return false
+				}
+			},
+			Handler: cache.ResourceEventHandlerFuncs{
+				AddFunc: func(obj interface{}) {
+					pod, ok := obj.(*v1.Pod)
+					if !ok {
+						klog.Errorf("failed to convert %v to *v1.Pod", reflect.TypeOf(obj))
+						return
+					}
+					if !IsMyPod(pod, i.resourceNames...) {
+						return
+					}
+					handleAddPod(i.client, pod)
+				},
+			},
+		})
+
 		factory := dynamicinformer.NewDynamicSharedInformerFactory(i.client, 0)
 		vgsInformer := factory.ForResource(vgsGvr).Informer()
 		vgsInformer.AddEventHandler(

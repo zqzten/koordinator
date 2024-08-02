@@ -5,6 +5,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/klog/v2"
 )
 
@@ -17,12 +18,6 @@ func handleAddOrUpdateVgs(cr unstructured.Unstructured, ic *intelligentCache) {
 		return
 	}
 	ic.addOrUpdateVgsInfo(&vgs)
-	//_, ok := ic.virtualGpuSpecifications[vgs.Spec.NickName]
-	//if !ok {
-	//	ic.virtualGpuSpecifications[vgs.Spec.NickName] = &vgs
-	//} else {
-	//
-	//}
 }
 
 func handleAddOrUpdateVgi(cr unstructured.Unstructured, ic *intelligentCache) {
@@ -47,10 +42,17 @@ func handleAddOrUpdateNode(node *corev1.Node, ic *intelligentCache) {
 	ic.addOrUpdateNode(node)
 }
 
+func handleAddPod(client dynamic.Interface, pod *corev1.Pod) {
+	err := patchOwnerRefToConfigMap(client, pod)
+	if err != nil {
+		klog.Errorf("Failed to patch owner ref [pod %s/%s] to configmap: %v", pod.Namespace, pod.Name, err)
+		return
+	} else {
+		klog.Infof("Added owner ref [pod %s/%s] to configmap", pod.Namespace, pod.Name)
+	}
+}
+
 func updateNode(ic *intelligentCache, oldNode *corev1.Node, newNode *corev1.Node) {
-	//if isIntelligentNode(newNode) == isIntelligentNode(oldNode) {
-	//	return
-	//}
 	if isIntelligentNode(newNode) {
 		handleAddOrUpdateNode(newNode, ic)
 	} else {

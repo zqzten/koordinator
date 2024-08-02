@@ -33,6 +33,7 @@ func NewIntelligentSchedulerRuntime(name string, nodeScorePolicy string, gpuScor
 		utilizationScoreWeight: utilizationWeight,
 	}
 }
+
 func (r *IntelligentSchedulerRuntime) Name() string {
 	return r.name
 }
@@ -267,83 +268,6 @@ func addPod(cache *intelligentCache, vgiNames []string, pod *v1.Pod, nodeName st
 	return nil
 }
 
-//func patchVgiOwnerReference(client dynamic.Interface, vgiName string, pod *v1.Pod) error {
-//	vgiGvr := schema.GroupVersionResource{
-//		Group:    IntelligentGroupName,
-//		Version:  IntelligentVersion,
-//		Resource: VgiResourceName,
-//	}
-//	// 传入的pod只包含从metadata开始的信息，从annotation中获得APIVersion和Kind，默认为v1，Pod
-//	var apiVersion, kind string
-//	lastAppliedConfig, ok := pod.Annotations["kubectl.kubernetes.io/last-applied-configuration"]
-//	if !ok {
-//		apiVersion = "v1"
-//		kind = "Pod"
-//	} else {
-//		var lastConfig map[string]interface{}
-//		err := json.Unmarshal([]byte(lastAppliedConfig), &lastConfig)
-//		if err != nil {
-//			apiVersion = "v1"
-//			kind = "Pod"
-//		}
-//		apiVersion, ok = lastConfig["apiVersion"].(string)
-//		if !ok {
-//			apiVersion = "v1"
-//		}
-//		kind, ok = lastConfig["kind"].(string)
-//		if !ok {
-//			kind = "Pod"
-//		}
-//	}
-//	newOwnerReferenceData := metav1.OwnerReference{
-//		APIVersion: apiVersion,
-//		Kind:       kind,
-//		Name:       pod.Name,
-//		UID:        pod.UID,
-//	}
-//
-//	vgiCrs, err := client.Resource(vgiGvr).Namespace(NameSpace).Get(context.TODO(), vgiName, metav1.GetOptions{})
-//	if err != nil {
-//		return err
-//	}
-//	existingOwnerReferences, found, err := unstructured.NestedSlice(vgiCrs.Object, "metadata", "ownerReferences")
-//	if err != nil {
-//		return err
-//	}
-//	if !found {
-//		existingOwnerReferences = []interface{}{}
-//	}
-//	newOwnerReferenceMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&newOwnerReferenceData)
-//	if err != nil {
-//		return fmt.Errorf("failed to convert ownerReference: %v", err)
-//	}
-//	existingOwnerReferences = []interface{}{}
-//	existingOwnerReferences = append(existingOwnerReferences, newOwnerReferenceMap)
-//
-//	patchData := map[string]interface{}{
-//		"metadata": map[string]interface{}{
-//			"ownerReferences": existingOwnerReferences,
-//			//"ownerReferences": newOwnerReferenceMap,
-//		},
-//	}
-//	klog.Infof("patch ownerReferences: %v", patchData)
-//	patchBytes, err := json.Marshal(patchData)
-//	if err != nil {
-//		return err
-//	}
-//	_, err = client.Resource(vgiGvr).Namespace(NameSpace).Patch(
-//		context.TODO(),
-//		vgiName,
-//		types.MergePatchType,
-//		patchBytes,
-//		metav1.PatchOptions{},
-//	)
-//	if err != nil {
-//		klog.Errorf("Failed to patch owner reference data for pod %v/%v, [%v]", pod.Name, pod.UID, err)
-//	}
-//	return err
-//}
-
 func patchVgi(client dynamic.Interface, vgiName string, nodeName string, gpuIdx int, phase string, physicalGpuSpec string, pod *v1.Pod) error {
 	podName := pod.Name
 	podNamespace := pod.Namespace
@@ -467,7 +391,7 @@ func combine(nums []int, m int) [][]int {
 	return result
 }
 
-func patchConfigMap(client dynamic.Interface, pod *v1.Pod, data map[string]interface{}) error {
+func patchOwnerRefToConfigMap(client dynamic.Interface, pod *v1.Pod) error {
 	cmName, ok := pod.Labels[PodConfigMapLabel]
 	if !ok {
 		return fmt.Errorf("pod %v has no label %v", pod.Name, PodConfigMapLabel)
@@ -506,11 +430,41 @@ func patchConfigMap(client dynamic.Interface, pod *v1.Pod, data map[string]inter
 			UID:        pod.UID,
 		},
 	}
-	//klog.Infof("DATA: [%v]", data)
 	patchData := map[string]interface{}{
 		"metadata": map[string]interface{}{
 			"ownerReferences": ownerReferences,
 		},
+	}
+	patchBytes, err := json.Marshal(patchData)
+	if err != nil {
+		klog.Errorf("failed to marshal patchData: %v", err)
+		return err
+	}
+	_, err = client.Resource(gvr).Namespace(pod.Namespace).Patch(
+		context.Background(),
+		cmName,
+		types.MergePatchType,
+		patchBytes,
+		metav1.PatchOptions{},
+	)
+	if err != nil {
+		klog.Errorf("failed to patchConfigMap: %v", err)
+	}
+	return err
+}
+
+func patchConfigMap(client dynamic.Interface, pod *v1.Pod, data map[string]interface{}) error {
+	cmName, ok := pod.Labels[PodConfigMapLabel]
+	if !ok {
+		return fmt.Errorf("pod %v has no label %v", pod.Name, PodConfigMapLabel)
+	}
+	gvr := schema.GroupVersionResource{
+		Group:    "",
+		Version:  "v1",
+		Resource: "configmaps",
+	}
+	//klog.Infof("DATA: [%v]", data)
+	patchData := map[string]interface{}{
 		"data": data,
 	}
 	//klog.Infof("PATCHDATA: [%v]", patchData)
