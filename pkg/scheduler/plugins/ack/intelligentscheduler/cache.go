@@ -4,7 +4,6 @@ import (
 	//CRDs "code.alipay.com/cnstack/intelligent-operator/api/v1"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/ack/intelligentscheduler/CRDs"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/klog"
 	"sync"
 )
 
@@ -31,10 +30,10 @@ func (c *intelligentCache) addOrUpdateNode(node *corev1.Node) {
 	if !ok {
 		nodeInfo, err := NewNodeInfo(node)
 		if err != nil {
-			klog.Errorf("Failed to create new nodeInfo for node %v, err: %v", node.Name, err)
+			//klog.Errorf("Failed to create new nodeInfo for node %v, err: %v", node.Name, err)
 		}
 		c.intelligentNodes[node.Name] = nodeInfo
-		klog.Infof("add new intelligent node %v to cache", node.Name)
+		//klog.Infof("add new intelligent node %v to cache", node.Name)
 	} else {
 		nodeInfo.Reset(node)
 		//klog.Infof("update nodeInfo for node %v", node.Name)
@@ -48,10 +47,10 @@ func (c *intelligentCache) addOrUpdateVgsInfo(vgs *CRDs.VirtualGpuSpecification)
 	if !ok {
 		newVsInfo := NewVirtualGpuSpecInfo(vgs)
 		c.virtualGpuSpecifications[vgs.Name] = newVsInfo
-		klog.Infof("add new virtual gpu specification %v to the intelligent scheduler cache", vgs.Name)
+		//klog.Infof("add new virtual gpu specification %v to the intelligent scheduler cache", vgs.Name)
 	} else {
 		vs.Reset(vgs)
-		klog.Infof("update virtual gpu specification %v to the intelligent scheduler cache", vgs.Name)
+		//klog.Infof("update virtual gpu specification %v to the intelligent scheduler cache", vgs.Name)
 	}
 }
 
@@ -62,10 +61,10 @@ func (c *intelligentCache) addOrUpdateVgiInfo(vgi *CRDs.VirtualGpuInstance) {
 	if !ok {
 		newViInfo := NewVirtualGpuInstanceInfo(vgi)
 		c.virtualGpuInstances[vgi.Name] = newViInfo
-		klog.Infof("add new virtual gpu instance %v in the intelligent scheduler cache", vgi.Name)
+		//klog.Infof("add new virtual gpu instance %v in the intelligent scheduler cache", vgi.Name)
 	} else {
 		vi.Reset(vgi)
-		klog.Infof("update virtual gpu instance %v to the intelligence cache", vgi.Name)
+		//klog.Infof("update virtual gpu instance %v to the intelligence cache", vgi.Name)
 	}
 }
 
@@ -77,7 +76,7 @@ func (c *intelligentCache) deleteNode(node *corev1.Node) {
 		return
 	}
 	delete(c.intelligentNodes, node.Name)
-	klog.Infof("delete node %v from cache", node.Name)
+	//klog.Infof("delete node %v from cache", node.Name)
 }
 
 func (c *intelligentCache) deleteVgsInfo(vgs *CRDs.VirtualGpuSpecification) {

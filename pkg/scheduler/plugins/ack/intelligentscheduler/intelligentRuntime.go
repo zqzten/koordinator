@@ -70,12 +70,13 @@ func (r *IntelligentSchedulerRuntime) findBestGpuCombination(cache *intelligentC
 			usedUtilization += utilization
 		}
 		if r.getGPUScorePolicy() == "binpack" {
-			score = float64(r.memoryScoreWeight)*(float64(usedMem+requestCount*requestMem)/float64(totalGpuMem)) + float64(r.utilizationScoreWeight)*(float64(usedUtilization+requestCount*requestUtilization)/float64(totalUtilization))
+			score = float64(r.memoryScoreWeight)*(float64(usedMem+requestCount*requestMem)/(float64(totalGpuMem)*float64(oversellRate))) + float64(r.utilizationScoreWeight)*(float64(usedUtilization+requestCount*requestUtilization)/(float64(totalUtilization)*float64(oversellRate)))
 		} else if r.getGPUScorePolicy() == "spread" {
-			score = float64(r.memoryScoreWeight)*(1.0-float64(usedMem+requestCount*requestMem)/float64(totalGpuMem)) + float64(r.utilizationScoreWeight)*(1.0-float64(usedUtilization+requestCount*requestUtilization)/float64(totalUtilization))
+			score = float64(r.memoryScoreWeight)*(1.0-float64(usedMem+requestCount*requestMem)/(float64(totalGpuMem)*float64(oversellRate))) + float64(r.utilizationScoreWeight)*(1.0-float64(usedUtilization+requestCount*requestUtilization)/(float64(totalUtilization)*float64(oversellRate)))
 		}
 		scores[idx] = score
 	}
+	klog.Infof("gpu scores: %v", scores)
 	var found bool
 	var maxValue float64
 	var maxIndex int
@@ -92,11 +93,11 @@ func (r *IntelligentSchedulerRuntime) findBestGpuCombination(cache *intelligentC
 func (r *IntelligentSchedulerRuntime) calculateNodeScore(cache *intelligentCache, nodeName string, nodeInfos *NodeInfo, vgiNames []string) float64 {
 	var nodeScore float64
 	vgi := cache.getVgiInfo(vgiNames[0]).Clone()
-	if vgi.getIsOversell() != nodeInfos.getIsOversell() {
+	if vgi.getIsOversell() && !nodeInfos.getIsOversell() {
 		return float64(0)
 	}
 	var oversellRate float64
-	if nodeInfos.getIsOversell() {
+	if nodeInfos.getIsOversell() && vgi.getIsOversell() {
 		oversellRate = float64(nodeInfos.getOversellRate())
 	} else {
 		oversellRate = float64(1)
@@ -123,6 +124,7 @@ func (r *IntelligentSchedulerRuntime) calculateNodeScore(cache *intelligentCache
 	} else if r.getGPUScorePolicy() == "spread" {
 		nodeScore = float64(r.memoryScoreWeight)*(1.0-float64(totalUsedMem+requestCount*requestMem)/(float64(totalAvailableMem)*oversellRate)) + float64(r.utilizationScoreWeight)*(1.0-float64(totalUsedUtilization+requestCount*requestUtilization)/(float64(totalAvailableUtilization)*oversellRate))
 	}
+	klog.Infof("nodeScore policy: [%v], node [%v] score: [%v]", r.nodeScorePolicy, nodeName, nodeScore)
 	return nodeScore
 	// TODO normalize score to [0, 100]
 }
@@ -167,7 +169,7 @@ func GetVirtualGPUCountAndSpec(pod *v1.Pod) (int, string, error) {
 	if err != nil {
 		return 0, "", fmt.Errorf("unable to parse %v %v into integer", VirtualGpuCountKey, pod.Annotations[VirtualGpuCountKey])
 	}
-	klog.Infof("Pod with name [%v] should be allocated with [%v] virtual gpu", pod.Name, vGpuCount)
+	//klog.Infof("Pod with name [%v] should be allocated with [%v] virtual gpu", pod.Name, vGpuCount)
 	return vGpuCount, vGpuSpecName, nil
 }
 

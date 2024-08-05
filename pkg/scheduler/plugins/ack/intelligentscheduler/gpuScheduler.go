@@ -132,7 +132,7 @@ func (i *IntelligentScheduler) Init() error {
 		for _, node := range nodes {
 			handleAddOrUpdateNode(node, i.cache)
 		}
-		klog.Info("init intelligent nodes to the cache")
+		//klog.Info("init intelligent nodes to the cache")
 		nodeInformer := i.handle.SharedInformerFactory().Core().V1().Nodes().Informer()
 		nodeInformer.AddEventHandler(cache.FilteringResourceEventHandler{
 			FilterFunc: func(obj interface{}) bool {
@@ -321,7 +321,7 @@ func (i *IntelligentScheduler) Init() error {
 						return
 					}
 					i.cache.addOrUpdateVgiInfo(vgi)
-					klog.Infof("succeed to add VirtualGpuInstance %v to the cache", vgi.Name)
+					//klog.Infof("succeed to add VirtualGpuInstance %v to the cache", vgi.Name)
 				},
 				UpdateFunc: func(old, new interface{}) {
 					var oldVgi *CRDs.VirtualGpuInstance
@@ -345,7 +345,7 @@ func (i *IntelligentScheduler) Init() error {
 						return
 					}
 					i.cache.addOrUpdateVgiInfo(newVgi)
-					klog.Infof("succeed to update VirtualGpuInstance %v to the cache", newVgi.Name)
+					//klog.Infof("succeed to update VirtualGpuInstance %v to the cache", newVgi.Name)
 				},
 				DeleteFunc: func(obj interface{}) {
 					var vgi *CRDs.VirtualGpuInstance
@@ -359,7 +359,7 @@ func (i *IntelligentScheduler) Init() error {
 						return
 					}
 					i.cache.deleteVgiInfo(vgi)
-					klog.Infof("succeed to delete VirtualGpuInstance %v from the cache", vgi.Name)
+					//klog.Infof("succeed to delete VirtualGpuInstance %v from the cache", vgi.Name)
 				},
 			},
 		})
@@ -394,7 +394,7 @@ func (i *IntelligentScheduler) PreFilter(ctx context.Context, state *framework.C
 	}
 	i.SaveVGpuPodState(state, vGpuCount, vGpuSpec, string(pod.UID))
 	i.SaveVgiState(state, vgiInfoNames, string(pod.UID))
-	klog.Infof("finished prefilting")
+	//klog.Infof("finished prefilting")
 	return nil
 }
 
@@ -479,7 +479,7 @@ func (i *IntelligentScheduler) Filter(ctx context.Context, state *framework.Cycl
 	if !needToHandle {
 		return framework.NewStatus(framework.Success, "")
 	}
-	klog.Infof("IntelligentSchedulePlugin starts to filter pod with name [%v], node with name [%v]", pod.Name, nodeInfo.Node().Name)
+	//klog.Infof("IntelligentSchedulePlugin starts to filter pod with name [%v], node with name [%v]", pod.Name, nodeInfo.Node().Name)
 	node := nodeInfo.Node()
 	if node == nil {
 		klog.Error("node not found, it may be deleted")
@@ -515,7 +515,7 @@ func (i *IntelligentScheduler) Filter(ctx context.Context, state *framework.Cycl
 	}
 	available := i.nodeAvailableForPod(nodeName, nodeInfos, vGpuPodState, vgiNames)
 	if !available {
-		klog.Errorf("node %s is not available for pod %s due to the GPU resource limit", nodeName, pod.Namespace+"/"+pod.Name)
+		//klog.Errorf("node %s is not available for pod %s due to the GPU resource limit", nodeName, pod.Namespace+"/"+pod.Name)
 		return framework.NewStatus(framework.Unschedulable, "node is not available for pod due to the GPU resources")
 	}
 	return framework.NewStatus(framework.Success)
@@ -526,7 +526,7 @@ func (i *IntelligentScheduler) Score(ctx context.Context, state *framework.Cycle
 	if !needToHandle {
 		return int64(0), framework.NewStatus(framework.Success, "")
 	}
-	klog.Infof("IntelligentSchedulePlugin starts to score node [%v] for pod [%v]", nodeName, pod.Name)
+	//klog.Infof("IntelligentSchedulePlugin starts to score node [%v] for pod [%v]", nodeName, pod.Name)
 	var vgiNames []string
 	vgiState, err := i.GetVgiState(state, string(pod.UID))
 	if err != nil {
@@ -554,7 +554,7 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 	if !needToHandle {
 		return framework.NewStatus(framework.Success, "")
 	}
-	klog.Infof("IntelligentSchedulePlugin starts to reserve node [%v] for pod [%v]", nodeName, pod.Name)
+	//klog.Infof("IntelligentSchedulePlugin starts to reserve node [%v] for pod [%v]", nodeName, pod.Name)
 	var requestGpuCount int
 	podState, err := i.GetVGpuPodState(state, string(pod.UID))
 	if err != nil {
@@ -626,7 +626,7 @@ func (i *IntelligentScheduler) Unreserve(ctx context.Context, state *framework.C
 	if !IsMyPod(pod, i.resourceNames...) {
 		return
 	}
-	klog.Infof("IntelligentSchedulePlugin starts to unreserve node [%v] for pod [%v]", nodeName, pod.Name)
+	//klog.Infof("IntelligentSchedulePlugin starts to unreserve node [%v] for pod [%v]", nodeName, pod.Name)
 	if !i.cache.getIntelligentNode(nodeName) {
 		klog.Infof("node[%v] is not an intelligent node in cache", nodeName)
 		return
@@ -682,7 +682,7 @@ func (i *IntelligentScheduler) nodeAvailableForPod(nodeName string, nodeInfos *N
 		ok = true
 	}
 	if !ok {
-		klog.Infof("no vgs for pod")
+		//klog.Infof("no vgs for pod")
 		return false
 	}
 	vgi := i.cache.getVgiInfo(vgiNames[0]).Clone()
