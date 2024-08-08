@@ -211,7 +211,8 @@ func isAvailableForVgi(cache *intelligentCache, gpuState []*VirtualGpuInstanceIn
 	memIsolation := vgs.getGpuMemoryIsolation()
 	utilizationIsolation := vgs.getGpuUtilizationIsolation()
 	// 卡维度超卖
-	isOversell := vgs.getIsOversell()
+	//isOversell := vgs.getIsOversell()
+	isOversell := tmpVgi.getIsOversell()
 	requestOversell := vgi.getIsOversell()
 	if isOversell != requestOversell {
 		return false, 0, 0
@@ -230,6 +231,8 @@ func isAvailableForVgi(cache *intelligentCache, gpuState []*VirtualGpuInstanceIn
 	}
 	requestMem := vgi.getMemAllocated()
 	requestUtilization := vgi.getPercentageAllocated()
+	//klog.Infof("requestMem: [%v], usedMem: [%v], totalMem: [%v], oversellRate: [%v]", requestMem, usedMem, totalMem, oversellRate)
+	//klog.Infof("requestUtilization: [%v], usedUtilization: [%v]", requestUtilization, usedUtilization)
 	if requestMem+usedMem <= totalMem*oversellRate && requestUtilization+usedUtilization <= 100*oversellRate {
 		return true, usedMem, usedUtilization
 	} else {

@@ -6,6 +6,7 @@ import (
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/ack/intelligentscheduler/CRDs"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
+	"math"
 	"strconv"
 	"sync"
 )
@@ -64,7 +65,7 @@ func NewNodeInfo(node *corev1.Node) (*NodeInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	memGiB := int(float64(mem) / float64(1024))
+	memGiB := int(math.Round(float64(mem) / float64(1024)))
 	return &NodeInfo{
 		isOversell:   isOversell,
 		oversellRate: oversellRate,
@@ -312,6 +313,12 @@ func (info *VirtualGpuSpecInfo) getIsOversell() bool {
 	info.lock.RLock()
 	defer info.lock.RUnlock()
 	return info.isOversell
+}
+
+func (info *VirtualGpuSpecInfo) getIsActive() bool {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return info.isActive
 }
 
 type VirtualGpuInstanceInfo struct {

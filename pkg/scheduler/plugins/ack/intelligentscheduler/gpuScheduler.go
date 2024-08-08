@@ -392,6 +392,10 @@ func (i *IntelligentScheduler) PreFilter(ctx context.Context, state *framework.C
 		klog.Errorf("the count of vgi is not equal to the requested vGPU count for pod [%s]", pod.Name)
 		return framework.NewStatus(framework.Error, "the count of vgi is not equal to the requested vGPU count for pod")
 	}
+	vgs := i.cache.getVgsInfo(vGpuSpec)
+	if !vgs.getIsActive() {
+		return framework.NewStatus(framework.Error, "the vgs is not active")
+	}
 	i.SaveVGpuPodState(state, vGpuCount, vGpuSpec, string(pod.UID))
 	i.SaveVgiState(state, vgiInfoNames, string(pod.UID))
 	//klog.Infof("finished prefilting")
@@ -712,7 +716,7 @@ func (i *IntelligentScheduler) nodeAvailableForPod(nodeName string, nodeInfos *N
 	if availableGpuCount >= requestVGpuCount {
 		return true
 	} else {
-		klog.Infof("available gpus[%v] are fewer than the requested[%v]", availableGpuCount, requestVGpuCount)
+		klog.Infof("node [%v] has available gpus[%v] are fewer than the requested[%v]", nodeName, availableGpuCount, requestVGpuCount)
 		return false
 	}
 }
