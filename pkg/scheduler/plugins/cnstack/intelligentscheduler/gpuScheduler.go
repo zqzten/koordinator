@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 	frameworkruntime "github.com/koordinator-sh/koordinator/pkg/descheduler/framework/runtime"
-	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/ack/intelligentscheduler/CRDs"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/intelligentscheduler/CRDs"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
@@ -392,10 +392,6 @@ func (i *IntelligentScheduler) PreFilter(ctx context.Context, state *framework.C
 		klog.Errorf("the count of vgi is not equal to the requested vGPU count for pod [%s]", pod.Name)
 		return framework.NewStatus(framework.Error, "the count of vgi is not equal to the requested vGPU count for pod")
 	}
-	vgs := i.cache.getVgsInfo(vGpuSpec)
-	if !vgs.getIsActive() {
-		return framework.NewStatus(framework.Error, "the vgs is not active")
-	}
 	i.SaveVGpuPodState(state, vGpuCount, vGpuSpec, string(pod.UID))
 	i.SaveVgiState(state, vgiInfoNames, string(pod.UID))
 	//klog.Infof("finished prefilting")
@@ -668,7 +664,7 @@ func (i *IntelligentScheduler) nodeAvailableForPod(nodeName string, nodeInfos *N
 	requestVGpuSpec := vGpuPodState.getSpec()
 	// 判断总数量是否满足
 	if requestVGpuCount > nodeInfos.getGpuCount() {
-		klog.Infof("gpu count of the node is less than the number of GPU resources for pod")
+		klog.Infof("gpu count of the node[%v] is less than the number of GPU resources for pod", nodeName)
 		return false
 	}
 	// 判断物理规格是否满足

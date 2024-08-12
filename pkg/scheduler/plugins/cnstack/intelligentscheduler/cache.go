@@ -1,8 +1,7 @@
 package intelligentscheduler
 
 import (
-	//CRDs "code.alipay.com/cnstack/intelligent-operator/api/v1"
-	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/ack/intelligentscheduler/CRDs"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/intelligentscheduler/CRDs"
 	corev1 "k8s.io/api/core/v1"
 	"sync"
 )

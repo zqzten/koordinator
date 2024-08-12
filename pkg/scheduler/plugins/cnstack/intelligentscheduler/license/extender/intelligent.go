@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"io"
+	"k8s.io/apimachinery/pkg/labels"
 	"net/http"
 	"strconv"
 	"time"
@@ -32,7 +33,7 @@ import (
 )
 
 var cnstackHttpLicenseAddr = "https://hub-ingress.kube-public.svc/license-server"
-var gpushareResourceName = []string{"aliyun.com/gpu-mem"}
+var intelligentSchedulerResourceName = []string{"intelligent.sofastack.io/intelligent-vgpu"}
 var httpClient *http.Client
 
 type CNStackHttpResponse struct {
@@ -82,17 +83,38 @@ func GPUShareLicenseCheckFunc(handle framework.Handle) bool {
 		return false
 	}
 
-	return isLicenseValid(bytes)
+	nodes, err := handle.SharedInformerFactory().Core().V1().Nodes().Lister().List(labels.Everything())
+	if err != nil {
+		klog.Errorf("failed to list nodes: %v", err)
+		return false
+	}
+	gpuCount := 0
+	for _, node := range nodes {
+		if node.Labels["ack.node.gpu.schedule"] != "intelligent" {
+			continue
+		}
+		val, ok := node.Status.Capacity["aliyun.com/gpu-count"]
+		if !ok {
+			continue
+		}
+		c, err := strconv.Atoi(val.String())
+		if err != nil {
+			klog.Errorf("failed to convert aliyun.com/gpu-count to int: %v", err)
+			continue
+		}
+		gpuCount += c
+	}
+
+	return isLicenseValid(bytes, int64(gpuCount))
 }
 
-func isLicenseValid(bytes []byte) bool {
+func isLicenseValid(bytes []byte, gpuCount int64) bool {
 	cr := &CNStackHttpResponse{}
 	err := json.Unmarshal(bytes, cr)
 	if err != nil {
 		klog.Errorf("json unmarshal str:%v, error:%v", string(bytes), err)
 		return false
 	}
-	klog.Infof("cnstack http license response: %v", cr)
 	switch cr.Status {
 	case CNStackAuthorizeTypeValid:
 		if len(cr.Info) < 1 {
@@ -104,6 +126,10 @@ func isLicenseValid(bytes []byte) bool {
 			return false
 		}
 
+		if gpuCount > c {
+			return false
+		}
+
 		return true
 	case CNStackAuthorizeTypeTrial:
 		return true
@@ -112,6 +138,7 @@ func isLicenseValid(bytes []byte) bool {
 	return false
 }
 
+// TODO 改为获得license允许的最大gpu纳管数量
 func getGPUShareCount(info map[string]interface{}) int64 {
 	obj, ok := info[CNStackGpuShareKey]
 	if !ok {
@@ -129,7 +156,7 @@ func getGPUShareCount(info map[string]interface{}) int64 {
 }
 
 func GPUShareResponsibleForPodFunc(handle framework.Handle, pod *corev1.Pod) bool {
-	for _, v := range gpushareResourceName {
+	for _, v := range intelligentSchedulerResourceName {
 		if resource.GetResourceRequest(pod, corev1.ResourceName(v)) > 0 {
 			return true
 		}
