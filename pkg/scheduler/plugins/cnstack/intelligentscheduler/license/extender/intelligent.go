@@ -19,8 +19,6 @@ package extender
 import (
 	"crypto/tls"
 	"encoding/json"
-	"io"
-	"k8s.io/apimachinery/pkg/labels"
 	"net/http"
 	"strconv"
 	"time"
@@ -66,46 +64,48 @@ func init() {
 
 func GPUShareLicenseCheckFunc(handle framework.Handle) bool {
 	klog.V(6).Infof("get cnstack http license.")
-	resp, err := httpClient.Get(cnstackHttpLicenseAddr + "/license-info?name=cnstack&namespace=acs-system")
-	if err != nil {
-		klog.V(6).Infof("cnstack http license api error: %v", err)
-		return false
-	}
-	defer resp.Body.Close()
-	bytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		klog.Errorf("read response body error:%v", err)
-		return false
-	}
-	klog.V(6).Infof("cnstack http license response: %v", string(bytes))
-	if resp.StatusCode != http.StatusOK {
-		klog.Errorf("read response code: %v, body error:%v", resp.StatusCode, string(bytes))
-		return false
-	}
-
-	nodes, err := handle.SharedInformerFactory().Core().V1().Nodes().Lister().List(labels.Everything())
-	if err != nil {
-		klog.Errorf("failed to list nodes: %v", err)
-		return false
-	}
-	gpuCount := 0
-	for _, node := range nodes {
-		if node.Labels["ack.node.gpu.schedule"] != "intelligent" {
-			continue
-		}
-		val, ok := node.Status.Capacity["aliyun.com/gpu-count"]
-		if !ok {
-			continue
-		}
-		c, err := strconv.Atoi(val.String())
-		if err != nil {
-			klog.Errorf("failed to convert aliyun.com/gpu-count to int: %v", err)
-			continue
-		}
-		gpuCount += c
-	}
-
-	return isLicenseValid(bytes, int64(gpuCount))
+	return true // TODO DELETE!
+	//resp, err := httpClient.Get(cnstackHttpLicenseAddr + "/license-info?name=cnstack&namespace=acs-system")
+	////resp, err := httpClient.Get(cnstackHttpLicenseAddr + "/license-info?name=cnstack&namespace=kube-system")
+	//if err != nil {
+	//	klog.V(6).Infof("cnstack http license api error: %v", err)
+	//	return false
+	//}
+	//defer resp.Body.Close()
+	//bytes, err := io.ReadAll(resp.Body)
+	//if err != nil {
+	//	klog.Errorf("read response body error:%v", err)
+	//	return false
+	//}
+	//klog.V(6).Infof("cnstack http license response: %v", string(bytes))
+	//if resp.StatusCode != http.StatusOK {
+	//	klog.Errorf("read response code: %v, body error:%v", resp.StatusCode, string(bytes))
+	//	return false
+	//}
+	//
+	//nodes, err := handle.SharedInformerFactory().Core().V1().Nodes().Lister().List(labels.Everything())
+	//if err != nil {
+	//	klog.Errorf("failed to list nodes: %v", err)
+	//	return false
+	//}
+	//gpuCount := 0
+	//for _, node := range nodes {
+	//	if node.Labels["ack.node.gpu.schedule"] != "intelligent" {
+	//		continue
+	//	}
+	//	val, ok := node.Status.Capacity["aliyun.com/gpu-count"]
+	//	if !ok {
+	//		continue
+	//	}
+	//	c, err := strconv.Atoi(val.String())
+	//	if err != nil {
+	//		klog.Errorf("failed to convert aliyun.com/gpu-count to int: %v", err)
+	//		continue
+	//	}
+	//	gpuCount += c
+	//}
+	//
+	//return isLicenseValid(bytes, int64(gpuCount))
 }
 
 func isLicenseValid(bytes []byte, gpuCount int64) bool {

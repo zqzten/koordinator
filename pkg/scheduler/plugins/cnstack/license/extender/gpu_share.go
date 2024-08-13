@@ -92,7 +92,6 @@ func isLicenseValid(bytes []byte) bool {
 		klog.Errorf("json unmarshal str:%v, error:%v", string(bytes), err)
 		return false
 	}
-	klog.Infof("cnstack http license response: %v", cr)
 	switch cr.Status {
 	case CNStackAuthorizeTypeValid:
 		if len(cr.Info) < 1 {
