@@ -60,9 +60,11 @@ func (c *intelligentCache) addOrUpdateVgiInfo(vgi *CRDs.VirtualGpuInstance) {
 	if !ok {
 		newViInfo := NewVirtualGpuInstanceInfo(vgi)
 		c.virtualGpuInstances[vgi.Name] = newViInfo
+		//klog.Infof("new vgi: [%v]", newViInfo.toString())
 		//klog.Infof("add new virtual gpu instance %v in the intelligent scheduler cache", vgi.Name)
 	} else {
 		vi.Reset(vgi)
+		//klog.Infof("updated vgi: [%v]", vi.toString())
 		//klog.Infof("update virtual gpu instance %v to the intelligence cache", vgi.Name)
 	}
 }

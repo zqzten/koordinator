@@ -261,7 +261,7 @@ func (i *IntelligentScheduler) Init() error {
 							klog.Errorf("failed to convert oldUnstruct to VirtualGpuSpecification: %v", oldEr)
 							return
 						}
-						newUnstructuredObj, ok := old.(*unstructured.Unstructured)
+						newUnstructuredObj, ok := new.(*unstructured.Unstructured)
 						if !ok {
 							klog.Errorf("failed to convert %v to *unstructured.Unstructured", reflect.TypeOf(new))
 						}
@@ -335,7 +335,7 @@ func (i *IntelligentScheduler) Init() error {
 						klog.Errorf("failed to convert oldUnstruct to VirtualGpuSpecification: %v", oldEr)
 						return
 					}
-					newUnstructuredObj, ok := old.(*unstructured.Unstructured)
+					newUnstructuredObj, ok := new.(*unstructured.Unstructured)
 					if !ok {
 						klog.Errorf("failed to convert %v to *unstructured.Unstructured", reflect.TypeOf(new))
 					}
@@ -346,6 +346,9 @@ func (i *IntelligentScheduler) Init() error {
 					}
 					i.cache.addOrUpdateVgiInfo(newVgi)
 					//klog.Infof("succeed to update VirtualGpuInstance %v to the cache", newVgi.Name)
+					//for _, vgi := range i.cache.virtualGpuInstances {
+					//	klog.Infof("cached vgi: [%v]", vgi.toString())
+					//}
 				},
 				DeleteFunc: func(obj interface{}) {
 					var vgi *CRDs.VirtualGpuInstance
@@ -588,6 +591,7 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 	}
 	vgi := i.cache.getVgiInfo(vgiNames[0])
 	nodeGpuState, totalMem := getNodeGpuState(nodeName, nodeInfos, i.cache)
+	// 获得所有符合vgi要求的GPU的index
 	var availableGpuIndexSet []int
 	for idx := 0; idx < nodeInfos.getGpuCount(); idx++ {
 		available, _, _ := isAvailableForVgi(i.cache, nodeGpuState[idx], vgi, totalMem, oversellRate)
@@ -603,8 +607,10 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 	if result == nil || len(result) != len(vgiNames) {
 		return framework.NewStatus(framework.Unschedulable, "couldn't find proper gpus from node [%v] for pod [%v]", nodeName, pod.Namespace+"/"+pod.Name)
 	}
+	//klog.Infof("result idx: %v", result)
 	for idx, vgiName := range vgiNames {
 		gpuIdx := result[idx]
+		//klog.Infof("gpuIdx: %v", gpuIdx)
 		er := patchVgi(i.client, vgiName, nodeName, gpuIdx, "PreAllocated", nodeInfos.getGpuType(), pod)
 		if er != nil {
 			klog.Infof("in reserve: failed to patch vgi[%v]: [%v]", vgiName, er)

@@ -75,6 +75,12 @@ func NewNodeInfo(node *corev1.Node) (*NodeInfo, error) {
 	}, nil
 }
 
+func (info *NodeInfo) toString() string {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return fmt.Sprintf("isOversell: %v, oversellRate: %v, gpuCount: %v, gpuType: %v, gpuMem: %v", info.isOversell, info.oversellRate, info.gpuCount, info.gpuType, info.gpuMem)
+}
+
 func (info *NodeInfo) Reset(node *corev1.Node) {
 	info.lock.Lock()
 	defer info.lock.Unlock()
@@ -247,6 +253,12 @@ func NewVirtualGpuSpecInfo(vgs *CRDs.VirtualGpuSpecification) *VirtualGpuSpecInf
 	}
 }
 
+func (info *VirtualGpuSpecInfo) toString() string {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return fmt.Sprintf("name: %v, gpuMemoryIsolation: %v, gpuUtilizationIsolation: %v, isOversell: %v", info.name, info.gpuMemoryIsolation, info.gpuUtilizationIsolation, info.isOversell)
+}
+
 func (info *VirtualGpuSpecInfo) Reset(vgs *CRDs.VirtualGpuSpecification) {
 	info.lock.Lock()
 	defer info.lock.Unlock()
@@ -349,6 +361,12 @@ func NewVirtualGpuInstanceInfo(vgi *CRDs.VirtualGpuInstance) *VirtualGpuInstance
 		MemAllocated:             vgi.Spec.GPUMemory,
 		PercentageAllocated:      vgi.Spec.GPUUtilization,
 	}
+}
+
+func (info *VirtualGpuInstanceInfo) toString() string {
+	info.lock.RLock()
+	defer info.lock.RUnlock()
+	return fmt.Sprintf("phase: %v, node: %v, gpuIdx: %v, memAllocated: %v, percentageAllocated: %v", info.Status, info.Node, info.GPUIndex, info.MemAllocated, info.PercentageAllocated)
 }
 
 func (info *VirtualGpuInstanceInfo) Reset(vgi *CRDs.VirtualGpuInstance) {

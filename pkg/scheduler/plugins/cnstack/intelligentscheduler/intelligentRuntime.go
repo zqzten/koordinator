@@ -76,7 +76,7 @@ func (r *IntelligentSchedulerRuntime) findBestGpuCombination(cache *intelligentC
 		}
 		scores[idx] = score
 	}
-	klog.Infof("gpu scores: %v", scores)
+	//klog.Infof("gpu scores: %v", scores)
 	var found bool
 	var maxValue float64
 	var maxIndex int
@@ -105,20 +105,28 @@ func (r *IntelligentSchedulerRuntime) calculateNodeScore(cache *intelligentCache
 	requestMem := vgi.getMemAllocated()
 	requestUtilization := vgi.getPercentageAllocated()
 	requestCount := len(vgiNames)
+	//klog.Infof("nodeName: %v, nodeInfos: %v", nodeName, nodeInfos.toString())
 	nodeGpuState, totalMem := getNodeGpuState(nodeName, nodeInfos, cache)
+	//klog.Infof("nodeGpuState: %v", nodeGpuState)
 	totalAvailableMem := 0
 	totalAvailableUtilization := 0
 	totalUsedMem := 0
 	totalUsedUtilization := 0
+	tmp := 0
 	for idx := 0; idx < nodeInfos.getGpuCount(); idx++ {
+		//klog.Infof("nodeGpuState: %v", nodeGpuState[idx])
+		//klog.Infof("vgi: %v", vgi.toString())
+		//klog.Infof("totalMem: %v", totalMem)
 		available, mem, utilization := isAvailableForVgi(cache, nodeGpuState[idx], vgi, totalMem, int(oversellRate))
 		if available {
+			tmp++
 			totalAvailableUtilization += 100
 			totalAvailableMem += totalMem
 			totalUsedUtilization += utilization
 			totalUsedMem += mem
 		}
 	}
+	//klog.Infof("availabe gpu count on node [%v]: %v", nodeName, tmp)
 	if r.getGPUScorePolicy() == "binpack" {
 		nodeScore = float64(r.memoryScoreWeight)*(float64(totalUsedMem+requestCount*requestMem)/(float64(totalAvailableMem)*oversellRate)) + float64(r.utilizationScoreWeight)*(float64(totalUsedUtilization+requestCount*requestUtilization)/(float64(totalAvailableUtilization)*oversellRate))
 	} else if r.getGPUScorePolicy() == "spread" {
@@ -190,7 +198,9 @@ func getNodeGpuState(nodeName string, nodeInfos *NodeInfo, cache *intelligentCac
 	gpuCount := nodeInfos.getGpuCount()
 	state := make(map[int][]*VirtualGpuInstanceInfo, gpuCount)
 	virtualGpuInstances := cache.getAllVgiInfo()
+	//klog.Infof("****************[%v]", nodeName)
 	for _, instanceInfo := range virtualGpuInstances {
+		//klog.Infof("instanceInfo: %v", instanceInfo.toString())
 		if (instanceInfo.getStatus() == "PreAllocated" || instanceInfo.getStatus() == "Running" || instanceInfo.getStatus() == "Allocated") && instanceInfo.getNode() == nodeName {
 			idx := instanceInfo.getGPUIndex()
 			state[idx] = append(state[idx], instanceInfo)
@@ -208,6 +218,7 @@ func isAvailableForVgi(cache *intelligentCache, gpuState []*VirtualGpuInstanceIn
 	tmpVgi := gpuState[0]
 	vgsName := tmpVgi.getVgs()
 	vgs := cache.getVgsInfo(vgsName)
+	//klog.Infof("isAvailableForVgi vgs: [%v]", vgs.toString())
 	memIsolation := vgs.getGpuMemoryIsolation()
 	utilizationIsolation := vgs.getGpuUtilizationIsolation()
 	// 卡维度超卖
@@ -500,6 +511,7 @@ func buildEnvVars(vgi *VirtualGpuInstanceInfo, gpuIdx []int, totalMem int) map[s
 	}
 	if vgi.getIsOversell() {
 		result["AMP_VGPU_DEV_COUNT"] = strings.Join(gpuIdxStr, ",")
+		result["NVIDIA_VISIBLE_DEVICES"] = strings.Join(gpuIdxStr, ",")
 		result["ALIYUN_COM_GPU_MEM_DEV"] = fmt.Sprintf("%d", totalMem)
 		result["ALIYUN_COM_GPU_MEM_CONTAINER"] = fmt.Sprintf("%d", vgi.getMemAllocated())
 		result["ALIYUN_COM_GPU_MEM_UNIT"] = "GB"
