@@ -29,7 +29,7 @@ RUN cp bin/logrotate-$TARGETARCH bin/logrotate
 RUN CGO_ENABLED=0 GOOS=linux go build -a -o koord-scheduler ./cmd/koord-scheduler
 
 
-FROM ant-cnstack-registry.cn-hangzhou.cr.aliyuncs.com/adp-7abed7fbca/intelligent-computing/alpine:3.16
+FROM ant-cnstack-registry.cn-hangzhou.cr.aliyuncs.com/adp-7abed7fbca/intelligent-computing/alpine:3.16-arm64
 WORKDIR /
 RUN apk --no-cache --update upgrade && rm -rf /var/cache/apk/*
 RUN apk add --update bash net-tools iproute2 logrotate less rsync util-linux lvm2
