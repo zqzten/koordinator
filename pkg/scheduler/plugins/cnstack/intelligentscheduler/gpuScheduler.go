@@ -379,7 +379,7 @@ func (i *IntelligentScheduler) PreFilter(ctx context.Context, state *framework.C
 	if !needToHandle {
 		return framework.NewStatus(framework.Success, MsgNoNeedToHandlePod)
 	}
-	klog.Infof("IntelligentSchedulePlugin starts to prefilter pod with name [%v]", pod.Name)
+	//klog.Infof("IntelligentSchedulePlugin starts to prefilter pod with name [%v]", pod.Name)
 	// Check vgpu count and spec
 	vGpuCount, vGpuSpec, err := GetVirtualGPUCountAndSpec(pod)
 	if err != nil {
