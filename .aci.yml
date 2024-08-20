@@ -2,6 +2,7 @@ version: "2.0"
 
 stages:
   - image-build
+  - multi-arch-merge
 
 jobs:
   x86_64镜像构建:
@@ -13,7 +14,7 @@ jobs:
       imageTag: v1.0.0 # 构建产物镜像 tag
       dockerfile: ./cnstack-docker/Dockerfile # dockerfile 路径，不传默认为 ./Dockerfile (即: ${ACB_BUILD_DIR}/code-repo/Dockerfile)
       contextDir: ./ # docker build 的 context 目录，不传默认为 ./ (即: ${ACB_BUILD_DIR}/code-repo 目录)
-      buildArgs: null # docker build 的 args 参数，格式为 key1=value1,key2=value2，注意key/value的格式，不能有空格等特殊字符
+      buildArgs: TARGETARCH=amd64 # docker build 的 args 参数，格式为 key1=value1,key2=value2，注意key/value的格式，不能有空格等特殊字符
       registryUsername: null # 镜像 registry 用户名，建议使用 aci secrets 方式传递，避免泄露 (reg.docker.alibaba-inc.com、acs-reg.alipay.com 不传时默认使用平台公共账号 admin.for.antb)
       registryPassword: null # 镜像 registry 密码，建议使用 aci secrets 方式传递，避免泄露 (不传使用平台公共账号)
       skipWhenImageExists: null # true | false, 如果镜像已存在，是否跳过镜像构建，默认 false
@@ -33,9 +34,9 @@ jobs:
     inputs:
       imageName: ant-cnstack-registry.cn-hangzhou.cr.aliyuncs.com/antcnstack/intelligent-scheduler
       imageTag: v1.0.0_arm64 # 构建产物镜像 tag
-      dockerfile: ./cnstack-docker/Dockerfile_aarch64 # dockerfile 路径，不传默认为 ./Dockerfile (即: ${ACB_BUILD_DIR}/code-repo/Dockerfile)
+      dockerfile: ./cnstack-docker/Dockerfile # dockerfile 路径，不传默认为 ./Dockerfile (即: ${ACB_BUILD_DIR}/code-repo/Dockerfile)
       contextDir: ./ # docker build 的 context 目录，不传默认为 ./ (即: ${ACB_BUILD_DIR}/code-repo 目录)
-      buildArgs: null # docker build 的 args 参数，格式为 key1=value1,key2=value2，注意key/value的格式，不能有空格等特殊字符
+      buildArgs: TARGETARCH=arm64 # docker build 的 args 参数，格式为 key1=value1,key2=value2，注意key/value的格式，不能有空格等特殊字符
       registryUsername: null # 镜像 registry 用户名，建议使用 aci secrets 方式传递，避免泄露 (reg.docker.alibaba-inc.com、acs-reg.alipay.com 不传时默认使用平台公共账号 admin.for.antb)
       registryPassword: null # 镜像 registry 密码，建议使用 aci secrets 方式传递，避免泄露 (不传使用平台公共账号)
       skipWhenImageExists: null # true | false, 如果镜像已存在，是否跳过镜像构建，默认 false
