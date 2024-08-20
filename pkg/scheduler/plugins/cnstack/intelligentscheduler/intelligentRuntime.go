@@ -132,7 +132,7 @@ func (r *IntelligentSchedulerRuntime) calculateNodeScore(cache *intelligentCache
 	} else if r.getGPUScorePolicy() == "spread" {
 		nodeScore = float64(r.memoryScoreWeight)*(1.0-float64(totalUsedMem+requestCount*requestMem)/(float64(totalAvailableMem)*oversellRate)) + float64(r.utilizationScoreWeight)*(1.0-float64(totalUsedUtilization+requestCount*requestUtilization)/(float64(totalAvailableUtilization)*oversellRate))
 	}
-	klog.Infof("nodeScore policy: [%v], node [%v] score: [%v]", r.nodeScorePolicy, nodeName, nodeScore)
+	//klog.Infof("nodeScore policy: [%v], node [%v] score: [%v]", r.nodeScorePolicy, nodeName, nodeScore)
 	return nodeScore
 	// TODO normalize score to [0, 100]
 }

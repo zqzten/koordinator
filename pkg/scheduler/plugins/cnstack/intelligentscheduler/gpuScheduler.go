@@ -617,14 +617,15 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 			return framework.NewStatus(framework.Unschedulable, er.Error())
 		}
 	}
-	klog.Infof("in reserve, patch vgis status successfully")
+	//klog.Infof("in reserve, patch vgis status successfully")
 	cmData := buildEnvVars(vgi, result, totalMem)
 	err = patchConfigMap(i.client, pod, cmData)
 	if err != nil {
 		return framework.NewStatus(framework.Unschedulable, err.Error())
 	}
-	klog.Infof("in reserve, patch ConfigMap successfully")
+	//klog.Infof("in reserve, patch ConfigMap successfully")
 	i.SaveNodeState(state, nodeInfos, nodeName)
+	klog.Infof("pod [%v] has been successfully scheduled on node [%v]", pod.Namespace+"/"+pod.Name, nodeName)
 	return framework.NewStatus(framework.Success, "")
 }
 
@@ -670,7 +671,7 @@ func (i *IntelligentScheduler) nodeAvailableForPod(nodeName string, nodeInfos *N
 	requestVGpuSpec := vGpuPodState.getSpec()
 	// 判断总数量是否满足
 	if requestVGpuCount > nodeInfos.getGpuCount() {
-		klog.Infof("gpu count of the node[%v] is less than the number of GPU resources for pod", nodeName)
+		//klog.Infof("gpu count of the node[%v] is less than the number of GPU resources for pod", nodeName)
 		return false
 	}
 	// 判断物理规格是否满足
