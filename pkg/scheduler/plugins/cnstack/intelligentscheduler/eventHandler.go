@@ -32,7 +32,7 @@ func handleAddOrUpdateVgi(cr unstructured.Unstructured, ic *intelligentCache) {
 	ic.addOrUpdateVgiInfo(&vgi)
 }
 
-func handleAddOrUpdateNode(node *corev1.Node, ic *intelligentCache) {
+func handleAddOrUpdateNode(node *corev1.Node, ic *intelligentCache, oversellRate int) {
 	// check node is a device sharing node
 	if !isIntelligentNode(node) {
 		klog.V(6).Infof("node %v is not intelligent scheduled node,skip to handle it", node.Name)
@@ -42,12 +42,12 @@ func handleAddOrUpdateNode(node *corev1.Node, ic *intelligentCache) {
 	if devices == 0 {
 		return
 	}
-	ic.addOrUpdateNode(node)
+	ic.addOrUpdateNode(node, oversellRate)
 }
 
-func updateNode(ic *intelligentCache, oldNode *corev1.Node, newNode *corev1.Node) {
+func updateNode(ic *intelligentCache, oldNode *corev1.Node, newNode *corev1.Node, oversellRate int) {
 	if isIntelligentNode(newNode) {
-		handleAddOrUpdateNode(newNode, ic)
+		handleAddOrUpdateNode(newNode, ic, oversellRate)
 	} else {
 		if isIntelligentNode(oldNode) {
 			ic.deleteNode(oldNode)
@@ -64,8 +64,6 @@ func handleAddPod(client dynamic.Interface, pod *corev1.Pod) {
 	if err != nil {
 		klog.Errorf("Failed to patch owner ref [pod %s/%s] to configmap: %v", pod.Namespace, pod.Name, err)
 		return
-	} else {
-		klog.Infof("Added owner ref [pod %s/%s] to configmap", pod.Namespace, pod.Name)
 	}
 }
 

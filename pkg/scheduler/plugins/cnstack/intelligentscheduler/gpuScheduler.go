@@ -7,6 +7,7 @@ import (
 	frameworkruntime "github.com/koordinator-sh/koordinator/pkg/descheduler/framework/runtime"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/intelligentscheduler/CRDs"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
@@ -17,6 +18,7 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"reflect"
+	"strconv"
 	"sync"
 )
 
@@ -52,6 +54,7 @@ type IntelligentScheduler struct {
 	cache         *intelligentCache
 	handle        framework.Handle
 	client        dynamic.Interface
+	oversellRate  int
 }
 
 var _ framework.PreFilterPlugin = &IntelligentScheduler{}
@@ -75,7 +78,28 @@ func New(obj apiruntime.Object, handle framework.Handle) (framework.Plugin, erro
 		return nil, err
 	}
 	klog.Infof("succeed to validate IntelligentScheduler args")
-	intelligentscheduler.engine = NewIntelligentSchedulerRuntime(IntelligentSchedulerName, intelligentscheduler.args.NodeSelectorPolicy, intelligentscheduler.args.GpuSelectorPolicy, int(*intelligentscheduler.args.GPUMemoryScoreWeight), int(*intelligentscheduler.args.GPUUtilizationScoreWeight))
+	cfg := intelligentscheduler.handle.KubeConfig()
+	intelligentscheduler.client = dynamic.NewForConfigOrDie(cfg)
+	klog.Infof("succeed to init client for intelligent-scheduler")
+	gvr := schema.GroupVersionResource{
+		Group:    "",
+		Version:  "v1",
+		Resource: "configmaps",
+	}
+	unstructuredCM, err := intelligentscheduler.client.Resource(gvr).Namespace(intelligentscheduler.args.CMNamespace).Get(context.Background(), intelligentscheduler.args.CMName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	cm := &v1.ConfigMap{}
+	err = apiruntime.DefaultUnstructuredConverter.FromUnstructured(unstructuredCM.Object, cm)
+	if err != nil {
+		return nil, err
+	}
+	err = intelligentscheduler.handleAddOrUpdateCM(cm)
+	if err != nil {
+		return nil, err
+	}
+	klog.Infof("succeed to parse intelligent-scheduler config")
 	intelligentscheduler.cache = newIntelligentCache()
 	if err := intelligentscheduler.Init(); err != nil {
 		return nil, err
@@ -91,8 +115,6 @@ func (i *IntelligentScheduler) Name() string {
 // Init 初始化cache，engine
 func (i *IntelligentScheduler) Init() error {
 	klog.Infof("start to init gpu-intelligent-scheduler plugin")
-	cfg := i.handle.KubeConfig()
-	i.client = dynamic.NewForConfigOrDie(cfg)
 	vgsGvr := schema.GroupVersionResource{
 		Group:    IntelligentGroupName,
 		Version:  IntelligentVersion,
@@ -130,9 +152,51 @@ func (i *IntelligentScheduler) Init() error {
 			return
 		}
 		for _, node := range nodes {
-			handleAddOrUpdateNode(node, i.cache)
+			handleAddOrUpdateNode(node, i.cache, i.oversellRate)
 		}
-		//klog.Info("init intelligent nodes to the cache")
+
+		cmInformer := i.handle.SharedInformerFactory().Core().V1().ConfigMaps().Informer()
+		cmInformer.AddEventHandler(cache.FilteringResourceEventHandler{
+			FilterFunc: func(obj interface{}) bool {
+				switch t := obj.(type) {
+				case *v1.ConfigMap:
+					return t.Name == i.args.CMName && t.Namespace == i.args.CMNamespace
+				case cache.DeletedFinalStateUnknown:
+					if cm, ok := obj.(*v1.ConfigMap); ok {
+						return cm.Name == i.args.CMName && cm.Namespace == i.args.CMNamespace
+					}
+					return false
+				default:
+					return false
+				}
+			},
+			Handler: cache.ResourceEventHandlerFuncs{
+				AddFunc: func(obj interface{}) {
+					cm, ok := obj.(*v1.ConfigMap)
+					if !ok {
+						klog.Errorf("failed to convert cm to configmap: %v", obj)
+						return
+					}
+					err := i.handleAddOrUpdateCM(cm)
+					if err != nil {
+						klog.Errorf("failed to add configmap: %v", err)
+					}
+					//klog.Infof("succeed to add configmap: %v", cm.Data)
+				},
+				UpdateFunc: func(oldObj, newObj interface{}) {
+					newCM, ok := newObj.(*v1.ConfigMap)
+					if !ok {
+						klog.Errorf("failed to convert newObj to configmap: %v", newObj)
+					}
+					err := i.handleAddOrUpdateCM(newCM)
+					if err != nil {
+						klog.Errorf("failed to update configmap: %v", err)
+					}
+					//klog.Infof("succeed to update configmap: %v", newCM.Data)
+				},
+			},
+		})
+
 		nodeInformer := i.handle.SharedInformerFactory().Core().V1().Nodes().Informer()
 		nodeInformer.AddEventHandler(cache.FilteringResourceEventHandler{
 			FilterFunc: func(obj interface{}) bool {
@@ -155,7 +219,7 @@ func (i *IntelligentScheduler) Init() error {
 						klog.Errorf("failed to convert %v to *v1.Node", reflect.TypeOf(obj))
 						return
 					}
-					handleAddOrUpdateNode(node, i.cache)
+					handleAddOrUpdateNode(node, i.cache, i.oversellRate)
 					//klog.Infof("succeed to add intelligent node %v to the cache", node.Name)
 				},
 				UpdateFunc: func(old, new interface{}) {
@@ -169,7 +233,7 @@ func (i *IntelligentScheduler) Init() error {
 						klog.Errorf("failed to convert %v to *v1.Node", reflect.TypeOf(new))
 						return
 					}
-					updateNode(i.cache, oldNode, newNode)
+					updateNode(i.cache, oldNode, newNode, i.oversellRate)
 					//klog.Infof("succeed to update intelligent node %v to the cache", newNode.Name)
 				},
 				DeleteFunc: func(obj interface{}) {
@@ -666,6 +730,54 @@ func (i *IntelligentScheduler) Unreserve(ctx context.Context, state *framework.C
 		nodeName)
 }
 
+func (i *IntelligentScheduler) handleAddOrUpdateCM(cm *v1.ConfigMap) error {
+	data := cm.Data
+	nodeSelectorPolicy, ok := data["nodeSelectorPolicy"]
+	if !ok {
+		return fmt.Errorf("missing nodeSelectorPolicy in configmap")
+	}
+	gpuSelectorPolicy, ok := data["gpuSelectorPolicy"]
+	if !ok {
+		return fmt.Errorf("missing gpuSelectorPolicy in configmap")
+	}
+	oversellRateStr, ok := data["oversellRate"]
+	if !ok {
+		return fmt.Errorf("missing oversellRate in configmap")
+	}
+	oversellRate, err := strconv.Atoi(oversellRateStr)
+	if err != nil {
+		return err
+	}
+	gpuMemoryScoreWeightStr, ok := data["gpuMemoryScoreWeight"]
+	if !ok {
+		return fmt.Errorf("missing gpuMemoryScoreWeight in configmap")
+	}
+	gpuMemoryScoreWeight, err := strconv.Atoi(gpuMemoryScoreWeightStr)
+	if err != nil {
+		return err
+	}
+	gpuUtilizationScoreWeightStr, ok := data["gpuUtilizationScoreWeight"]
+	if !ok {
+		return fmt.Errorf("missing gpuUtilizationScoreWeight in configmap")
+	}
+	gpuUtilizationScoreWeight, err := strconv.Atoi(gpuUtilizationScoreWeightStr)
+	if err != nil {
+		return err
+	}
+	if !(gpuMemoryScoreWeight >= 0 && gpuMemoryScoreWeight <= 100 && gpuUtilizationScoreWeight >= 0 && gpuUtilizationScoreWeight <= 100 && gpuMemoryScoreWeight+gpuUtilizationScoreWeight == 100) {
+		return fmt.Errorf("invalid GPU score weight")
+	}
+	if !(gpuSelectorPolicy == "spread" || gpuSelectorPolicy == "binpack") {
+		return fmt.Errorf("invalid GPU selector policy. It should be 'spread' or 'binpack'")
+	}
+	if !(nodeSelectorPolicy == "spread" || nodeSelectorPolicy == "binpack") {
+		return fmt.Errorf("invalid node selector policy. It should be 'spread' or 'binpack'")
+	}
+	i.engine = NewIntelligentSchedulerRuntime(IntelligentSchedulerName, nodeSelectorPolicy, gpuSelectorPolicy, gpuMemoryScoreWeight, gpuUtilizationScoreWeight)
+	i.oversellRate = oversellRate
+	return nil
+}
+
 func (i *IntelligentScheduler) nodeAvailableForPod(nodeName string, nodeInfos *NodeInfo, vGpuPodState *VirtualGpuPodState, vgiNames []string) bool {
 	requestVGpuCount := vGpuPodState.getCount()
 	requestVGpuSpec := vGpuPodState.getSpec()
@@ -694,19 +806,16 @@ func (i *IntelligentScheduler) nodeAvailableForPod(nodeName string, nodeInfos *N
 	}
 	vgi := i.cache.getVgiInfo(vgiNames[0]).Clone()
 	// 判断oversell
-	if !nodeInfos.getIsOversell() && vgi.getIsOversell() {
-		return false
-	}
-	//if nodeInfos.getIsOversell() != vgi.getIsOversell() {
-	//	//klog.Infof("vgi oversell[%v], node oversell[%v]", vgi.getIsOversell(), nodeInfos.getIsOversell())
+	//if !nodeInfos.getIsOversell() && vgi.getIsOversell() {
 	//	return false
 	//}
-	var oversellRate int
-	if nodeInfos.getIsOversell() {
-		oversellRate = nodeInfos.getOversellRate()
-	} else {
-		oversellRate = 1
-	}
+	//var oversellRate int
+	//if nodeInfos.getIsOversell() {
+	//	oversellRate = nodeInfos.getOversellRate()
+	//} else {
+	//	oversellRate = 1
+	//}
+	oversellRate := nodeInfos.getOversellRate()
 	// 判断available数量是否满足
 	nodeGpuState, totalMem := getNodeGpuState(nodeName, nodeInfos, i.cache)
 	availableGpuCount := 0

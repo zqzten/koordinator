@@ -3,6 +3,7 @@ package intelligentscheduler
 import (
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/intelligentscheduler/CRDs"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/klog/v2"
 	"sync"
 )
 
@@ -22,19 +23,19 @@ func newIntelligentCache() *intelligentCache {
 	}
 }
 
-func (c *intelligentCache) addOrUpdateNode(node *corev1.Node) {
+func (c *intelligentCache) addOrUpdateNode(node *corev1.Node, oversellRate int) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	nodeInfo, ok := c.intelligentNodes[node.Name]
 	if !ok {
-		nodeInfo, err := NewNodeInfo(node)
+		nodeInfo, err := NewNodeInfo(node, oversellRate)
 		if err != nil {
-			//klog.Errorf("Failed to create new nodeInfo for node %v, err: %v", node.Name, err)
+			klog.Errorf("Failed to create new nodeInfo for node %v, err: %v", node.Name, err)
 		}
 		c.intelligentNodes[node.Name] = nodeInfo
 		//klog.Infof("add new intelligent node %v to cache", node.Name)
 	} else {
-		nodeInfo.Reset(node)
+		nodeInfo.Reset(node, oversellRate)
 		//klog.Infof("update nodeInfo for node %v", node.Name)
 	}
 }

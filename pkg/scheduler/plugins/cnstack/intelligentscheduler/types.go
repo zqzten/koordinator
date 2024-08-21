@@ -12,15 +12,21 @@ import (
 )
 
 type IntelligentSchedulerArgs struct {
-	// GPUMemoryScoreWeight is used to define the gpu memory score weight in score phase
-	GPUMemoryScoreWeight *uint `json:"gpuMemoryScoreWeight"`
-	// GPUUtilizationScoreWeight is used to define the gpu memory score weight in score phase
-	GPUUtilizationScoreWeight *uint `json:"gpuUtilizationScoreWeight"`
-	// NodeSelectorPolicy define the policy used to select a node in intelligent scheduler
-	NodeSelectorPolicy string `json:"nodeSelectorPolicy"`
-	// GpuSelectorPolicy define the policy used to select Gpus in a node in intelligent scheduler
-	GpuSelectorPolicy string `json:"gpuSelectorPolicy"`
+	CMName      string `json:"configMapName"`
+	CMNamespace string `json:"configMapNamespace"`
 }
+
+//type IntelligentSchedulerCfg struct {
+//	// GPUMemoryScoreWeight is used to define the gpu memory score weight in score phase
+//	GPUMemoryScoreWeight *uint `json:"gpuMemoryScoreWeight"`
+//	// GPUUtilizationScoreWeight is used to define the gpu memory score weight in score phase
+//	GPUUtilizationScoreWeight *uint `json:"gpuUtilizationScoreWeight"`
+//	// NodeSelectorPolicy define the policy used to select a node in intelligent scheduler
+//	NodeSelectorPolicy string `json:"nodeSelectorPolicy"`
+//	// GpuSelectorPolicy define the policy used to select Gpus in a node in intelligent scheduler
+//	GpuSelectorPolicy string `json:"gpuSelectorPolicy"`
+//	OversellRate      int    `json:"oversellRate"`
+//}
 
 type NodeInfo struct {
 	lock         sync.RWMutex
@@ -31,19 +37,21 @@ type NodeInfo struct {
 	gpuMem       int
 }
 
-func NewNodeInfo(node *corev1.Node) (*NodeInfo, error) {
+func NewNodeInfo(node *corev1.Node, oversellRate int) (*NodeInfo, error) {
 	rateVal, ok := node.Labels[OversellRateNodeLabel]
 	var isOversell bool
-	var oversellRate int
+	var _oversellRate int
 	if !ok {
-		isOversell = false
+		//isOversell = false
+		isOversell = true
+		_oversellRate = oversellRate
 	} else {
 		isOversell = true
 		rate, err := strconv.Atoi(rateVal)
 		if err != nil {
 			return nil, err
 		}
-		oversellRate = rate
+		_oversellRate = rate
 	}
 	gpuCount, ok := node.Labels[PhysicalGpuCountNodeLabel]
 	if !ok {
@@ -68,7 +76,7 @@ func NewNodeInfo(node *corev1.Node) (*NodeInfo, error) {
 	memGiB := int(math.Round(float64(mem) / float64(1024)))
 	return &NodeInfo{
 		isOversell:   isOversell,
-		oversellRate: oversellRate,
+		oversellRate: _oversellRate,
 		gpuCount:     count,
 		gpuType:      gpuType,
 		gpuMem:       memGiB,
@@ -81,14 +89,16 @@ func (info *NodeInfo) toString() string {
 	return fmt.Sprintf("isOversell: %v, oversellRate: %v, gpuCount: %v, gpuType: %v, gpuMem: %v", info.isOversell, info.oversellRate, info.gpuCount, info.gpuType, info.gpuMem)
 }
 
-func (info *NodeInfo) Reset(node *corev1.Node) {
+func (info *NodeInfo) Reset(node *corev1.Node, _rate int) {
 	info.lock.Lock()
 	defer info.lock.Unlock()
 	rateVal, ok := node.Labels[OversellRateNodeLabel]
 	var isOversell bool
 	var oversellRate int
 	if !ok {
-		isOversell = false
+		//isOversell = false
+		isOversell = true
+		oversellRate = _rate
 	} else {
 		isOversell = true
 		rate, err := strconv.Atoi(rateVal)
