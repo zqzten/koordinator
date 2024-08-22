@@ -15,7 +15,6 @@ import (
 	"strings"
 )
 
-// score的计算可以放在这里
 type IntelligentSchedulerRuntime struct {
 	name                   string
 	nodeScorePolicy        string
@@ -47,7 +46,6 @@ func (r *IntelligentSchedulerRuntime) getGPUScorePolicy() string {
 }
 
 func (r *IntelligentSchedulerRuntime) Init() error {
-	//TODO
 	return nil
 }
 
@@ -76,7 +74,6 @@ func (r *IntelligentSchedulerRuntime) findBestGpuCombination(cache *intelligentC
 		}
 		scores[idx] = score
 	}
-	//klog.Infof("gpu scores: %v", scores)
 	var found bool
 	var maxValue float64
 	var maxIndex int
@@ -105,18 +102,13 @@ func (r *IntelligentSchedulerRuntime) calculateNodeScore(cache *intelligentCache
 	requestMem := vgi.getMemAllocated()
 	requestUtilization := vgi.getPercentageAllocated()
 	requestCount := len(vgiNames)
-	//klog.Infof("nodeName: %v, nodeInfos: %v", nodeName, nodeInfos.toString())
 	nodeGpuState, totalMem := getNodeGpuState(nodeName, nodeInfos, cache)
-	//klog.Infof("nodeGpuState: %v", nodeGpuState)
 	totalAvailableMem := 0
 	totalAvailableUtilization := 0
 	totalUsedMem := 0
 	totalUsedUtilization := 0
 	tmp := 0
 	for idx := 0; idx < nodeInfos.getGpuCount(); idx++ {
-		//klog.Infof("nodeGpuState: %v", nodeGpuState[idx])
-		//klog.Infof("vgi: %v", vgi.toString())
-		//klog.Infof("totalMem: %v", totalMem)
 		available, mem, utilization := isAvailableForVgi(cache, nodeGpuState[idx], vgi, totalMem, int(oversellRate))
 		if available {
 			tmp++
@@ -126,15 +118,13 @@ func (r *IntelligentSchedulerRuntime) calculateNodeScore(cache *intelligentCache
 			totalUsedMem += mem
 		}
 	}
-	//klog.Infof("availabe gpu count on node [%v]: %v", nodeName, tmp)
 	if r.getGPUScorePolicy() == "binpack" {
 		nodeScore = float64(r.memoryScoreWeight)*(float64(totalUsedMem+requestCount*requestMem)/(float64(totalAvailableMem)*oversellRate)) + float64(r.utilizationScoreWeight)*(float64(totalUsedUtilization+requestCount*requestUtilization)/(float64(totalAvailableUtilization)*oversellRate))
 	} else if r.getGPUScorePolicy() == "spread" {
 		nodeScore = float64(r.memoryScoreWeight)*(1.0-float64(totalUsedMem+requestCount*requestMem)/(float64(totalAvailableMem)*oversellRate)) + float64(r.utilizationScoreWeight)*(1.0-float64(totalUsedUtilization+requestCount*requestUtilization)/(float64(totalAvailableUtilization)*oversellRate))
 	}
-	//klog.Infof("nodeScore policy: [%v], node [%v] score: [%v]", r.nodeScorePolicy, nodeName, nodeScore)
+	klog.Infof("nodeScore policy: [%v], node [%v] score: [%v]", r.nodeScorePolicy, nodeName, nodeScore)
 	return nodeScore
-	// TODO normalize score to [0, 100]
 }
 
 func validateGPUSchedulerArgs(args IntelligentSchedulerArgs) error {
@@ -145,11 +135,10 @@ func validateGPUSchedulerArgs(args IntelligentSchedulerArgs) error {
 }
 
 func isIntelligentNode(node *v1.Node) bool {
-	// TODO 这个label需要在设置node gpu调度方式时设置
 	if node.Labels[SchedulerNodeLabel] != "intelligent" {
 		return false
 	}
-	// 因为目前eGPU只支持nvidia卡，所以非n卡pod不会被intelligent scheduler调度。增加了判断该节点GPU是否为n卡的逻辑，否则不会被intelligent scheduler考虑
+	// 因为目前eGPU只支持nvidia卡，所有非n卡pod不会被intelligent scheduler调度。增加了判断该节点GPU是否为n卡的逻辑，否则不会被intelligent scheduler考虑
 	_, ok := node.Labels["aliyun.accelerator/nvidia_name"]
 	if !ok {
 		return false
@@ -166,7 +155,6 @@ func GetVirtualGPUCountAndSpec(pod *v1.Pod) (int, string, error) {
 	if err != nil {
 		return 0, "", fmt.Errorf("unable to parse %v %v into integer", VirtualGpuCountKey, pod.Annotations[VirtualGpuCountKey])
 	}
-	//klog.Infof("Pod with name [%v] should be allocated with [%v] virtual gpu", pod.Name, vGpuCount)
 	return vGpuCount, vGpuSpecName, nil
 }
 
@@ -187,9 +175,7 @@ func getNodeGpuState(nodeName string, nodeInfos *NodeInfo, cache *intelligentCac
 	gpuCount := nodeInfos.getGpuCount()
 	state := make(map[int][]*VirtualGpuInstanceInfo, gpuCount)
 	virtualGpuInstances := cache.getAllVgiInfo()
-	//klog.Infof("****************[%v]", nodeName)
 	for _, instanceInfo := range virtualGpuInstances {
-		//klog.Infof("instanceInfo: %v", instanceInfo.toString())
 		if (instanceInfo.getStatus() == "PreAllocated" || instanceInfo.getStatus() == "Running" || instanceInfo.getStatus() == "Allocated") && instanceInfo.getNode() == nodeName {
 			idx := instanceInfo.getGPUIndex()
 			state[idx] = append(state[idx], instanceInfo)
@@ -201,17 +187,14 @@ func getNodeGpuState(nodeName string, nodeInfos *NodeInfo, cache *intelligentCac
 // 判断vgi是否还能够被分配到某张物理卡上，返回判断结果、分配前的总占用mem，utilization
 func isAvailableForVgi(cache *intelligentCache, gpuState []*VirtualGpuInstanceInfo, vgi *VirtualGpuInstanceInfo, totalMem int, oversellRate int) (bool, int, int) {
 	if len(gpuState) == 0 || gpuState == nil {
-		//klog.Info("in func isAvailableForVgi, return true, 0, 0")
 		return true, 0, 0
 	}
 	tmpVgi := gpuState[0]
 	vgsName := tmpVgi.getVgs()
 	vgs := cache.getVgsInfo(vgsName)
-	//klog.Infof("isAvailableForVgi vgs: [%v]", vgs.toString())
 	memIsolation := vgs.getGpuMemoryIsolation()
 	utilizationIsolation := vgs.getGpuUtilizationIsolation()
 	// 卡维度超卖
-	//isOversell := vgs.getIsOversell()
 	isOversell := tmpVgi.getIsOversell()
 	requestOversell := vgi.getIsOversell()
 	if isOversell != requestOversell {
@@ -231,8 +214,6 @@ func isAvailableForVgi(cache *intelligentCache, gpuState []*VirtualGpuInstanceIn
 	}
 	requestMem := vgi.getMemAllocated()
 	requestUtilization := vgi.getPercentageAllocated()
-	//klog.Infof("requestMem: [%v], usedMem: [%v], totalMem: [%v], oversellRate: [%v]", requestMem, usedMem, totalMem, oversellRate)
-	//klog.Infof("requestUtilization: [%v], usedUtilization: [%v]", requestUtilization, usedUtilization)
 	if requestMem+usedMem <= totalMem*oversellRate && requestUtilization+usedUtilization <= 100*oversellRate {
 		return true, usedMem, usedUtilization
 	} else {
@@ -304,75 +285,6 @@ func patchVgi(client dynamic.Interface, vgiName string, nodeName string, gpuIdx 
 		metav1.PatchOptions{},
 		"status",
 	)
-	//// patch onwerReference to vgi
-	//var apiVersion, kind string
-	//lastAppliedConfig, ok := pod.Annotations["kubectl.kubernetes.io/last-applied-configuration"]
-	//if !ok {
-	//	apiVersion = "v1"
-	//	kind = "Pod"
-	//} else {
-	//	var lastConfig map[string]interface{}
-	//	err := json.Unmarshal([]byte(lastAppliedConfig), &lastConfig)
-	//	if err != nil {
-	//		apiVersion = "v1"
-	//		kind = "Pod"
-	//	}
-	//	apiVersion, ok = lastConfig["apiVersion"].(string)
-	//	if !ok {
-	//		apiVersion = "v1"
-	//	}
-	//	kind, ok = lastConfig["kind"].(string)
-	//	if !ok {
-	//		kind = "Pod"
-	//	}
-	//}
-	//newOwnerReferenceData := metav1.OwnerReference{
-	//	APIVersion: apiVersion,
-	//	Kind:       kind,
-	//	Name:       pod.Name,
-	//	UID:        pod.UID,
-	//}
-	//
-	//vgiCrs, err := client.Resource(vgiGvr).Namespace(NameSpace).Get(context.Background(), vgiName, metav1.GetOptions{})
-	//if err != nil {
-	//	return err
-	//}
-	//existingOwnerReferences, found, err := unstructured.NestedSlice(vgiCrs.Object, "metadata", "ownerReferences")
-	//if err != nil {
-	//	return err
-	//}
-	//if !found {
-	//	existingOwnerReferences = []interface{}{}
-	//}
-	//newOwnerReferenceMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&newOwnerReferenceData)
-	//if err != nil {
-	//	return fmt.Errorf("failed to convert ownerReference: %v", err)
-	//}
-	//existingOwnerReferences = append(existingOwnerReferences, newOwnerReferenceMap)
-	//
-	//patchData = map[string]interface{}{
-	//	"metadata": map[string]interface{}{
-	//		"ownerReferences": existingOwnerReferences,
-	//	},
-	//}
-	//klog.Infof("patch ownerReferences: %v", patchData)
-	//patchBytes, err = json.Marshal(patchData)
-	//if err != nil {
-	//	return err
-	//}
-	//_, err = client.Resource(vgiGvr).Namespace(NameSpace).Patch(
-	//	context.Background(),
-	//	vgiName,
-	//	types.MergePatchType,
-	//	patchBytes,
-	//	metav1.PatchOptions{},
-	//)
-	//if err != nil {
-	//	klog.Errorf("Failed to patch owner reference data for pod %v/%v, [%v]", pod.Name, pod.UID, err)
-	//} else {
-	//	klog.Infof("patch vgi[%v] owner successfully", vgiName)
-	//}
-
 	return err
 }
 
@@ -468,11 +380,9 @@ func patchConfigMap(client dynamic.Interface, pod *v1.Pod, data map[string]inter
 		Version:  "v1",
 		Resource: "configmaps",
 	}
-	//klog.Infof("DATA: [%v]", data)
 	patchData := map[string]interface{}{
 		"data": data,
 	}
-	//klog.Infof("PATCHDATA: [%v]", patchData)
 	patchBytes, err := json.Marshal(patchData)
 	if err != nil {
 		klog.Errorf("failed to marshal patchData: %v", err)
@@ -530,7 +440,6 @@ func GetPodRequestResourcesByNames(pod *v1.Pod, resourceNames ...v1.ResourceName
 		for _, containerRequest := range GetContainerRequestResourceByName(resourceName, pod) {
 			total += containerRequest
 		}
-		// warning: only care value is large than 0
 		if total != 0 {
 			result[resourceName] = total
 		}
@@ -549,41 +458,3 @@ func GetContainerRequestResourceByName(resourceName v1.ResourceName, pod *v1.Pod
 	}
 	return total
 }
-
-//func buildPodAnnotations() map[string]string {
-//	return map[string]string{
-//		IntelligentPodAnnoAssumeTimeFlag: fmt.Sprintf("%d", time.Now().UnixNano()),
-//		IntelligentPodAnnoAssignFlag:     "false",
-//	}
-//}
-//
-//func patchPodAnnotations(client dynamic.Interface, pod *v1.Pod) error {
-//	podName := pod.Name
-//	podNamespace := pod.Namespace
-//	annotations := buildPodAnnotations()
-//	patchData := map[string]interface{}{
-//		"metadata": map[string]interface{}{
-//			"annotations": annotations,
-//		},
-//	}
-//	patchBytes, err := json.Marshal(patchData)
-//	podGVR := schema.GroupVersionResource{
-//		Group:    "",
-//		Version:  pod.APIVersion,
-//		Resource: "pods",
-//	}
-//	if err != nil {
-//		klog.Errorf("Error marshaling patch data: %v", err)
-//	}
-//	_, er := client.Resource(podGVR).Namespace(podNamespace).Patch(
-//		context.TODO(),
-//		podName,
-//		types.MergePatchType,
-//		patchBytes,
-//		metav1.PatchOptions{},
-//		"metadata")
-//	if er != nil {
-//		klog.Errorf("Error patching pod: %v", er)
-//	}
-//	return er
-//}

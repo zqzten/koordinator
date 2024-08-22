@@ -24,17 +24,18 @@ import (
 
 const IntelligentSchedulerName = "intelligent-scheduler"
 
-// VirtualGpuSpecification found in annotation means a pod needed to be process by IntelligencePlugin
 const (
-	VirtualGpuSpecificationKey       = "intelligent.sofastack.io/vgpu-specification"
-	VirtualGpuCountKey               = "aliyun.com/gpu-count"
-	VirtualGpuPodResourceKey         = "intelligent.sofastack.io/intelligent-vgpu"
-	MsgNoNeedToHandlePod             = "no need to handle this pod cause it does not contain specified annotation key"
-	SchedulerNodeLabel               = "ack.node.gpu.schedule"
-	OversellRateNodeLabel            = "ack.node.gpu.schedule.oversell"
-	PhysicalGpuCountNodeLabel        = "aliyun.accelerator/nvidia_count"
-	PhysicalGpuMemNodeLabel          = "aliyun.accelerator/nvidia_mem"
-	PhysicalGpuTypeNodeLabel         = "aliyun.accelerator/nvidia_name"
+	VirtualGpuSpecificationKey = "intelligent.sofastack.io/vgpu-specification"
+	VirtualGpuCountKey         = "aliyun.com/gpu-count"
+	VirtualGpuPodResourceKey   = "intelligent.sofastack.io/intelligent-vgpu"
+	MsgNoNeedToHandlePod       = "no need to handle this pod cause it does not contain specified annotation key"
+	SchedulerNodeLabel         = "ack.node.gpu.schedule"
+	OversellRateNodeLabel      = "ack.node.gpu.schedule.oversell"
+
+	PhysicalGpuCountNodeLabel = "aliyun.accelerator/nvidia_count"
+	PhysicalGpuMemNodeLabel   = "aliyun.accelerator/nvidia_mem"
+	PhysicalGpuTypeNodeLabel  = "aliyun.accelerator/nvidia_name"
+
 	IntelligentGroupName             = "intelligent.sofastack.io"
 	IntelligentVersion               = "v1"
 	VgsResourceName                  = "virtualgpuspecifications"
@@ -50,11 +51,11 @@ const (
 type IntelligentScheduler struct {
 	resourceNames []v1.ResourceName
 	engine        *IntelligentSchedulerRuntime
-	args          IntelligentSchedulerArgs
-	cache         *intelligentCache
+	args          IntelligentSchedulerArgs // 智算调度器参数，里面指定CM name&namespace，用来查询调度策略、权重等信息
+	cache         *intelligentCache        // 维护资源信息
 	handle        framework.Handle
 	client        dynamic.Interface
-	oversellRate  int
+	oversellRate  int // 超卖比
 }
 
 var _ framework.PreFilterPlugin = &IntelligentScheduler{}
@@ -78,6 +79,7 @@ func New(obj apiruntime.Object, handle framework.Handle) (framework.Plugin, erro
 		return nil, err
 	}
 	klog.Infof("succeed to validate IntelligentScheduler args")
+	// 初始化client
 	cfg := intelligentscheduler.handle.KubeConfig()
 	intelligentscheduler.client = dynamic.NewForConfigOrDie(cfg)
 	klog.Infof("succeed to init client for intelligent-scheduler")
@@ -86,20 +88,24 @@ func New(obj apiruntime.Object, handle framework.Handle) (framework.Plugin, erro
 		Version:  "v1",
 		Resource: "configmaps",
 	}
+	// 从CM中获得调度参数
 	unstructuredCM, err := intelligentscheduler.client.Resource(gvr).Namespace(intelligentscheduler.args.CMNamespace).Get(context.Background(), intelligentscheduler.args.CMName, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
+	if err != nil { // 如果为查询到CM，则设置为默认参数
+		intelligentscheduler.engine = NewIntelligentSchedulerRuntime(IntelligentSchedulerName, "spread", "spread", 50, 50)
+		intelligentscheduler.oversellRate = 1
+	} else { // 成功查询到CM
+		cm := &v1.ConfigMap{}
+		err = apiruntime.DefaultUnstructuredConverter.FromUnstructured(unstructuredCM.Object, cm)
+		if err != nil {
+			return nil, err
+		}
+		err = intelligentscheduler.handleAddOrUpdateCM(cm)
+		if err != nil {
+			return nil, err
+		}
+		klog.Infof("succeed to parse intelligent-scheduler config")
 	}
-	cm := &v1.ConfigMap{}
-	err = apiruntime.DefaultUnstructuredConverter.FromUnstructured(unstructuredCM.Object, cm)
-	if err != nil {
-		return nil, err
-	}
-	err = intelligentscheduler.handleAddOrUpdateCM(cm)
-	if err != nil {
-		return nil, err
-	}
-	klog.Infof("succeed to parse intelligent-scheduler config")
+	// 初始化cache
 	intelligentscheduler.cache = newIntelligentCache()
 	if err := intelligentscheduler.Init(); err != nil {
 		return nil, err
@@ -112,7 +118,6 @@ func (i *IntelligentScheduler) Name() string {
 	return IntelligentSchedulerName
 }
 
-// Init 初始化cache，engine
 func (i *IntelligentScheduler) Init() error {
 	klog.Infof("start to init gpu-intelligent-scheduler plugin")
 	vgsGvr := schema.GroupVersionResource{
@@ -125,24 +130,7 @@ func (i *IntelligentScheduler) Init() error {
 		Version:  IntelligentVersion,
 		Resource: VgiResourceName,
 	}
-
-	//vgsCrs, err := i.client.Resource(vgsGvr).Namespace(NameSpace).List(context.TODO(), metav1.ListOptions{})
-	//if err != nil {
-	//	klog.Errorf("failed to list gpu-intelligent-scheduler vgs resources: %v", err)
-	//	return err
-	//}
-	//for _, cr := range vgsCrs.Items {
-	//	handleAddOrUpdateVgs(cr, i.cache)
-	//}
-	//klog.Info("init vgs to the cache")
-	//vgiCrs, err := i.client.Resource(vgiGvr).Namespace(NameSpace).List(context.TODO(), metav1.ListOptions{})
-	//if err != nil {
-	//	return err
-	//}
-	//for _, cr := range vgiCrs.Items {
-	//	handleAddOrUpdateVgi(cr, i.cache)
-	//}
-	//klog.Info("init vgi to the cache")
+	// informer
 	var once sync.Once
 	once.Do(func() {
 		stop := make(chan struct{})
@@ -181,7 +169,7 @@ func (i *IntelligentScheduler) Init() error {
 					if err != nil {
 						klog.Errorf("failed to add configmap: %v", err)
 					}
-					//klog.Infof("succeed to add configmap: %v", cm.Data)
+					klog.Infof("succeed to add configmap: %v", cm.Data)
 				},
 				UpdateFunc: func(oldObj, newObj interface{}) {
 					newCM, ok := newObj.(*v1.ConfigMap)
@@ -192,7 +180,7 @@ func (i *IntelligentScheduler) Init() error {
 					if err != nil {
 						klog.Errorf("failed to update configmap: %v", err)
 					}
-					//klog.Infof("succeed to update configmap: %v", newCM.Data)
+					klog.Infof("succeed to update configmap: %v", newCM.Data)
 				},
 			},
 		})
@@ -277,13 +265,12 @@ func (i *IntelligentScheduler) Init() error {
 				},
 			},
 		})
-
+		// TODO 更新频率
 		factory := dynamicinformer.NewDynamicSharedInformerFactory(i.client, 0)
 		vgsInformer := factory.ForResource(vgsGvr).Informer()
 		vgsInformer.AddEventHandler(
 			cache.FilteringResourceEventHandler{
 				FilterFunc: func(obj interface{}) bool {
-					//klog.Info("in vgs informer filter")
 					switch t := obj.(type) {
 					case *unstructured.Unstructured:
 						return true
@@ -298,7 +285,6 @@ func (i *IntelligentScheduler) Init() error {
 				},
 				Handler: cache.ResourceEventHandlerFuncs{
 					AddFunc: func(obj interface{}) {
-						//klog.Info("in vgs AddFunc")
 						var vgs *CRDs.VirtualGpuSpecification
 						unstructuredObj, ok := obj.(*unstructured.Unstructured)
 						if !ok {
@@ -313,7 +299,6 @@ func (i *IntelligentScheduler) Init() error {
 						//klog.Infof("succeed to add VirtualGpuSpecification %v to the cache", vgs.Name)
 					},
 					UpdateFunc: func(old, new interface{}) {
-						//klog.Info("in vgs UpdateFunc")
 						var oldVgs *CRDs.VirtualGpuSpecification
 						var newVgs *CRDs.VirtualGpuSpecification
 						oldUnstructuredObj, ok := old.(*unstructured.Unstructured)
@@ -339,7 +324,6 @@ func (i *IntelligentScheduler) Init() error {
 						//klog.Infof("succeed to update VirtualGpuSpecification %v to the cache", newVgs.Name)
 					},
 					DeleteFunc: func(obj interface{}) {
-						//klog.Info("in vgs DeleteFunc")
 						var vgs *CRDs.VirtualGpuSpecification
 						unstructuredObj, ok := obj.(*unstructured.Unstructured)
 						if !ok {
@@ -359,7 +343,6 @@ func (i *IntelligentScheduler) Init() error {
 		vgiInformer := factory.ForResource(vgiGvr).Informer()
 		vgiInformer.AddEventHandler(cache.FilteringResourceEventHandler{
 			FilterFunc: func(obj interface{}) bool {
-				//klog.Info("in vgi informer filter")
 				switch t := obj.(type) {
 				case *unstructured.Unstructured:
 					return true
@@ -409,10 +392,6 @@ func (i *IntelligentScheduler) Init() error {
 						return
 					}
 					i.cache.addOrUpdateVgiInfo(newVgi)
-					//klog.Infof("succeed to update VirtualGpuInstance %v to the cache", newVgi.Name)
-					//for _, vgi := range i.cache.virtualGpuInstances {
-					//	klog.Infof("cached vgi: [%v]", vgi.toString())
-					//}
 				},
 				DeleteFunc: func(obj interface{}) {
 					var vgi *CRDs.VirtualGpuInstance
@@ -438,18 +417,17 @@ func (i *IntelligentScheduler) Init() error {
 }
 
 func (i *IntelligentScheduler) PreFilter(ctx context.Context, state *framework.CycleState, pod *v1.Pod) *framework.Status {
-	// Check if we need to handle this pod
+	// 确定是否需要处理该pod
 	needToHandle := IsMyPod(pod, i.resourceNames...)
 	if !needToHandle {
 		return framework.NewStatus(framework.Success, MsgNoNeedToHandlePod)
 	}
-	//klog.Infof("IntelligentSchedulePlugin starts to prefilter pod with name [%v]", pod.Name)
-	// Check vgpu count and spec
+	// 获得pod指定的VGS种类和数量
 	vGpuCount, vGpuSpec, err := GetVirtualGPUCountAndSpec(pod)
 	if err != nil {
 		return framework.NewStatus(framework.UnschedulableAndUnresolvable, err.Error())
 	}
-	// 查询pod对应的所有vgi并将这些vgi写入cycleState
+	// 查询pod对应的所有vgi并将这些vgi的name写入cycleState
 	vgiInfoNames := i.cache.getVgiInfoNamesByPod(pod)
 	if len(vgiInfoNames) == 0 {
 		klog.Errorf("unable to find VGI infos for pod [%s]", pod.Name)
@@ -459,9 +437,10 @@ func (i *IntelligentScheduler) PreFilter(ctx context.Context, state *framework.C
 		klog.Errorf("the count of vgi is not equal to the requested vGPU count for pod [%s]", pod.Name)
 		return framework.NewStatus(framework.Error, "the count of vgi is not equal to the requested vGPU count for pod")
 	}
+	// 将pod申请的vgs数量和种类存入cyclestate
 	i.SaveVGpuPodState(state, vGpuCount, vGpuSpec, string(pod.UID))
+	// 将该pod所对应的vgi names存入cyclestate
 	i.SaveVgiState(state, vgiInfoNames, string(pod.UID))
-	//klog.Infof("finished prefilting")
 	return nil
 }
 
@@ -546,19 +525,20 @@ func (i *IntelligentScheduler) Filter(ctx context.Context, state *framework.Cycl
 	if !needToHandle {
 		return framework.NewStatus(framework.Success, "")
 	}
-	//klog.Infof("IntelligentSchedulePlugin starts to filter pod with name [%v], node with name [%v]", pod.Name, nodeInfo.Node().Name)
 	node := nodeInfo.Node()
 	if node == nil {
 		klog.Error("node not found, it may be deleted")
 		return framework.NewStatus(framework.Error, "node not found")
 	}
 	nodeName := node.Name
+	// 判断node是否为智算node
 	ok := i.cache.getIntelligentNode(nodeName)
 	if !ok {
 		klog.Error("node is not an intelligent scheduled node")
 		return framework.NewStatus(framework.Error, "node not an intelligent scheduled node")
 	}
 	var nodeInfos *NodeInfo
+	// 从cache中获得node资源信息
 	ns, err := i.GetNodeState(state, nodeName) // 尝试从cycleState中取state
 	if err != nil {
 		nodeInfos = i.cache.getNodeInfo(nodeName) // 转为从cache中取
@@ -569,6 +549,7 @@ func (i *IntelligentScheduler) Filter(ctx context.Context, state *framework.Cycl
 	} else {
 		nodeInfos = ns.getNodeInfo()
 	}
+	// 获得pod请求资源情况
 	vGpuPodState, err := i.GetVGpuPodState(state, string(pod.UID))
 	if err != nil {
 		return framework.NewStatus(framework.Error, err.Error())
@@ -580,9 +561,9 @@ func (i *IntelligentScheduler) Filter(ctx context.Context, state *framework.Cycl
 	} else {
 		vgiNames = vgiState.getVgiNames()
 	}
+	// 判断node是否满足pod需求
 	available := i.nodeAvailableForPod(nodeName, nodeInfos, vGpuPodState, vgiNames)
 	if !available {
-		//klog.Errorf("node %s is not available for pod %s due to the GPU resource limit", nodeName, pod.Namespace+"/"+pod.Name)
 		return framework.NewStatus(framework.Unschedulable, "node is not available for pod due to the GPU resources")
 	}
 	return framework.NewStatus(framework.Success)
@@ -593,14 +574,15 @@ func (i *IntelligentScheduler) Score(ctx context.Context, state *framework.Cycle
 	if !needToHandle {
 		return int64(0), framework.NewStatus(framework.Success, "")
 	}
-	//klog.Infof("IntelligentSchedulePlugin starts to score node [%v] for pod [%v]", nodeName, pod.Name)
 	var vgiNames []string
+	// 获得pod拥有的vgi names
 	vgiState, err := i.GetVgiState(state, string(pod.UID))
 	if err != nil {
 		vgiNames = i.cache.getVgiInfoNamesByPod(pod)
 	} else {
 		vgiNames = vgiState.getVgiNames()
 	}
+	// 获得node资源信息
 	var nodeInfos *NodeInfo
 	nodeState, err := i.GetNodeState(state, nodeName)
 	if err != nil {
@@ -608,6 +590,7 @@ func (i *IntelligentScheduler) Score(ctx context.Context, state *framework.Cycle
 	} else {
 		nodeInfos = nodeState.getNodeInfo()
 	}
+	// 计算node score
 	score := i.engine.calculateNodeScore(i.cache, nodeName, nodeInfos, vgiNames)
 	return int64(score), framework.NewStatus(framework.Success, "")
 }
@@ -621,7 +604,6 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 	if !needToHandle {
 		return framework.NewStatus(framework.Success, "")
 	}
-	//klog.Infof("IntelligentSchedulePlugin starts to reserve node [%v] for pod [%v]", nodeName, pod.Name)
 	var requestGpuCount int
 	podState, err := i.GetVGpuPodState(state, string(pod.UID))
 	if err != nil {
@@ -654,6 +636,7 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 		oversellRate = 1
 	}
 	vgi := i.cache.getVgiInfo(vgiNames[0])
+	// 获得node上的GPU占用情况
 	nodeGpuState, totalMem := getNodeGpuState(nodeName, nodeInfos, i.cache)
 	// 获得所有符合vgi要求的GPU的index
 	var availableGpuIndexSet []int
@@ -663,31 +646,31 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 			availableGpuIndexSet = append(availableGpuIndexSet, idx)
 		}
 	}
+	// 从所有的符合要求的GPU idx中获得数量为申请数量的所有组合的集合
 	availableGpuCombines := combine(availableGpuIndexSet, requestGpuCount)
 	if len(availableGpuCombines) <= 0 {
 		return framework.NewStatus(framework.Unschedulable, "in Reserve step, the node does not have enough available GPU resources for pod [%v]", pod.Namespace+"/"+pod.Name)
 	}
+	// 通过计算每个组合的分数，选出分数最高的组合
 	result := i.engine.findBestGpuCombination(i.cache, availableGpuCombines, vgi, nodeGpuState, totalMem, oversellRate)
 	if result == nil || len(result) != len(vgiNames) {
 		return framework.NewStatus(framework.Unschedulable, "couldn't find proper gpus from node [%v] for pod [%v]", nodeName, pod.Namespace+"/"+pod.Name)
 	}
-	//klog.Infof("result idx: %v", result)
+	// 更新vgi状态信息
 	for idx, vgiName := range vgiNames {
 		gpuIdx := result[idx]
-		//klog.Infof("gpuIdx: %v", gpuIdx)
 		er := patchVgi(i.client, vgiName, nodeName, gpuIdx, "PreAllocated", nodeInfos.getGpuType(), pod)
 		if er != nil {
 			klog.Infof("in reserve: failed to patch vgi[%v]: [%v]", vgiName, er)
 			return framework.NewStatus(framework.Unschedulable, er.Error())
 		}
 	}
-	//klog.Infof("in reserve, patch vgis status successfully")
+	// 在CM中注入环境变量
 	cmData := buildEnvVars(vgi, result, totalMem)
 	err = patchConfigMap(i.client, pod, cmData)
 	if err != nil {
 		return framework.NewStatus(framework.Unschedulable, err.Error())
 	}
-	//klog.Infof("in reserve, patch ConfigMap successfully")
 	i.SaveNodeState(state, nodeInfos, nodeName)
 	klog.Infof("pod [%v] has been successfully scheduled on node [%v]", pod.Namespace+"/"+pod.Name, nodeName)
 	return framework.NewStatus(framework.Success, "")
@@ -697,7 +680,6 @@ func (i *IntelligentScheduler) Unreserve(ctx context.Context, state *framework.C
 	if !IsMyPod(pod, i.resourceNames...) {
 		return
 	}
-	//klog.Infof("IntelligentSchedulePlugin starts to unreserve node [%v] for pod [%v]", nodeName, pod.Name)
 	if !i.cache.getIntelligentNode(nodeName) {
 		klog.Infof("node[%v] is not an intelligent node in cache", nodeName)
 		return
@@ -783,13 +765,11 @@ func (i *IntelligentScheduler) nodeAvailableForPod(nodeName string, nodeInfos *N
 	requestVGpuSpec := vGpuPodState.getSpec()
 	// 判断总数量是否满足
 	if requestVGpuCount > nodeInfos.getGpuCount() {
-		//klog.Infof("gpu count of the node[%v] is less than the number of GPU resources for pod", nodeName)
 		return false
 	}
 	// 判断物理规格是否满足
 	vgs := i.cache.getVgsInfo(requestVGpuSpec)
 	requestPGpuSpecs := vgs.getPhysicalGpuSpecifications()
-	//klog.Infof("vgs physical gpu specs: %v, len: [%v]", requestPGpuSpecs, len(requestPGpuSpecs))
 	ok := false
 	for _, spec := range requestPGpuSpecs {
 		if spec.getName() == nodeInfos.getGpuType() {
@@ -797,24 +777,12 @@ func (i *IntelligentScheduler) nodeAvailableForPod(nodeName string, nodeInfos *N
 		}
 	}
 	if len(requestPGpuSpecs) == 0 || (len(requestPGpuSpecs) == 1 && requestPGpuSpecs[0].getName() == "") {
-		//klog.Info("len(requestPGpuSpecs) == 0")
 		ok = true
 	}
 	if !ok {
-		//klog.Infof("no vgs for pod")
 		return false
 	}
 	vgi := i.cache.getVgiInfo(vgiNames[0]).Clone()
-	// 判断oversell
-	//if !nodeInfos.getIsOversell() && vgi.getIsOversell() {
-	//	return false
-	//}
-	//var oversellRate int
-	//if nodeInfos.getIsOversell() {
-	//	oversellRate = nodeInfos.getOversellRate()
-	//} else {
-	//	oversellRate = 1
-	//}
 	oversellRate := nodeInfos.getOversellRate()
 	// 判断available数量是否满足
 	nodeGpuState, totalMem := getNodeGpuState(nodeName, nodeInfos, i.cache)

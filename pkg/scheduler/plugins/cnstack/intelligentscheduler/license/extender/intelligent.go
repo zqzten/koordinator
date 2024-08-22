@@ -64,7 +64,7 @@ func init() {
 
 func GPUShareLicenseCheckFunc(handle framework.Handle) bool {
 	klog.V(6).Infof("get cnstack http license.")
-	return true // TODO DELETE!
+	return true // TODO DELETE! 基于下面注释的内容，实现真正的license校验
 	//resp, err := httpClient.Get(cnstackHttpLicenseAddr + "/license-info?name=cnstack&namespace=acs-system")
 	////resp, err := httpClient.Get(cnstackHttpLicenseAddr + "/license-info?name=cnstack&namespace=kube-system")
 	//if err != nil {

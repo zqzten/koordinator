@@ -33,10 +33,8 @@ func (c *intelligentCache) addOrUpdateNode(node *corev1.Node, oversellRate int) 
 			klog.Errorf("Failed to create new nodeInfo for node %v, err: %v", node.Name, err)
 		}
 		c.intelligentNodes[node.Name] = nodeInfo
-		//klog.Infof("add new intelligent node %v to cache", node.Name)
 	} else {
 		nodeInfo.Reset(node, oversellRate)
-		//klog.Infof("update nodeInfo for node %v", node.Name)
 	}
 }
 
@@ -47,10 +45,8 @@ func (c *intelligentCache) addOrUpdateVgsInfo(vgs *CRDs.VirtualGpuSpecification)
 	if !ok {
 		newVsInfo := NewVirtualGpuSpecInfo(vgs)
 		c.virtualGpuSpecifications[vgs.Name] = newVsInfo
-		//klog.Infof("add new virtual gpu specification %v to the intelligent scheduler cache", vgs.Name)
 	} else {
 		vs.Reset(vgs)
-		//klog.Infof("update virtual gpu specification %v to the intelligent scheduler cache", vgs.Name)
 	}
 }
 
@@ -61,12 +57,8 @@ func (c *intelligentCache) addOrUpdateVgiInfo(vgi *CRDs.VirtualGpuInstance) {
 	if !ok {
 		newViInfo := NewVirtualGpuInstanceInfo(vgi)
 		c.virtualGpuInstances[vgi.Name] = newViInfo
-		//klog.Infof("new vgi: [%v]", newViInfo.toString())
-		//klog.Infof("add new virtual gpu instance %v in the intelligent scheduler cache", vgi.Name)
 	} else {
 		vi.Reset(vgi)
-		//klog.Infof("updated vgi: [%v]", vi.toString())
-		//klog.Infof("update virtual gpu instance %v to the intelligence cache", vgi.Name)
 	}
 }
 
@@ -78,7 +70,6 @@ func (c *intelligentCache) deleteNode(node *corev1.Node) {
 		return
 	}
 	delete(c.intelligentNodes, node.Name)
-	//klog.Infof("delete node %v from cache", node.Name)
 }
 
 func (c *intelligentCache) deleteVgsInfo(vgs *CRDs.VirtualGpuSpecification) {

@@ -45,10 +45,9 @@ func init() {
 		gpushare.New,
 		newextender.GPUShareLicenseCheckFunc,
 		newextender.GPUShareResponsibleForPodFunc,
-	)
-	koordinatorPlugins[gputopology.GPUTopologyName] = gputopology.New
-	koordinatorPlugins[gpuoversell.GPUOversellName] = gpuoversell.New
-	//koordinatorPlugins[intelligentscheduler.IntelligentSchedulerName] = intelligentscheduler.New
+	) // 智算平台该调度器可删
+	koordinatorPlugins[gputopology.GPUTopologyName] = gputopology.New // 智算平台该调度器可删
+	koordinatorPlugins[gpuoversell.GPUOversellName] = gpuoversell.New // 智算平台该调度器可删
 	koordinatorPlugins[intelligentscheduler.IntelligentSchedulerName] = newlicense.Register(
 		intelligentscheduler.IntelligentSchedulerName,
 		intelligentscheduler.New,

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: intelligent-scheduler-config
+  namespace: intelligent-computing
+data:
+  gpuMemoryScoreWeight: "50"
+  gpuUtilizationScoreWeight: "50"
+  nodeSelectorPolicy: "spread"
+  gpuSelectorPolicy: "spread"
+  oversellRate: "2"
