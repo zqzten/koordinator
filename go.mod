@@ -3,7 +3,6 @@ module github.com/koordinator-sh/koordinator
 go 1.17
 
 require (
-	//code.alipay.com/cnstack/intelligent-operator v1.0.5
 	github.com/NVIDIA/go-nvml v0.11.6-0.0.20220823120812-7e2082095e82
 	github.com/alibaba/hybridnet v0.7.7
 	github.com/alibaba/open-local v0.7.0
