@@ -534,8 +534,9 @@ func (i *IntelligentScheduler) Filter(ctx context.Context, state *framework.Cycl
 	// 判断node是否为智算node
 	ok := i.cache.getIntelligentNode(nodeName)
 	if !ok {
-		klog.Error("node is not an intelligent scheduled node")
-		return framework.NewStatus(framework.Error, "node not an intelligent scheduled node")
+		errMsg := fmt.Sprintf("node %s is not an intelligent scheduled node", nodeName)
+		klog.Error(errMsg)
+		return framework.NewStatus(framework.Error, errMsg)
 	}
 	var nodeInfos *NodeInfo
 	// 从cache中获得node资源信息
@@ -564,7 +565,7 @@ func (i *IntelligentScheduler) Filter(ctx context.Context, state *framework.Cycl
 	// 判断node是否满足pod需求
 	available := i.nodeAvailableForPod(nodeName, nodeInfos, vGpuPodState, vgiNames)
 	if !available {
-		return framework.NewStatus(framework.Unschedulable, "node is not available for pod due to the GPU resources")
+		return framework.NewStatus(framework.Unschedulable, "node %s is not available for pod due to the GPU resources", nodeName)
 	}
 	return framework.NewStatus(framework.Success)
 }
