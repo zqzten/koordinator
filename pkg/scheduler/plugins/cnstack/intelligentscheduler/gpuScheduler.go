@@ -531,13 +531,12 @@ func (i *IntelligentScheduler) Filter(ctx context.Context, state *framework.Cycl
 		return framework.NewStatus(framework.Error, "node not found")
 	}
 	nodeName := node.Name
-	klog.Infof("#######cache：%+v", i.cache)
 	// 判断node是否为智算node
 	ok := i.cache.getIntelligentNode(nodeName)
 	if !ok {
 		errMsg := fmt.Sprintf("node %s is not an intelligent scheduled node", nodeName)
-		klog.Error(errMsg)
-		return framework.NewStatus(framework.Error, errMsg)
+		// klog.Error(errMsg)
+		return framework.NewStatus(framework.Unschedulable, errMsg)
 	}
 	var nodeInfos *NodeInfo
 	// 从cache中获得node资源信息
