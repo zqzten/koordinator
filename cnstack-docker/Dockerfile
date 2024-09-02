@@ -1,12 +1,10 @@
-FROM ant-cnstack-registry.cn-hangzhou.cr.aliyuncs.com/adp-7abed7fbca/intelligent-computing/golang:1.17 as builder
+#FROM ant-cnstack-registry.cn-hangzhou.cr.aliyuncs.com/adp-7abed7fbca/intelligent-computing/golang:1.17 as builder
+FROM --platform=$TARGETPLATFORM ant-cnstack-registry.cn-hangzhou.cr.aliyuncs.com/ecp_builder/golang:1.17 as  builder
 WORKDIR /go/src/github.com/koordinator-sh/koordinator
 
-#ARG VERSION
-#ARG TARGETARCH
-#ENV VERSION $VERSION
-#ENV GOOS linux
-#ENV GOARCH $TARGETARCH
-ENV TARGETARCH amd64
+ARG VERSION
+ARG TARGETARCH
+ENV VERSION $VERSION
 ENV GOOS linux
 ENV GOARCH $TARGETARCH
 
@@ -31,7 +29,7 @@ RUN cp bin/logrotate-$TARGETARCH bin/logrotate
 RUN CGO_ENABLED=0 GOOS=linux go build -a -o koord-scheduler ./cmd/koord-scheduler
 
 
-FROM ant-cnstack-registry.cn-hangzhou.cr.aliyuncs.com/adp-7abed7fbca/intelligent-computing/alpine:3.16
+FROM --platform=$TARGETPLATFORM registry.cn-hangzhou.aliyuncs.com/acs/alpine:3.16-update
 WORKDIR /
 RUN apk --no-cache --update upgrade && rm -rf /var/cache/apk/*
 RUN apk add --update bash net-tools iproute2 logrotate less rsync util-linux lvm2
