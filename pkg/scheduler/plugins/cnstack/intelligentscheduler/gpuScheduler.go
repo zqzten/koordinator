@@ -531,6 +531,7 @@ func (i *IntelligentScheduler) Filter(ctx context.Context, state *framework.Cycl
 		return framework.NewStatus(framework.Error, "node not found")
 	}
 	nodeName := node.Name
+	klog.Infof("#######cache：%+v", i.cache)
 	// 判断node是否为智算node
 	ok := i.cache.getIntelligentNode(nodeName)
 	if !ok {
