@@ -103,7 +103,7 @@ func (info *NodeInfo) Reset(node *corev1.Node, _rate int) {
 		isOversell = true
 		rate, err := strconv.Atoi(rateVal)
 		if err != nil {
-			klog.Errorf("failed to parse oversell rate %v, err: %v", rate, err)
+			klog.Errorf("Failed to parse oversell rate %v, err: %v", rate, err)
 			return
 		}
 		oversellRate = rate
@@ -115,7 +115,7 @@ func (info *NodeInfo) Reset(node *corev1.Node, _rate int) {
 	}
 	count, err := strconv.Atoi(gpuCount)
 	if err != nil {
-		klog.Errorf("failed to parse gpu count %v, err: %v", gpuCount, err)
+		klog.Errorf("Failed to parse gpu count %v, err: %v", gpuCount, err)
 		return
 	}
 	gpuType, ok := node.Labels[PhysicalGpuTypeNodeLabel]
@@ -130,7 +130,7 @@ func (info *NodeInfo) Reset(node *corev1.Node, _rate int) {
 	}
 	mem, err := strconv.Atoi(memVal[:len(memVal)-3])
 	if err != nil {
-		klog.Errorf("failed to parse physical gpu mem %v, err: %v", memVal, err)
+		klog.Errorf("Failed to parse physical gpu mem %v, err: %v", memVal, err)
 		return
 	}
 	memGiB := int(float64(mem) / float64(1024))
