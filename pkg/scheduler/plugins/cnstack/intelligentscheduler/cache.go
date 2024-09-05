@@ -30,12 +30,15 @@ func (c *intelligentCache) addOrUpdateNode(node *corev1.Node, oversellRate int) 
 	if !ok {
 		nodeInfo, err := NewNodeInfo(node, oversellRate)
 		if err != nil {
-			klog.Errorf("Failed to create new nodeInfo for node %v, err: %v", node.Name, err)
+			klog.Errorf("Failed to create new nodeInfo for node %s, err: %v", node.Name, err)
 		}
 		c.intelligentNodes[node.Name] = nodeInfo
+		klog.Infof("Added new nodeInfo for node %s", node.Name)
 	} else {
 		nodeInfo.Reset(node, oversellRate)
+		klog.Infof("Updated nodeInfo for node %s", node.Name)
 	}
+
 }
 
 func (c *intelligentCache) addOrUpdateVgsInfo(vgs *CRDs.VirtualGpuSpecification) {
@@ -45,8 +48,10 @@ func (c *intelligentCache) addOrUpdateVgsInfo(vgs *CRDs.VirtualGpuSpecification)
 	if !ok {
 		newVsInfo := NewVirtualGpuSpecInfo(vgs)
 		c.virtualGpuSpecifications[vgs.Name] = newVsInfo
+		klog.Infof("Added new VirtualGpuSpecInfo for VGS %s", vgs.Name)
 	} else {
 		vs.Reset(vgs)
+		klog.Infof("Updated VirtualGpuSpecInfo for VGS %s", vgs.Name)
 	}
 }
 
@@ -57,8 +62,10 @@ func (c *intelligentCache) addOrUpdateVgiInfo(vgi *CRDs.VirtualGpuInstance) {
 	if !ok {
 		newViInfo := NewVirtualGpuInstanceInfo(vgi)
 		c.virtualGpuInstances[vgi.Name] = newViInfo
+		klog.Infof("Added new VirtualGpuInstanceInfo for VGI %s", vgi.Name)
 	} else {
 		vi.Reset(vgi)
+		klog.Infof("Updated VirtualGpuInstanceInfo for VGI %s", vgi.Name)
 	}
 }
 
@@ -70,6 +77,7 @@ func (c *intelligentCache) deleteNode(node *corev1.Node) {
 		return
 	}
 	delete(c.intelligentNodes, node.Name)
+	klog.Infof("Deleted node %s", node.Name)
 }
 
 func (c *intelligentCache) deleteVgsInfo(vgs *CRDs.VirtualGpuSpecification) {
@@ -80,6 +88,7 @@ func (c *intelligentCache) deleteVgsInfo(vgs *CRDs.VirtualGpuSpecification) {
 		return
 	}
 	delete(c.virtualGpuSpecifications, vgs.Name)
+	klog.Infof("Deleted VirtualGpuSpecInfo for VGS %s", vgs.Name)
 }
 
 func (c *intelligentCache) deleteVgiInfo(vgi *CRDs.VirtualGpuInstance) {
@@ -90,6 +99,7 @@ func (c *intelligentCache) deleteVgiInfo(vgi *CRDs.VirtualGpuInstance) {
 		return
 	}
 	delete(c.virtualGpuInstances, vgi.Name)
+	klog.Infof("Deleted VirtualGpuInstanceInfo for VGI %s", vgi.Name)
 }
 
 // 判断node是否为智算调度node

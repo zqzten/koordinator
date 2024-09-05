@@ -354,7 +354,7 @@ func patchOwnerRefToConfigMap(client dynamic.Interface, pod *v1.Pod) error {
 	}
 	patchBytes, err := json.Marshal(patchData)
 	if err != nil {
-		klog.Errorf("failed to marshal patchData: %v", err)
+		klog.Errorf("Failed to marshal patchData: %v", err)
 		return err
 	}
 	_, err = client.Resource(gvr).Namespace(pod.Namespace).Patch(
@@ -365,7 +365,7 @@ func patchOwnerRefToConfigMap(client dynamic.Interface, pod *v1.Pod) error {
 		metav1.PatchOptions{},
 	)
 	if err != nil {
-		klog.Errorf("failed to patchConfigMap: %v", err)
+		klog.Errorf("Failed to patchConfigMap: %v", err)
 	}
 	return err
 }
@@ -385,7 +385,7 @@ func patchConfigMap(client dynamic.Interface, pod *v1.Pod, data map[string]inter
 	}
 	patchBytes, err := json.Marshal(patchData)
 	if err != nil {
-		klog.Errorf("failed to marshal patchData: %v", err)
+		klog.Errorf("Failed to marshal patchData: %v", err)
 		return err
 	}
 	_, err = client.Resource(gvr).Namespace(pod.Namespace).Patch(
@@ -396,7 +396,7 @@ func patchConfigMap(client dynamic.Interface, pod *v1.Pod, data map[string]inter
 		metav1.PatchOptions{},
 	)
 	if err != nil {
-		klog.Errorf("failed to patchConfigMap: %v", err)
+		klog.Errorf("Failed to patchConfigMap: %v", err)
 	}
 	return err
 }
