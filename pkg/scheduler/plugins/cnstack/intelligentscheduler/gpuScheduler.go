@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
+	"math"
 	"reflect"
 	"strconv"
 	"sync"
@@ -593,6 +594,7 @@ func (i *IntelligentScheduler) Score(ctx context.Context, state *framework.Cycle
 	}
 	// 计算node score
 	score := i.engine.calculateNodeScore(i.cache, nodeName, nodeInfos, vgiNames)
+	score = math.Max(math.Min(score, float64(framework.MaxNodeScore)), float64(framework.MinNodeScore))
 	return int64(score), framework.NewStatus(framework.Success, "")
 }
 
