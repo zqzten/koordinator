@@ -556,7 +556,7 @@ func (i *IntelligentScheduler) Filter(ctx context.Context, state *framework.Cycl
 	// 从cache中获得node资源信息
 	ns, err := i.GetNodeState(state, nodeName) // 尝试从cycleState中取state
 	if err != nil {
-		klog.Errorf("Schedulling pod %s/%s, failed to get node %s info from cycleState, error is %v", pod.Namespace, pod.Name, nodeName, err)
+		klog.Warningf("Schedulling pod %s/%s, failed to get node %s info from cycleState, error is %v", pod.Namespace, pod.Name, nodeName, err)
 		nodeInfos = i.cache.getNodeInfo(nodeName) // 转为从cache中取
 		if nodeInfos == nil {
 			klog.Errorf("Schedulling pod %s/%s, failed to get node %s info from cache", pod.Namespace, pod.Name, nodeName)
@@ -585,6 +585,7 @@ func (i *IntelligentScheduler) Filter(ctx context.Context, state *framework.Cycl
 		klog.Infof("Schedulling pod %s/%s, node %s is not available for pod due to the GPU resources", pod.Namespace, pod.Name, nodeName)
 		return framework.NewStatus(framework.Unschedulable, "node is not available for pod due to the GPU resources")
 	}
+	klog.Infof("Schedulling pod %s/%s, node %s is available", pod.Namespace, pod.Name, nodeName)
 	return framework.NewStatus(framework.Success)
 }
 
@@ -818,7 +819,7 @@ func (i *IntelligentScheduler) nodeAvailableForPod(nodeName string, nodeInfos *N
 	if availableGpuCount >= requestVGpuCount {
 		return true
 	} else {
-		klog.Infof("node [%v] has available gpus[%v] are fewer than the requested[%v]", nodeName, availableGpuCount, requestVGpuCount)
+		klog.Infof("node %s has available gpus[%d] are fewer than the requested[%d]", nodeName, availableGpuCount, requestVGpuCount)
 		return false
 	}
 }

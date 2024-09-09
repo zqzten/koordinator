@@ -454,7 +454,7 @@ func (info *VirtualGpuInstanceInfo) getPercentageAllocated() int {
 	return int(info.PercentageAllocated)
 }
 
-func (info *VirtualGpuInstanceInfo) getVgs() string {
+func (info *VirtualGpuInstanceInfo) getVgsName() string {
 	info.lock.RLock()
 	defer info.lock.RUnlock()
 	return info.VirtualGpuSpecification

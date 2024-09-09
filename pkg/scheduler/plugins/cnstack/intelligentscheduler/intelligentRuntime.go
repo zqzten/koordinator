@@ -189,32 +189,43 @@ func isAvailableForVgi(cache *intelligentCache, gpuState []*VirtualGpuInstanceIn
 	if len(gpuState) == 0 || gpuState == nil {
 		return true, 0, 0
 	}
-	tmpVgi := gpuState[0]
-	vgsName := tmpVgi.getVgs()
-	vgs := cache.getVgsInfo(vgsName)
-	memIsolation := vgs.getGpuMemoryIsolation()
-	utilizationIsolation := vgs.getGpuUtilizationIsolation()
-	// 卡维度超卖
-	isOversell := tmpVgi.getIsOversell()
-	requestOversell := vgi.getIsOversell()
-	if isOversell != requestOversell {
+
+	ortherVgi := gpuState[0]
+	ortherVgs := cache.getVgsInfo(ortherVgi.getVgsName())
+	requestVgs := cache.getVgsInfo(vgi.getVgsName())
+
+	// 判断其他vgi和本次vgi的超卖类型是否一致
+	if vgi.getIsOversell() != ortherVgi.getIsOversell() {
+		klog.Infof("vgi %s's IsOversell is not equal other vgis", vgi.getName())
 		return false, 0, 0
 	}
 
-	requestVgsName := vgi.getVgs()
-	requestVgs := cache.getVgsInfo(requestVgsName)
-	if memIsolation != requestVgs.getGpuMemoryIsolation() || utilizationIsolation != requestVgs.getGpuUtilizationIsolation() {
+	cardOversellRate := oversellRate
+	// 当这张卡上的vgi类型是不超卖，则将本卡的超卖值置为1
+	if !vgi.getIsOversell() {
+		cardOversellRate = 1
+	}
+
+	// 判断其他vgi和本次vgi的显存&算力隔离类型是否一致
+	if requestVgs.getGpuMemoryIsolation() == ortherVgs.getGpuMemoryIsolation() ||
+		requestVgs.getGpuUtilizationIsolation() == ortherVgs.getGpuUtilizationIsolation() {
+		klog.Infof("vgi %s's GpuMemoryIsolation or GpuUtilizationIsolation is not equal other vgis", vgi.getName())
 		return false, 0, 0
 	}
+
+	// 获取已占用的显存和算力
 	usedMem := 0
 	usedUtilization := 0
 	for _, instanceInfo := range gpuState {
 		usedMem += instanceInfo.getMemAllocated()
 		usedUtilization += instanceInfo.getPercentageAllocated()
 	}
+
+	// 判断显存和算力能否满足本次vgi请求
 	requestMem := vgi.getMemAllocated()
 	requestUtilization := vgi.getPercentageAllocated()
-	if requestMem+usedMem <= totalMem*oversellRate && requestUtilization+usedUtilization <= 100*oversellRate {
+	if requestMem+usedMem <= totalMem*cardOversellRate &&
+		requestUtilization+usedUtilization <= 100*cardOversellRate {
 		return true, usedMem, usedUtilization
 	} else {
 		return false, 0, 0
