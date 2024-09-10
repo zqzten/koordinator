@@ -23,9 +23,10 @@ import (
 	"sync"
 )
 
-const IntelligentSchedulerName = "intelligent-scheduler"
-
+// 常量建议用全大写字母，下划线分隔单词
 const (
+	IntelligentSchedulerName = "intelligent-scheduler"
+
 	VirtualGpuSpecificationKey = "intelligent.sofastack.io/vgpu-specification"
 	VirtualGpuCountKey         = "aliyun.com/gpu-count"
 	VirtualGpuPodResourceKey   = "intelligent.sofastack.io/intelligent-vgpu"
@@ -37,16 +38,14 @@ const (
 	PhysicalGpuMemNodeLabel   = "aliyun.accelerator/nvidia_mem"
 	PhysicalGpuTypeNodeLabel  = "aliyun.accelerator/nvidia_name"
 
-	IntelligentGroupName             = "intelligent.sofastack.io"
-	IntelligentVersion               = "v1"
-	VgsResourceName                  = "virtualgpuspecifications"
-	VgiResourceName                  = "virtualgpuinstances"
-	VgiPodNameLabel                  = "podName"
-	VgiPodNamespaceLabel             = "podNamespace"
-	PodConfigMapLabel                = "vgpu-env-cm"
-	NameSpace                        = "intelligent-computing"
-	IntelligentPodAnnoAssignFlag     = "scheduler.framework.intelligent.assigned"
-	IntelligentPodAnnoAssumeTimeFlag = "scheduler.framework.Intelligent.assume-time"
+	IntelligentGroupName = "intelligent.sofastack.io"
+	IntelligentVersion   = "v1"
+	VgsResourceName      = "virtualgpuspecifications"
+	VgiResourceName      = "virtualgpuinstances"
+	VgiPodNameLabel      = "podName"
+	VgiPodNamespaceLabel = "podNamespace"
+	PodConfigMapLabel    = "vgpu-env-cm"
+	NameSpace            = "intelligent-computing"
 )
 
 type IntelligentScheduler struct {
@@ -94,7 +93,7 @@ func New(obj apiruntime.Object, handle framework.Handle) (framework.Plugin, erro
 	// 从CM中获得调度参数
 	unstructuredCM, err := intelligentscheduler.client.Resource(gvr).Namespace(intelligentscheduler.args.CMNamespace).
 		Get(context.Background(), intelligentscheduler.args.CMName, metav1.GetOptions{})
-	if err != nil { // 如果为查询到CM，则设置为默认参数
+	if err != nil { // 如果未查询到CM，则设置为默认参数
 		intelligentscheduler.engine = NewIntelligentSchedulerRuntime(IntelligentSchedulerName, "spread", "spread", 50, 50)
 		intelligentscheduler.oversellRate = 1
 	} else { // 成功查询到CM
@@ -449,9 +448,9 @@ func (i *IntelligentScheduler) PreFilter(ctx context.Context, state *framework.C
 		return framework.NewStatus(framework.Error, "the count of vgi is not equal to the requested vGPU count")
 	}
 	// 将pod申请的vgs数量和种类存入cyclestate
-	i.SaveVGpuPodState(state, vGpuCount, vGpuSpec, string(pod.UID))
+	i.saveVirtualGpuPodToCycleState(state, vGpuCount, vGpuSpec, string(pod.UID))
 	// 将该pod所对应的vgi names存入cyclestate
-	i.SaveVgiState(state, vgiInfoNames, string(pod.UID))
+	i.saveVgiToCycleState(state, vgiInfoNames, string(pod.UID))
 	klog.Infof("Succeed prefilter for pod %s/%s", pod.Namespace, pod.Name)
 	return nil
 }
@@ -467,7 +466,7 @@ func (i *IntelligentScheduler) AddPod(ctx context.Context, state *framework.Cycl
 	}
 
 	var nodeInfos *NodeInfo
-	nodeState, er := i.GetNodeState(state, nodeInfo.Node().Name)
+	nodeState, er := i.getNodeStateFromCycleState(state, nodeInfo.Node().Name)
 	if er != nil {
 		klog.Warningf("Failed to get node state, err: %v, will get it from cache", er)
 		nodeInfos = i.cache.getNodeInfo(nodeInfo.Node().Name).Clone()
@@ -477,7 +476,7 @@ func (i *IntelligentScheduler) AddPod(ctx context.Context, state *framework.Cycl
 	nodeName := nodeInfo.Node().Name
 
 	var vgiNames []string
-	vgiState, err := i.GetVgiState(state, string(p.UID))
+	vgiState, err := i.getVgiStateFromCycleState(state, string(p.UID))
 	if err != nil {
 		vgiNames = i.cache.getVgiInfoNamesByPod(p)
 	} else {
@@ -506,7 +505,7 @@ func (i *IntelligentScheduler) RemovePod(ctx context.Context, state *framework.C
 	}
 
 	var vgiNames []string
-	vgiState, err := i.GetVgiState(state, string(p.UID))
+	vgiState, err := i.getVgiStateFromCycleState(state, string(p.UID))
 	if err != nil {
 		vgiNames = i.cache.getVgiInfoNamesByPod(p)
 	} else {
@@ -555,7 +554,7 @@ func (i *IntelligentScheduler) Filter(ctx context.Context, state *framework.Cycl
 	}
 	var nodeInfos *NodeInfo
 	// 从cache中获得node资源信息
-	ns, err := i.GetNodeState(state, nodeName) // 尝试从cycleState中取state
+	ns, err := i.getNodeStateFromCycleState(state, nodeName) // 尝试从cycleState中取state
 	if err != nil {
 		klog.Warningf("Schedulling pod %s/%s, failed to get node %s info from cycleState, error is %v", pod.Namespace, pod.Name, nodeName, err)
 		nodeInfos = i.cache.getNodeInfo(nodeName) // 转为从cache中取
@@ -567,13 +566,13 @@ func (i *IntelligentScheduler) Filter(ctx context.Context, state *framework.Cycl
 		nodeInfos = ns.getNodeInfo()
 	}
 	// 获得pod请求资源情况
-	vGpuPodState, err := i.GetVGpuPodState(state, string(pod.UID))
+	vGpuPodState, err := i.getVirtualGpuPodStateFromCycleState(state, string(pod.UID))
 	if err != nil {
 		klog.Errorf("Schedulling pod %s/%s, get vGPU pod state failed, error is %v", pod.Namespace, pod.Name, err)
 		return framework.NewStatus(framework.Error, err.Error())
 	}
 	var vgiNames []string
-	vgiState, err := i.GetVgiState(state, string(pod.UID))
+	vgiState, err := i.getVgiStateFromCycleState(state, string(pod.UID))
 	if err != nil {
 		klog.Warningf("Schedulling pod %s/%s, get vgi failed, error is %v, it will be get from cache", pod.Namespace, pod.Name, err)
 		vgiNames = i.cache.getVgiInfoNamesByPod(pod)
@@ -581,7 +580,7 @@ func (i *IntelligentScheduler) Filter(ctx context.Context, state *framework.Cycl
 		vgiNames = vgiState.getVgiNames()
 	}
 	// 判断node是否满足pod需求
-	available := i.nodeAvailableForPod(nodeName, nodeInfos, vGpuPodState, vgiNames)
+	available := i.isAvailableNodeForPod(nodeName, nodeInfos, vGpuPodState, vgiNames)
 	if !available {
 		klog.Infof("Schedulling pod %s/%s, node %s is not available for pod due to the GPU resources", pod.Namespace, pod.Name, nodeName)
 		return framework.NewStatus(framework.Unschedulable, "node is not available for pod due to the GPU resources")
@@ -597,7 +596,7 @@ func (i *IntelligentScheduler) Score(ctx context.Context, state *framework.Cycle
 	}
 	var vgiNames []string
 	// 获得pod拥有的vgi names
-	vgiState, err := i.GetVgiState(state, string(pod.UID))
+	vgiState, err := i.getVgiStateFromCycleState(state, string(pod.UID))
 	if err != nil {
 		vgiNames = i.cache.getVgiInfoNamesByPod(pod)
 	} else {
@@ -605,7 +604,7 @@ func (i *IntelligentScheduler) Score(ctx context.Context, state *framework.Cycle
 	}
 	// 获得node资源信息
 	var nodeInfos *NodeInfo
-	nodeState, err := i.GetNodeState(state, nodeName)
+	nodeState, err := i.getNodeStateFromCycleState(state, nodeName)
 	if err != nil {
 		nodeInfos = i.cache.getNodeInfo(nodeName)
 	} else {
@@ -627,7 +626,7 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 		return framework.NewStatus(framework.Success, "")
 	}
 	var requestGpuCount int
-	podState, err := i.GetVGpuPodState(state, string(pod.UID))
+	podState, err := i.getVirtualGpuPodStateFromCycleState(state, string(pod.UID))
 	if err != nil {
 		gpuCount, _, er := GetVirtualGPUCountAndSpec(pod)
 		if er != nil {
@@ -638,14 +637,14 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 		requestGpuCount = podState.getCount()
 	}
 	var vgiNames []string
-	vgiState, err := i.GetVgiState(state, string(pod.UID))
+	vgiState, err := i.getVgiStateFromCycleState(state, string(pod.UID))
 	if err != nil {
 		vgiNames = i.cache.getVgiInfoNamesByPod(pod)
 	} else {
 		vgiNames = vgiState.getVgiNames()
 	}
 	var nodeInfos *NodeInfo
-	nodeState, err := i.GetNodeState(state, nodeName)
+	nodeState, err := i.getNodeStateFromCycleState(state, nodeName)
 	if err != nil {
 		nodeInfos = i.cache.getNodeInfo(nodeName)
 	} else {
@@ -695,7 +694,7 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 	if err != nil {
 		return framework.NewStatus(framework.Unschedulable, err.Error())
 	}
-	i.SaveNodeState(state, nodeInfos, nodeName)
+	i.saveNodeToCycleState(state, nodeInfos, nodeName)
 	klog.Infof("Scheduled pod %s/%s on node %s successfully", pod.Namespace, pod.Name, nodeName)
 	return framework.NewStatus(framework.Success, "")
 }
@@ -709,7 +708,7 @@ func (i *IntelligentScheduler) Unreserve(ctx context.Context, state *framework.C
 		return
 	}
 	var vgiNames []string
-	vgiState, err := i.GetVgiState(state, string(pod.UID))
+	vgiState, err := i.getVgiStateFromCycleState(state, string(pod.UID))
 	if err != nil {
 		vgiNames = i.cache.getVgiInfoNamesByPod(pod)
 	} else {
@@ -785,7 +784,7 @@ func (i *IntelligentScheduler) handleAddOrUpdateCM(cm *v1.ConfigMap) error {
 	return nil
 }
 
-func (i *IntelligentScheduler) nodeAvailableForPod(nodeName string, nodeInfos *NodeInfo, vGpuPodState *VirtualGpuPodState, vgiNames []string) bool {
+func (i *IntelligentScheduler) isAvailableNodeForPod(nodeName string, nodeInfos *NodeInfo, vGpuPodState *VirtualGpuPodState, vgiNames []string) bool {
 	requestVGpuCount := vGpuPodState.getCount()
 	requestVGpuSpec := vGpuPodState.getSpec()
 	// 判断总数量是否满足
@@ -824,77 +823,4 @@ func (i *IntelligentScheduler) nodeAvailableForPod(nodeName string, nodeInfos *N
 		klog.Infof("node %s has available gpus[%d] are fewer than the requested[%d]", nodeName, availableGpuCount, requestVGpuCount)
 		return false
 	}
-}
-
-func GetVGpuPodStateKey(podUID string) framework.StateKey {
-	return framework.StateKey(fmt.Sprintf("%v/podstate", podUID))
-}
-
-func GetVGpuInstanceStateKey(podUID string) framework.StateKey {
-	return framework.StateKey(fmt.Sprintf("%v/vgistate", podUID))
-}
-
-func GetNodeStateKey(nodeName string) framework.StateKey {
-	return framework.StateKey(fmt.Sprintf("%v/nodestate", nodeName))
-}
-
-func (i *IntelligentScheduler) SaveVGpuPodState(state *framework.CycleState, VGpuCount int, VGpuSpecification string, podUID string) {
-	virtualGpuPodState := &VirtualGpuPodState{
-		VGpuCount:         VGpuCount,
-		VGpuSpecification: VGpuSpecification,
-	}
-	state.Write(GetVGpuPodStateKey(podUID), virtualGpuPodState)
-}
-
-func (i *IntelligentScheduler) SaveVgiState(state *framework.CycleState, vgiNames []string, podUID string) {
-	virtualGpuInstanceState := &VirtualGpuInstanceState{
-		vgiNames: vgiNames,
-	}
-	state.Write(GetVGpuInstanceStateKey(podUID), virtualGpuInstanceState)
-}
-
-func (i *IntelligentScheduler) SaveNodeState(state *framework.CycleState, nodeInfo *NodeInfo, nodeName string) {
-	nodeState := &NodeState{
-		nodeInfo: nodeInfo, // TODO
-	}
-	state.Write(GetNodeStateKey(nodeName), nodeState)
-}
-
-func (i *IntelligentScheduler) GetVGpuPodState(state *framework.CycleState, podUID string) (*VirtualGpuPodState, error) {
-	key := GetVGpuPodStateKey(podUID)
-	c, err := state.Read(key)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to read state for pod %s: %v", podUID, err)
-	}
-	podState, ok := c.(*VirtualGpuPodState)
-	if !ok {
-		return nil, fmt.Errorf("Failed to cast state for pod %s: %v", podUID, err)
-	}
-	return podState, nil
-}
-
-func (i *IntelligentScheduler) GetVgiState(state *framework.CycleState, podUID string) (*VirtualGpuInstanceState, error) {
-	key := GetVGpuInstanceStateKey(podUID)
-	c, err := state.Read(key)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to read virtual gpu instance states for pod %s: %v", podUID, err)
-	}
-	vgiState, ok := c.(*VirtualGpuInstanceState)
-	if !ok {
-		return nil, fmt.Errorf("Failed to cast virtual gpu instance state for pod %s: %v", podUID, err)
-	}
-	return vgiState, nil
-}
-
-func (i *IntelligentScheduler) GetNodeState(state *framework.CycleState, name string) (*NodeState, error) {
-	key := GetNodeStateKey(name)
-	c, err := state.Read(key)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to read state for node %s: %v", name, err)
-	}
-	nodeState, ok := c.(*NodeState)
-	if !ok {
-		return nil, fmt.Errorf("Failed to cast state for node %s: %v", name, c)
-	}
-	return nodeState, nil
 }
