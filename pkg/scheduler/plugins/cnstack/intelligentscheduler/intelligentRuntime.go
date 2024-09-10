@@ -207,8 +207,8 @@ func isAvailableForVgi(cache *intelligentCache, gpuState []*VirtualGpuInstanceIn
 	}
 
 	// 判断其他vgi和本次vgi的显存&算力隔离类型是否一致
-	if requestVgs.getGpuMemoryIsolation() == ortherVgs.getGpuMemoryIsolation() ||
-		requestVgs.getGpuUtilizationIsolation() == ortherVgs.getGpuUtilizationIsolation() {
+	if requestVgs.getGpuMemoryIsolation() != ortherVgs.getGpuMemoryIsolation() ||
+		requestVgs.getGpuUtilizationIsolation() != ortherVgs.getGpuUtilizationIsolation() {
 		klog.Infof("vgi %s's GpuMemoryIsolation or GpuUtilizationIsolation is not equal other vgis", vgi.getName())
 		return false, 0, 0
 	}
@@ -412,7 +412,7 @@ func patchConfigMap(client dynamic.Interface, pod *v1.Pod, data map[string]inter
 	return err
 }
 
-func buildEnvVars(vgi *VirtualGpuInstanceInfo, gpuIdx []int, totalMem int) map[string]interface{} {
+func buildEnvVars(vgi *VirtualGpuInstanceInfo, vgs *VirtualGpuSpecInfo, gpuIdx []int, totalMem int) map[string]interface{} {
 	result := make(map[string]interface{})
 	var gpuIdxStr []string
 	weight := vgi.getPercentageAllocated() / 5
@@ -435,5 +435,12 @@ func buildEnvVars(vgi *VirtualGpuInstanceInfo, gpuIdx []int, totalMem int) map[s
 		result["ALIYUN_COM_GPU_SCHD_WEIGHT"] = fmt.Sprintf("%d", weight)
 		result["GPU_UTIL_PER_DEVICE"] = fmt.Sprintf("%d", vgi.getPercentageAllocated())
 	}
+
+	if vgs.getGpuMemoryIsolation() {
+		result["AMP_VGPU_ENABLE"] = 1
+	} else {
+		result["AMP_VGPU_ENABLE"] = 0
+	}
+
 	return result
 }

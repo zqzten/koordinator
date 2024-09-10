@@ -688,8 +688,10 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 			return framework.NewStatus(framework.Unschedulable, er.Error())
 		}
 	}
+
+	vgs := i.cache.getVgsInfo(vgi.getVgsName())
 	// 在CM中注入环境变量
-	cmData := buildEnvVars(vgi, result, totalMem)
+	cmData := buildEnvVars(vgi, vgs, result, totalMem)
 	err = patchConfigMap(i.client, pod, cmData)
 	if err != nil {
 		return framework.NewStatus(framework.Unschedulable, err.Error())
