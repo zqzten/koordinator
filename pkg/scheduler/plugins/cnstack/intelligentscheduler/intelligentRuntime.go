@@ -437,9 +437,9 @@ func buildEnvVars(vgi *VirtualGpuInstanceInfo, vgs *VirtualGpuSpecInfo, gpuIdx [
 	}
 
 	if vgs.getGpuMemoryIsolation() {
-		result["AMP_VGPU_ENABLE"] = 1
+		result["AMP_VGPU_ENABLE"] = strconv.Itoa(1)
 	} else {
-		result["AMP_VGPU_ENABLE"] = 0
+		result["AMP_VGPU_ENABLE"] = strconv.Itoa(0)
 	}
 
 	return result
