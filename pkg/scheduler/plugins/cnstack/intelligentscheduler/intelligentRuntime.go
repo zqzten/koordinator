@@ -15,6 +15,29 @@ import (
 	"strings"
 )
 
+const (
+	// NVIDIA_VISIBLE_DEVICES 挂载到容器内的GPU设备编号，可以是0,1,2的编号，也可以是GPU的设备号
+	NVIDIA_VISIBLE_DEVICES = "NVIDIA_VISIBLE_DEVICES"
+
+	// 容器申请的GPU的显存数量
+	ALIYUN_COM_GPU_MEM_CONTAINER = "ALIYUN_COM_GPU_MEM_CONTAINER"
+	// GPU总的显存可用数
+	ALIYUN_COM_GPU_MEM_DEV = "ALIYUN_COM_GPU_MEM_DEV"
+	// 容器内部GPU显存单位，一般为GB
+	ALIYUN_COM_GPU_MEM_UNIT = "ALIYUN_COM_GPU_MEM_UNIT"
+	// 在分配容器显存时出错使用，值为-1
+	ALIYUN_COM_DEV_TOTAL_GPU_MEM = "ALIYUN_COM_DEV_TOTAL_GPU_MEM" //
+	// 表示容器占用GPU时间片的权重，以5为步长，比如算力占用20%，这里需要设置为4
+	ALIYUN_COM_GPU_SCHD_WEIGHT = "ALIYUN_COM_GPU_SCHD_WEIGHT"
+	// 与WEIGHT这个参数配合，算力占用20%，这里就填写20
+	GPU_UTIL_PER_DEVICE = "GPU_UTIL_PER_DEVICE"
+
+	// AMP_VGPU_ENABLE AMP eGPU使能开关，AMP_VGPU_ENABLE=0时，AMP eGPU不起作用，将以 默认的方式启动容器
+	AMP_VGPU_ENABLE = "AMP_VGPU_ENABLE"
+	// AMP_VGPU_DEV_COUNT 申请的GPU数量
+	AMP_VGPU_DEV_COUNT = "AMP_VGPU_DEV_COUNT"
+)
+
 type IntelligentSchedulerRuntime struct {
 	name                   string
 	nodeScorePolicy        string
@@ -161,7 +184,7 @@ func GetVirtualGPUCountAndSpec(pod *v1.Pod) (int, string, error) {
 func getNodeGPUCount(node *v1.Node) int {
 	val, ok := node.Labels[PhysicalGpuCountNodeLabel]
 	if !ok {
-		return int(0)
+		return 0
 	}
 	count, err := strconv.Atoi(val)
 	if err != nil {
@@ -414,26 +437,26 @@ func patchConfigMap(client dynamic.Interface, pod *v1.Pod, data map[string]inter
 
 func buildEnvVars(vgi *VirtualGpuInstanceInfo, vgs *VirtualGpuSpecInfo, gpuIdx []int, totalMem int) map[string]interface{} {
 	result := make(map[string]interface{})
-	result["ALIYUN_COM_GPU_MEM_DEV"] = strconv.Itoa(totalMem)
-	result["ALIYUN_COM_GPU_MEM_CONTAINER"] = strconv.Itoa(vgi.getMemAllocated())
-	result["ALIYUN_COM_GPU_MEM_UNIT"] = "GB"
-	result["GPU_UTIL_PER_DEVICE"] = strconv.Itoa(vgi.getPercentageAllocated())
+	result[ALIYUN_COM_GPU_MEM_DEV] = strconv.Itoa(totalMem)
+	result[ALIYUN_COM_GPU_MEM_CONTAINER] = strconv.Itoa(vgi.getMemAllocated())
+	result[ALIYUN_COM_GPU_MEM_UNIT] = "GB"
+	result[GPU_UTIL_PER_DEVICE] = strconv.Itoa(vgi.getPercentageAllocated())
 
 	var gpuIdxStr []string
 	for _, idx := range gpuIdx {
 		gpuIdxStr = append(gpuIdxStr, strconv.Itoa(idx))
 	}
-	// result["AMP_VGPU_DEV_COUNT"] = strings.Join(gpuIdxStr, ",")
-	result["AMP_VGPU_DEV_COUNT"] = strconv.Itoa(len(gpuIdx))
-	result["NVIDIA_VISIBLE_DEVICES"] = strings.Join(gpuIdxStr, ",")
+
+	result[AMP_VGPU_DEV_COUNT] = strconv.Itoa(len(gpuIdx))
+	result[NVIDIA_VISIBLE_DEVICES] = strings.Join(gpuIdxStr, ",")
 
 	weight := vgi.getPercentageAllocated() / 5
-	result["ALIYUN_COM_GPU_SCHD_WEIGHT"] = strconv.Itoa(weight)
+	result[ALIYUN_COM_GPU_SCHD_WEIGHT] = strconv.Itoa(weight)
 
 	if vgs.getGpuMemoryIsolation() {
-		result["AMP_VGPU_ENABLE"] = strconv.Itoa(1)
+		result[AMP_VGPU_ENABLE] = strconv.Itoa(1)
 	} else {
-		result["AMP_VGPU_ENABLE"] = strconv.Itoa(0)
+		result[AMP_VGPU_ENABLE] = strconv.Itoa(0)
 	}
 
 	return result
