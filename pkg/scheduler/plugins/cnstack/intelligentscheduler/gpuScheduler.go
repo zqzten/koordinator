@@ -622,6 +622,7 @@ func (i *IntelligentScheduler) ScoreExtensions() framework.ScoreExtensions {
 }
 
 func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) *framework.Status {
+	klog.Infof("Start reserve pod %s/%s to node %s", pod.Namespace, pod.Name, nodeName)
 	needToHandle := IsMyPod(pod, i.resourceNames...)
 	if !needToHandle {
 		return framework.NewStatus(framework.Success, "")

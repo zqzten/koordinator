@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/intelligentscheduler/CRDs"
+	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
@@ -311,7 +314,7 @@ func patchVgi(client dynamic.Interface, vgiName string, nodeName string, gpuIdx 
 	if err != nil {
 		return err
 	}
-	_, err = client.Resource(vgiGvr).Namespace(NameSpace).Patch(
+	utd, err := client.Resource(vgiGvr).Namespace(NameSpace).Patch(
 		context.Background(),
 		vgiName,
 		types.MergePatchType,
@@ -319,7 +322,30 @@ func patchVgi(client dynamic.Interface, vgiName string, nodeName string, gpuIdx 
 		metav1.PatchOptions{},
 		"status",
 	)
+	newVgi, err := unstructuredToVgi(utd)
+	if err != nil {
+		klog.Errorf("failed to convert Vgi %s: %v", vgiName, err)
+		return err
+	}
+
+	klog.Infof("patch vgi %s success, new phase is %s", vgiName, newVgi.Status.Phase)
+
 	return err
+}
+
+func unstructuredToVgi(utd *unstructured.Unstructured) (*CRDs.VirtualGpuInstance, error) {
+	result, err := utd.MarshalJSON()
+	if err != nil {
+		klog.Errorln(err)
+		return nil, err
+	}
+
+	var newVgi CRDs.VirtualGpuInstance
+	if err := json.Unmarshal(result, &newVgi); err != nil {
+		logrus.Error(err)
+		return nil, err
+	}
+	return &newVgi, nil
 }
 
 func combine(nums []int, m int) [][]int {
