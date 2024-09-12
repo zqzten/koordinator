@@ -48,6 +48,8 @@ const (
 	NameSpace            = "intelligent-computing"
 )
 
+var once sync.Once
+
 type IntelligentScheduler struct {
 	resourceNames []v1.ResourceName
 	engine        *IntelligentSchedulerRuntime
@@ -138,7 +140,6 @@ func (i *IntelligentScheduler) Init() error {
 		Resource: VgiResourceName,
 	}
 	// informer
-	var once sync.Once
 	once.Do(func() {
 		stop := make(chan struct{})
 		nodes, err := i.handle.SharedInformerFactory().Core().V1().Nodes().Lister().List(labels.Everything())
