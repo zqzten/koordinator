@@ -3,6 +3,7 @@ version: "2.0"
 stages:
   - image-build
   - multi-arch-merge
+  - sync-to-acr
 
 jobs:
   x86_64镜像构建:
@@ -10,13 +11,13 @@ jobs:
     id: image-build
     component: docker-image-build
     inputs:
-      imageName: ant-cnstack-registry.cn-hangzhou.cr.aliyuncs.com/antcnstack/intelligent-computing-scheduler
-      imageTag: dev-last # 构建产物镜像 tag
+      imageName: reg.docker.alibaba-inc.com/antcnstack/koord-scheduler
+      imageTag: ${{vcs.ref}}-${{vcs.commitShortSha}} # 构建产物镜像 tag
       dockerfile: ./cnstack-docker/Dockerfile # dockerfile 路径，不传默认为 ./Dockerfile (即: ${ACB_BUILD_DIR}/code-repo/Dockerfile)
       contextDir: ./ # docker build 的 context 目录，不传默认为 ./ (即: ${ACB_BUILD_DIR}/code-repo 目录)
       buildArgs: TARGETARCH=amd64 # docker build 的 args 参数，格式为 key1=value1,key2=value2，注意key/value的格式，不能有空格等特殊字符
-      registryUsername: ${{secrets.username}} # 镜像 registry 用户名，建议使用 aci secrets 方式传递，避免泄露 (reg.docker.alibaba-inc.com、acs-reg.alipay.com 不传时默认使用平台公共账号 admin.for.antb)
-      registryPassword:  ${{secrets.password}} # 镜像 registry 密码，建议使用 aci secrets 方式传递，避免泄露 (不传使用平台公共账号)
+      registryUsername: null # 镜像 registry 用户名，建议使用 aci secrets 方式传递，避免泄露 (reg.docker.alibaba-inc.com、acs-reg.alipay.com 不传时默认使用平台公共账号 admin.for.antb)
+      registryPassword: null # 镜像 registry 密码，建议使用 aci secrets 方式传递，避免泄露 (不传使用平台公共账号)
       skipWhenImageExists: null # true | false, 如果镜像已存在，是否跳过镜像构建，默认 false
       errWhenImageExists: false # true | false, 如果镜像已存在，是否直接失败，默认 true
       beforeScript: null # 前置脚本，按需传递 (在 ${ACB_BUILD_DIR}/code-repo 下执行)
@@ -37,10 +38,10 @@ jobs:
       dockerfile: ./cnstack-docker/Dockerfile # dockerfile 路径，不传默认为 ./Dockerfile (即: ${ACB_BUILD_DIR}/code-repo/Dockerfile)
       contextDir: ./ # docker build 的 context 目录，不传默认为 ./ (即: ${ACB_BUILD_DIR}/code-repo 目录)
       buildArgs: TARGETARCH=arm64 # docker build 的 args 参数，格式为 key1=value1,key2=value2，注意key/value的格式，不能有空格等特殊字符
-      registryUsername: null  # 镜像 registry 用户名，建议使用 aci secrets 方式传递，避免泄露 (reg.docker.alibaba-inc.com、acs-reg.alipay.com 不传时默认使用平台公共账号 admin.for.antb)
+      registryUsername: null # 镜像 registry 用户名，建议使用 aci secrets 方式传递，避免泄露 (reg.docker.alibaba-inc.com、acs-reg.alipay.com 不传时默认使用平台公共账号 admin.for.antb)
       registryPassword: null # 镜像 registry 密码，建议使用 aci secrets 方式传递，避免泄露 (不传使用平台公共账号)
       skipWhenImageExists: null # true | false, 如果镜像已存在，是否跳过镜像构建，默认 false
-      errWhenImageExists: null # true | false, 如果镜像已存在，是否直接失败，默认 true
+      errWhenImageExists: false # true | false, 如果镜像已存在，是否直接失败，默认 true
       beforeScript: null # 前置脚本，按需传递 (在 ${ACB_BUILD_DIR}/code-repo 下执行)
       beforeScriptImage: null  # 指定前置脚本运行环境镜像，beforeScript 不为空时需要传值(不传使用默认基础alios镜像)
       afterScript: null # 后置脚本，按需传递 (在 ${ACB_BUILD_DIR}/code-repo 下执行)
@@ -60,3 +61,21 @@ jobs:
       srcImage: ${{jobs.image-build.outputs.image}}
       srcArm64Image: ${{jobs.image-build-aarch64.outputs.image}}
 
+  同步到ACR:
+    stage: sync-to-acr
+    id: sync-to-acr
+    component: image-sync@master
+    inputs:
+      sourceImage: ${{jobs.image-build.outputs.image}} # 源镜像名
+      sourceRegistryUsername: ${{secrets.username}} # 源镜像仓库用户名
+      sourceRegistryPassword: ${{secrets.password}} # 源镜像仓库用户密码
+      sourceRegistryInsecure: null # 源镜像仓库不做 tls 安全校验时传 true，默认 false
+      targetImage: ant-cnstack-registry.cn-hangzhou.cr.aliyuncs.com/antcnstack/intelligent-computing-scheduler:dev-last # 目标镜像名
+      targetRegistryUsername: ${{secrets.username_acr}} # 目标镜像仓库用户名
+      targetRegistryPassword: ${{secrets.password_acr}} # 目标像仓库用户密码
+      targetRegistryInsecure: null # 目标镜像仓库不做 tls 安全校验时传 true，默认 false
+      environmentLabel: null # 指定环境, 可通过aci参数指定 ${{parameters.environmentLabel}}. 更建议通过 aci 的 secret 来传递，避免label被其他项目误用
+      skipWhenImageExists: false # 如目标镜像仓库已经存在时，是否跳过，默认 false
+      errWhenImageExists: false # 如目标镜像仓库已经存在时，是否报错，默认 true
+      retryTimes: null # 重试次数，默认不重试一般不建议传参，避免无意义的浪费带宽
+      skip: false # 直接跳过(不做任何处理)
