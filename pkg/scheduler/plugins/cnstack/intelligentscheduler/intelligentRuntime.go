@@ -419,22 +419,13 @@ func buildEnvVars(vgi *VirtualGpuInstanceInfo, vgs *VirtualGpuSpecInfo, gpuIdx [
 	for _, idx := range gpuIdx {
 		gpuIdxStr = append(gpuIdxStr, strconv.Itoa(idx))
 	}
-	if vgi.getIsOversell() {
-		result["AMP_VGPU_DEV_COUNT"] = strings.Join(gpuIdxStr, ",")
-		result["NVIDIA_VISIBLE_DEVICES"] = strings.Join(gpuIdxStr, ",")
-		result["ALIYUN_COM_GPU_MEM_DEV"] = fmt.Sprintf("%d", totalMem)
-		result["ALIYUN_COM_GPU_MEM_CONTAINER"] = fmt.Sprintf("%d", vgi.getMemAllocated())
-		result["ALIYUN_COM_GPU_MEM_UNIT"] = "GB"
-		result["ALIYUN_COM_GPU_SCHD_WEIGHT"] = fmt.Sprintf("%d", weight)
-		result["GPU_UTIL_PER_DEVICE"] = fmt.Sprintf("%d", vgi.getPercentageAllocated())
-	} else {
-		result["NVIDIA_VISIBLE_DEVICES"] = strings.Join(gpuIdxStr, ",")
-		result["ALIYUN_COM_GPU_MEM_DEV"] = fmt.Sprintf("%d", totalMem)
-		result["ALIYUN_COM_GPU_MEM_CONTAINER"] = fmt.Sprintf("%d", vgi.getMemAllocated())
-		result["ALIYUN_COM_GPU_MEM_UNIT"] = "GB"
-		result["ALIYUN_COM_GPU_SCHD_WEIGHT"] = fmt.Sprintf("%d", weight)
-		result["GPU_UTIL_PER_DEVICE"] = fmt.Sprintf("%d", vgi.getPercentageAllocated())
-	}
+	result["AMP_VGPU_DEV_COUNT"] = strings.Join(gpuIdxStr, ",")
+	result["NVIDIA_VISIBLE_DEVICES"] = strings.Join(gpuIdxStr, ",")
+	result["ALIYUN_COM_GPU_MEM_DEV"] = strconv.Itoa(totalMem)
+	result["ALIYUN_COM_GPU_MEM_CONTAINER"] = strconv.Itoa(vgi.getMemAllocated())
+	result["ALIYUN_COM_GPU_MEM_UNIT"] = "GB"
+	result["ALIYUN_COM_GPU_SCHD_WEIGHT"] = strconv.Itoa(weight)
+	result["GPU_UTIL_PER_DEVICE"] = strconv.Itoa(vgi.getPercentageAllocated())
 
 	if vgs.getGpuMemoryIsolation() {
 		result["AMP_VGPU_ENABLE"] = strconv.Itoa(1)
