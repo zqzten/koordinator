@@ -414,18 +414,21 @@ func patchConfigMap(client dynamic.Interface, pod *v1.Pod, data map[string]inter
 
 func buildEnvVars(vgi *VirtualGpuInstanceInfo, vgs *VirtualGpuSpecInfo, gpuIdx []int, totalMem int) map[string]interface{} {
 	result := make(map[string]interface{})
-	var gpuIdxStr []string
-	weight := vgi.getPercentageAllocated() / 5
-	for _, idx := range gpuIdx {
-		gpuIdxStr = append(gpuIdxStr, strconv.Itoa(idx))
-	}
-	result["AMP_VGPU_DEV_COUNT"] = strings.Join(gpuIdxStr, ",")
-	result["NVIDIA_VISIBLE_DEVICES"] = strings.Join(gpuIdxStr, ",")
 	result["ALIYUN_COM_GPU_MEM_DEV"] = strconv.Itoa(totalMem)
 	result["ALIYUN_COM_GPU_MEM_CONTAINER"] = strconv.Itoa(vgi.getMemAllocated())
 	result["ALIYUN_COM_GPU_MEM_UNIT"] = "GB"
-	result["ALIYUN_COM_GPU_SCHD_WEIGHT"] = strconv.Itoa(weight)
 	result["GPU_UTIL_PER_DEVICE"] = strconv.Itoa(vgi.getPercentageAllocated())
+
+	var gpuIdxStr []string
+	for _, idx := range gpuIdx {
+		gpuIdxStr = append(gpuIdxStr, strconv.Itoa(idx))
+	}
+	// result["AMP_VGPU_DEV_COUNT"] = strings.Join(gpuIdxStr, ",")
+	result["AMP_VGPU_DEV_COUNT"] = strconv.Itoa(len(gpuIdx))
+	result["NVIDIA_VISIBLE_DEVICES"] = strings.Join(gpuIdxStr, ",")
+
+	weight := vgi.getPercentageAllocated() / 5
+	result["ALIYUN_COM_GPU_SCHD_WEIGHT"] = strconv.Itoa(weight)
 
 	if vgs.getGpuMemoryIsolation() {
 		result["AMP_VGPU_ENABLE"] = strconv.Itoa(1)
