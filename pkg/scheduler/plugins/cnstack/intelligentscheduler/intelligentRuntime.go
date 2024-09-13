@@ -306,6 +306,7 @@ func addPod(cache *intelligentCache, vgiNames []string, pod *v1.Pod, nodeName st
 }
 
 func patchVgi(client dynamic.Interface, vgiName string, nodeName string, gpuIdx int, phase string, physicalGpuSpec string, pod *v1.Pod) error {
+	klog.Infof("Start to patch vgi %s", vgiName)
 	podName := pod.Name
 	podNamespace := pod.Namespace
 	vgiGvr := schema.GroupVersionResource{

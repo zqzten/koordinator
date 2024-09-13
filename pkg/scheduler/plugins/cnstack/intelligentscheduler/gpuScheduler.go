@@ -637,6 +637,7 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 	} else {
 		requestGpuCount = podState.getCount()
 	}
+
 	var vgiNames []string
 	vgiState, err := i.getVgiStateFromCycleState(state, string(pod.UID))
 	if err != nil {
@@ -644,6 +645,7 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 	} else {
 		vgiNames = vgiState.getVgiNames()
 	}
+
 	var nodeInfos *NodeInfo
 	nodeState, err := i.getNodeStateFromCycleState(state, nodeName)
 	if err != nil {
@@ -651,12 +653,14 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 	} else {
 		nodeInfos = nodeState.getNodeInfo()
 	}
+
 	var oversellRate int
 	if nodeInfos.getIsOversell() {
 		oversellRate = nodeInfos.getOversellRate()
 	} else {
 		oversellRate = 1
 	}
+
 	vgi := i.cache.getVgiInfo(vgiNames[0])
 	// 获得node上的GPU占用情况
 	nodeGpuState, totalMem := getNodeGpuState(nodeName, nodeInfos, i.cache)
@@ -668,18 +672,21 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 			availableGpuIndexSet = append(availableGpuIndexSet, idx)
 		}
 	}
+
 	// 从所有的符合要求的GPU idx中获得数量为申请数量的所有组合的集合
 	availableGpuCombines := combine(availableGpuIndexSet, requestGpuCount)
 	if len(availableGpuCombines) <= 0 {
 		klog.Infof("Reserving pod %s/%s, node %s does not have enough available GPU resources", pod.Namespace, pod.Name, nodeName)
 		return framework.NewStatus(framework.Unschedulable, "node does not have enough available GPU resources")
 	}
+
 	// 通过计算每个组合的分数，选出分数最高的组合
 	result := i.engine.findBestGpuCombination(i.cache, availableGpuCombines, vgi, nodeGpuState, totalMem, oversellRate)
 	if result == nil || len(result) != len(vgiNames) {
 		klog.Infof("Couldn't find proper gpus from node %s for pod %s/%s]", nodeName, pod.Namespace, pod.Name)
 		return framework.NewStatus(framework.Unschedulable, "couldn't find proper gpus from node")
 	}
+
 	// 更新vgi状态信息
 	for idx, vgiName := range vgiNames {
 		gpuIdx := result[idx]
@@ -697,6 +704,7 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 	if err != nil {
 		return framework.NewStatus(framework.Unschedulable, err.Error())
 	}
+
 	i.saveNodeToCycleState(state, nodeInfos, nodeName)
 	klog.Infof("Scheduled pod %s/%s on node %s successfully", pod.Namespace, pod.Name, nodeName)
 	return framework.NewStatus(framework.Success, "")
