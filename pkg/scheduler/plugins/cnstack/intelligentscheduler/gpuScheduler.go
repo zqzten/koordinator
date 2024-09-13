@@ -147,9 +147,11 @@ func (i *IntelligentScheduler) Init() error {
 			klog.Errorf("Failed to list nodes, err: %v", err)
 			return
 		}
+		klog.Infoln("Succeed to list nodes")
 		for _, node := range nodes {
-			handleAddOrUpdateNode(node, i.cache, i.oversellRate)
+			handleNodeAddEvent(i.cache, node, i.oversellRate)
 		}
+		klog.Infoln("Success init nodeInfos to intelligent cache ")
 
 		cmInformer := i.handle.SharedInformerFactory().Core().V1().ConfigMaps().Informer()
 		cmInformer.AddEventHandler(cache.FilteringResourceEventHandler{
@@ -215,8 +217,7 @@ func (i *IntelligentScheduler) Init() error {
 						klog.Errorf("Failed to convert %v to *v1.Node", reflect.TypeOf(obj))
 						return
 					}
-					handleAddOrUpdateNode(node, i.cache, i.oversellRate)
-					//klog.Infof("succeed to add intelligent node %v to the cache", node.Name)
+					handleNodeAddEvent(i.cache, node, i.oversellRate)
 				},
 				UpdateFunc: func(old, new interface{}) {
 					oldNode, ok := old.(*v1.Node)
@@ -229,8 +230,7 @@ func (i *IntelligentScheduler) Init() error {
 						klog.Errorf("Failed to convert %v to *v1.Node", reflect.TypeOf(new))
 						return
 					}
-					updateNode(i.cache, oldNode, newNode, i.oversellRate)
-					//klog.Infof("succeed to update intelligent node %v to the cache", newNode.Name)
+					handleNodeUpdateEvent(i.cache, oldNode, newNode, i.oversellRate)
 				},
 				DeleteFunc: func(obj interface{}) {
 					node, ok := obj.(*v1.Node)
@@ -238,8 +238,7 @@ func (i *IntelligentScheduler) Init() error {
 						klog.Errorf("Failed to convert %v to *v1.Node", reflect.TypeOf(obj))
 						return
 					}
-					deleteNode(i.cache, node)
-					//klog.Infof("succeed to delete intelligent node %v from the cache", node.Name)
+					handleNodeDeleteEvent(i.cache, node)
 				},
 			},
 		})

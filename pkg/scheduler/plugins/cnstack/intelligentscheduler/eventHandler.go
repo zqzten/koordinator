@@ -29,31 +29,48 @@ func handleAddOrUpdateVgi(cr unstructured.Unstructured, ic *intelligentCache) {
 	ic.addOrUpdateVgiInfo(&vgi)
 }
 
-func handleAddOrUpdateNode(node *corev1.Node, ic *intelligentCache, oversellRate int) {
-	// check node is a device sharing node
-	if !isIntelligentNode(node) {
-		klog.V(6).Infof("node %v is not intelligent scheduled node,skip to handle it", node.Name)
-		return
-	}
-	devices := getNodeGPUCount(node)
-	if devices == 0 {
-		return
-	}
-	ic.addOrUpdateNode(node, oversellRate)
-}
-
-func updateNode(ic *intelligentCache, oldNode *corev1.Node, newNode *corev1.Node, oversellRate int) {
-	if isIntelligentNode(newNode) {
-		handleAddOrUpdateNode(newNode, ic, oversellRate)
-	} else {
-		if isIntelligentNode(oldNode) {
-			ic.deleteNode(oldNode)
+func updateNodeInfoToIntelligentCache(node *corev1.Node, ic *intelligentCache, oversellRate int) {
+	ic.lock.Lock()
+	defer ic.lock.Unlock()
+	nodeInfo, ok := ic.intelligentNodes[node.Name]
+	if !ok {
+		nodeInfo, err := NewNodeInfo(node, oversellRate)
+		if err != nil {
+			klog.Errorf("Failed to create new nodeInfo for node %s, err: %v", node.Name, err)
 		}
+		ic.intelligentNodes[node.Name] = nodeInfo
+		klog.Infof("Added new nodeInfo for node %s", node.Name)
+	} else {
+		nodeInfo.Reset(node, oversellRate)
+		klog.Infof("Updated nodeInfo for node %s", node.Name)
+	}
+
+}
+
+func handleNodeAddEvent(ic *intelligentCache, newNode *corev1.Node, oversellRate int) {
+	result, reason := isIntelligentNode(newNode)
+	if result {
+		updateNodeInfoToIntelligentCache(newNode, ic, oversellRate)
+		klog.Infof("Succeed add intelligent nodeInfo [%s] to intelligentCache", newNode.Name)
+	} else {
+		klog.Infof("Node [%s] is not intelligent schedule node, it will be skipped, reason: %s", newNode.Name, reason)
 	}
 }
 
-func deleteNode(ic *intelligentCache, node *corev1.Node) {
+func handleNodeUpdateEvent(ic *intelligentCache, oldNode *corev1.Node, newNode *corev1.Node, oversellRate int) {
+	result, reason := isIntelligentNode(newNode)
+	if result {
+		updateNodeInfoToIntelligentCache(newNode, ic, oversellRate)
+		klog.Infof("Succeed update intelligent nodeInfo [%s] to intelligentCache", newNode.Name)
+	} else {
+		ic.deleteNode(oldNode)
+		klog.Infof("Node [%s] is updated to non-intelligent schedule node, it already be deleted from intelligentCache, reason: %s", oldNode.Name, reason)
+	}
+}
+
+func handleNodeDeleteEvent(ic *intelligentCache, node *corev1.Node) {
 	ic.deleteNode(node)
+	klog.Infof("Succeed delete nodeInfo [%s] from intelligentCache", node.Name)
 }
 
 func handleAddPod(client dynamic.Interface, pod *corev1.Pod) {

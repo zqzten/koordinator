@@ -41,6 +41,10 @@ const (
 	AMP_VGPU_DEV_COUNT = "AMP_VGPU_DEV_COUNT"
 )
 
+const (
+	LABEL_NVIDIA_NAME = "aliyun.accelerator/nvidia_name"
+)
+
 type IntelligentSchedulerRuntime struct {
 	name                   string
 	nodeScorePolicy        string
@@ -160,16 +164,26 @@ func validateGPUSchedulerArgs(args IntelligentSchedulerArgs) error {
 	return nil
 }
 
-func isIntelligentNode(node *v1.Node) bool {
+func isIntelligentNode(node *v1.Node) (bool, string) {
+	var msg string
 	if node.Labels[SchedulerNodeLabel] != "intelligent" {
-		return false
+		msg = fmt.Sprintf("Node [%s] label [%s] value is not 'intelligent'", node.Name, SchedulerNodeLabel)
+		return false, msg
 	}
 	// 因为目前eGPU只支持nvidia卡，所有非n卡pod不会被intelligent scheduler调度。增加了判断该节点GPU是否为n卡的逻辑，否则不会被intelligent scheduler考虑
-	_, ok := node.Labels["aliyun.accelerator/nvidia_name"]
+	_, ok := node.Labels[LABEL_NVIDIA_NAME]
 	if !ok {
-		return false
+		msg = fmt.Sprintf("Node [%s] has no label [%s] ", node.Name, LABEL_NVIDIA_NAME)
+		return false, msg
 	}
-	return true
+	// 判断devices
+	devices := getNodeGPUCount(node)
+	if devices == 0 {
+		msg = fmt.Sprintf("Node [%s] has no GPU devices", node.Name)
+		return false, msg
+	}
+
+	return true, msg
 }
 
 func GetVirtualGPUCountAndSpec(pod *v1.Pod) (int, string, error) {

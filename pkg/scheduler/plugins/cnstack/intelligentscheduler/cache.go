@@ -23,24 +23,6 @@ func newIntelligentCache() *intelligentCache {
 	}
 }
 
-func (c *intelligentCache) addOrUpdateNode(node *corev1.Node, oversellRate int) {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	nodeInfo, ok := c.intelligentNodes[node.Name]
-	if !ok {
-		nodeInfo, err := NewNodeInfo(node, oversellRate)
-		if err != nil {
-			klog.Errorf("Failed to create new nodeInfo for node %s, err: %v", node.Name, err)
-		}
-		c.intelligentNodes[node.Name] = nodeInfo
-		klog.Infof("Added new nodeInfo for node %s", node.Name)
-	} else {
-		nodeInfo.Reset(node, oversellRate)
-		klog.Infof("Updated nodeInfo for node %s", node.Name)
-	}
-
-}
-
 func (c *intelligentCache) addOrUpdateVgsInfo(vgs *CRDs.VirtualGpuSpecification) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
