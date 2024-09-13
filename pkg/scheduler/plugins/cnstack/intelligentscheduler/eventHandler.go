@@ -34,15 +34,15 @@ func updateNodeInfoToIntelligentCache(node *corev1.Node, ic *intelligentCache, o
 	defer ic.lock.Unlock()
 	nodeInfo, ok := ic.intelligentNodes[node.Name]
 	if !ok {
+		klog.Infof("NodeInfo for node %s is not exist in intelligentCache, creating", node.Name)
 		nodeInfo, err := NewNodeInfo(node, oversellRate)
 		if err != nil {
 			klog.Errorf("Failed to create new nodeInfo for node %s, err: %v", node.Name, err)
 		}
 		ic.intelligentNodes[node.Name] = nodeInfo
-		klog.Infof("Added new nodeInfo for node %s", node.Name)
 	} else {
 		nodeInfo.Reset(node, oversellRate)
-		klog.Infof("Updated nodeInfo for node %s", node.Name)
+
 	}
 
 }

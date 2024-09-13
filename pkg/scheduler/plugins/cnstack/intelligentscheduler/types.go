@@ -92,25 +92,26 @@ func (info *NodeInfo) toString() string {
 func (info *NodeInfo) Reset(node *corev1.Node, _rate int) {
 	info.lock.Lock()
 	defer info.lock.Unlock()
+
+	// 当前node的isOversell一直为true，后续调整为根据具体的oversellRate值判断是否超卖
+	info.isOversell = true
+
+	// 当node的oversellRate有值时，nodeInfo使用node的值，否则nodeInfo使用scheduler的值
 	rateVal, ok := node.Labels[OversellRateNodeLabel]
-	var isOversell bool
-	var oversellRate int
 	if !ok {
-		//isOversell = false
-		isOversell = true
-		oversellRate = _rate
+		info.oversellRate = _rate
 	} else {
-		isOversell = true
 		rate, err := strconv.Atoi(rateVal)
 		if err != nil {
-			klog.Errorf("Failed to parse oversell rate %v, err: %v", rate, err)
+			klog.Errorf("Failed to parse oversellRate %v, err: %v", rate, err)
 			return
 		}
-		oversellRate = rate
+		info.oversellRate = rate
 	}
+
 	gpuCount, ok := node.Labels[PhysicalGpuCountNodeLabel]
 	if !ok {
-		klog.Errorf("gpu count not found in node %v", node.Name)
+		klog.Errorf("gpu count not found in node %s", node.Name)
 		return
 	}
 	count, err := strconv.Atoi(gpuCount)
@@ -118,14 +119,18 @@ func (info *NodeInfo) Reset(node *corev1.Node, _rate int) {
 		klog.Errorf("Failed to parse gpu count %v, err: %v", gpuCount, err)
 		return
 	}
+	info.gpuCount = count
+
 	gpuType, ok := node.Labels[PhysicalGpuTypeNodeLabel]
 	if !ok {
-		klog.Errorf("physical gpu type not found in node %v", node.Name)
+		klog.Errorf("physical gpu type not found in node %s", node.Name)
 		return
 	}
+	info.gpuType = gpuType
+
 	memVal, ok := node.Labels[PhysicalGpuMemNodeLabel]
 	if !ok {
-		klog.Errorf("physical gpu mem not found in node %v", node.Name)
+		klog.Errorf("physical gpu mem not found in node %s", node.Name)
 		return
 	}
 	mem, err := strconv.Atoi(memVal[:len(memVal)-3])
@@ -133,12 +138,7 @@ func (info *NodeInfo) Reset(node *corev1.Node, _rate int) {
 		klog.Errorf("Failed to parse physical gpu mem %v, err: %v", memVal, err)
 		return
 	}
-	memGiB := int(float64(mem) / float64(1024))
-	info.isOversell = isOversell
-	info.oversellRate = oversellRate
-	info.gpuCount = count
-	info.gpuType = gpuType
-	info.gpuMem = memGiB
+	info.gpuMem = int(float64(mem) / float64(1024))
 }
 
 func (info *NodeInfo) Clone() *NodeInfo {
