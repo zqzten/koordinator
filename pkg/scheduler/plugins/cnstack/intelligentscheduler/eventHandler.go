@@ -40,37 +40,32 @@ func updateNodeInfoToIntelligentCache(node *corev1.Node, ic *intelligentCache, o
 			klog.Errorf("Failed to create new nodeInfo for node %s, err: %v", node.Name, err)
 		}
 		ic.intelligentNodes[node.Name] = nodeInfo
+		klog.Infof("Succeed add intelligent nodeInfo [%s] to intelligentCache", node.Name)
 	} else {
 		nodeInfo.Reset(node, oversellRate)
-
 	}
-
 }
 
 func handleNodeAddEvent(ic *intelligentCache, newNode *corev1.Node, oversellRate int) {
 	result, reason := isIntelligentNode(newNode)
 	if result {
 		updateNodeInfoToIntelligentCache(newNode, ic, oversellRate)
-		klog.Infof("Succeed add intelligent nodeInfo [%s] to intelligentCache", newNode.Name)
 	} else {
 		klog.Infof("Node [%s] is not intelligent schedule node, it will be skipped, reason: %s", newNode.Name, reason)
 	}
 }
 
 func handleNodeUpdateEvent(ic *intelligentCache, oldNode *corev1.Node, newNode *corev1.Node, oversellRate int) {
-	result, reason := isIntelligentNode(newNode)
+	result, _ := isIntelligentNode(newNode)
 	if result {
 		updateNodeInfoToIntelligentCache(newNode, ic, oversellRate)
-		klog.Infof("Succeed update intelligent nodeInfo [%s] to intelligentCache", newNode.Name)
 	} else {
 		ic.deleteNode(oldNode)
-		klog.Infof("Node [%s] is updated to non-intelligent schedule node, it already be deleted from intelligentCache, reason: %s", oldNode.Name, reason)
 	}
 }
 
 func handleNodeDeleteEvent(ic *intelligentCache, node *corev1.Node) {
 	ic.deleteNode(node)
-	klog.Infof("Succeed delete nodeInfo [%s] from intelligentCache", node.Name)
 }
 
 func handleAddPod(client dynamic.Interface, pod *corev1.Pod) {

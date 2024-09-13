@@ -59,7 +59,7 @@ func (c *intelligentCache) deleteNode(node *corev1.Node) {
 		return
 	}
 	delete(c.intelligentNodes, node.Name)
-	klog.Infof("Deleted node %s", node.Name)
+	klog.Infof("Succeed delete nodeInfo [%s] from intelligentCache", node.Name)
 }
 
 func (c *intelligentCache) deleteVgsInfo(vgs *CRDs.VirtualGpuSpecification) {

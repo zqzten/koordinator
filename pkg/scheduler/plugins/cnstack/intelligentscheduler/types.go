@@ -94,19 +94,20 @@ func (info *NodeInfo) Reset(node *corev1.Node, _rate int) {
 	defer info.lock.Unlock()
 
 	// 当前node的isOversell一直为true，后续调整为根据具体的oversellRate值判断是否超卖
-	info.isOversell = true
+	newIsOversell := true
 
+	var newOversellRate int
 	// 当node的oversellRate有值时，nodeInfo使用node的值，否则nodeInfo使用scheduler的值
 	rateVal, ok := node.Labels[OversellRateNodeLabel]
 	if !ok {
-		info.oversellRate = _rate
+		newOversellRate = _rate
 	} else {
 		rate, err := strconv.Atoi(rateVal)
 		if err != nil {
 			klog.Errorf("Failed to parse oversellRate %v, err: %v", rate, err)
 			return
 		}
-		info.oversellRate = rate
+		newOversellRate = rate
 	}
 
 	gpuCount, ok := node.Labels[PhysicalGpuCountNodeLabel]
@@ -114,19 +115,17 @@ func (info *NodeInfo) Reset(node *corev1.Node, _rate int) {
 		klog.Errorf("gpu count not found in node %s", node.Name)
 		return
 	}
-	count, err := strconv.Atoi(gpuCount)
+	newCount, err := strconv.Atoi(gpuCount)
 	if err != nil {
 		klog.Errorf("Failed to parse gpu count %v, err: %v", gpuCount, err)
 		return
 	}
-	info.gpuCount = count
 
-	gpuType, ok := node.Labels[PhysicalGpuTypeNodeLabel]
+	newGpuType, ok := node.Labels[PhysicalGpuTypeNodeLabel]
 	if !ok {
 		klog.Errorf("physical gpu type not found in node %s", node.Name)
 		return
 	}
-	info.gpuType = gpuType
 
 	memVal, ok := node.Labels[PhysicalGpuMemNodeLabel]
 	if !ok {
@@ -138,7 +137,22 @@ func (info *NodeInfo) Reset(node *corev1.Node, _rate int) {
 		klog.Errorf("Failed to parse physical gpu mem %v, err: %v", memVal, err)
 		return
 	}
-	info.gpuMem = int(float64(mem) / float64(1024))
+	newGpuMem := int(float64(mem) / float64(1024))
+
+	//当所有值都相等时，不更新
+	if info.isOversell == newIsOversell &&
+		info.oversellRate == newOversellRate &&
+		info.gpuCount == newCount &&
+		info.gpuType == newGpuType &&
+		info.gpuMem == newGpuMem {
+		return
+	}
+	info.isOversell = newIsOversell
+	info.oversellRate = newOversellRate
+	info.gpuCount = newCount
+	info.gpuType = newGpuType
+	info.gpuMem = newGpuMem
+	klog.Infof("Succeed update intelligent nodeInfo [%s] to intelligentCache", node.Name)
 }
 
 func (info *NodeInfo) Clone() *NodeInfo {
