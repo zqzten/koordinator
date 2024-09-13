@@ -3,7 +3,6 @@ package intelligentscheduler
 import (
 	//CRDs "code.alipay.com/cnstack/intelligent-operator/api/v1"
 	"context"
-	"fmt"
 	frameworkruntime "github.com/koordinator-sh/koordinator/pkg/descheduler/framework/runtime"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/intelligentscheduler/CRDs"
 	v1 "k8s.io/api/core/v1"
@@ -19,7 +18,6 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"math"
 	"reflect"
-	"strconv"
 	"sync"
 )
 
@@ -427,10 +425,10 @@ func (i *IntelligentScheduler) PreFilter(ctx context.Context, state *framework.C
 	// 确定是否需要处理该pod
 	needToHandle := IsMyPod(pod, i.resourceNames...)
 	if !needToHandle {
-		klog.Infof("pod %s/%s does not need to be scheduled", pod.Namespace, pod.Name)
+		klog.Infof("PreFilter: pod %s/%s does not need to be scheduled", pod.Namespace, pod.Name)
 		return framework.NewStatus(framework.Success, MsgNoNeedToHandlePod)
 	}
-	klog.Infof("Start to prefilter for pod %s/%s", pod.Namespace, pod.Name)
+	klog.Infof("Start to prefilter pod %s/%s", pod.Namespace, pod.Name)
 	// 获得pod指定的VGS种类和数量
 	vGpuCount, vGpuSpec, err := GetVirtualGPUCountAndSpec(pod)
 	if err != nil {
@@ -451,18 +449,18 @@ func (i *IntelligentScheduler) PreFilter(ctx context.Context, state *framework.C
 	i.saveVirtualGpuPodToCycleState(state, vGpuCount, vGpuSpec, string(pod.UID))
 	// 将该pod所对应的vgi names存入cyclestate
 	i.saveVgiToCycleState(state, vgiInfoNames, string(pod.UID))
-	klog.Infof("Succeed prefilter for pod %s/%s", pod.Namespace, pod.Name)
-	return nil
+	klog.Infof("Succeed prefilter pod %s/%s", pod.Namespace, pod.Name)
+	return framework.NewStatus(framework.Success)
 }
 
 func (i *IntelligentScheduler) AddPod(ctx context.Context, state *framework.CycleState, podToSchedule *v1.Pod, podToAdd *framework.PodInfo, nodeInfo *framework.NodeInfo) *framework.Status {
 	p := podToAdd.Pod
 	if !IsMyPod(p, i.resourceNames...) {
-		return framework.NewStatus(framework.Success, "")
+		return framework.NewStatus(framework.Success)
 	}
 	klog.Infof("Start to run intelligent AddPod function for pod %s/%s", podToAdd.Pod.Namespace, podToAdd.Pod.Name)
 	if p.Spec.NodeName == "" {
-		return framework.NewStatus(framework.Success, "")
+		return framework.NewStatus(framework.Success)
 	}
 
 	var nodeInfos *NodeInfo
@@ -491,17 +489,17 @@ func (i *IntelligentScheduler) AddPod(ctx context.Context, state *framework.Cycl
 		klog.Errorf("add pod %s/%s Failed, err: %v", podToAdd.Pod.Namespace, podToAdd.Pod.Name, err)
 		return framework.NewStatus(framework.Error, er.Error())
 	}
-	return framework.NewStatus(framework.Success, "")
+	return framework.NewStatus(framework.Success)
 }
 
 func (i *IntelligentScheduler) RemovePod(ctx context.Context, state *framework.CycleState, podToSchedule *v1.Pod, podToRemove *framework.PodInfo, nodeInfo *framework.NodeInfo) *framework.Status {
 	p := podToRemove.Pod
 	if !IsMyPod(p, i.resourceNames...) {
-		return framework.NewStatus(framework.Success, "")
+		return framework.NewStatus(framework.Success)
 	}
 	klog.Infof("Start to run intelligent RemovePod function, pod name %s", podToRemove.Pod.Name)
 	if p.Spec.NodeName == "" {
-		return framework.NewStatus(framework.Success, "")
+		return framework.NewStatus(framework.Success)
 	}
 
 	var vgiNames []string
@@ -527,7 +525,7 @@ func (i *IntelligentScheduler) RemovePod(ctx context.Context, state *framework.C
 	if err != nil {
 		return framework.NewStatus(framework.Error, err.Error())
 	}
-	return framework.NewStatus(framework.Success, "")
+	return framework.NewStatus(framework.Success)
 }
 
 func (i *IntelligentScheduler) PreFilterExtensions() framework.PreFilterExtensions {
@@ -537,29 +535,30 @@ func (i *IntelligentScheduler) PreFilterExtensions() framework.PreFilterExtensio
 func (i *IntelligentScheduler) Filter(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
 	needToHandle := IsMyPod(pod, i.resourceNames...)
 	if !needToHandle {
-		klog.Infof("Schedulling pod %s/%s, it is not need to handle", pod.Namespace, pod.Name)
-		return framework.NewStatus(framework.Success, "")
+		klog.Infof("Filter: pod %s/%s does not need to be scheduled", pod.Namespace, pod.Name)
+		return framework.NewStatus(framework.Success)
 	}
+	klog.Infof("Start to filter pod %s/%s", pod.Namespace, pod.Name)
 	node := nodeInfo.Node()
 	if node == nil {
-		klog.Infof("Schedulling pod %s/%s, a node not found, it may be deleted", pod.Namespace, pod.Name)
-		return framework.NewStatus(framework.Unschedulable, "node not found")
+		klog.Infof("Filter pod %s/%s, a node not found, it may be deleted", pod.Namespace, pod.Name)
+		return framework.NewStatus(framework.Unschedulable, "node(s) not found")
 	}
 	nodeName := node.Name
 	// 判断node是否为智算node
 	ok := i.cache.getIntelligentNode(nodeName)
 	if !ok {
-		klog.Infof("Schedulling pod %s/%s, node %s is not an intelligent scheduled node", pod.Namespace, pod.Name, nodeName)
-		return framework.NewStatus(framework.Unschedulable, "node is not an intelligent scheduled node")
+		klog.Infof("Filter pod %s/%s, node %s is not an intelligent scheduled node", pod.Namespace, pod.Name, nodeName)
+		return framework.NewStatus(framework.Unschedulable, "node(s) is not intelligent scheduler node")
 	}
 	var nodeInfos *NodeInfo
 	// 从cache中获得node资源信息
 	ns, err := i.getNodeStateFromCycleState(state, nodeName) // 尝试从cycleState中取state
 	if err != nil {
-		klog.Warningf("Schedulling pod %s/%s, failed to get node %s info from cycleState, error is %v", pod.Namespace, pod.Name, nodeName, err)
+		klog.Warningf("Filter pod %s/%s, cannt to get nodeInfo %s from cycleState, error is %v, it will be get from cache", pod.Namespace, pod.Name, nodeName, err)
 		nodeInfos = i.cache.getNodeInfo(nodeName) // 转为从cache中取
 		if nodeInfos == nil {
-			klog.Errorf("Schedulling pod %s/%s, failed to get node %s info from cache", pod.Namespace, pod.Name, nodeName)
+			klog.Errorf("Filter pod %s/%s, cannt to get nodeInfo %s from intelligentCache", pod.Namespace, pod.Name, nodeName)
 			return framework.NewStatus(framework.Error, "Failed to get node info from cache or cycleState")
 		}
 	} else {
@@ -568,13 +567,13 @@ func (i *IntelligentScheduler) Filter(ctx context.Context, state *framework.Cycl
 	// 获得pod请求资源情况
 	vGpuPodState, err := i.getVirtualGpuPodStateFromCycleState(state, string(pod.UID))
 	if err != nil {
-		klog.Errorf("Schedulling pod %s/%s, get vGPU pod state failed, error is %v", pod.Namespace, pod.Name, err)
+		klog.Errorf("Filter pod %s/%s, get vGPU pod state failed, error is %v", pod.Namespace, pod.Name, err)
 		return framework.NewStatus(framework.Error, err.Error())
 	}
 	var vgiNames []string
 	vgiState, err := i.getVgiStateFromCycleState(state, string(pod.UID))
 	if err != nil {
-		klog.Warningf("Schedulling pod %s/%s, get vgi failed, error is %v, it will be get from cache", pod.Namespace, pod.Name, err)
+		klog.Warningf("Filter pod %s/%s, get vgi failed, error is %v, it will be get from cache", pod.Namespace, pod.Name, err)
 		vgiNames = i.cache.getVgiInfoNamesByPod(pod)
 	} else {
 		vgiNames = vgiState.getVgiNames()
@@ -582,18 +581,20 @@ func (i *IntelligentScheduler) Filter(ctx context.Context, state *framework.Cycl
 	// 判断node是否满足pod需求
 	available := i.isAvailableNodeForPod(nodeName, nodeInfos, vGpuPodState, vgiNames)
 	if !available {
-		klog.Infof("Schedulling pod %s/%s, node %s is not available for pod due to the GPU resources", pod.Namespace, pod.Name, nodeName)
-		return framework.NewStatus(framework.Unschedulable, "node is not available for pod due to the GPU resources")
+		klog.Infof("Filter pod %s/%s, node %s is not available for pod due to the GPU resources", pod.Namespace, pod.Name, nodeName)
+		return framework.NewStatus(framework.Unschedulable, "node(s) is not available for pod due to the GPU resources")
 	}
-	klog.Infof("Schedulling pod %s/%s, node %s is available", pod.Namespace, pod.Name, nodeName)
+	klog.Infof("Succeed filter pod %s/%s, node %s is available", pod.Namespace, pod.Name, nodeName)
 	return framework.NewStatus(framework.Success)
 }
 
 func (i *IntelligentScheduler) Score(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (int64, *framework.Status) {
 	needToHandle := IsMyPod(pod, i.resourceNames...)
 	if !needToHandle {
-		return int64(0), framework.NewStatus(framework.Success, "")
+		klog.Infof("Score: pod %s/%s does not need to be scheduled", pod.Namespace, pod.Name)
+		return int64(0), framework.NewStatus(framework.Success)
 	}
+	klog.Infof("Start score node %s for pod %s/%s", nodeName, pod.Namespace, pod.Name)
 	var vgiNames []string
 	// 获得pod拥有的vgi names
 	vgiState, err := i.getVgiStateFromCycleState(state, string(pod.UID))
@@ -613,7 +614,8 @@ func (i *IntelligentScheduler) Score(ctx context.Context, state *framework.Cycle
 	// 计算node score
 	score := i.engine.calculateNodeScore(i.cache, nodeName, nodeInfos, vgiNames)
 	score = math.Max(math.Min(score, float64(framework.MaxNodeScore)), float64(framework.MinNodeScore))
-	return int64(score), framework.NewStatus(framework.Success, "")
+	klog.Infof("Success score node %s for pod %s/%s", nodeName, pod.Namespace, pod.Name)
+	return int64(score), framework.NewStatus(framework.Success)
 }
 
 func (i *IntelligentScheduler) ScoreExtensions() framework.ScoreExtensions {
@@ -624,7 +626,7 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 	klog.Infof("Start reserve pod %s/%s to node %s", pod.Namespace, pod.Name, nodeName)
 	needToHandle := IsMyPod(pod, i.resourceNames...)
 	if !needToHandle {
-		return framework.NewStatus(framework.Success, "")
+		return framework.NewStatus(framework.Success)
 	}
 	var requestGpuCount int
 	podState, err := i.getVirtualGpuPodStateFromCycleState(state, string(pod.UID))
@@ -706,14 +708,15 @@ func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.Cyc
 	}
 
 	i.saveNodeToCycleState(state, nodeInfos, nodeName)
-	klog.Infof("Scheduled pod %s/%s on node %s successfully", pod.Namespace, pod.Name, nodeName)
-	return framework.NewStatus(framework.Success, "")
+	klog.Infof("Success reserve pod %s/%s to node %s", pod.Namespace, pod.Name, nodeName)
+	return framework.NewStatus(framework.Success)
 }
 
 func (i *IntelligentScheduler) Unreserve(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) {
 	if !IsMyPod(pod, i.resourceNames...) {
 		return
 	}
+	klog.Infof("Start unreserve pod %s/%s to node %s", pod.Namespace, pod.Name, nodeName)
 	if !i.cache.getIntelligentNode(nodeName) {
 		klog.Infof("Reserving pod %s/%s, node %s is not an intelligent node in cache", pod.Namespace, pod.Name, nodeName)
 		return
@@ -745,93 +748,4 @@ func (i *IntelligentScheduler) Unreserve(ctx context.Context, state *framework.C
 		pod.Namespace,
 		pod.Name,
 		nodeName)
-}
-
-func (i *IntelligentScheduler) handleAddOrUpdateCM(cm *v1.ConfigMap) error {
-	data := cm.Data
-	nodeSelectorPolicy, ok := data["nodeSelectorPolicy"]
-	if !ok {
-		return fmt.Errorf("missing nodeSelectorPolicy in configmap")
-	}
-	gpuSelectorPolicy, ok := data["gpuSelectorPolicy"]
-	if !ok {
-		return fmt.Errorf("missing gpuSelectorPolicy in configmap")
-	}
-	oversellRateStr, ok := data["oversellRate"]
-	if !ok {
-		return fmt.Errorf("missing oversellRate in configmap")
-	}
-	oversellRate, err := strconv.Atoi(oversellRateStr)
-	if err != nil {
-		return err
-	}
-	gpuMemoryScoreWeightStr, ok := data["gpuMemoryScoreWeight"]
-	if !ok {
-		return fmt.Errorf("missing gpuMemoryScoreWeight in configmap")
-	}
-	gpuMemoryScoreWeight, err := strconv.Atoi(gpuMemoryScoreWeightStr)
-	if err != nil {
-		return err
-	}
-	gpuUtilizationScoreWeightStr, ok := data["gpuUtilizationScoreWeight"]
-	if !ok {
-		return fmt.Errorf("missing gpuUtilizationScoreWeight in configmap")
-	}
-	gpuUtilizationScoreWeight, err := strconv.Atoi(gpuUtilizationScoreWeightStr)
-	if err != nil {
-		return err
-	}
-	if !(gpuMemoryScoreWeight >= 0 && gpuMemoryScoreWeight <= 100 && gpuUtilizationScoreWeight >= 0 && gpuUtilizationScoreWeight <= 100 && gpuMemoryScoreWeight+gpuUtilizationScoreWeight == 100) {
-		return fmt.Errorf("invalid GPU score weight")
-	}
-	if !(gpuSelectorPolicy == "spread" || gpuSelectorPolicy == "binpack") {
-		return fmt.Errorf("invalid GPU selector policy. It should be 'spread' or 'binpack'")
-	}
-	if !(nodeSelectorPolicy == "spread" || nodeSelectorPolicy == "binpack") {
-		return fmt.Errorf("invalid node selector policy. It should be 'spread' or 'binpack'")
-	}
-	i.engine = NewIntelligentSchedulerRuntime(IntelligentSchedulerName, nodeSelectorPolicy, gpuSelectorPolicy, gpuMemoryScoreWeight, gpuUtilizationScoreWeight)
-	i.oversellRate = oversellRate
-	return nil
-}
-
-func (i *IntelligentScheduler) isAvailableNodeForPod(nodeName string, nodeInfos *NodeInfo, vGpuPodState *VirtualGpuPodState, vgiNames []string) bool {
-	requestVGpuCount := vGpuPodState.getCount()
-	requestVGpuSpec := vGpuPodState.getSpec()
-	// 判断总数量是否满足
-	if requestVGpuCount > nodeInfos.getGpuCount() {
-		return false
-	}
-	// 判断物理规格是否满足
-	vgs := i.cache.getVgsInfo(requestVGpuSpec)
-	requestPGpuSpecs := vgs.getPhysicalGpuSpecifications()
-	ok := false
-	for _, spec := range requestPGpuSpecs {
-		if spec.getName() == nodeInfos.getGpuType() {
-			ok = true
-		}
-	}
-	if len(requestPGpuSpecs) == 0 || (len(requestPGpuSpecs) == 1 && requestPGpuSpecs[0].getName() == "") {
-		ok = true
-	}
-	if !ok {
-		return false
-	}
-	vgi := i.cache.getVgiInfo(vgiNames[0]).Clone()
-	oversellRate := nodeInfos.getOversellRate()
-	// 判断available数量是否满足
-	nodeGpuState, totalMem := getNodeGpuState(nodeName, nodeInfos, i.cache)
-	availableGpuCount := 0
-	for idx := 0; idx < nodeInfos.getGpuCount(); idx++ {
-		available, _, _ := isAvailableForVgi(i.cache, nodeGpuState[idx], vgi, totalMem, oversellRate)
-		if available {
-			availableGpuCount++
-		}
-	}
-	if availableGpuCount >= requestVGpuCount {
-		return true
-	} else {
-		klog.Infof("node %s has available gpus[%d] are fewer than the requested[%d]", nodeName, availableGpuCount, requestVGpuCount)
-		return false
-	}
 }
