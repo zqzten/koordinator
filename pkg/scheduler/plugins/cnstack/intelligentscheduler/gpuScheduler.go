@@ -5,6 +5,7 @@ import (
 	"context"
 	frameworkruntime "github.com/koordinator-sh/koordinator/pkg/descheduler/framework/runtime"
 	"github.com/koordinator-sh/koordinator/pkg/scheduler/plugins/cnstack/intelligentscheduler/CRDs"
+	reservationutil "github.com/koordinator-sh/koordinator/pkg/util/reservation"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -16,7 +17,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
-	"math"
+	pluginhelper "k8s.io/kubernetes/pkg/scheduler/framework/plugins/helper"
 	"reflect"
 	"sync"
 )
@@ -613,13 +614,20 @@ func (i *IntelligentScheduler) Score(ctx context.Context, state *framework.Cycle
 	}
 	// 计算node score
 	score := i.engine.calculateNodeScore(i.cache, nodeName, nodeInfos, vgiNames)
-	score = math.Max(math.Min(score, float64(framework.MaxNodeScore)), float64(framework.MinNodeScore))
+	// score = math.Max(math.Min(score, float64(framework.MaxNodeScore)), float64(framework.MinNodeScore))
 	klog.Infof("Success score node %s for pod %s/%s", nodeName, pod.Namespace, pod.Name)
 	return int64(score), framework.NewStatus(framework.Success)
 }
 
 func (i *IntelligentScheduler) ScoreExtensions() framework.ScoreExtensions {
 	return nil
+}
+
+func (i *IntelligentScheduler) NormalizeScore(ctx context.Context, state *framework.CycleState, pod *v1.Pod, scores framework.NodeScoreList) *framework.Status {
+	if reservationutil.IsReservePod(pod) {
+		return nil
+	}
+	return pluginhelper.DefaultNormalizeScore(framework.MaxNodeScore, false, scores)
 }
 
 func (i *IntelligentScheduler) Reserve(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) *framework.Status {
