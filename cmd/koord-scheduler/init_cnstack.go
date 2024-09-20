@@ -43,6 +43,7 @@ func init() {
 	koordinatorPlugins[gpushare.GPUShareName] = newlicense.Register(
 		gpushare.GPUShareName,
 		gpushare.New,
+		intelligentscheduler.GPUShareCrdCondition,
 		newextender.GPUShareLicenseCheckFunc,
 		newextender.GPUShareResponsibleForPodFunc,
 	) // 智算平台该调度器可删
@@ -51,6 +52,7 @@ func init() {
 	koordinatorPlugins[intelligentscheduler.IntelligentSchedulerName] = newlicense.Register(
 		intelligentscheduler.IntelligentSchedulerName,
 		intelligentscheduler.New,
+		intelligentscheduler.IntelligentSchedulerCrdCondition,
 		newextender.GPUShareLicenseCheckFunc,
 		newextender.GPUShareResponsibleForPodFunc,
 	)

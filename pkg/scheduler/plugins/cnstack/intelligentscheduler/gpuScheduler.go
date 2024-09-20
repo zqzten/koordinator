@@ -49,6 +49,17 @@ const (
 
 var once sync.Once
 
+var VgsGvr = schema.GroupVersionResource{
+	Group:    IntelligentGroupName,
+	Version:  IntelligentVersion,
+	Resource: VgsResourceName,
+}
+var VgiGvr = schema.GroupVersionResource{
+	Group:    IntelligentGroupName,
+	Version:  IntelligentVersion,
+	Resource: VgiResourceName,
+}
+
 type IntelligentScheduler struct {
 	resourceNames []v1.ResourceName
 	engine        *IntelligentSchedulerRuntime
@@ -128,16 +139,7 @@ func (i *IntelligentScheduler) Name() string {
 
 func (i *IntelligentScheduler) Init() error {
 	klog.Infoln("Start to init gpu-intelligent-scheduler plugin")
-	vgsGvr := schema.GroupVersionResource{
-		Group:    IntelligentGroupName,
-		Version:  IntelligentVersion,
-		Resource: VgsResourceName,
-	}
-	vgiGvr := schema.GroupVersionResource{
-		Group:    IntelligentGroupName,
-		Version:  IntelligentVersion,
-		Resource: VgiResourceName,
-	}
+
 	// informer
 	once.Do(func() {
 		stop := make(chan struct{})
@@ -273,7 +275,7 @@ func (i *IntelligentScheduler) Init() error {
 		})
 		// TODO 更新频率
 		factory := dynamicinformer.NewDynamicSharedInformerFactory(i.client, 0)
-		vgsInformer := factory.ForResource(vgsGvr).Informer()
+		vgsInformer := factory.ForResource(VgsGvr).Informer()
 		vgsInformer.AddEventHandler(
 			cache.FilteringResourceEventHandler{
 				FilterFunc: func(obj interface{}) bool {
@@ -346,7 +348,7 @@ func (i *IntelligentScheduler) Init() error {
 				},
 			})
 
-		vgiInformer := factory.ForResource(vgiGvr).Informer()
+		vgiInformer := factory.ForResource(VgiGvr).Informer()
 		vgiInformer.AddEventHandler(cache.FilteringResourceEventHandler{
 			FilterFunc: func(obj interface{}) bool {
 				switch t := obj.(type) {

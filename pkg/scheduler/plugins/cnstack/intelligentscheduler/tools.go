@@ -4,6 +4,7 @@ package intelligentscheduler
 
 import (
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 )
 
@@ -55,4 +56,31 @@ func GetVGpuInstanceStateKey(podUID string) framework.StateKey {
 
 func GetNodeStateKey(nodeName string) framework.StateKey {
 	return framework.StateKey(nodeName + NODE_STATE)
+}
+
+func CheckCrdExist(handle framework.Handle, gvr string) bool {
+	crdList, err := handle.ClientSet().Discovery().ServerResourcesForGroupVersion(gvr)
+	if err != nil {
+		klog.V(6).Infof("resources %s not found in discovery: %s", gvr, err)
+		return false
+	}
+	return len(crdList.APIResources) > 0
+}
+
+func IntelligentSchedulerCrdCondition(handle framework.Handle) bool {
+	if !CheckCrdExist(handle, VgsGvr.String()) {
+		klog.V(4).Infof("resources %s not found", VgsGvr.String())
+		return false
+	}
+
+	if !CheckCrdExist(handle, VgiGvr.String()) {
+		klog.V(4).Infof("resources %s not found", VgiGvr.String())
+		return false
+	}
+	return true
+}
+
+func GPUShareCrdCondition(handle framework.Handle) bool {
+	// GPUShare不需要校验CRD
+	return true
 }

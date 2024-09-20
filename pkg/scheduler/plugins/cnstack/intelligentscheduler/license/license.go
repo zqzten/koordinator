@@ -36,7 +36,7 @@ const (
 	preFilterStateKey = "PreFilterLicenseData"
 )
 
-type LicenseCheckFunc func(handle framework.Handle) bool
+type ConditionFunc func(handle framework.Handle) bool
 type ResponsibleForPodFunc func(handle framework.Handle, pod *corev1.Pod) bool
 
 type licenseData struct {
@@ -51,14 +51,15 @@ func (ld *licenseData) Clone() framework.StateData {
 
 type LicensePlugin struct {
 	sync.RWMutex
-	name        string
-	condition   LicenseCheckFunc
-	responsible ResponsibleForPodFunc
-	factory     frameworkruntime.PluginFactory
-	args        runtime.Object
-	handle      framework.Handle
-	plugin      framework.Plugin
-	license     bool
+	name             string
+	licenseCondition ConditionFunc
+	crdCondition     ConditionFunc
+	responsible      ResponsibleForPodFunc
+	factory          frameworkruntime.PluginFactory
+	args             runtime.Object
+	handle           framework.Handle
+	plugin           framework.Plugin
+	license          bool
 }
 
 var _ framework.PreFilterPlugin = &LicensePlugin{}
@@ -76,15 +77,16 @@ var _ frameworkext.FilterTransformer = &LicensePlugin{}
 var _ frameworkext.ScoreTransformer = &LicensePlugin{}
 
 // LicensePlugin supports license check of Scheduler Plugin
-func Register(name string, factory frameworkruntime.PluginFactory, condition LicenseCheckFunc, responsible ResponsibleForPodFunc) frameworkruntime.PluginFactory {
+func Register(name string, factory frameworkruntime.PluginFactory, licenseCondition, crdCondition ConditionFunc, responsible ResponsibleForPodFunc) frameworkruntime.PluginFactory {
 	return func(obj runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 		lp := &LicensePlugin{
-			name:        name,
-			condition:   condition,
-			responsible: responsible,
-			factory:     factory,
-			args:        obj,
-			handle:      handle,
+			name:             name,
+			licenseCondition: licenseCondition,
+			crdCondition:     crdCondition,
+			responsible:      responsible,
+			factory:          factory,
+			args:             obj,
+			handle:           handle,
 		}
 		p, err := lp.factory(lp.args, lp.handle)
 		if err != nil {
@@ -99,8 +101,16 @@ func Register(name string, factory frameworkruntime.PluginFactory, condition Lic
 }
 
 func (lp *LicensePlugin) start() {
-	err := wait.PollImmediateInfinite(3*time.Minute, func() (done bool, err error) {
-		license := lp.condition(lp.handle)
+	err := wait.PollUntil(5*time.Second, func() (done bool, err error) {
+		klog.V(6).Infof("lazy load plugin %q run ConditionFunc", lp.name)
+		return lp.crdCondition(lp.handle), nil
+	}, context.TODO().Done())
+	if err != nil {
+		klog.Fatalf("lazy load initializing plugin %q error: %v", lp.name, err)
+	}
+
+	err = wait.PollImmediateInfinite(3*time.Minute, func() (done bool, err error) {
+		license := lp.licenseCondition(lp.handle)
 		lp.Lock()
 		lp.license = license
 		lp.Unlock()
