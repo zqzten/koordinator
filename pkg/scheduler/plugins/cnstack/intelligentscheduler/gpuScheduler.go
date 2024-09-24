@@ -47,18 +47,22 @@ const (
 	NameSpace            = "intelligent-computing"
 )
 
-var once sync.Once
+var (
+	once sync.Once
 
-var VgsGvr = schema.GroupVersionResource{
-	Group:    IntelligentGroupName,
-	Version:  IntelligentVersion,
-	Resource: VgsResourceName,
-}
-var VgiGvr = schema.GroupVersionResource{
-	Group:    IntelligentGroupName,
-	Version:  IntelligentVersion,
-	Resource: VgiResourceName,
-}
+	license *License
+
+	VgsGvr = schema.GroupVersionResource{
+		Group:    IntelligentGroupName,
+		Version:  IntelligentVersion,
+		Resource: VgsResourceName,
+	}
+	VgiGvr = schema.GroupVersionResource{
+		Group:    IntelligentGroupName,
+		Version:  IntelligentVersion,
+		Resource: VgiResourceName,
+	}
+)
 
 type IntelligentScheduler struct {
 	resourceNames []v1.ResourceName
@@ -139,6 +143,12 @@ func (i *IntelligentScheduler) Name() string {
 
 func (i *IntelligentScheduler) Init() error {
 	klog.Infoln("Start to init gpu-intelligent-scheduler plugin")
+	// 初始化license
+	once.Do(func() {
+		license = InitLicense()
+	})
+	//后台刷新license
+	go license.RefreshLicense()
 
 	// informer
 	once.Do(func() {
@@ -425,6 +435,11 @@ func (i *IntelligentScheduler) Init() error {
 }
 
 func (i *IntelligentScheduler) PreFilter(ctx context.Context, state *framework.CycleState, pod *v1.Pod) *framework.Status {
+	klog.V(2).Infoln("Verifying the legality of license")
+	if !license.CheckLicenseLegality() {
+		klog.Errorf("License is not legality: %+v", license)
+		return framework.NewStatus(framework.UnschedulableAndUnresolvable, "License is not legal")
+	}
 	// 确定是否需要处理该pod
 	needToHandle := IsMyPod(pod, i.resourceNames...)
 	if !needToHandle {

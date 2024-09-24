@@ -49,11 +49,9 @@ func init() {
 	) // 智算平台该调度器可删
 	koordinatorPlugins[gputopology.GPUTopologyName] = gputopology.New // 智算平台该调度器可删
 	koordinatorPlugins[gpuoversell.GPUOversellName] = gpuoversell.New // 智算平台该调度器可删
-	koordinatorPlugins[intelligentscheduler.IntelligentSchedulerName] = newlicense.Register(
+	koordinatorPlugins[intelligentscheduler.IntelligentSchedulerName] = lazyload.Register(
 		intelligentscheduler.IntelligentSchedulerName,
 		intelligentscheduler.New,
 		intelligentscheduler.IntelligentSchedulerCrdCondition,
-		newextender.GPUShareLicenseCheckFunc,
-		newextender.GPUShareResponsibleForPodFunc,
 	)
 }
