@@ -62,6 +62,11 @@ var (
 		Version:  IntelligentVersion,
 		Resource: VgiResourceName,
 	}
+
+	Gv = schema.GroupVersion{
+		Group:   IntelligentGroupName,
+		Version: IntelligentVersion,
+	}
 )
 
 type IntelligentScheduler struct {

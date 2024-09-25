@@ -58,25 +58,21 @@ func GetNodeStateKey(nodeName string) framework.StateKey {
 	return framework.StateKey(nodeName + NODE_STATE)
 }
 
-func CheckCrdExist(handle framework.Handle, gvr string) bool {
-	crdList, err := handle.ClientSet().Discovery().ServerResourcesForGroupVersion(gvr)
+func CheckCrdExist(handle framework.Handle, gv string) bool {
+	crdList, err := handle.ClientSet().Discovery().ServerResourcesForGroupVersion(gv)
 	if err != nil {
-		klog.V(6).Infof("resources %s not found in discovery: %s", gvr, err)
+		klog.V(6).Infof("resources %s not found in discovery: %s", gv, err)
 		return false
 	}
 	return len(crdList.APIResources) > 0
 }
 
 func IntelligentSchedulerCrdCondition(handle framework.Handle) bool {
-	if !CheckCrdExist(handle, VgsGvr.String()) {
-		klog.V(4).Infof("resources %s not found", VgsGvr.String())
+	if !CheckCrdExist(handle, Gv.String()) {
+		klog.Infof("resources %s not found", VgsGvr.String())
 		return false
 	}
 
-	if !CheckCrdExist(handle, VgiGvr.String()) {
-		klog.V(4).Infof("resources %s not found", VgiGvr.String())
-		return false
-	}
 	return true
 }
 
