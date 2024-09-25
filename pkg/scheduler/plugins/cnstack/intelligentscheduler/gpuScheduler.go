@@ -148,15 +148,12 @@ func (i *IntelligentScheduler) Name() string {
 
 func (i *IntelligentScheduler) Init() error {
 	klog.Infoln("Start to init gpu-intelligent-scheduler plugin")
-	// 初始化license
-	once.Do(func() {
-		license = InitLicense()
-	})
-	//后台刷新license
-	go license.RefreshLicense()
-
 	// informer
 	once.Do(func() {
+		// 初始化license后台刷新
+		license = InitLicense()
+		go license.RefreshLicense()
+
 		stop := make(chan struct{})
 		nodes, err := i.handle.SharedInformerFactory().Core().V1().Nodes().Lister().List(labels.Everything())
 		if err != nil {
