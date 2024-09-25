@@ -63,7 +63,7 @@ var (
 		Resource: VgiResourceName,
 	}
 
-	Gv = schema.GroupVersion{
+	IntelligentGv = schema.GroupVersion{
 		Group:   IntelligentGroupName,
 		Version: IntelligentVersion,
 	}

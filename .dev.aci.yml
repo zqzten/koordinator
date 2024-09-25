@@ -70,7 +70,7 @@ jobs:
       sourceRegistryUsername: ${{secrets.username}} # 源镜像仓库用户名
       sourceRegistryPassword: ${{secrets.password}} # 源镜像仓库用户密码
       sourceRegistryInsecure: null # 源镜像仓库不做 tls 安全校验时传 true，默认 false
-      targetImage: ant-cnstack-registry.cn-hangzhou.cr.aliyuncs.com/antcnstack/intelligent-computing-scheduler:${{vcs.commitShortSha}} # 目标镜像名
+      targetImage: ant-cnstack-registry.cn-hangzhou.cr.aliyuncs.com/antcnstack/koord-scheduler:${{vcs.commitShortSha}} # 目标镜像名
       targetRegistryUsername: ${{secrets.username_acr}} # 目标镜像仓库用户名
       targetRegistryPassword: ${{secrets.password_acr}} # 目标像仓库用户密码
       targetRegistryInsecure: null # 目标镜像仓库不做 tls 安全校验时传 true，默认 false

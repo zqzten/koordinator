@@ -4,6 +4,7 @@ package intelligentscheduler
 
 import (
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 )
@@ -58,21 +59,32 @@ func GetNodeStateKey(nodeName string) framework.StateKey {
 	return framework.StateKey(nodeName + NODE_STATE)
 }
 
-func CheckCrdExist(handle framework.Handle, gv string) bool {
-	crdList, err := handle.ClientSet().Discovery().ServerResourcesForGroupVersion(gv)
-	if err != nil {
-		klog.V(6).Infof("resources %s not found in discovery: %s", gv, err)
-		return false
-	}
-	return len(crdList.APIResources) > 0
-}
-
 func IntelligentSchedulerCrdCondition(handle framework.Handle) bool {
-	if !CheckCrdExist(handle, Gv.String()) {
-		klog.Infof("resources %s not found", VgsGvr.String())
+	crdList, err := handle.ClientSet().Discovery().ServerResourcesForGroupVersion(IntelligentGv.String())
+	if err != nil {
+		klog.Warningf("resources %v not found in discovery: %v", IntelligentGv, err)
 		return false
 	}
+	klog.V(5).Infof("group resources %v found in discovery: %v", IntelligentGv, crdList.APIResources)
 
+	dependentGvr := []schema.GroupVersionResource{
+		VgsGvr,
+		VgiGvr, // 这里添加调度器依赖的所有crd
+	}
+	for _, gvr := range dependentGvr {
+		isExist := false
+		for _, r := range crdList.APIResources {
+			if gvr.Resource == r.Name {
+				isExist = true // 找到了匹配的资源
+			}
+		}
+		if !isExist {
+			klog.Warningf("dependentGvr %v missing crd: %s", dependentGvr, gvr.Resource)
+			return false
+		}
+
+	}
+	klog.Infoln("all dependent resources found in discovery crdList")
 	return true
 }
 
